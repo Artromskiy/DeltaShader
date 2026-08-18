@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "dependencies": {
+    "net10.0": {
+      "glsh.abstractions": {
+        "type": "Project"
+      },
+      "kibihex.maths": {
+        "type": "Project"
+      }
+    }
+  }
+}

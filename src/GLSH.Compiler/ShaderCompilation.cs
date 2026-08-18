@@ -1,0 +1,35 @@
+using System.Collections.Generic;
+using DVG.Shaders.Compiler.IR;
+
+namespace DVG.Shaders.Compiler;
+
+public sealed class ShaderCompilationResult
+{
+    public ShaderCompilationResult(
+        string entryPointName,
+        bool success,
+        IReadOnlyList<GlshDiagnostic> diagnostics,
+        ShaderIrModule? module = null)
+    {
+        EntryPointName = entryPointName;
+        Success = success;
+        Diagnostics = diagnostics;
+        Module = module;
+        Manifest = success && module is not null ? ShaderManifest.FromModule(module) : null;
+    }
+
+    public string EntryPointName { get; }
+    public bool Success { get; }
+    public IReadOnlyList<GlshDiagnostic> Diagnostics { get; }
+    public ShaderIrModule? Module { get; }
+    public ShaderManifest? Manifest { get; }
+}
+
+public sealed record ShaderCompilationOptions
+{
+    public static readonly ShaderCompilationOptions Default = new();
+
+    public string Profile { get; init; } = "vulkan1.2";
+    public string Spirv { get; init; } = "1.5";
+    public string Glsl { get; init; } = "450";
+}
