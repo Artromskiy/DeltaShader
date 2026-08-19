@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Delta.Shader.Abstractions;
 
 namespace Delta.Shader.Compiler.IR;
 
@@ -78,6 +79,45 @@ public sealed class ShaderManifest
             LocalSizeX = module.LocalSizeX,
             LocalSizeY = module.LocalSizeY,
             LocalSizeZ = module.LocalSizeZ,
+            Resources = resources
+        };
+    }
+
+    public ShaderAbiManifest ToAbiManifest(ShaderCompilationOptions options)
+    {
+        var resources = new List<ShaderAbiResource>(Resources.Count);
+        foreach (var resource in Resources)
+        {
+            resources.Add(new ShaderAbiResource
+            {
+                Name = resource.Name,
+                ParameterName = resource.ParameterName,
+                Category = resource.Category,
+                Set = resource.Set,
+                Binding = resource.Binding,
+                GlslType = resource.GlslType,
+                Access = resource.ReadOnly ? ShaderResourceAccess.ReadOnly : ShaderResourceAccess.ReadWrite,
+                Layout = resource.Layout,
+                Offset = resource.Offset,
+                Alignment = resource.Alignment,
+                Size = resource.Size,
+                ArrayStride = resource.ArrayStride,
+                MatrixStride = resource.MatrixStride
+            });
+        }
+
+        return new ShaderAbiManifest
+        {
+            Version = ShaderAbiManifest.CurrentVersion,
+            Stage = ShaderStage.Compute,
+            EntryPointName = EntryPointName,
+            TargetProfile = options.Profile,
+            GlslVersion = options.Glsl,
+            SpirvVersion = options.Spirv,
+            StorageLayout = StorageLayout,
+            LocalSizeX = LocalSizeX,
+            LocalSizeY = LocalSizeY,
+            LocalSizeZ = LocalSizeZ,
             Resources = resources
         };
     }

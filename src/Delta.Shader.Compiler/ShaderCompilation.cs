@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Delta.Shader.Abstractions;
 using Delta.Shader.Compiler.IR;
 
 namespace Delta.Shader.Compiler;
@@ -9,13 +10,15 @@ public sealed class ShaderCompilationResult
         string entryPointName,
         bool success,
         IReadOnlyList<ShaderDiagnostic> diagnostics,
-        ShaderIrModule? module = null)
+        ShaderIrModule? module = null,
+        ShaderCompilationOptions? options = null)
     {
         EntryPointName = entryPointName;
         Success = success;
         Diagnostics = diagnostics;
         Module = module;
         Manifest = success && module is not null ? ShaderManifest.FromModule(module) : null;
+        AbiManifest = Manifest?.ToAbiManifest(options ?? ShaderCompilationOptions.Default);
     }
 
     public string EntryPointName { get; }
@@ -23,6 +26,7 @@ public sealed class ShaderCompilationResult
     public IReadOnlyList<ShaderDiagnostic> Diagnostics { get; }
     public ShaderIrModule? Module { get; }
     public ShaderManifest? Manifest { get; }
+    public ShaderAbiManifest? AbiManifest { get; }
 }
 
 public sealed record ShaderCompilationOptions

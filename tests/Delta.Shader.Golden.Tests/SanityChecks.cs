@@ -1,3 +1,4 @@
+using Delta.Shader.Abstractions;
 using Delta.Shader.Compiler;
 using Delta.Shader.Compiler.IR;
 using Delta.Shader.Backend.Glsl;
@@ -131,5 +132,47 @@ public class SanityChecks
         Assert.Equal(16u, mat3.Alignment);
         Assert.Equal(16u, mat3.MatrixStride);
         Assert.Equal(48u, mat3.ArrayStride);
+    }
+
+    [Fact]
+    public void RuntimeArtifactContract_PreservesVersionStageAndKnownAbiMetadata()
+    {
+        var module = new ShaderIrModule
+        {
+            EntryPointName = "ComputeMain",
+            LocalSizeX = 8,
+            LocalSizeY = 1,
+            LocalSizeZ = 1,
+            Resources =
+            [
+                new ShaderIrResource
+                {
+                    Name = "values",
+                    ParameterName = "values",
+                    Category = "storage-buffer",
+                    Set = 2,
+                    Binding = 3,
+                    GlslType = "vec3",
+                    ReadOnly = false
+                }
+            ]
+        };
+
+        var abi = ShaderManifest.FromModule(module).ToAbiManifest(ShaderCompilationOptions.Default);
+        var artifact = new ShaderArtifact(new byte[] { 3, 2, 35, 7 }, abi);
+
+        Assert.Equal(ShaderArtifact.CurrentFormatVersion, artifact.FormatVersion);
+        Assert.Equal(ShaderStage.Compute, artifact.Stage);
+        Assert.Equal("ComputeMain", artifact.EntryPoint);
+        Assert.Equal(ShaderAbiManifest.CurrentVersion, artifact.Manifest.Version);
+        Assert.Equal("vulkan1.2", artifact.Manifest.TargetProfile);
+        Assert.Equal("460", artifact.Manifest.GlslVersion);
+        Assert.Equal("std430", artifact.Manifest.StorageLayout);
+        Assert.Equal(2u, artifact.Manifest.Resources[0].Set);
+        Assert.Equal(3u, artifact.Manifest.Resources[0].Binding);
+        Assert.Equal(ShaderResourceAccess.ReadWrite, artifact.Manifest.Resources[0].Access);
+        Assert.Equal(16u, artifact.Manifest.Resources[0].Alignment);
+        Assert.Equal(16u, artifact.Manifest.Resources[0].ArrayStride);
+        Assert.Equal(12u, artifact.Manifest.Resources[0].Size);
     }
 }

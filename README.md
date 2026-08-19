@@ -5,8 +5,10 @@ Vulkan. Пользователь пишет обычные статически�
 shader-like API из `Delta.Maths`, а Delta.Shader проверяет код через Roslyn и выпускает
 SPIR-V вместе с описанием ресурсов шейдера.
 
-Этот каталог пока содержит только технический план. Код следует писать
-поэтапно, не создавая заранее пустые проекты для поздних backend-ов.
+Первый runtime-neutral artifact slice уже реализован. Tool/host компилирует
+проект через Roslyn, печатает Vulkan GLSL 460/std430, вызывает
+`glslangValidator` и `spirv-val`, а затем выпускает `.spv` и versioned
+`.shader.json` ABI manifest.
 
 ## Текущий статус реализации
 
@@ -16,10 +18,44 @@ SPIR-V вместе с описанием ресурсов шейдера.
 analyzer-safe код не зависят от Delta.Maths на этапе компиляции; fixture/tests
 подключают Maths отдельно через Roslyn metadata.
 
-Полный 0.1 ещё не заявлен: lowering тела shader-метода, manifest/reflection и
-headless Vulkan dispatch остаются следующими этапами. Поэтому текущий зелёный
-gate доказывает C# metadata/validation -> IR -> GLSL -> SPIR-V validation, но не
-исполнение shader на GPU.
+Полный 0.1 ещё не заявлен: headless Vulkan dispatch зависит от доступного
+MoltenVK/software Vulkan runtime. Текущий зелёный gate доказывает C#
+metadata/validation -> IR -> GLSL -> SPIR-V validation; GPU execution
+проверяется отдельным Vulkan smoke, когда runtime доступен.
+
+### Runtime-neutral artifact
+
+Публичный контракт находится в `Delta.Shader.Abstractions` и не зависит от
+Roslyn, MSBuild или Vulkan bindings:
+
+```text
+ShaderArtifact
+  Spirv: ReadOnlyMemory<byte>
+  Stage: Compute
+  EntryPoint: string
+  Manifest: ShaderAbiManifest
+```
+
+`ShaderAbiManifest.Version` сейчас равен `1` и содержит target profile, GLSL/SPIR-V
+versions, local size, std430 storage layout и только подтверждённые compiler/IR
+данные: set, binding, access, element type, offset, alignment, size,
+ArrayStride и nullable MatrixStride. Render может передать `artifact.Spirv.Span`
+в pipeline и использовать `artifact.Manifest.Resources` для проверки descriptors
+и host-side buffer layout, не загружая Roslyn.
+
+CLI:
+
+```text
+dotnet delta-shader check <project>
+dotnet delta-shader emit <project> --backend glsl --out <directory>
+dotnet delta-shader emit <project> --backend spirv --out <directory>
+dotnet delta-shader build <project> --out <directory>
+```
+
+`emit --backend spirv` и `build` пишут `<entry>.spv`, `<entry>.shader.json` и
+промежуточный `<entry>.glsl`; SPIR-V принимается только после Vulkan-targeted
+`glslangValidator` и `spirv-val`. Это bridge через GLSL, а не direct SPIR-V
+backend.
 
 ### Канонический ABI storage data
 

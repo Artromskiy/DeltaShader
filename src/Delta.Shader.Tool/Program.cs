@@ -1,5 +1,9 @@
+using System.Diagnostics;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.Json;
+using Delta.Shader.Abstractions;
 using Delta.Shader.Backend.Glsl;
 using Delta.Shader.Compiler;
 using Microsoft.Build.Locator;
@@ -37,9 +41,10 @@ static async Task<int> ExecuteCheckAsync(ProgramOptions options)
 
 static async Task<int> ExecuteEmitAsync(ProgramOptions options)
 {
-    if (!string.Equals(options.Backend, "glsl", StringComparison.OrdinalIgnoreCase))
+    if (!string.Equals(options.Backend, "glsl", StringComparison.OrdinalIgnoreCase) &&
+        !string.Equals(options.Backend, "spirv", StringComparison.OrdinalIgnoreCase))
     {
-        Console.WriteLine($"Only backend 'glsl' is currently supported. Requested: '{options.Backend}'.");
+        Console.WriteLine($"Supported backends are 'glsl' and 'spirv'. Requested: '{options.Backend}'.");
         return 1;
     }
 
@@ -62,12 +67,19 @@ static async Task<int> ExecuteEmitAsync(ProgramOptions options)
         return 1;
     }
 
+    if (result.AbiManifest is null)
+    {
+        Console.WriteLine("No ABI manifest produced.");
+        return 1;
+    }
+
     var outputDirectory = options.OutputDirectory ??
         Path.Combine(Path.GetDirectoryName(options.ProjectPath) ?? Environment.CurrentDirectory, "obj", "Delta.Shader");
 
     Directory.CreateDirectory(outputDirectory);
     var entryName = string.IsNullOrWhiteSpace(result.EntryPointName) ? "ComputeMain" : result.EntryPointName;
-    var outputFile = Path.Combine(outputDirectory, $"{entryName}.glsl");
+    var glslFile = Path.Combine(outputDirectory, $"{entryName}.glsl");
+    var manifestFile = Path.Combine(outputDirectory, $"{entryName}.shader.json");
 
     var emitResult = GlslEmitter.EmitFromModule(result.Module);
     if (!emitResult.Success || string.IsNullOrWhiteSpace(emitResult.Source))
@@ -76,8 +88,46 @@ static async Task<int> ExecuteEmitAsync(ProgramOptions options)
         return 1;
     }
 
-    await File.WriteAllTextAsync(outputFile, emitResult.Source, new UTF8Encoding(false));
-    Console.WriteLine($"Wrote {outputFile}");
+    await File.WriteAllTextAsync(glslFile, emitResult.Source, new UTF8Encoding(false));
+    await File.WriteAllTextAsync(
+        manifestFile,
+        JsonSerializer.Serialize(result.AbiManifest, new JsonSerializerOptions { WriteIndented = true }),
+        new UTF8Encoding(false));
+
+    if (string.Equals(options.Backend, "glsl", StringComparison.OrdinalIgnoreCase))
+    {
+        Console.WriteLine($"Wrote {glslFile}");
+        Console.WriteLine($"Wrote {manifestFile}");
+        return 0;
+    }
+
+    var glslang = ToolPath("glslangValidator");
+    var spirvValidator = ToolPath("spirv-val");
+    if (glslang is null || spirvValidator is null)
+    {
+        Console.WriteLine("SPIR-V emit requires glslangValidator and spirv-val in PATH.");
+        return 1;
+    }
+
+    var spirvFile = Path.Combine(outputDirectory, $"{entryName}.spv");
+    var compile = RunTool(glslang, $"-V --target-env {EscapeArgument(options.CompilationOptions.Profile)} -S comp {EscapeArgument(glslFile)} -o {EscapeArgument(spirvFile)}");
+    if (compile.ExitCode != 0)
+    {
+        Console.WriteLine($"glslangValidator failed:{Environment.NewLine}{compile.Output}");
+        return 1;
+    }
+
+    var validation = RunTool(spirvValidator, $"--target-env {EscapeArgument(options.CompilationOptions.Profile)} {EscapeArgument(spirvFile)}");
+    if (validation.ExitCode != 0)
+    {
+        Console.WriteLine($"spirv-val failed:{Environment.NewLine}{validation.Output}");
+        return 1;
+    }
+
+    var artifact = new ShaderArtifact(await File.ReadAllBytesAsync(spirvFile), result.AbiManifest);
+    await File.WriteAllBytesAsync(spirvFile, artifact.Spirv);
+    Console.WriteLine($"Wrote {spirvFile}");
+    Console.WriteLine($"Wrote {manifestFile}");
     return 0;
 }
 
@@ -129,7 +179,7 @@ static ProgramOptions ParseOptions(string[] args)
     };
 
     string? outputDir = null;
-    var backend = "glsl";
+    var backend = command == "build" ? "spirv" : "glsl";
     var commandArgs = args.Skip(1).ToArray();
     var projectPath = string.Empty;
 
@@ -194,7 +244,7 @@ static string ResolveProjectPath(string arg)
 static void PrintUsage()
 {
     Console.WriteLine("dotnet delta-shader <check|emit|build> <project>");
-    Console.WriteLine("  --backend <glsl>      output backend (currently only glsl)");
+    Console.WriteLine("  --backend <glsl|spirv> output backend; spirv uses glslangValidator + spirv-val");
     Console.WriteLine("  --profile <vulkan1.2|vulkan1.3>   target profile");
     Console.WriteLine("  --spirv <version>     target SPIR-V version");
     Console.WriteLine("  --glsl <version>      target GLSL version");
@@ -202,6 +252,49 @@ static void PrintUsage()
     Console.WriteLine();
     Console.WriteLine("Returns 0 on success, non-zero on validation failures.");
 }
+
+static string? ToolPath(string toolName)
+{
+    var pathEnv = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+    var separators = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? new[] { ';' } : new[] { ':' };
+    foreach (var part in pathEnv.Split(separators, StringSplitOptions.RemoveEmptyEntries))
+    {
+        var candidate = Path.Combine(part, toolName);
+        if (File.Exists(candidate))
+        {
+            return candidate;
+        }
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && File.Exists(candidate + ".exe"))
+        {
+            return candidate + ".exe";
+        }
+    }
+
+    return null;
+}
+
+static (int ExitCode, string Output) RunTool(string fileName, string arguments)
+{
+    using var process = new Process();
+    process.StartInfo = new ProcessStartInfo
+    {
+        FileName = fileName,
+        Arguments = arguments,
+        UseShellExecute = false,
+        RedirectStandardOutput = true,
+        RedirectStandardError = true
+    };
+
+    var output = new StringBuilder();
+    process.Start();
+    output.AppendLine(process.StandardOutput.ReadToEnd());
+    output.AppendLine(process.StandardError.ReadToEnd());
+    process.WaitForExit();
+    return (process.ExitCode, output.ToString());
+}
+
+static string EscapeArgument(string value) => $"\"{value.Replace("\"", "\\\"", StringComparison.Ordinal)}\"";
 
 internal readonly record struct ProgramOptions(
     string Command,

@@ -173,7 +173,7 @@ public static class ComputeEntryPoints
             InvocationParameterName = invocationParameter?.Name
         };
 
-        return new ShaderCompilationResult(entry.Name, diagnostics.Count == 0, diagnostics, module);
+        return new ShaderCompilationResult(entry.Name, diagnostics.Count == 0, diagnostics, module, resultOptions);
     }
 
     private static bool TryBuildParameterResource(
@@ -441,6 +441,12 @@ public static class ComputeEntryPoints
         if (!TryParseProfileVersion(options.Profile, out var profileVersion))
         {
             reason = $"Unsupported profile '{options.Profile}'.";
+            return false;
+        }
+
+        if (!string.Equals(options.Glsl, "460", StringComparison.Ordinal))
+        {
+            reason = $"Only Vulkan GLSL 460 is supported; received GLSL '{options.Glsl}'.";
             return false;
         }
 
