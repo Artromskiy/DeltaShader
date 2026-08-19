@@ -209,6 +209,29 @@
           "Microsoft.Extensions.DependencyModel": "9.0.9"
         }
       },
+      "Silk.NET.MoltenVK.Native": {
+        "type": "Transitive",
+        "resolved": "2.23.0",
+        "contentHash": "MNlYsAlfPsv+p2KoLiqvW0xFToFK2vGCW5XhldUYND+sq3QEoSHn0ZGppEqFYGu996z/8d3c86HFBo63L2ZW5Q=="
+      },
+      "Silk.NET.Vulkan.Extensions.EXT": {
+        "type": "Transitive",
+        "resolved": "2.23.0",
+        "contentHash": "+Oth189ksRiL6HvGCwIdnsYHawqrbO8y49u1H61z3wsfcHhQZeVDYe/wF5LD7fk3NcdgDvwFD3mLm1QWhdZySw==",
+        "dependencies": {
+          "Silk.NET.Core": "2.23.0",
+          "Silk.NET.Vulkan": "2.23.0"
+        }
+      },
+      "Silk.NET.Vulkan.Extensions.KHR": {
+        "type": "Transitive",
+        "resolved": "2.23.0",
+        "contentHash": "uRaf4j+SmH3DumjSSSUbFg33BnsGZUyXGj93O9NgGKZSJN3OTmNmQDxRew+/KiVLcgH6qzbto8aNGZ++j9GFWg==",
+        "dependencies": {
+          "Silk.NET.Core": "2.23.0",
+          "Silk.NET.Vulkan": "2.23.0"
+        }
+      },
       "System.CodeDom": {
         "type": "Transitive",
         "resolved": "7.0.0",
@@ -357,14 +380,21 @@
           "xunit.extensibility.core": "[2.9.2]"
         }
       },
-      "delta.shader": {
+      "delta.render.core": {
         "type": "Project",
         "dependencies": {
-          "Delta.Shader.Backend.Glsl": "[1.0.0, )",
-          "Delta.Shader.Compiler": "[1.0.0, )",
-          "Microsoft.Build.Locator": "[1.9.1, )",
-          "Microsoft.CodeAnalysis.CSharp.Workspaces": "[4.13.0, )",
-          "Microsoft.CodeAnalysis.Workspaces.MSBuild": "[4.13.0, )"
+          "Delta.Shader.Abstractions": "[1.0.0, )"
+        }
+      },
+      "delta.render.vulkan": {
+        "type": "Project",
+        "dependencies": {
+          "Delta.Render.Core": "[1.0.0, )",
+          "Delta.Shader.Abstractions": "[1.0.0, )",
+          "Silk.NET.MoltenVK.Native": "[2.23.0, )",
+          "Silk.NET.Vulkan": "[2.23.0, )",
+          "Silk.NET.Vulkan.Extensions.EXT": "[2.23.0, )",
+          "Silk.NET.Vulkan.Extensions.KHR": "[2.23.0, )"
         }
       },
       "delta.shader.abstractions": {
@@ -382,6 +412,16 @@
           "Delta.Shader.Abstractions": "[1.0.0, )",
           "Microsoft.CodeAnalysis.Analyzers": "[3.11.0, )",
           "Microsoft.CodeAnalysis.CSharp": "[4.13.0, )"
+        }
+      },
+      "delta.shader.tool": {
+        "type": "Project",
+        "dependencies": {
+          "Delta.Shader.Backend.Glsl": "[1.0.0, )",
+          "Delta.Shader.Compiler": "[1.0.0, )",
+          "Microsoft.Build.Locator": "[1.9.1, )",
+          "Microsoft.CodeAnalysis.CSharp.Workspaces": "[4.13.0, )",
+          "Microsoft.CodeAnalysis.Workspaces.MSBuild": "[4.13.0, )"
         }
       },
       "Microsoft.Build.Locator": {
