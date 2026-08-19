@@ -722,7 +722,7 @@ public class IntrinsicCatalogTests
     private static string ResolveProjectPath(params string[] relativeSegments)
     {
         var root = FindRepositoryRoot();
-        var shadersRoot = Path.Combine(root, "Delta.Shader");
+        var shadersRoot = Path.Combine(root, "DeltaShader");
         return Path.GetFullPath(Path.Combine(shadersRoot, Path.Combine(relativeSegments)));
     }
 

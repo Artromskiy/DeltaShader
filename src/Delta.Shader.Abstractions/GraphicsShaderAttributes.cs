@@ -73,6 +73,4 @@ public static class ShaderIntrinsics
     [ShaderIntrinsic("fwidth", ShaderStage.Fragment)]
     public static float fwidth(float value) => throw new NotSupportedException();
 
-    [ShaderIntrinsic("smoothstep", ShaderStage.Fragment)]
-    public static float smoothstep(float edge0, float edge1, float value) => throw new NotSupportedException();
 }
