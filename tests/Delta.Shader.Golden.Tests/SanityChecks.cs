@@ -176,4 +176,181 @@ public class SanityChecks
         Assert.Equal(16u, artifact.Manifest.Resources[0].ArrayStride);
         Assert.Equal(12u, artifact.Manifest.Resources[0].Size);
     }
+
+    [Fact]
+    public void EmitFromModule_EmitsStructuredStd430RecordAndMemberMetadata()
+    {
+        var module = new ShaderIrModule
+        {
+            EntryPointName = "Compute",
+            LocalSizeX = 8,
+            LocalSizeY = 1,
+            LocalSizeZ = 1,
+            Structs =
+            [
+                new ShaderIrStruct
+                {
+                    Name = "TransformRecord",
+                    GlslName = "DeltaStruct_TransformRecord",
+                    Alignment = 16,
+                    Size = 96,
+                    ArrayStride = 96,
+                    Members =
+                    [
+                        new ShaderIrStructMember
+                        {
+                            Name = "Position",
+                            GlslName = "member_Position",
+                            GlslType = "vec3",
+                            Offset = 0,
+                            Alignment = 16,
+                            Size = 12,
+                            ArrayStride = 16
+                        },
+                        new ShaderIrStructMember
+                        {
+                            Name = "Rotation",
+                            GlslName = "member_Rotation",
+                            GlslType = "vec4",
+                            Offset = 16,
+                            Alignment = 16,
+                            Size = 16,
+                            ArrayStride = 16
+                        },
+                        new ShaderIrStructMember
+                        {
+                            Name = "Transform",
+                            GlslName = "member_Transform",
+                            GlslType = "mat4",
+                            Offset = 32,
+                            Alignment = 16,
+                            Size = 64,
+                            ArrayStride = 64,
+                            MatrixStride = 16
+                        }
+                    ]
+                }
+            ],
+            Resources =
+            [
+                new ShaderIrResource
+                {
+                    Name = "records",
+                    ParameterName = "records",
+                    Category = "storage-buffer",
+                    Set = 0,
+                    Binding = 0,
+                    GlslType = "DeltaStruct_TransformRecord",
+                    ReadOnly = false,
+                    Layout = ShaderStd430Layout.ForStruct(16, 96),
+                    Members =
+                    [
+                        new ShaderIrStructMember
+                        {
+                            Name = "Position",
+                            GlslName = "member_Position",
+                            GlslType = "vec3",
+                            Offset = 0,
+                            Alignment = 16,
+                            Size = 12,
+                            ArrayStride = 16
+                        },
+                        new ShaderIrStructMember
+                        {
+                            Name = "Rotation",
+                            GlslName = "member_Rotation",
+                            GlslType = "vec4",
+                            Offset = 16,
+                            Alignment = 16,
+                            Size = 16,
+                            ArrayStride = 16
+                        },
+                        new ShaderIrStructMember
+                        {
+                            Name = "Transform",
+                            GlslName = "member_Transform",
+                            GlslType = "mat4",
+                            Offset = 32,
+                            Alignment = 16,
+                            Size = 64,
+                            ArrayStride = 64,
+                            MatrixStride = 16
+                        }
+                    ]
+                }
+            ]
+        };
+
+        var emitted = GlslEmitter.EmitFromModule(module);
+        var abi = ShaderManifest.FromModule(module).ToAbiManifest(ShaderCompilationOptions.Default);
+        var resource = abi.Resources.Single();
+
+        Assert.Contains("struct DeltaStruct_TransformRecord", emitted.Source);
+        Assert.Contains("vec3 member_Position;", emitted.Source);
+        Assert.Contains("mat4 member_Transform;", emitted.Source);
+        Assert.Equal(96u, resource.ArrayStride);
+        Assert.Equal(3, resource.Members.Count);
+        Assert.Equal(32u, resource.Members[2].Offset);
+        Assert.Equal(16u, resource.Members[2].MatrixStride);
+    }
+
+    [Fact]
+    public void EmitFromModule_OrdersNestedStructDependenciesBeforeContainingStruct()
+    {
+        var inner = new ShaderIrStruct
+        {
+            Name = "Inner",
+            GlslName = "DeltaStruct_Inner",
+            Alignment = 16,
+            Size = 16,
+            ArrayStride = 16,
+            Members =
+            [
+                new ShaderIrStructMember
+                {
+                    Name = "Value",
+                    GlslName = "member_Value",
+                    GlslType = "vec3",
+                    Offset = 0,
+                    Alignment = 16,
+                    Size = 12,
+                    ArrayStride = 16
+                }
+            ]
+        };
+        var outer = new ShaderIrStruct
+        {
+            Name = "Outer",
+            GlslName = "DeltaStruct_Outer",
+            Alignment = 16,
+            Size = 16,
+            ArrayStride = 16,
+            Members =
+            [
+                new ShaderIrStructMember
+                {
+                    Name = "Inner",
+                    GlslName = "member_Inner",
+                    GlslType = "DeltaStruct_Inner",
+                    Offset = 0,
+                    Alignment = 16,
+                    Size = 16,
+                    ArrayStride = 16,
+                    Members = inner.Members
+                }
+            ]
+        };
+
+        var emitted = GlslEmitter.EmitFromModule(new ShaderIrModule
+        {
+            EntryPointName = "Compute",
+            LocalSizeX = 1,
+            LocalSizeY = 1,
+            LocalSizeZ = 1,
+            Structs = [outer, inner]
+        }).Source;
+
+        Assert.True(emitted.IndexOf("struct DeltaStruct_Inner", StringComparison.Ordinal) <
+                    emitted.IndexOf("struct DeltaStruct_Outer", StringComparison.Ordinal));
+    }
 }

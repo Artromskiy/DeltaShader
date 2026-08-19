@@ -63,4 +63,29 @@ public sealed class ShaderAbiResource
     public uint Size { get; set; }
     public uint ArrayStride { get; set; }
     public uint? MatrixStride { get; set; }
+    public IReadOnlyList<ShaderAbiMember> Members { get; set; } = Array.Empty<ShaderAbiMember>();
+    public ShaderAbiPackingPlan Packing { get; set; } = new();
+}
+
+public sealed class ShaderAbiPackingPlan
+{
+    public string Scheme { get; set; } = "std430";
+    public string Strategy { get; set; } = "std430-explicit-members";
+    public bool DirectRawUploadAllowed { get; set; }
+    public string BoolRepresentation { get; set; } = "uint32";
+    public uint Stride { get; set; }
+}
+
+public sealed class ShaderAbiMember
+{
+    public string Name { get; set; } = string.Empty;
+    public string GlslName { get; set; } = string.Empty;
+    public string GlslType { get; set; } = string.Empty;
+    public uint Offset { get; set; }
+    public uint Alignment { get; set; }
+    public uint Size { get; set; }
+    public uint ArrayStride { get; set; }
+    public uint? MatrixStride { get; set; }
+    public string HostRepresentation { get; set; } = "std430";
+    public IReadOnlyList<ShaderAbiMember> Members { get; set; } = Array.Empty<ShaderAbiMember>();
 }

@@ -2,6 +2,8 @@ using System.IO;
 using System.Linq;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Delta.Maths;
+using Delta.Shader.Abstractions;
 using Delta.Shader.Compiler.Intrinsics;
 using Delta.Shader.Compiler.Syntax;
 using Microsoft.Build.Locator;
@@ -15,6 +17,18 @@ namespace Delta.Shader.Compiler.Tests;
 
 public class IntrinsicCatalogTests
 {
+    private struct HostTransformBase
+    {
+        public float3 Position;
+    }
+
+    private struct HostTransformRecord
+    {
+        public HostTransformBase Base;
+        public quaternion Rotation;
+        public float4x4 Transform;
+    }
+
     [Fact]
     public async Task DeltaMaths_VectorTypes_AreMappedTo_GlslVectorTypes_BySymbolIdentity()
     {
@@ -366,6 +380,236 @@ public class IntrinsicCatalogTests
         var result = await CompileAndValidateEntryPointAsync(source);
         Assert.False(result.Success);
         Assert.Contains(result.Diagnostics, d => d.Id == ShaderDiagnosticId.DSH005);
+    }
+
+    [Fact]
+    public async Task ComputeEntryPoint_BuildsStructuredStd430RecordWithMathsTypes()
+    {
+        const string source = @"
+            using Delta.Maths;
+            using Delta.Shader.Abstractions;
+
+            namespace Delta.Shader.Compiler.Tests.Fixtures
+            {
+                public struct TransformRecord
+                {
+                    public TransformBase Base;
+                    public quaternion Rotation;
+                    public float4x4 Transform;
+                }
+
+                public struct TransformBase
+                {
+                    public float3 Position;
+                }
+
+                public static class StructuredEntry
+                {
+                    [ComputeShader(localSizeX: 8)]
+                    public static void Compute(
+                        [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<TransformRecord> input,
+                        [ReadWriteStorageBuffer(0, 1)] ReadWriteStorageBuffer<TransformRecord> output,
+                        [GlobalInvocationId] uint invocation)
+                    {
+                        if (invocation < input.Length)
+                            output.Store(invocation, input.Load(invocation));
+                    }
+                }
+            }
+            ";
+
+        var result = await CompileAndValidateEntryPointAsync(source);
+
+        Assert.True(result.Success);
+        var input = Assert.Single(result.Module!.Resources, resource => resource.ParameterName == "input");
+        Assert.Equal("DeltaStruct_Delta_Shader_Compiler_Tests_Fixtures_TransformRecord", input.GlslType);
+        Assert.Equal(16u, input.Layout!.Alignment);
+        Assert.Equal(96u, input.Layout.Size);
+        Assert.Equal(96u, input.Layout.ArrayStride);
+        Assert.Equal(3, input.Members.Count);
+        Assert.Equal(("Base", "DeltaStruct_Delta_Shader_Compiler_Tests_Fixtures_TransformBase", 0u, 16u, 16u), (input.Members[0].Name, input.Members[0].GlslType, input.Members[0].Offset, input.Members[0].Alignment, input.Members[0].Size));
+        Assert.Single(input.Members[0].Members);
+        Assert.Equal(("Position", "vec3", 0u, 16u, 12u), (input.Members[0].Members[0].Name, input.Members[0].Members[0].GlslType, input.Members[0].Members[0].Offset, input.Members[0].Members[0].Alignment, input.Members[0].Members[0].Size));
+        Assert.Equal(("Rotation", "vec4", 16u, 16u, 16u), (input.Members[1].Name, input.Members[1].GlslType, input.Members[1].Offset, input.Members[1].Alignment, input.Members[1].Size));
+        Assert.Equal(("Transform", "mat4", 32u, 16u, 64u), (input.Members[2].Name, input.Members[2].GlslType, input.Members[2].Offset, input.Members[2].Alignment, input.Members[2].Size));
+        Assert.Equal(16u, input.Members[2].MatrixStride);
+    }
+
+    [Fact]
+    public async Task ComputeEntryPoint_RejectsUnsupportedStructLayoutsAndFields()
+    {
+        var cases = new[]
+        {
+            @"
+                using Delta.Shader.Abstractions;
+                using System.Runtime.InteropServices;
+                namespace Delta.Shader.Compiler.Tests.Fixtures
+                {
+                    [StructLayout(LayoutKind.Explicit)]
+                    public struct ExplicitRecord
+                    {
+                        [FieldOffset(0)] public float Value;
+                    }
+                    public static class ExplicitEntry
+                    {
+                        [ComputeShader] public static void Compute(
+                            [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<ExplicitRecord> input) { }
+                    }
+                }
+            ",
+            @"
+                using Delta.Shader.Abstractions;
+                namespace Delta.Shader.Compiler.Tests.Fixtures
+                {
+                    public struct ManagedRecord { public string Name; }
+                    public static class ManagedEntry
+                    {
+                        [ComputeShader] public static void Compute(
+                            [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<ManagedRecord> input) { }
+                    }
+                }
+            ",
+            @"
+                using Delta.Shader.Abstractions;
+                namespace Delta.Shader.Compiler.Tests.Fixtures
+                {
+                    public struct RecursiveRecord { public RecursiveRecord[] Children; }
+                    public static class RecursiveEntry
+                    {
+                        [ComputeShader] public static void Compute(
+                            [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<RecursiveRecord> input) { }
+                    }
+                }
+            ",
+            @"
+                using Delta.Shader.Abstractions;
+                namespace Delta.Shader.Compiler.Tests.Fixtures
+                {
+                    public struct ArrayFieldRecord { public float[] Values; }
+                    public static class ArrayFieldEntry
+                    {
+                        [ComputeShader] public static void Compute(
+                            [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<ArrayFieldRecord> input) { }
+                    }
+                }
+            "
+        };
+
+        foreach (var source in cases)
+        {
+            var result = await CompileAndValidateEntryPointAsync(source);
+            Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH006);
+        }
+    }
+
+    [Fact]
+    public void ShaderStd430Packer_PacksTransformRecordWithExplicitPaddingAndColumnMajorMatrix()
+    {
+        var record = new HostTransformRecord
+        {
+            Base = new HostTransformBase { Position = new float3(1.25f, -2.5f, 3.75f) },
+            Rotation = new quaternion(4.5f, 5.5f, 6.5f, 7.5f),
+            Transform = new float4x4(
+                new float4(10f, 11f, 12f, 13f),
+                new float4(20f, 21f, 22f, 23f),
+                new float4(30f, 31f, 32f, 33f),
+                new float4(40f, 41f, 42f, 43f))
+        };
+
+        var resource = new ShaderAbiResource
+        {
+            Name = "records",
+            GlslType = "DeltaStruct_HostTransformRecord",
+            ArrayStride = 96,
+            Size = 96,
+            Alignment = 16,
+            Packing = new ShaderAbiPackingPlan { Stride = 96 },
+            Members = new[]
+            {
+                new ShaderAbiMember
+                {
+                    Name = "Base",
+                    GlslName = "member_Base",
+                    GlslType = "DeltaStruct_HostTransformBase",
+                    Offset = 0,
+                    Alignment = 16,
+                    Size = 16,
+                    ArrayStride = 16,
+                    Members = new[]
+                    {
+                        new ShaderAbiMember
+                        {
+                            Name = "Position",
+                            GlslName = "member_Position",
+                            GlslType = "vec3",
+                            Offset = 0,
+                            Alignment = 16,
+                            Size = 12,
+                            ArrayStride = 16
+                        }
+                    }
+                },
+                new ShaderAbiMember
+                {
+                    Name = "Rotation",
+                    GlslName = "member_Rotation",
+                    GlslType = "vec4",
+                    Offset = 16,
+                    Alignment = 16,
+                    Size = 16,
+                    ArrayStride = 16
+                },
+                new ShaderAbiMember
+                {
+                    Name = "Transform",
+                    GlslName = "member_Transform",
+                    GlslType = "mat4",
+                    Offset = 32,
+                    Alignment = 16,
+                    Size = 64,
+                    ArrayStride = 64,
+                    MatrixStride = 16
+                }
+            }
+        };
+
+        var bytes = ShaderStd430Packer.Pack(new[] { record }, resource);
+
+        Assert.Equal(96, bytes.Length);
+        Assert.Equal("uint32", resource.Packing.BoolRepresentation);
+        Assert.Equal(1.25f, ReadFloat(bytes, 0));
+        Assert.Equal(-2.5f, ReadFloat(bytes, 4));
+        Assert.Equal(3.75f, ReadFloat(bytes, 8));
+        Assert.Equal(0u, ReadUInt32(bytes, 12));
+        Assert.Equal(4.5f, ReadFloat(bytes, 16));
+        Assert.Equal(7.5f, ReadFloat(bytes, 28));
+        for (var column = 0; column < 4; column++)
+        {
+            for (var row = 0; row < 4; row++)
+            {
+                Assert.Equal((column + 1) * 10f + row, ReadFloat(bytes, 32 + column * 16 + row * 4));
+            }
+        }
+
+        Assert.Equal(0x4f48bf5cu, Fnv1a(bytes));
+    }
+
+    private static float ReadFloat(byte[] bytes, int offset)
+        => BitConverter.ToSingle(bytes, offset);
+
+    private static uint ReadUInt32(byte[] bytes, int offset)
+        => BitConverter.ToUInt32(bytes, offset);
+
+    private static uint Fnv1a(byte[] bytes)
+    {
+        var hash = 2166136261u;
+        foreach (var value in bytes)
+        {
+            hash = (hash ^ value) * 16777619u;
+        }
+
+        return hash;
     }
 
     private static async Task<ShaderCompilationResult> CompileAndValidateEntryPointAsync(

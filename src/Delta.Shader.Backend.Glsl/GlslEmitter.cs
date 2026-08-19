@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using Delta.Shader.Compiler;
 using Delta.Shader.Compiler.IR;
@@ -19,6 +22,19 @@ public static class GlslEmitter
         sb.AppendLine("#version 460");
         sb.AppendLine($"layout(local_size_x = {module.LocalSizeX}, local_size_y = {module.LocalSizeY}, local_size_z = {module.LocalSizeZ}) in;");
         var identifiers = new GlslIdentifierMangler("main");
+
+        foreach (var structure in OrderStructs(module.Structs))
+        {
+            sb.AppendLine($"struct {structure.GlslName}");
+            sb.AppendLine("{");
+            foreach (var member in structure.Members)
+            {
+                sb.AppendLine($"    {member.GlslType} {member.GlslName};");
+            }
+
+            sb.AppendLine("};");
+            sb.AppendLine();
+        }
 
         var identifierMap = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var resource in module.Resources)
@@ -110,6 +126,46 @@ public static class GlslEmitter
         }
 
         return rewritten;
+    }
+
+    private static IReadOnlyList<ShaderIrStruct> OrderStructs(IReadOnlyList<ShaderIrStruct> structures)
+    {
+        var byGlslName = structures.ToDictionary(structure => structure.GlslName, StringComparer.Ordinal);
+        var visited = new HashSet<string>(StringComparer.Ordinal);
+        var active = new HashSet<string>(StringComparer.Ordinal);
+        var ordered = new List<ShaderIrStruct>(structures.Count);
+
+        void Visit(ShaderIrStruct structure)
+        {
+            if (visited.Contains(structure.GlslName))
+            {
+                return;
+            }
+
+            if (!active.Add(structure.GlslName))
+            {
+                throw new InvalidOperationException($"Recursive GLSL struct dependency '{structure.GlslName}'.");
+            }
+
+            foreach (var member in structure.Members)
+            {
+                if (member.Members.Count > 0 && byGlslName.TryGetValue(member.GlslType, out var dependency))
+                {
+                    Visit(dependency);
+                }
+            }
+
+            active.Remove(structure.GlslName);
+            visited.Add(structure.GlslName);
+            ordered.Add(structure);
+        }
+
+        foreach (var structure in structures.OrderBy(structure => structure.GlslName, StringComparer.Ordinal))
+        {
+            Visit(structure);
+        }
+
+        return ordered;
     }
 
 }

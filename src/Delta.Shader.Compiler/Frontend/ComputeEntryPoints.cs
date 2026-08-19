@@ -49,6 +49,7 @@ public static class ComputeEntryPoints
         var resources = new List<ShaderIrResource>();
         var seenBindings = new HashSet<(uint Set, uint Binding)>();
         var storageBuffers = new Dictionary<IParameterSymbol, uint>(SymbolEqualityComparer.Default);
+        var structDefinitions = new Dictionary<INamedTypeSymbol, ShaderIrStruct>(SymbolEqualityComparer.Default);
         IParameterSymbol? invocationParameter = null;
 
         if (!entry.Method.IsStatic || !entry.Method.ReturnsVoid)
@@ -124,7 +125,7 @@ public static class ComputeEntryPoints
                 continue;
             }
 
-            if (!TryBuildParameterResource(parameter, context, seenBindings, out var resource, out var unsupportedReason, out var diagnosticId))
+            if (!TryBuildParameterResource(parameter, context, seenBindings, structDefinitions, out var resource, out var unsupportedReason, out var diagnosticId))
             {
                 diagnostics.Add(new ShaderDiagnostic(
                     diagnosticId,
@@ -166,6 +167,7 @@ public static class ComputeEntryPoints
             LocalSizeY = entry.LocalSizeY,
             LocalSizeZ = entry.LocalSizeZ,
             Resources = resources,
+            Structs = structDefinitions.Values.OrderBy(structure => structure.GlslName, StringComparer.Ordinal).ToArray(),
             Requirements = [$"Vulkan {resultOptions.Profile}", $"GLSL {resultOptions.Glsl}", $"SPIRV {resultOptions.Spirv}"],
             Instructions = new[] { "entrypoint " + entry.Name },
             Body = body,
@@ -180,6 +182,7 @@ public static class ComputeEntryPoints
         IParameterSymbol parameter,
         ModuleCompilationContext context,
         HashSet<(uint Set, uint Binding)> seenBindings,
+        Dictionary<INamedTypeSymbol, ShaderIrStruct> structDefinitions,
         out ShaderIrResource? resource,
         out string? unsupportedReason,
         out string diagnosticId)
@@ -188,8 +191,9 @@ public static class ComputeEntryPoints
         unsupportedReason = null;
         diagnosticId = ShaderDiagnosticId.DSH002;
 
-        if (!TryMapTypeSupportedForStorageBuffer(parameter.Type, context, out var elementType, out unsupportedReason))
+        if (!TryGetBufferElementType(parameter.Type, context, out var elementType))
         {
+            unsupportedReason = $"Unsupported storage buffer wrapper type '{parameter.Type}' in parameter list.";
             return false;
         }
 
@@ -211,10 +215,11 @@ public static class ComputeEntryPoints
             return false;
         }
 
-        if (!TryMapGlslType(elementType, context, out var elementGlslType))
+        if (!TryMapShaderType(elementType, context, structDefinitions, new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default), out var elementGlslType, out var elementLayout, out var members, out unsupportedReason))
         {
-            unsupportedReason =
-                $"Unsupported storage buffer element type '{elementType}' in parameter '{parameter.Name}'.";
+            diagnosticId = elementType.TypeKind == TypeKind.Struct && !context.Intrinsics.TryMapType(elementType, out _)
+                ? ShaderDiagnosticId.DSH006
+                : ShaderDiagnosticId.DSH002;
             return false;
         }
 
@@ -236,36 +241,28 @@ public static class ComputeEntryPoints
             Binding = key.Binding,
             GlslType = elementGlslType,
             ReadOnly = IsReadOnlyStorageBuffer(parameter.Type, context),
-            Layout = ShaderStd430Layout.ForGlslType(elementGlslType)
+            Layout = elementLayout,
+            Members = members
         };
 
         return true;
     }
 
-    private static bool TryMapTypeSupportedForStorageBuffer(
+    private static bool TryMapShaderType(
         ITypeSymbol type,
         ModuleCompilationContext context,
-        out ITypeSymbol elementType,
-        out string unsupportedReason)
+        Dictionary<INamedTypeSymbol, ShaderIrStruct> structDefinitions,
+        HashSet<INamedTypeSymbol> visiting,
+        out string glslType,
+        out ShaderStd430Layout layout,
+        out IReadOnlyList<ShaderIrStructMember> members,
+        out string reason)
     {
-        if (!TryGetBufferElementType(type, context, out elementType))
-        {
-            unsupportedReason = $"Unsupported storage buffer wrapper type '{type}' in parameter list.";
-            return false;
-        }
-
-        if (!IsSupportedShaderType(elementType, context, out unsupportedReason))
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-    private static bool TryMapGlslType(ITypeSymbol type, ModuleCompilationContext context, out string glslType)
-    {
+        members = Array.Empty<ShaderIrStructMember>();
         if (context.Intrinsics.TryMapType(type, out glslType))
         {
+            layout = ShaderStd430Layout.ForGlslType(glslType);
+            reason = string.Empty;
             return true;
         }
 
@@ -273,20 +270,41 @@ public static class ComputeEntryPoints
         {
             case SpecialType.System_Boolean:
                 glslType = "bool";
-                return true;
+                break;
             case SpecialType.System_Int32:
                 glslType = "int";
-                return true;
+                break;
             case SpecialType.System_UInt32:
                 glslType = "uint";
-                return true;
+                break;
             case SpecialType.System_Single:
                 glslType = "float";
-                return true;
+                break;
+            default:
+                if (type is INamedTypeSymbol namedType && namedType.TypeKind == TypeKind.Struct)
+                {
+                    if (!TryBuildStructLayout(namedType, context, structDefinitions, visiting, out var structure, out reason))
+                    {
+                        glslType = string.Empty;
+                        layout = default!;
+                        return false;
+                    }
+
+                    glslType = structure.GlslName;
+                    layout = ShaderStd430Layout.ForStruct(structure.Alignment, structure.Size);
+                    members = structure.Members;
+                    return true;
+                }
+
+                glslType = string.Empty;
+                layout = default!;
+                reason = $"Unsupported shader type '{type}'. Shader records must contain only supported unmanaged scalar, vector, matrix, quaternion, or nested record fields.";
+                return false;
         }
 
-        glslType = string.Empty;
-        return false;
+        layout = ShaderStd430Layout.ForGlslType(glslType);
+        reason = string.Empty;
+        return true;
     }
 
     private static bool IsStorageBufferAttribute(
@@ -347,48 +365,105 @@ public static class ComputeEntryPoints
         => context.ReadOnlyStorageBufferType is not null &&
             SymbolEqualityComparer.Default.Equals((type as INamedTypeSymbol)?.OriginalDefinition, context.ReadOnlyStorageBufferType);
 
-    private static bool IsSupportedShaderType(
-        ITypeSymbol type,
+    private static bool TryBuildStructLayout(
+        INamedTypeSymbol type,
         ModuleCompilationContext context,
-        out string unsupportedReason)
+        Dictionary<INamedTypeSymbol, ShaderIrStruct> structDefinitions,
+        HashSet<INamedTypeSymbol> visiting,
+        out ShaderIrStruct structure,
+        out string reason)
     {
-        unsupportedReason = string.Empty;
-
-        if (type.Name == "fix" ||
-            (type.Name.StartsWith("fix", StringComparison.Ordinal) && type.ContainingNamespace?.ToDisplayString() == "Delta.Maths"))
+        if (structDefinitions.TryGetValue(type, out structure!))
         {
-            unsupportedReason = "Delta.Maths.fix is unsupported in MVP. Add explicit float64/fix feature profile to enable.";
-            return false;
-        }
-
-        if (type.SpecialType is SpecialType.System_Void)
-        {
-            unsupportedReason = "void is not supported as compute entry-point parameter type.";
-            return false;
-        }
-
-        if (type.SpecialType is SpecialType.System_Double)
-        {
-            unsupportedReason = "double is not supported in MVP and requires explicit float64 capability profile.";
-            return false;
-        }
-
-        if (context.Intrinsics.IsDeltaMathsVectorType(type, out _))
-        {
+            reason = string.Empty;
             return true;
         }
 
-        if (type.SpecialType is SpecialType.System_Boolean or
-            SpecialType.System_Int32 or
-            SpecialType.System_UInt32 or
-            SpecialType.System_Single)
+        if (!visiting.Add(type))
         {
-            return true;
+            structure = default!;
+            reason = $"Recursive shader struct '{type.ToDisplayString()}' is not supported.";
+            return false;
         }
 
-        unsupportedReason = $"Unsupported parameter type '{type}' in compute entry point.";
-        return false;
+        var layoutAttribute = type.GetAttributes().FirstOrDefault(attribute =>
+            attribute.AttributeClass?.ToDisplayString() == "System.Runtime.InteropServices.StructLayoutAttribute");
+        if (layoutAttribute is not null && layoutAttribute.ConstructorArguments.Length > 0)
+        {
+            var layoutKind = layoutAttribute.ConstructorArguments[0].Value;
+            if (layoutKind is int kind && (kind == 2 || kind == 3))
+            {
+                visiting.Remove(type);
+                structure = default!;
+                reason = $"Shader struct '{type.ToDisplayString()}' uses explicit or auto layout; only sequential layout is supported for std430 reflection.";
+                return false;
+            }
+        }
+
+        var members = new List<ShaderIrStructMember>();
+        uint offset = 0;
+        uint alignment = 1;
+        foreach (var field in type.GetMembers().OfType<IFieldSymbol>().Where(field => !field.IsStatic))
+        {
+            if (field.Type is IArrayTypeSymbol arrayType && SymbolEqualityComparer.Default.Equals(arrayType.ElementType, type))
+            {
+                visiting.Remove(type);
+                structure = default!;
+                reason = $"Recursive shader struct '{type.ToDisplayString()}' through field '{field.Name}' is not supported.";
+                return false;
+            }
+
+            if (!TryMapShaderType(field.Type, context, structDefinitions, visiting, out var fieldGlslType, out var fieldLayout, out var nestedMembers, out reason))
+            {
+                visiting.Remove(type);
+                structure = default!;
+                reason = $"Shader struct field '{type.ToDisplayString()}.{field.Name}' is unsupported: {reason}";
+                return false;
+            }
+
+            offset = AlignUp(offset, fieldLayout.Alignment);
+            members.Add(new ShaderIrStructMember
+            {
+                Name = field.Name,
+                GlslName = "member_" + SanitizeName(field.Name),
+                GlslType = fieldGlslType,
+                Offset = offset,
+                Alignment = fieldLayout.Alignment,
+                Size = fieldLayout.Size,
+                ArrayStride = fieldLayout.ArrayStride,
+                MatrixStride = fieldLayout.MatrixStride,
+                Members = nestedMembers
+            });
+            offset += fieldLayout.Size;
+            alignment = Math.Max(alignment, fieldLayout.Alignment);
+        }
+
+        if (members.Count == 0)
+        {
+            visiting.Remove(type);
+            structure = default!;
+            reason = $"Shader struct '{type.ToDisplayString()}' has no instance data fields.";
+            return false;
+        }
+
+        var size = AlignUp(offset, alignment);
+        structure = new ShaderIrStruct
+        {
+            Name = type.ToDisplayString(),
+            GlslName = "DeltaStruct_" + SanitizeName(type.ToDisplayString()),
+            Alignment = alignment,
+            Size = size,
+            ArrayStride = size,
+            Members = members
+        };
+        structDefinitions[type] = structure;
+        visiting.Remove(type);
+        reason = string.Empty;
+        return true;
     }
+
+    private static uint AlignUp(uint value, uint alignment)
+        => alignment == 0 ? value : (value + alignment - 1) / alignment * alignment;
 
     private static bool TryGetBufferElementType(
         ITypeSymbol type,
@@ -563,7 +638,9 @@ public static class ComputeEntryPoints
             return "resource";
         }
 
-        return name.Replace(" ", "_");
+        return new string(name
+            .Select(character => char.IsLetterOrDigit(character) || character == '_' ? character : '_')
+            .ToArray());
     }
 }
 

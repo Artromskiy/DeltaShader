@@ -70,9 +70,17 @@ metadata хранит `Offset`, `Alignment`, `Size`, `ArrayStride` и nullable
 
 `Delta.Maths.float3` нельзя считать CLR-эквивалентом плотного GLSL `vec3`: в
 `std430` у `vec3` alignment и array stride равны 16 байтам, хотя размер CLR
-значения может быть 12. Host-side upload должен использовать metadata manifest;
-компилятор обязан диагностировать неподдерживаемые structured layouts, а не
-молча использовать `Marshal.SizeOf` или вводить универсальную runtime-обёртку.
+значения может быть 12. Поэтому artifact содержит явный `Packing` plan: его
+`Scheme` равен `std430`, `Stride` совпадает с `ArrayStride`, а
+`DirectRawUploadAllowed` намеренно равен `false`. Host-side upload должен
+использовать `ShaderStd430Packer` или эквивалентный consumer-side packer по
+manifest; обычный raw upload CLR struct запрещён. `bool` в storage ABI
+представляется явным 4-байтным `uint32`, а matrix packer сохраняет
+column-major/column-vector семантику `Delta.Maths.float4x4`.
+
+Поля-массивы внутри structured records пока не поддерживаются и получают
+диагностику компилятора; `SSBO<T>` уже означает массив записей с manifest
+`ArrayStride`, это не обещает произвольные массивы внутри `T`.
 
 ## Принятое направление
 

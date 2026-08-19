@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Delta.Shader.Abstractions;
 
 namespace Delta.Shader.Compiler.IR;
@@ -38,6 +39,9 @@ public sealed class ShaderStd430Layout
 
     private static ShaderStd430Layout Matrix(uint alignment, uint size, uint matrixStride)
         => new() { Alignment = alignment, Size = size, ArrayStride = size, MatrixStride = matrixStride };
+
+    public static ShaderStd430Layout ForStruct(uint alignment, uint size)
+        => new() { Alignment = alignment, Size = size, ArrayStride = size };
 }
 
 public sealed class ShaderManifest
@@ -69,7 +73,29 @@ public sealed class ShaderManifest
                 Alignment = layout.Alignment,
                 Size = layout.Size,
                 ArrayStride = layout.ArrayStride,
-                MatrixStride = layout.MatrixStride
+                MatrixStride = layout.MatrixStride,
+                Members = resource.Members.Select(member => new ShaderResourceMemberManifest
+                {
+                    Name = member.Name,
+                    GlslName = member.GlslName,
+                    GlslType = member.GlslType,
+                    Offset = member.Offset,
+                    Alignment = member.Alignment,
+                    Size = member.Size,
+                    ArrayStride = member.ArrayStride,
+                    MatrixStride = member.MatrixStride,
+                    Members = member.Members.Select(nested => new ShaderResourceMemberManifest
+                    {
+                        Name = nested.Name,
+                        GlslName = nested.GlslName,
+                        GlslType = nested.GlslType,
+                        Offset = nested.Offset,
+                        Alignment = nested.Alignment,
+                        Size = nested.Size,
+                        ArrayStride = nested.ArrayStride,
+                        MatrixStride = nested.MatrixStride
+                    }).ToArray()
+                }).ToArray()
             });
         }
 
@@ -102,7 +128,39 @@ public sealed class ShaderManifest
                 Alignment = resource.Alignment,
                 Size = resource.Size,
                 ArrayStride = resource.ArrayStride,
-                MatrixStride = resource.MatrixStride
+                MatrixStride = resource.MatrixStride,
+                Packing = new ShaderAbiPackingPlan
+                {
+                    Stride = resource.ArrayStride
+                },
+                Members = resource.Members.Select(member => new ShaderAbiMember
+                {
+                    Name = member.Name,
+                    GlslName = member.GlslName,
+                    GlslType = member.GlslType,
+                    Offset = member.Offset,
+                    Alignment = member.Alignment,
+                    Size = member.Size,
+                    ArrayStride = member.ArrayStride,
+                    MatrixStride = member.MatrixStride,
+                    HostRepresentation = member.GlslType.StartsWith("bvec", StringComparison.Ordinal) || member.GlslType == "bool"
+                        ? "bool32"
+                        : "std430",
+                    Members = member.Members.Select(nested => new ShaderAbiMember
+                    {
+                        Name = nested.Name,
+                        GlslName = nested.GlslName,
+                        GlslType = nested.GlslType,
+                        Offset = nested.Offset,
+                        Alignment = nested.Alignment,
+                        Size = nested.Size,
+                        ArrayStride = nested.ArrayStride,
+                        MatrixStride = nested.MatrixStride,
+                        HostRepresentation = nested.GlslType.StartsWith("bvec", StringComparison.Ordinal) || nested.GlslType == "bool"
+                            ? "bool32"
+                            : "std430"
+                    }).ToArray()
+                }).ToArray()
             });
         }
 
@@ -139,4 +197,18 @@ public sealed class ShaderResourceManifest
     public uint Size { get; init; }
     public uint ArrayStride { get; init; }
     public uint? MatrixStride { get; init; }
+    public IReadOnlyList<ShaderResourceMemberManifest> Members { get; init; } = [];
+}
+
+public sealed class ShaderResourceMemberManifest
+{
+    public string Name { get; init; } = string.Empty;
+    public string GlslName { get; init; } = string.Empty;
+    public string GlslType { get; init; } = string.Empty;
+    public uint Offset { get; init; }
+    public uint Alignment { get; init; }
+    public uint Size { get; init; }
+    public uint ArrayStride { get; init; }
+    public uint? MatrixStride { get; init; }
+    public IReadOnlyList<ShaderResourceMemberManifest> Members { get; init; } = [];
 }
