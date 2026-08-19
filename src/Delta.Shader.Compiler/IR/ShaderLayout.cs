@@ -110,7 +110,8 @@ public sealed class ShaderManifest
         {
             Version = ShaderAbiManifest.CurrentVersion,
             Stage = ShaderStage.Compute,
-            EntryPointName = EntryPointName,
+            SourceEntryPointName = EntryPointName,
+            EntryPointName = "main",
             TargetProfile = options.Profile,
             GlslVersion = options.Glsl,
             SpirvVersion = options.Spirv,

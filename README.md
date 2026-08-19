@@ -41,7 +41,9 @@ versions, local size, std430 storage layout и только подтверждё
 данные: set, binding, access, element type, offset, alignment, size,
 ArrayStride и nullable MatrixStride. Render может передать `artifact.Spirv.Span`
 в pipeline и использовать `artifact.Manifest.Resources` для проверки descriptors
-и host-side buffer layout, не загружая Roslyn.
+и host-side buffer layout, не загружая Roslyn. `SourceEntryPointName` сохраняет
+имя C#-метода, а `EntryPointName` и `artifact.EntryPoint` всегда сообщают фактическое
+имя Vulkan/SPIR-V entry point, сейчас `main`.
 
 CLI:
 
@@ -55,7 +57,9 @@ dotnet delta-shader build <project> --out <directory>
 `emit --backend spirv` и `build` пишут `<entry>.spv`, `<entry>.shader.json` и
 промежуточный `<entry>.glsl`; SPIR-V принимается только после Vulkan-targeted
 `glslangValidator` и `spirv-val`. Это bridge через GLSL, а не direct SPIR-V
-backend.
+backend. Compiler embeds the generated `Maths/Vectors/shader-contract.json` as
+metadata; it has no project or assembly reference to `Delta.Maths`, and overload
+matching uses owner, CLR name, parameter CLR names and return CLR name.
 
 ### Канонический ABI storage data
 

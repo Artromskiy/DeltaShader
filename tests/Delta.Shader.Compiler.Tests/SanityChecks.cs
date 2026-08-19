@@ -190,6 +190,41 @@ public class IntrinsicCatalogTests
     }
 
     [Fact]
+    public async Task DeltaMaths_ShaderContract_MapsMatrixQuaternionOverloadsByFullSignature()
+    {
+        var compilation = await LoadMathsCompilationAsync();
+        var contract = ShaderContractManifest.LoadEmbedded();
+        var registry = IntrinsicRegistry.Build(compilation, contract);
+
+        var matrix = compilation.GetTypeByMetadataName("Delta.Maths.float4x4")!;
+        var quaternion = compilation.GetTypeByMetadataName("Delta.Maths.quaternion")!;
+        var matrixType = contract.Types.Single(type => type.ClrName == "float4x4");
+        var quaternionType = contract.Types.Single(type => type.ClrName == "quaternion");
+
+        Assert.Equal("mat4", matrixType.GlslName);
+        Assert.Equal("vec4", quaternionType.GlslName);
+        Assert.Equal("Builtin", matrixType.Mapping);
+        Assert.Equal("Builtin", quaternionType.Mapping);
+
+        var matrixMultiply = matrix.GetMembers().OfType<IMethodSymbol>().Single(method =>
+            method.MethodKind == MethodKind.UserDefinedOperator &&
+            method.Name == "op_Multiply" &&
+            method.Parameters.Length == 2 &&
+            method.Parameters.All(parameter => parameter.Type.Name == "float4x4"));
+        var quaternionMultiply = quaternion.GetMembers().OfType<IMethodSymbol>().Single(method =>
+            method.MethodKind == MethodKind.UserDefinedOperator &&
+            method.Name == "op_Multiply" &&
+            method.Parameters.All(parameter => parameter.Type.Name == "quaternion"));
+
+        Assert.True(registry.TryGetIntrinsic(matrixMultiply, out var matrixBinding));
+        Assert.True(registry.TryGetIntrinsic(quaternionMultiply, out var quaternionBinding));
+        Assert.Equal("*", matrixBinding.GlslName);
+        Assert.Equal("matrix", matrixBinding.RequiredCapability);
+        Assert.Equal("delta_quaternionMultiply", quaternionBinding.GlslName);
+        Assert.Equal("quaternion", quaternionBinding.RequiredCapability);
+    }
+
+    [Fact]
     public async Task ComputeEntryPoint_ResourcesUseSetBindingAndGlslTypeFromSymbol()
     {
         var source = @"

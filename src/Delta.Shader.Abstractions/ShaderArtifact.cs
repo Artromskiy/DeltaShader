@@ -36,6 +36,7 @@ public sealed class ShaderAbiManifest
 
     public int Version { get; set; } = CurrentVersion;
     public ShaderStage Stage { get; set; } = ShaderStage.Compute;
+    public string SourceEntryPointName { get; set; } = string.Empty;
     public string EntryPointName { get; set; } = string.Empty;
     public string TargetProfile { get; set; } = "vulkan1.2";
     public string GlslVersion { get; set; } = "460";

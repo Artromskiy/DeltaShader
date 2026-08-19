@@ -163,7 +163,8 @@ public class SanityChecks
 
         Assert.Equal(ShaderArtifact.CurrentFormatVersion, artifact.FormatVersion);
         Assert.Equal(ShaderStage.Compute, artifact.Stage);
-        Assert.Equal("ComputeMain", artifact.EntryPoint);
+        Assert.Equal("ComputeMain", artifact.Manifest.SourceEntryPointName);
+        Assert.Equal("main", artifact.EntryPoint);
         Assert.Equal(ShaderAbiManifest.CurrentVersion, artifact.Manifest.Version);
         Assert.Equal("vulkan1.2", artifact.Manifest.TargetProfile);
         Assert.Equal("460", artifact.Manifest.GlslVersion);

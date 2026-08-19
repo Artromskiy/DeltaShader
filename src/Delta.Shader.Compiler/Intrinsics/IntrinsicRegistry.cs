@@ -18,7 +18,7 @@ public sealed record IntrinsicBinding(
     IntrinsicCategory Category,
     string GlslName,
     string ShaderStage = "compute",
-    int? RequiredCapability = null);
+    string? RequiredCapability = null);
 
 public sealed class IntrinsicRegistry
 {
@@ -33,52 +33,118 @@ public sealed class IntrinsicRegistry
         _types = types;
     }
 
-    public static IntrinsicRegistry Build(Compilation compilation)
+    public static IntrinsicRegistry Build(Compilation compilation, ShaderContractManifest? contract = null)
     {
+        contract ??= ShaderContractManifest.LoadEmbedded();
+
         var methods = new Dictionary<ISymbol, IntrinsicBinding>(SymbolEqualityComparer.Default);
         var types = new Dictionary<ITypeSymbol, string>(SymbolEqualityComparer.Default);
+        var contractTypes = contract.Types
+            .Where(type => IsSupportedMapping(type.Mapping) && !string.IsNullOrWhiteSpace(type.GlslName))
+            .ToDictionary(type => type.ClrName, StringComparer.Ordinal);
 
-        RegisterType(types, compilation, "Delta.Maths.float2", "vec2");
-        RegisterType(types, compilation, "Delta.Maths.float3", "vec3");
-        RegisterType(types, compilation, "Delta.Maths.float4", "vec4");
-        RegisterType(types, compilation, "Delta.Maths.int2", "ivec2");
-        RegisterType(types, compilation, "Delta.Maths.int3", "ivec3");
-        RegisterType(types, compilation, "Delta.Maths.int4", "ivec4");
-        RegisterType(types, compilation, "Delta.Maths.uint2", "uvec2");
-        RegisterType(types, compilation, "Delta.Maths.uint3", "uvec3");
-        RegisterType(types, compilation, "Delta.Maths.uint4", "uvec4");
-        RegisterType(types, compilation, "Delta.Maths.bool2", "bvec2");
-        RegisterType(types, compilation, "Delta.Maths.bool3", "bvec3");
-        RegisterType(types, compilation, "Delta.Maths.bool4", "bvec4");
+        foreach (var typeContract in contractTypes.Values)
+        {
+            var type = compilation.GetTypeByMetadataName(FullName(contract, typeContract.ClrName));
+            if (type is null)
+            {
+                continue;
+            }
 
-        RegisterVectorMembers(methods, compilation, "Delta.Maths.float2");
-        RegisterVectorMembers(methods, compilation, "Delta.Maths.float3");
-        RegisterVectorMembers(methods, compilation, "Delta.Maths.float4");
-        RegisterVectorMembers(methods, compilation, "Delta.Maths.int2");
-        RegisterVectorMembers(methods, compilation, "Delta.Maths.int3");
-        RegisterVectorMembers(methods, compilation, "Delta.Maths.int4");
-        RegisterVectorMembers(methods, compilation, "Delta.Maths.uint2");
-        RegisterVectorMembers(methods, compilation, "Delta.Maths.uint3");
-        RegisterVectorMembers(methods, compilation, "Delta.Maths.uint4");
-        RegisterVectorMembers(methods, compilation, "Delta.Maths.bool2");
-        RegisterVectorMembers(methods, compilation, "Delta.Maths.bool3");
-        RegisterVectorMembers(methods, compilation, "Delta.Maths.bool4");
+            types[type] = typeContract.GlslName!;
+            RegisterTypeMembers(methods, type);
+        }
 
-        RegisterMathsMethods(methods, compilation);
+        foreach (var functionContract in contract.Functions.Where(function =>
+                     IsSupportedMapping(function.Mapping) && !string.IsNullOrWhiteSpace(function.GlslName)))
+        {
+            var owner = compilation.GetTypeByMetadataName(FullName(contract, functionContract.TypeClrName));
+            if (owner is null)
+            {
+                continue;
+            }
 
+            foreach (var method in owner.GetMembers().OfType<IMethodSymbol>())
+            {
+                if (!Matches(method, functionContract))
+                {
+                    continue;
+                }
+
+                var category = method.MethodKind == MethodKind.UserDefinedOperator
+                    ? IntrinsicCategory.Operator
+                    : IntrinsicCategory.Function;
+                methods[method] = new IntrinsicBinding(
+                    category,
+                    functionContract.GlslName!,
+                    RequiredCapability: functionContract.RequiredCapability);
+            }
+        }
+
+        RegisterScalarMathsBuiltins(methods, compilation);
         return new IntrinsicRegistry(methods, types);
     }
 
-    private static void RegisterType(Dictionary<ITypeSymbol, string> types, Compilation compilation, string fullyQualifiedType, string glslType)
+    private static string FullName(ShaderContractManifest contract, string typeName)
+        => contract.Namespace + "." + typeName;
+
+    private static bool IsSupportedMapping(string mapping)
+        => string.Equals(mapping, "Builtin", StringComparison.Ordinal) ||
+           string.Equals(mapping, "Helper", StringComparison.Ordinal);
+
+    private static void RegisterTypeMembers(
+        Dictionary<ISymbol, IntrinsicBinding> methods,
+        INamedTypeSymbol type)
     {
-        var type = compilation.GetTypeByMetadataName(fullyQualifiedType);
-        if (type is not null)
+        foreach (var constructor in type.InstanceConstructors)
         {
-            types[type] = glslType;
+            methods[constructor] = new IntrinsicBinding(IntrinsicCategory.TypeConstructor, "constructor");
+        }
+
+        foreach (var property in type.GetMembers().OfType<IPropertySymbol>())
+        {
+            if (!property.IsIndexer && property.Parameters.Length == 0 && IsKnownSwizzle(property.Name))
+            {
+                methods[property] = new IntrinsicBinding(IntrinsicCategory.Swizzle, property.Name);
+            }
+        }
+
+        // Vector type rows carry the ABI mapping. Their generated operator rows may remain
+        // Unsupported; keep the source symbols discoverable without claiming a lowering.
+        if (type.Name.Length >= 5 &&
+            (type.Name.EndsWith("2", StringComparison.Ordinal) ||
+             type.Name.EndsWith("3", StringComparison.Ordinal) ||
+             type.Name.EndsWith("4", StringComparison.Ordinal)))
+        {
+            foreach (var op in type.GetMembers().OfType<IMethodSymbol>()
+                         .Where(member => member.MethodKind == MethodKind.UserDefinedOperator))
+            {
+                methods[op] = new IntrinsicBinding(IntrinsicCategory.Operator, op.Name, RequiredCapability: "std430");
+            }
         }
     }
 
-    private static void RegisterMathsMethods(
+    private static bool Matches(IMethodSymbol method, ShaderContractFunction contract)
+    {
+        if (!string.Equals(method.Name, contract.ClrName, StringComparison.Ordinal) ||
+            !string.Equals(method.ReturnType.Name, contract.ReturnClrName, StringComparison.Ordinal) ||
+            method.Parameters.Length != contract.ParameterClrNames.Count)
+        {
+            return false;
+        }
+
+        for (var index = 0; index < method.Parameters.Length; index++)
+        {
+            if (!string.Equals(method.Parameters[index].Type.Name, contract.ParameterClrNames[index], StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static void RegisterScalarMathsBuiltins(
         Dictionary<ISymbol, IntrinsicBinding> methods,
         Compilation compilation)
     {
@@ -88,69 +154,37 @@ public sealed class IntrinsicRegistry
             return;
         }
 
-        foreach (var member in mathsType.GetMembers().OfType<IMethodSymbol>())
+        foreach (var method in mathsType.GetMembers().OfType<IMethodSymbol>())
         {
-            if (member.MethodKind != MethodKind.Ordinary)
+            if (!method.IsStatic || method.MethodKind != MethodKind.Ordinary || !IsSupportedMathsBuiltin(method))
             {
                 continue;
             }
 
-            if (!member.IsStatic)
-            {
-                continue;
-            }
-
-            var name = member.Name;
-            if (name == "sin" || name == "cos" || name == "tan")
-            {
-                methods[member] = new IntrinsicBinding(IntrinsicCategory.Function, name);
-                continue;
-            }
-
-            if (name == "dot" || name == "normalize")
-            {
-                methods[member] = new IntrinsicBinding(IntrinsicCategory.Function, name);
-            }
+            methods[method] = new IntrinsicBinding(IntrinsicCategory.Function, method.Name);
         }
     }
 
-    private static void RegisterVectorMembers(Dictionary<ISymbol, IntrinsicBinding> methods, Compilation compilation, string typeMetadataName)
+    private static bool IsSupportedMathsBuiltin(IMethodSymbol method)
     {
-        var vectorType = compilation.GetTypeByMetadataName(typeMetadataName);
-        if (vectorType is null)
+        if (method.Name is not ("sin" or "cos" or "tan" or "dot" or "normalize"))
         {
-            return;
+            return false;
         }
 
-        foreach (var ctor in vectorType.InstanceConstructors)
+        return IsSupportedFloatFamilyType(method.ReturnType) &&
+               method.Parameters.All(parameter => IsSupportedFloatFamilyType(parameter.Type));
+    }
+
+    private static bool IsSupportedFloatFamilyType(ITypeSymbol type)
+    {
+        if (type.SpecialType == SpecialType.System_Single)
         {
-            methods[ctor] = new IntrinsicBinding(IntrinsicCategory.TypeConstructor, "constructor");
+            return true;
         }
 
-        foreach (var property in vectorType.GetMembers().OfType<IPropertySymbol>())
-        {
-            if (property.IsIndexer)
-            {
-                continue;
-            }
-
-            if (property.Parameters.Length > 0)
-            {
-                continue;
-            }
-
-            if (!IsKnownSwizzle(property.Name))
-            {
-                continue;
-            }
-
-            methods[property] = new IntrinsicBinding(IntrinsicCategory.Swizzle, property.Name);
-        }
-
-        foreach (var op in vectorType.GetMembers().OfType<IMethodSymbol>().Where(m => m.MethodKind == MethodKind.UserDefinedOperator))
-        {
-            methods[op] = new IntrinsicBinding(IntrinsicCategory.Operator, op.Name);
-        }
+        return type.ContainingNamespace?.ToDisplayString() == "Delta.Maths" &&
+               type.Name.StartsWith("float", StringComparison.Ordinal);
     }
 
     private static bool IsKnownSwizzle(string name)
@@ -160,14 +194,12 @@ public sealed class IntrinsicRegistry
             return false;
         }
 
-        return name.All(ch => ch is 'x' or 'y' or 'z' or 'w' or 'r' or 'g' or 'b' or 'a' || ch is 's' or 't' or 'p' or 'q');
+        return name.All(ch => ch is 'x' or 'y' or 'z' or 'w' or 'r' or 'g' or 'b' or 'a' or 's' or 't' or 'p' or 'q');
     }
 
     public bool TryGetIntrinsic<TSymbol>(TSymbol symbol, out IntrinsicBinding binding)
         where TSymbol : class, ISymbol
-    {
-        return _methodsAndProperties.TryGetValue(symbol, out binding);
-    }
+        => _methodsAndProperties.TryGetValue(symbol, out binding);
 
     public bool TryMapType(ITypeSymbol type, out string glslType)
         => _types.TryGetValue(type, out glslType);
