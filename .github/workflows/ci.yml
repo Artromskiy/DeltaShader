@@ -53,7 +53,7 @@ jobs:
       - name: Checkout Delta.Maths
         uses: actions/checkout@v7
         with:
-          repository: Artromskiy/DVG.Maths
+          repository: Artromskiy/Delta.Maths
           path: Maths
       - name: Checkout DeltaRender
         uses: actions/checkout@v7
@@ -101,7 +101,7 @@ jobs:
       - name: Checkout Delta.Maths
         uses: actions/checkout@v7
         with:
-          repository: Artromskiy/DVG.Maths
+          repository: Artromskiy/Delta.Maths
           path: Maths
       - name: Checkout DeltaRender
         uses: actions/checkout@v7
