@@ -54,10 +54,6 @@ public sealed class ComputeDispatchSmoke
         await using var device = await CreateComputeDeviceOrSkip();
         await using var pipeline = device.CreateComputePipeline(spv, in metadata);
 
-        var manifestPath = Path.Combine(workspace, "compute.shader.json");
-        var manifest = RenderManifestFromShaderManifest(compilationResult.Manifest!);
-        await File.WriteAllTextAsync(manifestPath, SerializeManifest(manifest), new UTF8Encoding(false));
-
         foreach (var elementCount in new[] { 0, 1, 7, 8, 9, 64, 65, 129, 256 })
         {
             await DispatchAndVerifyAsync(device, pipeline, elementCount, metadata.LocalSizeX);
@@ -87,7 +83,7 @@ public sealed class ComputeDispatchSmoke
         var current = new DirectoryInfo(AppContext.BaseDirectory);
         while (current is not null)
         {
-            if (File.Exists(Path.Combine(current.FullName, "Delta.Shader.sln")))
+            if (File.Exists(Path.Combine(current.FullName, "DeltaShader.sln")))
             {
                 return current.FullName;
             }
@@ -117,41 +113,6 @@ public sealed class ComputeDispatchSmoke
             manifest.LocalSizeZ,
             bindings);
     }
-
-    private static Delta.Render.Core.ShaderAbiManifest RenderManifestFromShaderManifest(ShaderManifest manifest)
-    {
-        var resources = manifest.Resources
-            .Select(resource => new ShaderAbiResource
-            {
-                Name = resource.Name,
-                Kind = ShaderAbiResourceKind.StorageBuffer,
-                Stride = resource.ArrayStride,
-                Members = new[]
-                {
-                    new ShaderAbiMember
-                    {
-                        Name = "data",
-                        Offset = 0,
-                        Stride = resource.ArrayStride,
-                        Size = resource.Size
-                    }
-                }
-            })
-            .ToArray();
-
-        return new ShaderAbiManifest
-        {
-            Version = 1,
-            Layout = ShaderAbiLayout.Std430,
-            Resources = resources
-        };
-    }
-
-    private static string SerializeManifest(ShaderAbiManifest manifest)
-        => JsonSerializer.Serialize(manifest, new JsonSerializerOptions
-        {
-            WriteIndented = true
-        });
 
     private static async Task DispatchAndVerifyAsync(IComputeDevice device, IComputePipeline pipeline, int elementCount, uint localSizeX)
     {

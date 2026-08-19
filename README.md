@@ -1,8 +1,8 @@
-# Delta.Shader
+# DeltaShader
 
-Delta.Shader — планируемый компилятор ограниченного подмножества C# в шейдеры для
+DeltaShader — планируемый компилятор ограниченного подмножества C# в шейдеры для
 Vulkan. Пользователь пишет обычные статические C#-методы, использует векторы и
-shader-like API из `Delta.Maths`, а Delta.Shader проверяет код через Roslyn и выпускает
+shader-like API из `Delta.Maths`, а DeltaShader проверяет код через Roslyn и выпускает
 SPIR-V вместе с описанием ресурсов шейдера.
 
 Первый runtime-neutral artifact slice уже реализован. Tool/host компилирует
@@ -65,7 +65,7 @@ matching uses owner, CLR name, parameter CLR names and return CLR name.
 
 ### Канонический ABI storage data
 
-Delta.Shader использует только `std430` для storage/shared structured data. Второй
+DeltaShader использует только `std430` для storage/shared structured data. Второй
 layout, включая `scalarBlockLayout`, намеренно не поддерживается. Manifest/IR
 metadata хранит `Offset`, `Alignment`, `Size`, `ArrayStride` и nullable
 `MatrixStride`; текущая генерация ресурсов всегда печатает `std430`.
@@ -92,7 +92,7 @@ column-major/column-vector семантику `Delta.Maths.float4x4`.
 C# source
   -> Roslyn Compilation + IOperation
   -> проверка разрешённого подмножества C#
-  -> типизированный Delta.Shader IR
+  -> типизированный DeltaShader IR
   -> Vulkan GLSL 460
   -> glslang/shaderc
   -> SPIR-V
@@ -196,14 +196,14 @@ intrinsic.
 
 Особое внимание требуется layout-у данных. Например, размер C#-структуры и
 размещение `vec3` в `std140`/`std430` нельзя считать совпадающими автоматически.
-Delta.Shader должен сам вычислять offsets/alignments, записывать их в manifest и проверять
+DeltaShader должен сам вычислять offsets/alignments, записывать их в manifest и проверять
 host-side типы. `Marshal.SizeOf` не является источником истины для shader layout.
 
 ## Предлагаемая структура решения
 
 ```text
-Delta.Shader/
-  Delta.Shader.sln
+DeltaShader/
+  DeltaShader.sln
   global.json
   Directory.Build.props
   Directory.Packages.props
@@ -286,7 +286,7 @@ dotnet delta-shader emit  <project> --backend glsl --keep-source
 dotnet delta-shader build <project> --target vulkan1.2
 ```
 
-По умолчанию артефакты должны попадать в `obj/Delta.Shader/<configuration>/<tfm>/`, а
+По умолчанию артефакты должны попадать в `obj/DeltaShader/<configuration>/<tfm>/`, а
 публикация рядом с приложением — быть отдельной явной опцией.
 
 ### Семантический анализ
@@ -375,7 +375,7 @@ compiler pipeline.
 
 Manifest — стабильный контракт между compiler и runtime. Он должен содержать:
 
-- schema version и версию Delta.Shader;
+- schema version и версию DeltaShader;
 - entry point, stage и local size;
 - descriptor sets, bindings, descriptor types, array counts и access flags;
 - push-constant ranges;

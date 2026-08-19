@@ -1,10 +1,10 @@
-# Delta.Shader review
+# DeltaShader review
 
 Review date: 2026-08-18.
 
 Verdict: this document records the 2026-08-18 baseline review. The listed
 restore, GLSL syntax, CLI, fixture, diagnostic, and external-validation findings
-were subsequently remediated. Delta.Shader is still not a complete 0.1 runtime slice:
+were subsequently remediated. DeltaShader is still not a complete 0.1 runtime slice:
 shader-body lowering, manifest/reflection, and headless dispatch remain outside
 the current implementation.
 
@@ -13,7 +13,7 @@ the current implementation.
 ### 1. Analyzer target graph cannot restore
 
 `Delta.Shader.Analyzers` targets `netstandard2.0` but references `Delta.Shader.Compiler`, which
-targets only `net10.0`. `dotnet restore Delta.Shader.sln` fails with `NU1201`.
+targets only `net10.0`. `dotnet restore DeltaShader.sln` fails with `NU1201`.
 
 The reusable analyzer/compiler rules need a `netstandard2.0`-compatible project
 or compatible multi-targeting. MSBuildWorkspace/CLI-only code must remain in a
@@ -69,7 +69,7 @@ push-constant contract exists.
 
 ## Verification performed
 
-`dotnet restore Delta.Shader/Delta.Shader.sln --nologo -m:1 /nodeReuse:false` was run after the
+`dotnet restore DeltaShader/DeltaShader.sln --nologo -m:1 /nodeReuse:false` was run after the
 central package versions were corrected to Silk.NET 2.23.0 and Roslyn Analyzers
 3.11.0. Package-version errors disappeared, exposing the analyzer/compiler TFM
 incompatibility described above. Tests could not run until that restore blocker
@@ -88,7 +88,7 @@ is fixed.
 
 ## Current status after remediation
 
-The current Delta.Shader solution has a clean restore and build graph. `Delta.Shader.Compiler`
+The current DeltaShader solution has a clean restore and build graph. `Delta.Shader.Compiler`
 and `Delta.Shader.Analyzers` target `netstandard2.0`; MSBuildWorkspace and CLI code stay
 in the `net10.0` host. Compiler references only `Delta.Shader.Abstractions`, while
 Delta.Maths is referenced by fixtures/tests rather than compiler core.
