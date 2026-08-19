@@ -1,9 +1,12 @@
 using System.Collections.Generic;
+using Delta.Shader.Abstractions;
 
 namespace Delta.Shader.Compiler.IR;
 
 public sealed class ShaderIrModule
 {
+    public ShaderStage Stage { get; init; } = ShaderStage.Compute;
+    public string SourceEntryPointName { get; init; } = string.Empty;
     public string EntryPointName { get; init; } = string.Empty;
     public uint LocalSizeX { get; init; }
     public uint LocalSizeY { get; init; }
@@ -15,6 +18,30 @@ public sealed class ShaderIrModule
     public string? Body { get; init; }
     public bool UsesBuiltinInvocationId { get; init; }
     public string? InvocationParameterName { get; init; }
+    public IReadOnlyList<ShaderIrInterfaceVariable> Inputs { get; init; } = [];
+    public IReadOnlyList<ShaderIrInterfaceVariable> Outputs { get; init; } = [];
+    public IReadOnlyList<ShaderIrPushConstant> PushConstants { get; init; } = [];
+}
+
+public sealed class ShaderIrInterfaceVariable
+{
+    public string Name { get; init; } = string.Empty;
+    public string ParameterName { get; init; } = string.Empty;
+    public string GlslName { get; init; } = string.Empty;
+    public string GlslType { get; init; } = string.Empty;
+    public uint Location { get; init; }
+    public string? Builtin { get; init; }
+}
+
+public sealed class ShaderIrPushConstant
+{
+    public string Name { get; init; } = string.Empty;
+    public string ParameterName { get; init; } = string.Empty;
+    public string GlslType { get; init; } = string.Empty;
+    public uint Alignment { get; init; }
+    public uint Size { get; init; }
+    public uint ArrayStride { get; init; }
+    public IReadOnlyList<ShaderIrStructMember> Members { get; init; } = [];
 }
 
 public sealed class ShaderIrResource

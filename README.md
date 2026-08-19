@@ -7,13 +7,14 @@ SPIR-V вместе с описанием ресурсов шейдера.
 
 Первый runtime-neutral artifact slice уже реализован. Tool/host компилирует
 проект через Roslyn, печатает Vulkan GLSL 460/std430, вызывает
-`glslangValidator` и `spirv-val`, а затем выпускает `.spv` и versioned
-`.shader.json` ABI manifest.
+`glslangValidator` и `spirv-val`, а затем выпускает per-stage `.spv` и versioned
+`.shader.json` ABI manifests. Compute remains supported; the current graphics
+slice adds Vulkan Vertex and Fragment stages for a fullscreen triangle/UI pass.
 
 ## Текущий статус реализации
 
 В каталоге уже есть рабочий автономный срез: Roslyn frontend и IR проверяют
-поддерживаемые compute entry points, GLSL backend выпускает Vulkan GLSL 460,
+поддерживаемые compute/vertex/fragment entry points, GLSL backend выпускает Vulkan GLSL 460,
 а тесты прогоняют результат через `glslangValidator` и `spirv-val`. Compiler и
 analyzer-safe код не зависят от Delta.Maths на этапе компиляции; fixture/tests
 подключают Maths отдельно через Roslyn metadata.
@@ -30,16 +31,17 @@ Roslyn, MSBuild или Vulkan bindings:
 
 ```text
 ShaderArtifact
-  Spirv: ReadOnlyMemory<byte>
-  Stage: Compute
+  Spirv: byte[]
+  Stage: Compute | Vertex | Fragment
   EntryPoint: string
   Manifest: ShaderAbiManifest
 ```
 
-`ShaderAbiManifest.Version` сейчас равен `1` и содержит target profile, GLSL/SPIR-V
-versions, local size, std430 storage layout и только подтверждённые compiler/IR
-данные: set, binding, access, element type, offset, alignment, size,
-ArrayStride и nullable MatrixStride. Render может передать `artifact.Spirv.Span`
+`ShaderAbiManifest.Version` сейчас равен `2` и содержит target profile, GLSL/SPIR-V
+versions, local size for compute, stage interfaces, push-constant members, std430
+storage layout и только подтверждённые compiler/IR данные: set, binding, access,
+element type, offset, alignment, size, ArrayStride и nullable MatrixStride. Render
+может передать `artifact.Spirv`
 в pipeline и использовать `artifact.Manifest.Resources` для проверки descriptors
 и host-side buffer layout, не загружая Roslyn. `SourceEntryPointName` сохраняет
 имя C#-метода, а `EntryPointName` и `artifact.EntryPoint` всегда сообщают фактическое
@@ -54,7 +56,7 @@ dotnet delta-shader emit <project> --backend spirv --out <directory>
 dotnet delta-shader build <project> --out <directory>
 ```
 
-`emit --backend spirv` и `build` пишут `<entry>.spv`, `<entry>.shader.json` и
+`emit --backend spirv` и `build` пишут по stage `<entry>.spv`, `<entry>.shader.json` и
 промежуточный `<entry>.glsl`; SPIR-V принимается только после Vulkan-targeted
 `glslangValidator` и `spirv-val`. Это bridge через GLSL, а не direct SPIR-V
 backend. Compiler embeds the generated `Maths/Vectors/shader-contract.json` as
@@ -112,8 +114,20 @@ constant folding: разрешены только константы Roslyn и �
 
 ## Границы первой версии
 
-MVP поддерживает только compute shader. Это позволяет проверить весь путь до
-реального GPU без окна, surface, swapchain, rasterization и изображений.
+Compute остаётся основным headless сценарием и сохраняет весь проверенный путь до
+GPU. Graphics vertical slice добавляет минимальные Vertex/Fragment stages без
+vertex buffer: vertex получает `gl_VertexIndex`, fragment получает
+`gl_FragCoord.xy`, а stage interface manifest связывает location-based varyings.
+
+### Fullscreen UI graphics slice
+
+`tests/Delta.Shader.TestShaders/FullscreenUi.cs` содержит рабочий пример. Его
+vertex stage строит fullscreen triangle, а fragment stage использует
+`Delta.Maths.float2/float4`, push constants `Resolution/Time` и
+`ShaderIntrinsics.fwidth`/`smoothstep` для anti-aliased rounded rectangle.
+Artifact contract для Rend: один `ShaderArtifact` на stage, `EntryPointName ==
+"main"`, `Inputs`/`Outputs` с locations/builtins и `PushConstants` с layout
+members. CLI выпускает `Vertex.*`, `Fragment.*` и сохраняющийся `Compute.*`.
 
 Минимальный полезный сценарий:
 
@@ -136,6 +150,8 @@ MVP поддерживает только compute shader. Это позволя�
 - поддержанный список функций `Delta.Maths.maths`, сопоставленный с GLSL built-ins
   или с явно описанными IR-функциями;
 - storage buffers, push constants и specialization constants;
+- graphics stage builtins, one vertex-to-fragment varying, fullscreen triangle
+  authoring, and fragment SDF derivative intrinsics;
 - явные `set`/`binding`; никаких неявно назначаемых binding-ов.
 
 В MVP не входят:
@@ -147,7 +163,7 @@ MVP поддерживает только compute shader. Это позволя�
 - virtual/interface dispatch, reflection, dynamic и allocation;
 - recursion, function pointers и небезопасный C#;
 - textures, samplers, images, atomics, subgroups и ray tracing;
-- matrices до определения единой модели layout и порядка умножения;
+- arbitrary graphics resources, textures and samplers;
 - неограниченный C#: поддерживается сознательно небольшой shader subset.
 
 Каждая неподдержанная конструкция должна давать диагностическую ошибку Delta.Shader в

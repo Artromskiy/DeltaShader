@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Delta.Shader.Abstractions;
 using Microsoft.CodeAnalysis;
 
 namespace Delta.Shader.Compiler.Intrinsics;
@@ -18,7 +19,18 @@ public sealed record IntrinsicBinding(
     IntrinsicCategory Category,
     string GlslName,
     string ShaderStage = "compute",
-    string? RequiredCapability = null);
+    string? RequiredCapability = null,
+    IReadOnlyList<string>? ShaderStages = null)
+{
+    public bool SupportsStage(ShaderStage stage)
+    {
+        var stageName = stage.ToString().ToLowerInvariant();
+        return ShaderStages is { Count: > 0 }
+            ? ShaderStages.Contains(stageName, StringComparer.Ordinal)
+            : string.Equals(ShaderStage, "compute", StringComparison.Ordinal)
+              || string.Equals(ShaderStage, stageName, StringComparison.Ordinal);
+    }
+}
 
 public sealed class IntrinsicRegistry
 {
@@ -77,11 +89,13 @@ public sealed class IntrinsicRegistry
                 methods[method] = new IntrinsicBinding(
                     category,
                     functionContract.GlslName!,
-                    RequiredCapability: functionContract.RequiredCapability);
+                    RequiredCapability: functionContract.RequiredCapability,
+                    ShaderStages: functionContract.Stages);
             }
         }
 
-        RegisterScalarMathsBuiltins(methods, compilation);
+        RegisterOwnedShaderIntrinsics(methods, compilation);
+        RegisterMathsFacadeBuiltins(methods, types, compilation, contract);
         return new IntrinsicRegistry(methods, types);
     }
 
@@ -144,19 +158,59 @@ public sealed class IntrinsicRegistry
         return true;
     }
 
-    private static void RegisterScalarMathsBuiltins(
+    private static void RegisterOwnedShaderIntrinsics(
         Dictionary<ISymbol, IntrinsicBinding> methods,
         Compilation compilation)
     {
-        var mathsType = compilation.GetTypeByMetadataName("Delta.Maths.maths");
-        if (mathsType is null)
+        var intrinsicType = compilation.GetTypeByMetadataName(typeof(ShaderIntrinsics).FullName);
+        if (intrinsicType is null)
         {
             return;
         }
 
+        foreach (var method in intrinsicType.GetMembers().OfType<IMethodSymbol>())
+        {
+            var attribute = method.GetAttributes().FirstOrDefault(candidate =>
+                candidate.AttributeClass?.ToDisplayString() == typeof(ShaderIntrinsicAttribute).FullName);
+            if (attribute is null || attribute.ConstructorArguments.Length < 2)
+            {
+                continue;
+            }
+
+            var glslName = attribute.ConstructorArguments[0].Value as string;
+            var stage = attribute.ConstructorArguments[1].Value is int stageValue
+                ? ((ShaderStage)stageValue).ToString().ToLowerInvariant()
+                : "compute";
+            if (!string.IsNullOrWhiteSpace(glslName))
+            {
+                methods[method] = new IntrinsicBinding(
+                    IntrinsicCategory.Function,
+                    glslName!,
+                    stage,
+                    ShaderStages: [stage]);
+            }
+        }
+    }
+
+    private static void RegisterMathsFacadeBuiltins(
+        Dictionary<ISymbol, IntrinsicBinding> methods,
+        Dictionary<ITypeSymbol, string> mappedTypes,
+        Compilation compilation,
+        ShaderContractManifest contract)
+    {
+        var mathsType = compilation.GetTypeByMetadataName(contract.Namespace + ".maths");
+        if (mathsType is null) return;
+
+        var glslBuiltins = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "abs", "acos", "asin", "atan", "ceil", "clamp", "cos", "cross", "distance", "dot",
+            "exp", "floor", "length", "max", "min", "mix", "normalize", "pow", "round", "sign",
+            "sin", "smoothstep", "sqrt", "step", "tan"
+        };
         foreach (var method in mathsType.GetMembers().OfType<IMethodSymbol>())
         {
-            if (!method.IsStatic || method.MethodKind != MethodKind.Ordinary || !IsSupportedMathsBuiltin(method))
+            if (!method.IsStatic || method.MethodKind != MethodKind.Ordinary || !glslBuiltins.Contains(method.Name) ||
+                !IsGlslValue(method.ReturnType, mappedTypes) || !method.Parameters.All(parameter => IsGlslValue(parameter.Type, mappedTypes)))
             {
                 continue;
             }
@@ -165,27 +219,8 @@ public sealed class IntrinsicRegistry
         }
     }
 
-    private static bool IsSupportedMathsBuiltin(IMethodSymbol method)
-    {
-        if (method.Name is not ("sin" or "cos" or "tan" or "dot" or "normalize"))
-        {
-            return false;
-        }
-
-        return IsSupportedFloatFamilyType(method.ReturnType) &&
-               method.Parameters.All(parameter => IsSupportedFloatFamilyType(parameter.Type));
-    }
-
-    private static bool IsSupportedFloatFamilyType(ITypeSymbol type)
-    {
-        if (type.SpecialType == SpecialType.System_Single)
-        {
-            return true;
-        }
-
-        return type.ContainingNamespace?.ToDisplayString() == "Delta.Maths" &&
-               type.Name.StartsWith("float", StringComparison.Ordinal);
-    }
+    private static bool IsGlslValue(ITypeSymbol type, Dictionary<ITypeSymbol, string> mappedTypes)
+        => type.SpecialType == SpecialType.System_Single || mappedTypes.ContainsKey(type);
 
     private static bool IsKnownSwizzle(string name)
     {

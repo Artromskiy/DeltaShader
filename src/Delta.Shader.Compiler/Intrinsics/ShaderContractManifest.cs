@@ -62,6 +62,7 @@ public sealed class ShaderContractType
 
     [JsonPropertyName("requiredCapability")]
     public string? RequiredCapability { get; set; }
+
 }
 
 public sealed class ShaderContractFunction
@@ -89,4 +90,10 @@ public sealed class ShaderContractFunction
 
     [JsonPropertyName("requiredCapability")]
     public string? RequiredCapability { get; set; }
+
+    [JsonPropertyName("stages")]
+    public IReadOnlyList<string> Stages { get; set; } = Array.Empty<string>();
+
+    [JsonPropertyName("shaderZone")]
+    public string? ShaderZone { get; set; }
 }

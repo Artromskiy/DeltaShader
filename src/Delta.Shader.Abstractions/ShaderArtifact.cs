@@ -5,7 +5,9 @@ namespace Delta.Shader.Abstractions;
 
 public enum ShaderStage
 {
-    Compute
+    Compute,
+    Vertex,
+    Fragment
 }
 
 public sealed class ShaderArtifact
@@ -32,7 +34,7 @@ public sealed class ShaderArtifact
 
 public sealed class ShaderAbiManifest
 {
-    public const int CurrentVersion = 1;
+    public const int CurrentVersion = 2;
 
     public int Version { get; set; } = CurrentVersion;
     public ShaderStage Stage { get; set; } = ShaderStage.Compute;
@@ -46,6 +48,30 @@ public sealed class ShaderAbiManifest
     public uint LocalSizeY { get; set; }
     public uint LocalSizeZ { get; set; }
     public IReadOnlyList<ShaderAbiResource> Resources { get; set; } = Array.Empty<ShaderAbiResource>();
+    public IReadOnlyList<ShaderAbiInterfaceVariable> Inputs { get; set; } = Array.Empty<ShaderAbiInterfaceVariable>();
+    public IReadOnlyList<ShaderAbiInterfaceVariable> Outputs { get; set; } = Array.Empty<ShaderAbiInterfaceVariable>();
+    public IReadOnlyList<ShaderAbiPushConstant> PushConstants { get; set; } = Array.Empty<ShaderAbiPushConstant>();
+}
+
+public sealed class ShaderAbiInterfaceVariable
+{
+    public string Name { get; set; } = string.Empty;
+    public string ParameterName { get; set; } = string.Empty;
+    public string GlslName { get; set; } = string.Empty;
+    public string GlslType { get; set; } = string.Empty;
+    public uint Location { get; set; }
+    public string? Builtin { get; set; }
+}
+
+public sealed class ShaderAbiPushConstant
+{
+    public string Name { get; set; } = string.Empty;
+    public string ParameterName { get; set; } = string.Empty;
+    public string GlslType { get; set; } = string.Empty;
+    public uint Alignment { get; set; }
+    public uint Size { get; set; }
+    public uint ArrayStride { get; set; }
+    public IReadOnlyList<ShaderAbiMember> Members { get; set; } = Array.Empty<ShaderAbiMember>();
 }
 
 public sealed class ShaderAbiResource

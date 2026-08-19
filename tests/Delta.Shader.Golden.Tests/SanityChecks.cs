@@ -9,6 +9,72 @@ namespace Delta.Shader.Golden.Tests;
 public class SanityChecks
 {
     [Fact]
+    public void EmitFromModule_ProducesVulkanFullscreenVertexInterface()
+    {
+        var module = new ShaderIrModule
+        {
+            Stage = ShaderStage.Vertex,
+            SourceEntryPointName = "Vertex",
+            EntryPointName = "Vertex",
+            Inputs = [new ShaderIrInterfaceVariable { Name = "vertexIndex", ParameterName = "vertexIndex", GlslType = "uint", GlslName = "gl_VertexIndex", Builtin = "VertexIndex" }],
+            Outputs =
+            [
+                new ShaderIrInterfaceVariable { Name = "position", ParameterName = "position", GlslType = "vec4", GlslName = "gl_Position", Builtin = "Position" },
+                new ShaderIrInterfaceVariable { Name = "uv", ParameterName = "uv", GlslType = "vec2", GlslName = "varying_0", Location = 0 }
+            ],
+            Body = "gl_Position = vec4(-1.0, -1.0, 0.0, 1.0); varying_0 = vec2(0.0, 0.0);"
+        };
+
+        var emitted = GlslEmitter.EmitFromModule(module);
+        Assert.Contains("#version 460", emitted.Source);
+        Assert.DoesNotContain("local_size", emitted.Source);
+        Assert.Contains("layout(location = 0) out vec2 varying_0;", emitted.Source);
+        Assert.Contains("gl_Position = vec4", emitted.Source);
+        Assert.Contains("void main()", emitted.Source);
+        var abi = ShaderManifest.FromModule(module).ToAbiManifest(ShaderCompilationOptions.Default);
+        Assert.Equal(ShaderStage.Vertex, abi.Stage);
+        Assert.Equal("Vertex", abi.SourceEntryPointName);
+        Assert.Equal("main", abi.EntryPointName);
+    }
+
+    [Fact]
+    public void EmitFromModule_ProducesVulkanFullscreenFragmentPushConstantAndDerivativeAbi()
+    {
+        var module = new ShaderIrModule
+        {
+            Stage = ShaderStage.Fragment,
+            SourceEntryPointName = "Fragment",
+            EntryPointName = "Fragment",
+            Inputs =
+            [
+                new ShaderIrInterfaceVariable { Name = "fragmentCoord", ParameterName = "fragmentCoord", GlslType = "vec2", GlslName = "gl_FragCoord", Builtin = "FragmentCoord" },
+                new ShaderIrInterfaceVariable { Name = "uv", ParameterName = "uv", GlslType = "vec2", GlslName = "varying_0", Location = 0 }
+            ],
+            Outputs = [new ShaderIrInterfaceVariable { Name = "color", ParameterName = "color", GlslType = "vec4", GlslName = "fragColor", Builtin = "FragmentColor" }],
+            PushConstants =
+            [new ShaderIrPushConstant
+            {
+                Name = "DeltaPushConstants", ParameterName = "constants", GlslType = "DeltaStruct_Constants", Alignment = 16, Size = 16, ArrayStride = 16,
+                Members =
+                [
+                    new ShaderIrStructMember { Name = "Resolution", GlslName = "member_Resolution", GlslType = "vec2", Offset = 0, Alignment = 8, Size = 8, ArrayStride = 8 },
+                    new ShaderIrStructMember { Name = "Time", GlslName = "member_Time", GlslType = "float", Offset = 8, Alignment = 4, Size = 4, ArrayStride = 4 }
+                ]
+            }],
+            Body = "float d = fwidth(uv.x); fragColor = vec4(smoothstep(0.0, d, d));"
+        };
+
+        var emitted = GlslEmitter.EmitFromModule(module);
+        Assert.Contains("layout(push_constant) uniform DeltaPushConstants", emitted.Source);
+        Assert.Contains("layout(location = 0) in vec2 varying_0;", emitted.Source);
+        Assert.Contains("layout(location = 0) out vec4 fragColor;", emitted.Source);
+        Assert.Contains("fwidth", emitted.Source);
+        var abi = ShaderManifest.FromModule(module).ToAbiManifest(ShaderCompilationOptions.Default);
+        Assert.Equal(ShaderStage.Fragment, abi.Stage);
+        Assert.Single(abi.PushConstants);
+        Assert.Equal(16u, abi.PushConstants[0].Size);
+    }
+    [Fact]
     public void EmitFromModule_ProducesVulkanStyleComputeSignatureAndResources()
     {
         var module = new ShaderIrModule

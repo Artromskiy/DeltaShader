@@ -27,16 +27,19 @@ return options.Command switch
 
 static async Task<int> ExecuteCheckAsync(ProgramOptions options)
 {
-    var result = await CompileProjectAsync(options);
-
-    Console.WriteLine($"Compute entry points: {(result.Success ? "valid" : "invalid")}");
-    foreach (var diagnostic in result.Diagnostics)
+    var results = await CompileProjectAsync(options);
+    var success = results.All(result => result.Success);
+    Console.WriteLine($"Shader entry points: {(success ? "valid" : "invalid")}");
+    foreach (var result in results)
     {
-        var marker = diagnostic.Severity == ShaderDiagnosticSeverity.Error ? "error" : "warning";
-        Console.WriteLine($"{marker} {diagnostic.Id} {diagnostic.Location}: {diagnostic.Message}");
+        foreach (var diagnostic in result.Diagnostics)
+        {
+            var marker = diagnostic.Severity == ShaderDiagnosticSeverity.Error ? "error" : "warning";
+            Console.WriteLine($"{marker} {diagnostic.Id} {diagnostic.Location}: {diagnostic.Message}");
+        }
     }
 
-    return result.Success ? 0 : 1;
+    return success ? 0 : 1;
 }
 
 static async Task<int> ExecuteEmitAsync(ProgramOptions options)
@@ -48,90 +51,57 @@ static async Task<int> ExecuteEmitAsync(ProgramOptions options)
         return 1;
     }
 
-    var result = await CompileProjectAsync(options);
-    if (!result.Success)
+    var results = await CompileProjectAsync(options);
+    if (results.Any(result => !result.Success))
     {
         Console.WriteLine("Emit failed: compile diagnostics:");
-        foreach (var diagnostic in result.Diagnostics)
+        foreach (var result in results)
         {
-            var marker = diagnostic.Severity == ShaderDiagnosticSeverity.Error ? "error" : "warning";
-            Console.WriteLine($"{marker} {diagnostic.Id} {diagnostic.Location}: {diagnostic.Message}");
+            foreach (var diagnostic in result.Diagnostics)
+            {
+                var marker = diagnostic.Severity == ShaderDiagnosticSeverity.Error ? "error" : "warning";
+                Console.WriteLine($"{marker} {diagnostic.Id} {diagnostic.Location}: {diagnostic.Message}");
+            }
         }
 
         return 1;
     }
 
-    if (result.Module is null)
-    {
-        Console.WriteLine("No IR module produced.");
-        return 1;
-    }
-
-    if (result.AbiManifest is null)
-    {
-        Console.WriteLine("No ABI manifest produced.");
-        return 1;
-    }
-
     var outputDirectory = options.OutputDirectory ??
         Path.Combine(Path.GetDirectoryName(options.ProjectPath) ?? Environment.CurrentDirectory, "obj", "Delta.Shader");
-
     Directory.CreateDirectory(outputDirectory);
-    var entryName = string.IsNullOrWhiteSpace(result.EntryPointName) ? "ComputeMain" : result.EntryPointName;
-    var glslFile = Path.Combine(outputDirectory, $"{entryName}.glsl");
-    var manifestFile = Path.Combine(outputDirectory, $"{entryName}.shader.json");
-
-    var emitResult = GlslEmitter.EmitFromModule(result.Module);
-    if (!emitResult.Success || string.IsNullOrWhiteSpace(emitResult.Source))
+    foreach (var result in results)
     {
-        Console.WriteLine("GLSL emitter produced empty output.");
-        return 1;
-    }
-
-    await File.WriteAllTextAsync(glslFile, emitResult.Source, new UTF8Encoding(false));
-    await File.WriteAllTextAsync(
-        manifestFile,
-        JsonSerializer.Serialize(result.AbiManifest, new JsonSerializerOptions { WriteIndented = true }),
-        new UTF8Encoding(false));
-
-    if (string.Equals(options.Backend, "glsl", StringComparison.OrdinalIgnoreCase))
-    {
+        if (result.Module is null || result.AbiManifest is null) return 1;
+        var entryName = string.IsNullOrWhiteSpace(result.EntryPointName) ? result.Module.Stage.ToString() : result.EntryPointName;
+        var glslFile = Path.Combine(outputDirectory, $"{entryName}.glsl");
+        var manifestFile = Path.Combine(outputDirectory, $"{entryName}.shader.json");
+        var emitResult = GlslEmitter.EmitFromModule(result.Module);
+        if (!emitResult.Success) return 1;
+        await File.WriteAllTextAsync(glslFile, emitResult.Source, new UTF8Encoding(false));
+        await File.WriteAllTextAsync(manifestFile, JsonSerializer.Serialize(result.AbiManifest, new JsonSerializerOptions { WriteIndented = true }), new UTF8Encoding(false));
+        if (string.Equals(options.Backend, "spirv", StringComparison.OrdinalIgnoreCase))
+        {
+            var glslang = ToolPath("glslangValidator");
+            var spirvValidator = ToolPath("spirv-val");
+            if (glslang is null || spirvValidator is null) return 1;
+            var spirvFile = Path.Combine(outputDirectory, $"{entryName}.spv");
+            var stage = result.Module.Stage switch { ShaderStage.Vertex => "vert", ShaderStage.Fragment => "frag", _ => "comp" };
+            var compile = RunTool(glslang, $"-V --target-env {EscapeArgument(options.CompilationOptions.Profile)} -S {stage} {EscapeArgument(glslFile)} -o {EscapeArgument(spirvFile)}");
+            if (compile.ExitCode != 0) { Console.WriteLine($"glslangValidator failed:{Environment.NewLine}{compile.Output}"); return 1; }
+            var validation = RunTool(spirvValidator, $"--target-env {EscapeArgument(options.CompilationOptions.Profile)} {EscapeArgument(spirvFile)}");
+            if (validation.ExitCode != 0) { Console.WriteLine($"spirv-val failed:{Environment.NewLine}{validation.Output}"); return 1; }
+            var artifact = new ShaderArtifact(await File.ReadAllBytesAsync(spirvFile), result.AbiManifest);
+            await File.WriteAllBytesAsync(spirvFile, artifact.Spirv);
+            Console.WriteLine($"Wrote {spirvFile}");
+        }
         Console.WriteLine($"Wrote {glslFile}");
         Console.WriteLine($"Wrote {manifestFile}");
-        return 0;
     }
-
-    var glslang = ToolPath("glslangValidator");
-    var spirvValidator = ToolPath("spirv-val");
-    if (glslang is null || spirvValidator is null)
-    {
-        Console.WriteLine("SPIR-V emit requires glslangValidator and spirv-val in PATH.");
-        return 1;
-    }
-
-    var spirvFile = Path.Combine(outputDirectory, $"{entryName}.spv");
-    var compile = RunTool(glslang, $"-V --target-env {EscapeArgument(options.CompilationOptions.Profile)} -S comp {EscapeArgument(glslFile)} -o {EscapeArgument(spirvFile)}");
-    if (compile.ExitCode != 0)
-    {
-        Console.WriteLine($"glslangValidator failed:{Environment.NewLine}{compile.Output}");
-        return 1;
-    }
-
-    var validation = RunTool(spirvValidator, $"--target-env {EscapeArgument(options.CompilationOptions.Profile)} {EscapeArgument(spirvFile)}");
-    if (validation.ExitCode != 0)
-    {
-        Console.WriteLine($"spirv-val failed:{Environment.NewLine}{validation.Output}");
-        return 1;
-    }
-
-    var artifact = new ShaderArtifact(await File.ReadAllBytesAsync(spirvFile), result.AbiManifest);
-    await File.WriteAllBytesAsync(spirvFile, artifact.Spirv);
-    Console.WriteLine($"Wrote {spirvFile}");
-    Console.WriteLine($"Wrote {manifestFile}");
     return 0;
 }
 
-static async Task<ShaderCompilationResult> CompileProjectAsync(ProgramOptions options)
+static async Task<IReadOnlyList<ShaderCompilationResult>> CompileProjectAsync(ProgramOptions options)
 {
     if (!MSBuildLocator.IsRegistered)
     {
@@ -144,13 +114,10 @@ static async Task<ShaderCompilationResult> CompileProjectAsync(ProgramOptions op
 
     if (compilation is null)
     {
-        return new ShaderCompilationResult(
-            string.Empty,
-            false,
-            [new ShaderDiagnostic(ShaderDiagnosticId.DSH004, $"Unable to load compilation for project '{options.ProjectPath}'.")]);
+        return [new ShaderCompilationResult(string.Empty, false, [new ShaderDiagnostic(ShaderDiagnosticId.DSH004, $"Unable to load compilation for project '{options.ProjectPath}'.")])];
     }
 
-        return ShaderCompiler.Compile(compilation, options.CompilationOptions);
+        return ShaderCompiler.CompileAll(compilation, options.CompilationOptions);
     }
 
 static ProgramOptions ParseOptions(string[] args)

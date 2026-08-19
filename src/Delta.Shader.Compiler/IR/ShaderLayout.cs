@@ -46,12 +46,17 @@ public sealed class ShaderStd430Layout
 
 public sealed class ShaderManifest
 {
+    public ShaderStage Stage { get; init; } = ShaderStage.Compute;
+    public string SourceEntryPointName { get; init; } = string.Empty;
     public string EntryPointName { get; init; } = string.Empty;
     public uint LocalSizeX { get; init; }
     public uint LocalSizeY { get; init; }
     public uint LocalSizeZ { get; init; }
     public string StorageLayout { get; init; } = ShaderStd430Layout.Standard;
     public IReadOnlyList<ShaderResourceManifest> Resources { get; init; } = [];
+    public IReadOnlyList<ShaderInterfaceManifest> Inputs { get; init; } = [];
+    public IReadOnlyList<ShaderInterfaceManifest> Outputs { get; init; } = [];
+    public IReadOnlyList<ShaderPushConstantManifest> PushConstants { get; init; } = [];
 
     public static ShaderManifest FromModule(ShaderIrModule module)
     {
@@ -101,11 +106,29 @@ public sealed class ShaderManifest
 
         return new ShaderManifest
         {
+            Stage = module.Stage,
+            SourceEntryPointName = string.IsNullOrWhiteSpace(module.SourceEntryPointName) ? module.EntryPointName : module.SourceEntryPointName,
             EntryPointName = module.EntryPointName,
             LocalSizeX = module.LocalSizeX,
             LocalSizeY = module.LocalSizeY,
             LocalSizeZ = module.LocalSizeZ,
-            Resources = resources
+            Resources = resources,
+            Inputs = module.Inputs.Select(variable => new ShaderInterfaceManifest
+            {
+                Name = variable.Name, ParameterName = variable.ParameterName, GlslName = variable.GlslName,
+                GlslType = variable.GlslType, Location = variable.Location, Builtin = variable.Builtin
+            }).ToArray(),
+            Outputs = module.Outputs.Select(variable => new ShaderInterfaceManifest
+            {
+                Name = variable.Name, ParameterName = variable.ParameterName, GlslName = variable.GlslName,
+                GlslType = variable.GlslType, Location = variable.Location, Builtin = variable.Builtin
+            }).ToArray(),
+            PushConstants = module.PushConstants.Select(push => new ShaderPushConstantManifest
+            {
+                Name = push.Name, ParameterName = push.ParameterName, GlslType = push.GlslType,
+                Alignment = push.Alignment, Size = push.Size, ArrayStride = push.ArrayStride,
+                Members = push.Members.Select(ToManifestMember).ToArray()
+            }).ToArray()
         };
     }
 
@@ -167,8 +190,8 @@ public sealed class ShaderManifest
         return new ShaderAbiManifest
         {
             Version = ShaderAbiManifest.CurrentVersion,
-            Stage = ShaderStage.Compute,
-            SourceEntryPointName = EntryPointName,
+            Stage = Stage,
+            SourceEntryPointName = SourceEntryPointName,
             EntryPointName = "main",
             TargetProfile = options.Profile,
             GlslVersion = options.Glsl,
@@ -177,9 +200,75 @@ public sealed class ShaderManifest
             LocalSizeX = LocalSizeX,
             LocalSizeY = LocalSizeY,
             LocalSizeZ = LocalSizeZ,
-            Resources = resources
+            Resources = resources,
+            Inputs = Inputs.Select(variable => new ShaderAbiInterfaceVariable
+            {
+                Name = variable.Name, ParameterName = variable.ParameterName, GlslName = variable.GlslName,
+                GlslType = variable.GlslType, Location = variable.Location, Builtin = variable.Builtin
+            }).ToArray(),
+            Outputs = Outputs.Select(variable => new ShaderAbiInterfaceVariable
+            {
+                Name = variable.Name, ParameterName = variable.ParameterName, GlslName = variable.GlslName,
+                GlslType = variable.GlslType, Location = variable.Location, Builtin = variable.Builtin
+            }).ToArray(),
+            PushConstants = PushConstants.Select(push => new ShaderAbiPushConstant
+            {
+                Name = push.Name, ParameterName = push.ParameterName, GlslType = push.GlslType,
+                Alignment = push.Alignment, Size = push.Size, ArrayStride = push.ArrayStride,
+                Members = push.Members.Select(ToAbiMember).ToArray()
+            }).ToArray()
         };
     }
+
+    private static ShaderResourceMemberManifest ToManifestMember(ShaderIrStructMember member)
+        => new()
+        {
+            Name = member.Name, GlslName = member.GlslName, GlslType = member.GlslType,
+            Offset = member.Offset, Alignment = member.Alignment, Size = member.Size,
+            ArrayStride = member.ArrayStride, MatrixStride = member.MatrixStride,
+            Members = member.Members.Select(ToManifestMember).ToArray()
+        };
+
+    private static ShaderAbiMember ToAbiMember(ShaderIrStructMember member)
+        => new()
+        {
+            Name = member.Name, GlslName = member.GlslName, GlslType = member.GlslType,
+            Offset = member.Offset, Alignment = member.Alignment, Size = member.Size,
+            ArrayStride = member.ArrayStride, MatrixStride = member.MatrixStride,
+            HostRepresentation = member.GlslType.StartsWith("bvec", StringComparison.Ordinal) || member.GlslType == "bool" ? "bool32" : "std430",
+            Members = member.Members.Select(ToAbiMember).ToArray()
+        };
+
+    private static ShaderAbiMember ToAbiMember(ShaderResourceMemberManifest member)
+        => new()
+        {
+            Name = member.Name, GlslName = member.GlslName, GlslType = member.GlslType,
+            Offset = member.Offset, Alignment = member.Alignment, Size = member.Size,
+            ArrayStride = member.ArrayStride, MatrixStride = member.MatrixStride,
+            HostRepresentation = member.GlslType.StartsWith("bvec", StringComparison.Ordinal) || member.GlslType == "bool" ? "bool32" : "std430",
+            Members = member.Members.Select(ToAbiMember).ToArray()
+        };
+}
+
+public sealed class ShaderInterfaceManifest
+{
+    public string Name { get; init; } = string.Empty;
+    public string ParameterName { get; init; } = string.Empty;
+    public string GlslName { get; init; } = string.Empty;
+    public string GlslType { get; init; } = string.Empty;
+    public uint Location { get; init; }
+    public string? Builtin { get; init; }
+}
+
+public sealed class ShaderPushConstantManifest
+{
+    public string Name { get; init; } = string.Empty;
+    public string ParameterName { get; init; } = string.Empty;
+    public string GlslType { get; init; } = string.Empty;
+    public uint Alignment { get; init; }
+    public uint Size { get; init; }
+    public uint ArrayStride { get; init; }
+    public IReadOnlyList<ShaderResourceMemberManifest> Members { get; init; } = [];
 }
 
 public sealed class ShaderResourceManifest

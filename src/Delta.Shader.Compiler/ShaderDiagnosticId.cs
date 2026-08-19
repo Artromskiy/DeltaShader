@@ -12,4 +12,6 @@ public static class ShaderDiagnosticId
     public const string DSH008 = "DSH008";
     public const string DSH009 = "DSH009";
     public const string DSH010 = "DSH010";
+    public const string DSH011 = "DSH011";
+    public const string DSH012 = "DSH012";
 }

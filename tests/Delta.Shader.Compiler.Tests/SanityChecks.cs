@@ -612,6 +612,54 @@ public class IntrinsicCatalogTests
         return hash;
     }
 
+    [Fact]
+    public async Task GraphicsEntryPoints_BuildVertexAndFragmentModulesWithStageAbi()
+    {
+        const string source = @"
+            using Delta.Maths;
+            using Delta.Shader.Abstractions;
+            namespace Delta.Shader.Compiler.Tests.Fixtures
+            {
+                public struct Constants { public float2 Resolution; public float Time; }
+                public static class Graphics
+                {
+                    [VertexShader(""FullscreenVertex"")] public static void Vertex([VertexIndex] uint index, [Position] out float4 position, [ShaderVarying(0)] out float2 uv)
+                    { position = new float4(-1f, -1f, 0f, 1f); uv = new float2(0f, 0f); }
+                    [FragmentShader(""FullscreenFragment"")] public static void Fragment([FragmentCoord] float2 coord, [PushConstant] Constants constants, [ShaderVarying(0)] float2 uv, [FragmentColor] out float4 color)
+                    { var normalized = float2.Normalize(uv); var edge = ShaderIntrinsics.fwidth(coord.x); color = new float4(edge, constants.Time, normalized.x, 1f); }
+                }
+            }";
+
+        var compilation = await LoadCompilerTestProjectCompilationAsync(source);
+        var results = ShaderCompiler.CompileAll(compilation);
+        Assert.Equal(2, results.Count);
+        Assert.All(results, result => Assert.True(result.Success, string.Join("\n", result.Diagnostics.Select(diagnostic => diagnostic.Message))));
+        var vertex = Assert.Single(results, result => result.Module!.Stage == ShaderStage.Vertex);
+        Assert.Equal("FullscreenVertex", vertex.Module!.SourceEntryPointName);
+        var fragment = Assert.Single(results, result => result.Module!.Stage == ShaderStage.Fragment);
+        Assert.Equal("FullscreenFragment", fragment.Module!.SourceEntryPointName);
+        Assert.Equal("main", fragment.AbiManifest!.EntryPointName);
+        Assert.Single(fragment.AbiManifest.PushConstants);
+    }
+
+    [Fact]
+    public async Task GraphicsEntryPoints_RejectFragmentBuiltinInVertexStage()
+    {
+        const string source = @"
+            using Delta.Maths;
+            using Delta.Shader.Abstractions;
+            public static class InvalidGraphics
+            {
+                [VertexShader] public static void Vertex([FragmentCoord] float2 coord, [Position] out float4 position)
+                { position = new float4(coord.x, 0f, 0f, 1f); }
+            }";
+
+        var compilation = await LoadCompilerTestProjectCompilationAsync(source);
+        var result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH011);
+    }
+
     private static async Task<ShaderCompilationResult> CompileAndValidateEntryPointAsync(
         string source,
         ShaderCompilationOptions? options = null)

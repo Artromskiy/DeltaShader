@@ -55,7 +55,7 @@ public sealed class GlobalInvocationIdAttribute : Attribute
 {
 }
 
-[AttributeUsage(AttributeTargets.Field, Inherited = false, AllowMultiple = false)]
+[AttributeUsage(AttributeTargets.Parameter | AttributeTargets.Field, Inherited = false, AllowMultiple = false)]
 public sealed class PushConstantAttribute : Attribute
 {
 }

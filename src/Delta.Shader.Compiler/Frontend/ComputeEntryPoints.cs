@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Delta.Shader.Abstractions;
 using Delta.Shader.Compiler.Intrinsics;
 using Delta.Shader.Compiler.IR;
 using Delta.Shader.Compiler.Syntax;
@@ -162,6 +163,8 @@ public static class ComputeEntryPoints
 
         var module = new ShaderIrModule
         {
+            Stage = ShaderStage.Compute,
+            SourceEntryPointName = entry.Name,
             EntryPointName = entry.Name,
             LocalSizeX = entry.LocalSizeX,
             LocalSizeY = entry.LocalSizeY,
@@ -660,6 +663,12 @@ public sealed class ModuleCompilationContext
         ReadOnlyStorageBufferAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.ReadOnlyStorageBufferAttribute");
         ReadWriteStorageBufferAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.ReadWriteStorageBufferAttribute");
         GlobalInvocationIdAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.GlobalInvocationIdAttribute");
+        VertexIndexAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.VertexIndexAttribute");
+        FragmentCoordAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.FragmentCoordAttribute");
+        PositionAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.PositionAttribute");
+        FragmentColorAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.FragmentColorAttribute");
+        ShaderVaryingAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.ShaderVaryingAttribute");
+        PushConstantAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.PushConstantAttribute");
     }
 
     public Compilation Compilation { get; }
@@ -669,4 +678,10 @@ public sealed class ModuleCompilationContext
     public ITypeSymbol? ReadOnlyStorageBufferAttributeType { get; }
     public ITypeSymbol? ReadWriteStorageBufferAttributeType { get; }
     public ITypeSymbol? GlobalInvocationIdAttributeType { get; }
+    public ITypeSymbol? VertexIndexAttributeType { get; }
+    public ITypeSymbol? FragmentCoordAttributeType { get; }
+    public ITypeSymbol? PositionAttributeType { get; }
+    public ITypeSymbol? FragmentColorAttributeType { get; }
+    public ITypeSymbol? ShaderVaryingAttributeType { get; }
+    public ITypeSymbol? PushConstantAttributeType { get; }
 }
