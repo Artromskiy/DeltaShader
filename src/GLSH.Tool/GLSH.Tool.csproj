@@ -2,8 +2,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
-    <RootNamespace>DVG.Shaders.Tool</RootNamespace>
-    <AssemblyName>glsh</AssemblyName>
+    <RootNamespace>Delta.Shader.Tool</RootNamespace>
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>glsh</ToolCommandName>
     <NoWarn>$(NoWarn);NU1301</NoWarn>

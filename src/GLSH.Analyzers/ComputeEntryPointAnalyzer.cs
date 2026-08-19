@@ -1,10 +1,10 @@
 using System.Collections.Immutable;
 using System.Linq;
-using DVG.Shaders.Abstractions;
-using DVG.Shaders.Compiler;
+using Delta.Shader.Abstractions;
+using Delta.Shader.Compiler;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
-namespace DVG.Shaders.Analyzers;
+namespace Delta.Shader.Analyzers;
 
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer

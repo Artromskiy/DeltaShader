@@ -1,7 +1,7 @@
 using System.Collections.Generic;
-using DVG.Shaders.Compiler.IR;
+using Delta.Shader.Compiler.IR;
 
-namespace DVG.Shaders.Compiler;
+namespace Delta.Shader.Compiler;
 
 public sealed class ShaderCompilationResult
 {
@@ -31,5 +31,5 @@ public sealed record ShaderCompilationOptions
 
     public string Profile { get; init; } = "vulkan1.2";
     public string Spirv { get; init; } = "1.5";
-    public string Glsl { get; init; } = "450";
+    public string Glsl { get; init; } = "460";
 }

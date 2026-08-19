@@ -1,6 +1,6 @@
 using System;
 
-namespace DVG.Shaders.Abstractions;
+namespace Delta.Shader.Abstractions;
 
 public enum ShaderResourceAccess
 {
@@ -50,6 +50,11 @@ public sealed class ReadWriteStorageBufferAttribute : Attribute
     }
 }
 
+[AttributeUsage(AttributeTargets.Parameter, Inherited = false, AllowMultiple = false)]
+public sealed class GlobalInvocationIdAttribute : Attribute
+{
+}
+
 [AttributeUsage(AttributeTargets.Field, Inherited = false, AllowMultiple = false)]
 public sealed class PushConstantAttribute : Attribute
 {
@@ -70,4 +75,3 @@ public sealed class SpecializationConstantAttribute : Attribute
         Id = id;
     }
 }
-

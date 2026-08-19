@@ -396,10 +396,10 @@
         "type": "Project",
         "dependencies": {
           "GLSH.Abstractions": "[1.0.0, )",
-          "KibiHex.Maths": "[1.0.0, )"
+          "Delta.Maths": "[1.0.0, )"
         }
       },
-      "kibihex.maths": {
+      "delta.maths": {
         "type": "Project"
       },
       "Microsoft.CodeAnalysis.Analyzers": {

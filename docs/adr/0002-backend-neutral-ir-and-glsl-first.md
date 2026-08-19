@@ -5,7 +5,7 @@ The project needs a clear path to both backend-neutral compile reuse and a fallb
 
 ## Decision
 IR is backend-neutral and captures typed values, control flow, resources, and requirements.
-First backend is Vulkan GLSL 450 via external toolchain validation.
+First backend is Vulkan GLSL 460 via external toolchain validation.
 
 ## Consequences
 - Frontend and analyzer stay stable when SPIR-V backend is added later.
@@ -14,4 +14,3 @@ First backend is Vulkan GLSL 450 via external toolchain validation.
 
 ## Status
 Accepted for 0.1 MVP.
-

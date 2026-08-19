@@ -6,7 +6,7 @@ Symbol-based lowering decisions must be validated not only against inline syntax
 ## Decision
 Create a dedicated reference fixture project under `tests/GLSH.Compiler.ReferenceFixtures` that depends on:
 
-- `KibiHex.Maths`
+- `Delta.Maths`
 - `GLSH.Abstractions`
 
 Compiler tests open this project through `MSBuildWorkspace` and validate that:
@@ -14,7 +14,7 @@ Compiler tests open this project through `MSBuildWorkspace` and validate that:
 - `floatN` constructors,
 - vector `op_*` operators,
 - vector swizzle properties,
-- `KibiHex.maths` calls
+- `Delta.Maths.maths` calls
 
 are all resolved through the shared `IntrinsicRegistry` by `ISymbol`, not by names.
 

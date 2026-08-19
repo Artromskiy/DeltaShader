@@ -1,12 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using DVG.Shaders.Compiler.Intrinsics;
-using DVG.Shaders.Compiler.IR;
-using DVG.Shaders.Compiler.Syntax;
+using Delta.Shader.Compiler.Intrinsics;
+using Delta.Shader.Compiler.IR;
+using Delta.Shader.Compiler.Syntax;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace DVG.Shaders.Compiler;
+namespace Delta.Shader.Compiler;
 
 public static class ComputeEntryPoints
 {
@@ -47,6 +48,8 @@ public static class ComputeEntryPoints
         var entry = entries[0];
         var resources = new List<ShaderIrResource>();
         var seenBindings = new HashSet<(uint Set, uint Binding)>();
+        var storageBuffers = new Dictionary<IParameterSymbol, uint>(SymbolEqualityComparer.Default);
+        IParameterSymbol? invocationParameter = null;
 
         if (!entry.Method.IsStatic || !entry.Method.ReturnsVoid)
         {
@@ -78,6 +81,38 @@ public static class ComputeEntryPoints
             }
 
             var location = parameter.Locations.FirstOrDefault()?.GetLineSpan();
+            var attributeInvocationId = parameter.GetAttributes().FirstOrDefault(a =>
+                IsGlobalInvocationIdAttribute(a.AttributeClass, context));
+
+            if (attributeInvocationId is not null)
+            {
+                var invocationLocation = parameter.Locations.FirstOrDefault()?.GetLineSpan();
+                if (invocationParameter is not null)
+                {
+                    diagnostics.Add(new GlshDiagnostic(
+                        GlshDiagnosticId.GLSH002,
+                        "Only one [GlobalInvocationId] parameter is supported on a compute entry point.",
+                        invocationLocation?.Path,
+                        invocationLocation is null ? 0 : invocationLocation.Value.StartLinePosition.Line + 1,
+                        invocationLocation is null ? 0 : invocationLocation.Value.StartLinePosition.Character + 1));
+                }
+                else if (parameter.Type.SpecialType != SpecialType.System_UInt32)
+                {
+                    diagnostics.Add(new GlshDiagnostic(
+                        GlshDiagnosticId.GLSH002,
+                        "[GlobalInvocationId] parameter must be uint.",
+                        invocationLocation?.Path,
+                        invocationLocation is null ? 0 : invocationLocation.Value.StartLinePosition.Line + 1,
+                        invocationLocation is null ? 0 : invocationLocation.Value.StartLinePosition.Character + 1));
+                }
+                else
+                {
+                    invocationParameter = parameter;
+                }
+
+                continue;
+            }
+
             if (!TryGetBufferElementType(parameter.Type, context, out var elementType))
             {
                 diagnostics.Add(new GlshDiagnostic(
@@ -102,7 +137,25 @@ public static class ComputeEntryPoints
 
             if (resource is not null)
             {
+                storageBuffers[parameter] = resource.Binding;
                 resources.Add(resource);
+            }
+        }
+
+        string? body = string.Empty;
+        bool usesBuiltinInvocationId = false;
+        if (diagnostics.Count == 0)
+        {
+            var methodSyntax = entry.Method.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() as MethodDeclarationSyntax;
+            if (!TryTranslateExecutableBody(entry.Method, context, methodSyntax, invocationParameter, storageBuffers, out body, out usesBuiltinInvocationId, out var bodyDiagnosticReason, out var bodyDiagnosticId))
+            {
+                var location = entry.Method.Locations.FirstOrDefault()?.GetLineSpan();
+                diagnostics.Add(new GlshDiagnostic(
+                    bodyDiagnosticId,
+                    bodyDiagnosticReason ?? "Compute entry point body is not supported in MVP.",
+                    location?.Path,
+                    location is null ? 0 : location.Value.StartLinePosition.Line + 1,
+                    location is null ? 0 : location.Value.StartLinePosition.Character + 1));
             }
         }
 
@@ -115,6 +168,9 @@ public static class ComputeEntryPoints
             Resources = resources,
             Requirements = [$"Vulkan {resultOptions.Profile}", $"GLSL {resultOptions.Glsl}", $"SPIRV {resultOptions.Spirv}"],
             Instructions = new[] { "entrypoint " + entry.Name },
+            Body = body,
+            UsesBuiltinInvocationId = usesBuiltinInvocationId,
+            InvocationParameterName = invocationParameter?.Name
         };
 
         return new ShaderCompilationResult(entry.Name, diagnostics.Count == 0, diagnostics, module);
@@ -241,6 +297,52 @@ public static class ComputeEntryPoints
             || SymbolEqualityComparer.Default.Equals(attributeType, context.ReadWriteStorageBufferAttributeType);
     }
 
+    private static bool IsGlobalInvocationIdAttribute(
+        ITypeSymbol? attributeType,
+        ModuleCompilationContext context)
+    {
+        return SymbolEqualityComparer.Default.Equals(attributeType, context.GlobalInvocationIdAttributeType);
+    }
+
+    private static bool TryTranslateExecutableBody(
+        IMethodSymbol method,
+        ModuleCompilationContext context,
+        MethodDeclarationSyntax? methodSyntax,
+        IParameterSymbol? invocationParameter,
+        Dictionary<IParameterSymbol, uint> storageParameters,
+        out string body,
+        out bool usesBuiltinInvocationId,
+        out string? reason,
+        out string diagnosticId)
+    {
+        body = string.Empty;
+        usesBuiltinInvocationId = false;
+        reason = null;
+        diagnosticId = GlshDiagnosticId.GLSH008;
+
+        if (methodSyntax is null)
+        {
+            reason = "Unable to read compute entry-point source body.";
+            return false;
+        }
+
+        if (storageParameters.Count == 0)
+        {
+            body = string.Empty;
+            return true;
+        }
+
+        var semanticModel = context.Compilation.GetSemanticModel(methodSyntax.SyntaxTree);
+        if (!ComputeShaderBodyTranslator.TryTranslate(method, methodSyntax, semanticModel, invocationParameter, storageParameters, out var translation, out reason, out diagnosticId))
+        {
+            return false;
+        }
+
+        body = translation.Body;
+        usesBuiltinInvocationId = translation.UsesBuiltinInvocationId;
+        return true;
+    }
+
     private static bool IsReadOnlyStorageBuffer(ITypeSymbol type, ModuleCompilationContext context)
         => context.ReadOnlyStorageBufferType is not null &&
             SymbolEqualityComparer.Default.Equals((type as INamedTypeSymbol)?.OriginalDefinition, context.ReadOnlyStorageBufferType);
@@ -253,9 +355,9 @@ public static class ComputeEntryPoints
         unsupportedReason = string.Empty;
 
         if (type.Name == "fix" ||
-            (type.Name.StartsWith("fix", StringComparison.Ordinal) && type.ContainingNamespace?.ToDisplayString() == "DVG.Maths"))
+            (type.Name.StartsWith("fix", StringComparison.Ordinal) && type.ContainingNamespace?.ToDisplayString() == "Delta.Maths"))
         {
-            unsupportedReason = "DVG.Maths.fix is unsupported in MVP. Add explicit float64/fix feature profile to enable.";
+            unsupportedReason = "Delta.Maths.fix is unsupported in MVP. Add explicit float64/fix feature profile to enable.";
             return false;
         }
 
@@ -271,7 +373,7 @@ public static class ComputeEntryPoints
             return false;
         }
 
-        if (context.Intrinsics.IsDvgMathsVectorType(type, out _))
+        if (context.Intrinsics.IsDeltaMathsVectorType(type, out _))
         {
             return true;
         }
@@ -470,10 +572,11 @@ public sealed class ModuleCompilationContext
     {
         Compilation = compilation;
         Intrinsics = intrinsics;
-        ReadOnlyStorageBufferType = compilation.GetTypeByMetadataName("DVG.Shaders.Abstractions.ReadOnlyStorageBuffer`1");
-        ReadWriteStorageBufferType = compilation.GetTypeByMetadataName("DVG.Shaders.Abstractions.ReadWriteStorageBuffer`1");
-        ReadOnlyStorageBufferAttributeType = compilation.GetTypeByMetadataName("DVG.Shaders.Abstractions.ReadOnlyStorageBufferAttribute");
-        ReadWriteStorageBufferAttributeType = compilation.GetTypeByMetadataName("DVG.Shaders.Abstractions.ReadWriteStorageBufferAttribute");
+        ReadOnlyStorageBufferType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.ReadOnlyStorageBuffer`1");
+        ReadWriteStorageBufferType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.ReadWriteStorageBuffer`1");
+        ReadOnlyStorageBufferAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.ReadOnlyStorageBufferAttribute");
+        ReadWriteStorageBufferAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.ReadWriteStorageBufferAttribute");
+        GlobalInvocationIdAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.GlobalInvocationIdAttribute");
     }
 
     public Compilation Compilation { get; }
@@ -482,4 +585,5 @@ public sealed class ModuleCompilationContext
     public ITypeSymbol? ReadWriteStorageBufferType { get; }
     public ITypeSymbol? ReadOnlyStorageBufferAttributeType { get; }
     public ITypeSymbol? ReadWriteStorageBufferAttributeType { get; }
+    public ITypeSymbol? GlobalInvocationIdAttributeType { get; }
 }

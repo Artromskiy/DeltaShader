@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text;
-using DVG.Shaders.Backend.Glsl;
-using DVG.Shaders.Compiler;
+using Delta.Shader.Backend.Glsl;
+using Delta.Shader.Compiler;
 using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.MSBuild;
@@ -88,7 +88,7 @@ static async Task<ShaderCompilationResult> CompileProjectAsync(ProgramOptions op
         MSBuildLocator.RegisterDefaults();
     }
 
-    using var workspace = MSBuildWorkspace.Create();
+        using var workspace = MSBuildWorkspace.Create();
     var project = await workspace.OpenProjectAsync(options.ProjectPath);
     var compilation = await project.GetCompilationAsync();
 
@@ -100,10 +100,8 @@ static async Task<ShaderCompilationResult> CompileProjectAsync(ProgramOptions op
             [new GlshDiagnostic(GlshDiagnosticId.GLSH004, $"Unable to load compilation for project '{options.ProjectPath}'.")]);
     }
 
-    var context = new ModuleCompilationContext(compilation);
-    var frontend = new RoslynFrontend(compilation);
-    return ComputeEntryPoints.ValidateAndBuild(context, frontend, options.CompilationOptions);
-}
+        return ShaderCompiler.Compile(compilation, options.CompilationOptions);
+    }
 
 static ProgramOptions ParseOptions(string[] args)
 {

@@ -1,8 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <AssemblyName>GLSH.Backend.Glsl</AssemblyName>
-    <RootNamespace>DVG.Shaders.Backend.Glsl</RootNamespace>
+    <RootNamespace>Delta.Shader.Backend.Glsl</RootNamespace>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 

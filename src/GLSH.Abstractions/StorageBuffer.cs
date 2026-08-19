@@ -1,6 +1,6 @@
 using System;
 
-namespace DVG.Shaders.Abstractions;
+namespace Delta.Shader.Abstractions;
 
 public abstract class ShaderStorageBuffer
 {

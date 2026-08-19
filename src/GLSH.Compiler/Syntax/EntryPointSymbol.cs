@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Microsoft.CodeAnalysis;
 
-namespace DVG.Shaders.Compiler.Syntax;
+namespace Delta.Shader.Compiler.Syntax;
 
 public sealed class ShaderEntryPointSymbol
 {
@@ -22,4 +22,3 @@ public sealed class ShaderEntryPointSymbol
 
     public IReadOnlyList<Location> SourceLocations => Method.Locations;
 }
-

@@ -2,7 +2,7 @@
 
 GLSH — планируемый компилятор ограниченного подмножества C# в шейдеры для
 Vulkan. Пользователь пишет обычные статические C#-методы, использует векторы и
-shader-like API из `DVG.Maths`, а GLSH проверяет код через Roslyn и выпускает
+shader-like API из `Delta.Maths`, а GLSH проверяет код через Roslyn и выпускает
 SPIR-V вместе с описанием ресурсов шейдера.
 
 Этот каталог пока содержит только технический план. Код следует писать
@@ -11,9 +11,9 @@ SPIR-V вместе с описанием ресурсов шейдера.
 ## Текущий статус реализации
 
 В каталоге уже есть рабочий автономный срез: Roslyn frontend и IR проверяют
-поддерживаемые compute entry points, GLSL backend выпускает Vulkan GLSL 450,
+поддерживаемые compute entry points, GLSL backend выпускает Vulkan GLSL 460,
 а тесты прогоняют результат через `glslangValidator` и `spirv-val`. Compiler и
-analyzer-safe код не зависят от DVG.Maths на этапе компиляции; fixture/tests
+analyzer-safe код не зависят от Delta.Maths на этапе компиляции; fixture/tests
 подключают Maths отдельно через Roslyn metadata.
 
 Полный 0.1 ещё не заявлен: lowering тела shader-метода, manifest/reflection и
@@ -28,7 +28,7 @@ layout, включая `scalarBlockLayout`, намеренно не поддер
 metadata хранит `Offset`, `Alignment`, `Size`, `ArrayStride` и nullable
 `MatrixStride`; текущая генерация ресурсов всегда печатает `std430`.
 
-`DVG.Maths.float3` нельзя считать CLR-эквивалентом плотного GLSL `vec3`: в
+`Delta.Maths.float3` нельзя считать CLR-эквивалентом плотного GLSL `vec3`: в
 `std430` у `vec3` alignment и array stride равны 16 байтам, хотя размер CLR
 значения может быть 12. Host-side upload должен использовать metadata manifest;
 компилятор обязан диагностировать неподдерживаемые structured layouts, а не
@@ -43,7 +43,7 @@ C# source
   -> Roslyn Compilation + IOperation
   -> проверка разрешённого подмножества C#
   -> типизированный GLSH IR
-  -> Vulkan GLSL 450
+  -> Vulkan GLSL 460
   -> glslang/shaderc
   -> SPIR-V
   -> spirv-val
@@ -81,11 +81,11 @@ MVP поддерживает только compute shader. Это позволя�
 
 - `void`-entry point, статические helper-методы и ациклический call graph;
 - `bool`, `int`, `uint`, `float`;
-- `bool2..4`, `int2..4`, `uint2..4`, `float2..4` из `DVG.Maths`;
+- `bool2..4`, `int2..4`, `uint2..4`, `float2..4` из `Delta.Maths`;
 - конструкторы векторов, чтение компонентов и swizzle-свойства;
 - арифметика, сравнения, присваивания, локальные переменные;
 - `if`, условное выражение и структурированные `for`/`while`;
-- поддержанный список функций `DVG.Maths.maths`, сопоставленный с GLSL built-ins
+- поддержанный список функций `Delta.Maths.maths`, сопоставленный с GLSL built-ins
   или с явно описанными IR-функциями;
 - storage buffers, push constants и specialization constants;
 - явные `set`/`binding`; никаких неявно назначаемых binding-ов.
@@ -106,9 +106,9 @@ MVP поддерживает только compute shader. Это позволя�
 точной позиции исходника, а не падение компилятора и не ошибку от glslang в конце
 конвейера.
 
-## Связь с DVG.Maths
+## Связь с Delta.Maths
 
-`DVG.Maths` хорошо подходит как синтаксический фасад: в ней уже есть векторные
+`Delta.Maths` хорошо подходит как синтаксический фасад: в ней уже есть векторные
 типы, swizzles и lowercase-класс `maths`. При этом backend не должен транслировать
 CLR-тела этой библиотеки. Он узнаёт разрешённые типы и методы по полному
 `ISymbol`-идентификатору и заменяет их shader-семантикой.
@@ -116,13 +116,13 @@ CLR-тела этой библиотеки. Он узнаёт разрешённ
 Нужно завести явный реестр intrinsics:
 
 ```text
-DVG.Maths.float3                   -> vec3
-DVG.Maths.int2                     -> ivec2
-DVG.Maths.uint4                    -> uvec4
-DVG.Maths.bool3                    -> bvec3
-DVG.Maths.maths.sin(float/floatN)  -> sin
-DVG.Maths.maths.dot(floatN, ...)   -> dot
-DVG.Maths.maths.normalize(...)     -> normalize
+Delta.Maths.float3                   -> vec3
+Delta.Maths.int2                     -> ivec2
+Delta.Maths.uint4                    -> uvec4
+Delta.Maths.bool3                    -> bvec3
+Delta.Maths.maths.sin(float/floatN)  -> sin
+Delta.Maths.maths.dot(floatN, ...)   -> dot
+Delta.Maths.maths.normalize(...)     -> normalize
 ```
 
 Реестр обязан хранить не только имя, но и допустимые сигнатуры, shader stage,
@@ -275,7 +275,7 @@ sanitization.
 ## GLSL backend
 
 Backend выдаёт детерминированный Vulkan GLSL, начиная с консервативного
-`#version 450`. Extensions добавляются только из собранных requirements.
+`#version 460`. Extensions добавляются только из собранных requirements.
 
 Обязательные правила:
 
@@ -362,7 +362,7 @@ Source generator не должен быть главным компилятор�
 
 - один тест на каждую разрешённую `IOperation`;
 - негативный тест на каждую запрещённую конструкцию;
-- overloads и symbol identity для всех `DVG.Maths.maths` intrinsics;
+- overloads и symbol identity для всех `Delta.Maths.maths` intrinsics;
 - call graph, recursion, capabilities и layouts;
 - диагностические snapshot-тесты с line/column;
 - property-based тесты для type/layout calculator.
@@ -379,7 +379,7 @@ Source generator не должен быть главным компилятор�
 ### 3. Дифференциальные тесты
 
 Для чистых поддержанных функций допустимо вызвать CPU-реализацию
-`DVG.Maths` и сравнить с GPU в пределах заранее заданных абсолютной/относительной
+`Delta.Maths` и сравнить с GPU в пределах заранее заданных абсолютной/относительной
 погрешностей. Такие тесты не должны требовать побитового равенства float и не
 должны использовать CPU как нормативный oracle для NaN/denorm/overflow.
 
@@ -552,7 +552,7 @@ store, return. Затем добавить functions, selection, loop и тол�
 Версия `0.1` — это не максимальный C# subset. Это воспроизводимый вертикальный
 срез:
 
-- один понятный compute shader на C# с `DVG.Maths.floatN` и `DVG.Maths.maths`;
+- один понятный compute shader на C# с `Delta.Maths.floatN` и `Delta.Maths.maths`;
 - ранние Roslyn diagnostics для всего неподдержанного;
 - читаемый Vulkan GLSL;
 - валидный SPIR-V и корректный reflection manifest;

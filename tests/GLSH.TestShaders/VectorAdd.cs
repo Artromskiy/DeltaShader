@@ -1,23 +1,21 @@
-using DVG.Shaders.Abstractions;
+using Delta.Shader.Abstractions;
+using Delta.Maths;
 
-namespace DVG.Shaders.TestShaders;
+namespace Delta.Shader.TestShaders;
 
 public static class VectorAdd
 {
-        [ComputeShader(localSizeX: 32)]
-        public static void Add(
-            [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<float>? a,
-            [ReadOnlyStorageBuffer(0, 1)] ReadOnlyStorageBuffer<float>? b,
-            [ReadWriteStorageBuffer(0, 2)] ReadWriteStorageBuffer<float>? outBuffer)
-        {
-            // Placeholder example for stage 0.1 planning.
-            if (a is null || b is null || outBuffer is null)
-            {
-                return;
-            }
+    public const uint ElementCount = 16u;
 
-            _ = a.Load(0);
-            _ = b.Load(0);
-            _ = outBuffer[0];
+    [ComputeShader(localSizeX: 8)]
+    public static void Compute(
+        [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<float> input,
+        [ReadWriteStorageBuffer(0, 1)] ReadWriteStorageBuffer<float> output,
+        [GlobalInvocationId] uint invocation)
+    {
+        if (invocation < ElementCount)
+        {
+            output.Store(invocation, input.Load(invocation) * 2f + 1f);
+        }
     }
 }

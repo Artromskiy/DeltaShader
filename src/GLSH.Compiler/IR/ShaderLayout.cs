@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace DVG.Shaders.Compiler.IR;
+namespace Delta.Shader.Compiler.IR;
 
 public sealed class ShaderStd430Layout
 {

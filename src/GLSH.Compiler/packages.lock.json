@@ -119,7 +119,7 @@
       "glsh.abstractions": {
         "type": "Project"
       },
-      "kibihex.maths": {
+      "delta.maths": {
         "type": "Project",
         "dependencies": {
           "System.Runtime.CompilerServices.Unsafe": "[6.1.2, )"

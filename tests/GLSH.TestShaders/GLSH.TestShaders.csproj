@@ -1,14 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <RootNamespace>Delta.Shader.Compiler.ReferenceFixtures</RootNamespace>
+    <RootNamespace>Delta.Shader.TestShaders</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../../Maths/Delta.Maths.csproj" />
-    <ProjectReference Include="../../src/GLSH.Abstractions/GLSH.Abstractions.csproj" />
+    <ProjectReference Include="..\\..\\src\\GLSH.Abstractions\\GLSH.Abstractions.csproj" />
+    <ProjectReference Include="..\\..\\..\\Maths\\Delta.Maths.csproj" />
   </ItemGroup>
 </Project>

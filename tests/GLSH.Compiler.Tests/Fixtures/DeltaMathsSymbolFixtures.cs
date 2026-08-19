@@ -1,9 +1,9 @@
-using DVG.Maths;
-using DVG.Shaders.Abstractions;
+using Delta.Maths;
+using Delta.Shader.Abstractions;
 
-namespace DVG.Shaders.Compiler.Tests.Fixtures;
+namespace Delta.Shader.Compiler.Tests.Fixtures;
 
-public static class DvgMathsSymbolFixtures
+public static class DeltaMathsSymbolFixtures
 {
     public static void FixtureOne(
         [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<float> a,

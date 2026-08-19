@@ -2,12 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace DVG.Shaders.Backend.Glsl;
+namespace Delta.Shader.Backend.Glsl;
 
-/// <summary>
-/// Produces deterministic identifiers accepted by GLSL 4.50 and Vulkan GLSL.
-/// A single scope must be shared by all names emitted into one module.
-/// </summary>
+    /// <summary>
+    /// Produces deterministic identifiers accepted by Vulkan GLSL 4.60.
+    /// A single scope must be shared by all names emitted into one module.
+    /// </summary>
 public sealed class GlslIdentifierMangler
 {
     private readonly HashSet<string> _usedNames = new(StringComparer.Ordinal);

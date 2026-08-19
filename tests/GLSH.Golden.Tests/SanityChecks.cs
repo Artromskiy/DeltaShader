@@ -1,9 +1,9 @@
-using DVG.Shaders.Compiler;
-using DVG.Shaders.Compiler.IR;
-using DVG.Shaders.Backend.Glsl;
+using Delta.Shader.Compiler;
+using Delta.Shader.Compiler.IR;
+using Delta.Shader.Backend.Glsl;
 using Xunit;
 
-namespace DVG.Shaders.Golden.Tests;
+namespace Delta.Shader.Golden.Tests;
 
 public class SanityChecks
 {
@@ -39,7 +39,7 @@ public class SanityChecks
                     ReadOnly = false,
                 }
             ],
-            Requirements = ["Vulkan 1.2", "GLSL 450"],
+            Requirements = ["Vulkan 1.2", "GLSL 460"],
             Instructions = ["entrypoint ComputeMain"]
         };
 
@@ -96,7 +96,7 @@ public class SanityChecks
                     ReadOnly = false,
                 }
             ],
-            Requirements = ["Vulkan 1.2", "GLSL 450"],
+            Requirements = ["Vulkan 1.2", "GLSL 460"],
             Instructions = ["entrypoint entry"]
         };
 

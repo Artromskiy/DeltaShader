@@ -2,8 +2,8 @@ using System.IO;
 using System.Linq;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using DVG.Shaders.Compiler.Intrinsics;
-using DVG.Shaders.Compiler.Syntax;
+using Delta.Shader.Compiler.Intrinsics;
+using Delta.Shader.Compiler.Syntax;
 using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -11,18 +11,18 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.MSBuild;
 using Xunit;
 
-namespace DVG.Shaders.Compiler.Tests;
+namespace Delta.Shader.Compiler.Tests;
 
 public class IntrinsicCatalogTests
 {
     [Fact]
-    public async Task DvgMaths_VectorTypes_AreMappedTo_GlslVectorTypes_BySymbolIdentity()
+    public async Task DeltaMaths_VectorTypes_AreMappedTo_GlslVectorTypes_BySymbolIdentity()
     {
         var compilation = await LoadMathsCompilationAsync();
         var registry = IntrinsicRegistry.Build(compilation);
 
-        var float2 = compilation.GetTypeByMetadataName("DVG.Maths.float2");
-        var int3 = compilation.GetTypeByMetadataName("DVG.Maths.int3");
+        var float2 = compilation.GetTypeByMetadataName("Delta.Maths.float2");
+        var int3 = compilation.GetTypeByMetadataName("Delta.Maths.int3");
 
         Assert.NotNull(float2);
         Assert.NotNull(int3);
@@ -33,11 +33,11 @@ public class IntrinsicCatalogTests
     }
 
     [Fact]
-    public async Task DvgMaths_MathsFunctions_AreMatchedByISymbol_AndMapOverloads()
+    public async Task DeltaMaths_MathsFunctions_AreMatchedByISymbol_AndMapOverloads()
     {
         var compilation = await LoadMathsCompilationAsync();
         var registry = IntrinsicRegistry.Build(compilation);
-        var maths = compilation.GetTypeByMetadataName("DVG.Maths.maths")!;
+        var maths = compilation.GetTypeByMetadataName("Delta.Maths.maths")!;
 
         var sinFloat = maths.GetMembers("sin").OfType<IMethodSymbol>().Single(m =>
             m.Parameters.Length == 1 && m.Parameters[0].Type.SpecialType == SpecialType.System_Single);
@@ -63,12 +63,12 @@ public class IntrinsicCatalogTests
     }
 
     [Fact]
-    public async Task DvgMaths_VectorConstructors_Operators_Swizzles_AreSymbolMapped()
+    public async Task DeltaMaths_VectorConstructors_Operators_Swizzles_AreSymbolMapped()
     {
         var compilation = await LoadMathsCompilationAsync();
         var registry = IntrinsicRegistry.Build(compilation);
-        var float4 = compilation.GetTypeByMetadataName("DVG.Maths.float4")!;
-        var float3 = compilation.GetTypeByMetadataName("DVG.Maths.float3")!;
+        var float4 = compilation.GetTypeByMetadataName("Delta.Maths.float4")!;
+        var float3 = compilation.GetTypeByMetadataName("Delta.Maths.float3")!;
 
         var ctorByScalars = float4.InstanceConstructors.First(c =>
             c.Parameters.Length == 4 &&
@@ -94,12 +94,12 @@ public class IntrinsicCatalogTests
     }
 
     [Fact]
-    public async Task DvgMaths_IdentityContract_IgnoresNameCollisionWithoutISymbolMatch()
+    public async Task DeltaMaths_IdentityContract_IgnoresNameCollisionWithoutISymbolMatch()
     {
         var fixtureSource = @"
-            using DVG.Maths;
+            using Delta.Maths;
 
-            namespace DVG.Shaders.Compiler.Tests.Fixtures
+            namespace Delta.Shader.Compiler.Tests.Fixtures
             {
                 public static class MathsNameCollision
                 {
@@ -111,9 +111,9 @@ public class IntrinsicCatalogTests
 
         var compilation = await LoadMathsCompilationAsync(fixtureSource);
         var registry = IntrinsicRegistry.Build(compilation);
-        var dvgMaths = compilation.GetTypeByMetadataName("DVG.Maths.maths")!;
-        var fakeMaths = compilation.GetTypeByMetadataName("DVG.Shaders.Compiler.Tests.Fixtures.MathsNameCollision")!;
-        var dvgSin = dvgMaths.GetMembers("sin").OfType<IMethodSymbol>().Single(m =>
+        var deltaMaths = compilation.GetTypeByMetadataName("Delta.Maths.maths")!;
+        var fakeMaths = compilation.GetTypeByMetadataName("Delta.Shader.Compiler.Tests.Fixtures.MathsNameCollision")!;
+        var deltaSin = deltaMaths.GetMembers("sin").OfType<IMethodSymbol>().Single(m =>
             m.Parameters.Length == 1 && m.Parameters[0].Type.SpecialType == SpecialType.System_Single);
         var fakeSin = fakeMaths.GetMembers("sin").OfType<IMethodSymbol>().Single(m =>
             m.Parameters.Length == 1 && m.Parameters[0].Type.SpecialType == SpecialType.System_Single);
@@ -122,18 +122,18 @@ public class IntrinsicCatalogTests
             m.Parameters[0].Type.Name == "float3" &&
             m.Parameters[1].Type.Name == "float3");
 
-        Assert.True(registry.TryGetIntrinsic(dvgSin, out _));
+        Assert.True(registry.TryGetIntrinsic(deltaSin, out _));
         Assert.False(registry.TryGetIntrinsic(fakeSin, out _));
         Assert.False(registry.TryGetIntrinsic(fakeDot, out _));
     }
 
     [Fact]
-    public async Task DvgMaths_IntrinsicRegistry_MapsReferenceProjectSymbolsBySymbolIdentity()
+    public async Task DeltaMaths_IntrinsicRegistry_MapsReferenceProjectSymbolsBySymbolIdentity()
     {
         var compilation = await LoadReferenceFixtureCompilationAsync();
         var registry = IntrinsicRegistry.Build(compilation);
 
-        var fixtureType = compilation.GetTypeByMetadataName("DVG.Shaders.Compiler.ReferenceFixtures.VectorSymbolFixture");
+        var fixtureType = compilation.GetTypeByMetadataName("Delta.Shader.Compiler.ReferenceFixtures.VectorSymbolFixture");
         var method = fixtureType?.GetMembers("SymbolMapKernel").OfType<IMethodSymbol>().SingleOrDefault();
 
         Assert.NotNull(fixtureType);
@@ -148,7 +148,7 @@ public class IntrinsicCatalogTests
             .OfType<ObjectCreationExpressionSyntax>()
             .Select(e => semanticModel.GetSymbolInfo(e).Symbol as IMethodSymbol)
             .Where(m => m?.ContainingType is not null)
-            .Where(m => m!.ContainingType.ContainingNamespace?.ToDisplayString() == "DVG.Maths")
+            .Where(m => m!.ContainingType.ContainingNamespace?.ToDisplayString() == "Delta.Maths")
             .ToList();
 
         var operators = syntax
@@ -164,7 +164,7 @@ public class IntrinsicCatalogTests
             .OfType<MemberAccessExpressionSyntax>()
             .Select(e => semanticModel.GetSymbolInfo(e).Symbol as IPropertySymbol)
             .Where(p => p is not null)
-            .Where(p => p!.ContainingType?.ContainingNamespace?.ToDisplayString() == "DVG.Maths")
+            .Where(p => p!.ContainingType?.ContainingNamespace?.ToDisplayString() == "Delta.Maths")
             .ToList();
 
         var mathsCalls = syntax
@@ -193,10 +193,10 @@ public class IntrinsicCatalogTests
     public async Task ComputeEntryPoint_ResourcesUseSetBindingAndGlslTypeFromSymbol()
     {
         var source = @"
-            using DVG.Maths;
-            using DVG.Shaders.Abstractions;
+            using Delta.Maths;
+            using Delta.Shader.Abstractions;
 
-            namespace DVG.Shaders.Compiler.Tests.Fixtures
+            namespace Delta.Shader.Compiler.Tests.Fixtures
             {
                 public static class StorageBufferEntry
                 {
@@ -236,10 +236,10 @@ public class IntrinsicCatalogTests
     public async Task ComputeEntryPoint_Rejects_Double_AndFixTypes_WithExplicitDiagnostic()
     {
         var source = @"
-            using DVG.Maths;
-            using DVG.Shaders.Abstractions;
+            using Delta.Maths;
+            using Delta.Shader.Abstractions;
 
-            namespace DVG.Shaders.Compiler.Tests.Fixtures
+            namespace Delta.Shader.Compiler.Tests.Fixtures
             {
                 public static class InvalidTypesEntry
                 {
@@ -258,10 +258,10 @@ public class IntrinsicCatalogTests
     public async Task ComputeEntryPoint_Rejects_OrdinaryParameters()
     {
         var source = @"
-            using DVG.Maths;
-            using DVG.Shaders.Abstractions;
+            using Delta.Maths;
+            using Delta.Shader.Abstractions;
 
-            namespace DVG.Shaders.Compiler.Tests.Fixtures
+            namespace Delta.Shader.Compiler.Tests.Fixtures
             {
                 public static class InvalidParamEntry
                 {
@@ -284,10 +284,10 @@ public class IntrinsicCatalogTests
     public async Task ComputeEntryPoint_Rejects_InvalidProfilePair()
     {
         var source = @"
-            using DVG.Maths;
-            using DVG.Shaders.Abstractions;
+            using Delta.Maths;
+            using Delta.Shader.Abstractions;
 
-            namespace DVG.Shaders.Compiler.Tests.Fixtures
+            namespace Delta.Shader.Compiler.Tests.Fixtures
             {
                 public static class ProfileMismatch
                 {
@@ -312,10 +312,10 @@ public class IntrinsicCatalogTests
     public async Task ComputeEntryPoint_RejectsDuplicateBinding()
     {
         var source = @"
-            using DVG.Maths;
-            using DVG.Shaders.Abstractions;
+            using Delta.Maths;
+            using Delta.Shader.Abstractions;
 
-            namespace DVG.Shaders.Compiler.Tests.Fixtures
+            namespace Delta.Shader.Compiler.Tests.Fixtures
             {
                 public static class DuplicateBindingEntry
                 {
@@ -345,7 +345,7 @@ public class IntrinsicCatalogTests
 
     private static async Task<Compilation> LoadMathsCompilationAsync(string? extraSource = null)
     {
-        var root = Path.Combine(FindRepositoryRoot(), "Maths", "KibiHex.Maths.csproj");
+        var root = Path.Combine(FindRepositoryRoot(), "Maths", "Delta.Maths.csproj");
         using var workspace = CreateWorkspace();
         var project = await workspace.OpenProjectAsync(root);
         var baseCompilation = await project.GetCompilationAsync();

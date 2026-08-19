@@ -91,7 +91,7 @@ is fixed.
 The current GLSH solution has a clean restore and build graph. `GLSH.Compiler`
 and `GLSH.Analyzers` target `netstandard2.0`; MSBuildWorkspace and CLI code stay
 in the `net10.0` host. Compiler references only `GLSH.Abstractions`, while
-DVG.Maths is referenced by fixtures/tests rather than compiler core.
+Delta.Maths is referenced by fixtures/tests rather than compiler core.
 
 The GLSL backend now emits valid array declarators and `void main()`, uses a
 central deterministic identifier mangler for GLSL/Vulkan keywords, `gl_`

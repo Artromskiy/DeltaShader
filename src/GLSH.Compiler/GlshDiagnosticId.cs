@@ -1,4 +1,4 @@
-namespace DVG.Shaders.Compiler;
+namespace Delta.Shader.Compiler;
 
 public static class GlshDiagnosticId
 {
@@ -13,4 +13,3 @@ public static class GlshDiagnosticId
     public const string GLSH009 = "GLSH009";
     public const string GLSH010 = "GLSH010";
 }
-

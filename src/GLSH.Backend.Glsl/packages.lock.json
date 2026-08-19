@@ -81,13 +81,13 @@
         "type": "Project",
         "dependencies": {
           "GLSH.Abstractions": "[1.0.0, )",
-          "KibiHex.Maths": "[1.0.0, )",
+          "Delta.Maths": "[1.0.0, )",
           "Microsoft.CodeAnalysis.Analyzers": "[3.11.0, )",
           "Microsoft.CodeAnalysis.CSharp": "[4.13.0, )",
           "Microsoft.CodeAnalysis.CSharp.Workspaces": "[4.13.0, )"
         }
       },
-      "kibihex.maths": {
+      "delta.maths": {
         "type": "Project"
       },
       "Microsoft.CodeAnalysis.Analyzers": {

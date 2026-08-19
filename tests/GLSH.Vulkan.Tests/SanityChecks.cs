@@ -1,13 +1,13 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
-using DVG.Shaders.Backend.Glsl;
-using DVG.Shaders.Compiler;
-using DVG.Shaders.Compiler.IR;
+using Delta.Shader.Backend.Glsl;
+using Delta.Shader.Compiler;
+using Delta.Shader.Compiler.IR;
 using Xunit;
 using Xunit.Sdk;
 
-namespace DVG.Shaders.Vulkan.Tests;
+namespace Delta.Shader.Vulkan.Tests;
 
 public class SanityChecks
 {
@@ -50,7 +50,7 @@ public class SanityChecks
                     ReadOnly = false
                 }
             ],
-            Requirements = ["Vulkan 1.2", "GLSL 450", "SPIRV 1.5"]
+            Requirements = ["Vulkan 1.2", "GLSL 460", "SPIRV 1.5"]
         };
 
         var emit = GlslEmitter.EmitFromModule(module);

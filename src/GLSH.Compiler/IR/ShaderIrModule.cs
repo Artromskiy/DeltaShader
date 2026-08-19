@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace DVG.Shaders.Compiler.IR;
+namespace Delta.Shader.Compiler.IR;
 
 public sealed class ShaderIrModule
 {
@@ -11,6 +11,9 @@ public sealed class ShaderIrModule
     public IReadOnlyList<ShaderIrResource> Resources { get; init; } = [];
     public IReadOnlyList<string> Requirements { get; init; } = [];
     public IReadOnlyList<string> Instructions { get; init; } = [];
+    public string? Body { get; init; }
+    public bool UsesBuiltinInvocationId { get; init; }
+    public string? InvocationParameterName { get; init; }
 }
 
 public sealed class ShaderIrResource

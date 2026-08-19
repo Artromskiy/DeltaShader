@@ -1,7 +1,7 @@
-using DVG.Maths;
-using DVG.Shaders.Abstractions;
+using Delta.Maths;
+using Delta.Shader.Abstractions;
 
-namespace DVG.Shaders.Compiler.ReferenceFixtures;
+namespace Delta.Shader.Compiler.ReferenceFixtures;
 
 public static class VectorSymbolFixture
 {

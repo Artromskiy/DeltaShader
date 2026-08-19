@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 
-namespace DVG.Shaders.Compiler.Intrinsics;
+namespace Delta.Shader.Compiler.Intrinsics;
 
 public enum IntrinsicCategory
 {
@@ -38,31 +38,31 @@ public sealed class IntrinsicRegistry
         var methods = new Dictionary<ISymbol, IntrinsicBinding>(SymbolEqualityComparer.Default);
         var types = new Dictionary<ITypeSymbol, string>(SymbolEqualityComparer.Default);
 
-        RegisterType(types, compilation, "DVG.Maths.float2", "vec2");
-        RegisterType(types, compilation, "DVG.Maths.float3", "vec3");
-        RegisterType(types, compilation, "DVG.Maths.float4", "vec4");
-        RegisterType(types, compilation, "DVG.Maths.int2", "ivec2");
-        RegisterType(types, compilation, "DVG.Maths.int3", "ivec3");
-        RegisterType(types, compilation, "DVG.Maths.int4", "ivec4");
-        RegisterType(types, compilation, "DVG.Maths.uint2", "uvec2");
-        RegisterType(types, compilation, "DVG.Maths.uint3", "uvec3");
-        RegisterType(types, compilation, "DVG.Maths.uint4", "uvec4");
-        RegisterType(types, compilation, "DVG.Maths.bool2", "bvec2");
-        RegisterType(types, compilation, "DVG.Maths.bool3", "bvec3");
-        RegisterType(types, compilation, "DVG.Maths.bool4", "bvec4");
+        RegisterType(types, compilation, "Delta.Maths.float2", "vec2");
+        RegisterType(types, compilation, "Delta.Maths.float3", "vec3");
+        RegisterType(types, compilation, "Delta.Maths.float4", "vec4");
+        RegisterType(types, compilation, "Delta.Maths.int2", "ivec2");
+        RegisterType(types, compilation, "Delta.Maths.int3", "ivec3");
+        RegisterType(types, compilation, "Delta.Maths.int4", "ivec4");
+        RegisterType(types, compilation, "Delta.Maths.uint2", "uvec2");
+        RegisterType(types, compilation, "Delta.Maths.uint3", "uvec3");
+        RegisterType(types, compilation, "Delta.Maths.uint4", "uvec4");
+        RegisterType(types, compilation, "Delta.Maths.bool2", "bvec2");
+        RegisterType(types, compilation, "Delta.Maths.bool3", "bvec3");
+        RegisterType(types, compilation, "Delta.Maths.bool4", "bvec4");
 
-        RegisterVectorMembers(methods, compilation, "DVG.Maths.float2");
-        RegisterVectorMembers(methods, compilation, "DVG.Maths.float3");
-        RegisterVectorMembers(methods, compilation, "DVG.Maths.float4");
-        RegisterVectorMembers(methods, compilation, "DVG.Maths.int2");
-        RegisterVectorMembers(methods, compilation, "DVG.Maths.int3");
-        RegisterVectorMembers(methods, compilation, "DVG.Maths.int4");
-        RegisterVectorMembers(methods, compilation, "DVG.Maths.uint2");
-        RegisterVectorMembers(methods, compilation, "DVG.Maths.uint3");
-        RegisterVectorMembers(methods, compilation, "DVG.Maths.uint4");
-        RegisterVectorMembers(methods, compilation, "DVG.Maths.bool2");
-        RegisterVectorMembers(methods, compilation, "DVG.Maths.bool3");
-        RegisterVectorMembers(methods, compilation, "DVG.Maths.bool4");
+        RegisterVectorMembers(methods, compilation, "Delta.Maths.float2");
+        RegisterVectorMembers(methods, compilation, "Delta.Maths.float3");
+        RegisterVectorMembers(methods, compilation, "Delta.Maths.float4");
+        RegisterVectorMembers(methods, compilation, "Delta.Maths.int2");
+        RegisterVectorMembers(methods, compilation, "Delta.Maths.int3");
+        RegisterVectorMembers(methods, compilation, "Delta.Maths.int4");
+        RegisterVectorMembers(methods, compilation, "Delta.Maths.uint2");
+        RegisterVectorMembers(methods, compilation, "Delta.Maths.uint3");
+        RegisterVectorMembers(methods, compilation, "Delta.Maths.uint4");
+        RegisterVectorMembers(methods, compilation, "Delta.Maths.bool2");
+        RegisterVectorMembers(methods, compilation, "Delta.Maths.bool3");
+        RegisterVectorMembers(methods, compilation, "Delta.Maths.bool4");
 
         RegisterMathsMethods(methods, compilation);
 
@@ -82,7 +82,7 @@ public sealed class IntrinsicRegistry
         Dictionary<ISymbol, IntrinsicBinding> methods,
         Compilation compilation)
     {
-        var mathsType = compilation.GetTypeByMetadataName("DVG.Maths.maths");
+        var mathsType = compilation.GetTypeByMetadataName("Delta.Maths.maths");
         if (mathsType is null)
         {
             return;
@@ -172,6 +172,6 @@ public sealed class IntrinsicRegistry
     public bool TryMapType(ITypeSymbol type, out string glslType)
         => _types.TryGetValue(type, out glslType);
 
-    public bool IsDvgMathsVectorType(ITypeSymbol type, out string glslType)
+    public bool IsDeltaMathsVectorType(ITypeSymbol type, out string glslType)
         => _types.TryGetValue(type, out glslType);
 }

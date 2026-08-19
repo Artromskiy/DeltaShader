@@ -1,6 +1,6 @@
 using System;
 
-namespace DVG.Shaders.Compiler;
+namespace Delta.Shader.Compiler;
 
 public sealed record GlshDiagnostic(
     string Id,
@@ -24,4 +24,3 @@ public enum GlshDiagnosticSeverity
     Warning,
     Error
 }
-

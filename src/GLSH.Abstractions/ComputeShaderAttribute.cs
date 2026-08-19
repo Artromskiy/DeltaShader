@@ -1,6 +1,6 @@
 using System;
 
-namespace DVG.Shaders.Abstractions;
+namespace Delta.Shader.Abstractions;
 
 /// <summary>
 /// Marks a static C# method as a compute shader entry point.
@@ -27,4 +27,3 @@ public sealed class ComputeShaderAttribute : Attribute
         EntryPointName = entryPointName;
     }
 }
-

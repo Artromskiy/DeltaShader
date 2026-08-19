@@ -1,8 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
-    <AssemblyName>GLSH.Compiler</AssemblyName>
-    <RootNamespace>DVG.Shaders.Compiler</RootNamespace>
+    <RootNamespace>Delta.Shader.Compiler</RootNamespace>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
