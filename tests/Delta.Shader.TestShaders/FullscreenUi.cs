@@ -17,6 +17,9 @@ public static class FullscreenUi
         [Position] out float4 position,
         [ShaderVarying(0)] out float2 uv)
     {
+        position = default;
+        uv = default;
+
         if (vertexIndex == 0u)
         {
             position = new float4(-1f, -1f, 0f, 1f);
@@ -46,7 +49,7 @@ public static class FullscreenUi
         var q = maths.abs(p) - halfSize + 0.12f;
         var distance = maths.length(maths.max(q, new float2(0f, 0f))) + maths.min(maths.max(q.x, q.y), 0f) - 0.12f;
         var edge = ShaderIntrinsics.fwidth(distance);
-        var mask = 1f - maths.SmoothStep(-edge, edge, distance);
+        var mask = 1f - maths.smoothStep(-edge, edge, distance);
         var tint = 0.5f + 0.5f * maths.sin(constants.Time);
         color = new float4(0.08f + 0.2f * mask, 0.12f + 0.4f * mask, 0.2f + 0.5f * tint * mask, 1f);
     }
