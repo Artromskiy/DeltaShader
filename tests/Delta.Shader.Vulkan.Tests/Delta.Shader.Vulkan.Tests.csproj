@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Delta.Shader.Vulkan.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\\..\\src\\Delta.Shader.Backend.Glsl\\Delta.Shader.Backend.Glsl.csproj" />
+    <ProjectReference Include="..\\..\\src\\Delta.Shader.Compiler\\Delta.Shader.Compiler.csproj" />
+    <ProjectReference Include="..\\..\\src\\Delta.Shader.Tool\\Delta.Shader.Tool.csproj" />
+    <ProjectReference Include="..\\..\\..\\DeltaRender\\src\\Delta.Render.Core\\Delta.Render.Core.csproj" />
+    <ProjectReference Include="..\\..\\..\\DeltaRender\\src\\Delta.Render.Vulkan\\Delta.Render.Vulkan.csproj" />
+    <PackageReference Include="Silk.NET.Vulkan" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+  </ItemGroup>
+</Project>

@@ -4,10 +4,10 @@
 Symbol-based lowering decisions must be validated not only against inline syntax strings but against real compilations that come from `ProjectReference` graphs. This keeps symbol identity stable when types and methods are pulled transitively.
 
 ## Decision
-Create a dedicated reference fixture project under `tests/GLSH.Compiler.ReferenceFixtures` that depends on:
+Create a dedicated reference fixture project under `tests/Delta.Shader.Compiler.ReferenceFixtures` that depends on:
 
 - `Delta.Maths`
-- `GLSH.Abstractions`
+- `Delta.Shader.Abstractions`
 
 Compiler tests open this project through `MSBuildWorkspace` and validate that:
 

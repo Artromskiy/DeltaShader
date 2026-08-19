@@ -11,7 +11,7 @@
 - Параметры entry point:
   - примитивы: `bool`, `int`, `uint`, `float`;
   - векторы `float2..4`, `int2..4`, `uint2..4`, `bool2..4` из `Delta.Maths`;
-  - `ReadOnlyStorageBuffer<T>` и `ReadWriteStorageBuffer<T>` из `GLSH.Abstractions`;
+  - `ReadOnlyStorageBuffer<T>` и `ReadWriteStorageBuffer<T>` из `Delta.Shader.Abstractions`;
   - `T` для буферов должен быть скалярным или векторным типом из списка выше;
 - `Delta.Maths` инстринсики:
   - `Delta.Maths.maths.sin`, `.cos`, `.tan`, `.dot`, `.normalize` распознаются по `ISymbol`,

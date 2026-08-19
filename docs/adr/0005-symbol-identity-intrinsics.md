@@ -1,4 +1,4 @@
-# ADR-0005: Symbol-identity based intrinsic registry for Delta.Maths and GLSH intrinsics
+# ADR-0005: Symbol-identity based intrinsic registry for Delta.Maths and Delta.Shader intrinsics
 
 ## Context
 Shader lowering must avoid brittle string matching for `Delta.Maths` types and methods.

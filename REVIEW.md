@@ -1,10 +1,10 @@
-# GLSH review
+# Delta.Shader review
 
 Review date: 2026-08-18.
 
 Verdict: this document records the 2026-08-18 baseline review. The listed
 restore, GLSL syntax, CLI, fixture, diagnostic, and external-validation findings
-were subsequently remediated. GLSH is still not a complete 0.1 runtime slice:
+were subsequently remediated. Delta.Shader is still not a complete 0.1 runtime slice:
 shader-body lowering, manifest/reflection, and headless dispatch remain outside
 the current implementation.
 
@@ -12,8 +12,8 @@ the current implementation.
 
 ### 1. Analyzer target graph cannot restore
 
-`GLSH.Analyzers` targets `netstandard2.0` but references `GLSH.Compiler`, which
-targets only `net10.0`. `dotnet restore GLSH.sln` fails with `NU1201`.
+`Delta.Shader.Analyzers` targets `netstandard2.0` but references `Delta.Shader.Compiler`, which
+targets only `net10.0`. `dotnet restore Delta.Shader.sln` fails with `NU1201`.
 
 The reusable analyzer/compiler rules need a `netstandard2.0`-compatible project
 or compatible multi-targeting. MSBuildWorkspace/CLI-only code must remain in a
@@ -34,7 +34,7 @@ provide the source entry point expected by the selected glslang invocation.
 ### 4. No executable compiler or Vulkan vertical slice exists
 
 The CLI `check` command always exits successfully, `emit` is a stub, the IR body
-contains string placeholders, and the GLSL body is empty. `GLSH.Vulkan.Tests`
+contains string placeholders, and the GLSL body is empty. `Delta.Shader.Vulkan.Tests`
 contains no test method. The current project therefore does not demonstrate
 C# -> IR -> GLSL -> SPIR-V -> dispatch.
 
@@ -54,22 +54,22 @@ push-constant contract exists.
   strings.
 - Tests open projects through absolute paths under
   `/Users/rum/GitProjects/TheFurnace`, preventing relocation and CI execution.
-- `GLSH.Compiler.ReferenceFixtures` is not part of the solution/project graph,
+- `Delta.Shader.Compiler.ReferenceFixtures` is not part of the solution/project graph,
   so a clean solution restore does not guarantee that the fixture is restored
   before `MSBuildWorkspace` opens it.
-- Duplicate descriptor bindings are reported as `GLSH002`; the documented
-  diagnostic contract assigns binding conflicts to `GLSH005`.
+- Duplicate descriptor bindings are reported as `DSH002`; the documented
+  diagnostic contract assigns binding conflicts to `DSH005`.
 - Name sanitization only replaces spaces. It does not handle GLSL keywords,
   reserved prefixes, collisions, or the full identifier policy.
 - Local workgroup sizes are read from Roslyn attributes but not validated
   against zero, target-profile dimensions, or total invocation limits.
-- `GLSH.TestShaders/VectorAdd.cs` is not compiled by a project and contains
+- `Delta.Shader.TestShaders/VectorAdd.cs` is not compiled by a project and contains
   nullable resource/null-check semantics that are outside the planned shader
   subset.
 
 ## Verification performed
 
-`dotnet restore GLSH/GLSH.sln --nologo -m:1 /nodeReuse:false` was run after the
+`dotnet restore Delta.Shader/Delta.Shader.sln --nologo -m:1 /nodeReuse:false` was run after the
 central package versions were corrected to Silk.NET 2.23.0 and Roslyn Analyzers
 3.11.0. Package-version errors disappeared, exposing the analyzer/compiler TFM
 incompatibility described above. Tests could not run until that restore blocker
@@ -88,9 +88,9 @@ is fixed.
 
 ## Current status after remediation
 
-The current GLSH solution has a clean restore and build graph. `GLSH.Compiler`
-and `GLSH.Analyzers` target `netstandard2.0`; MSBuildWorkspace and CLI code stay
-in the `net10.0` host. Compiler references only `GLSH.Abstractions`, while
+The current Delta.Shader solution has a clean restore and build graph. `Delta.Shader.Compiler`
+and `Delta.Shader.Analyzers` target `netstandard2.0`; MSBuildWorkspace and CLI code stay
+in the `net10.0` host. Compiler references only `Delta.Shader.Abstractions`, while
 Delta.Maths is referenced by fixtures/tests rather than compiler core.
 
 The GLSL backend now emits valid array declarators and `void main()`, uses a

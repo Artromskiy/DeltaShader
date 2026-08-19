@@ -11,9 +11,9 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
   </PropertyGroup>
 
-  <PropertyGroup Condition="$(MSBuildProjectName.StartsWith('GLSH'))">
-    <RepositoryUrl>https://example.invalid/glsh</RepositoryUrl>
-    <Authors>GLSH contributors</Authors>
+  <PropertyGroup Condition="$(MSBuildProjectName.StartsWith('Delta.Shader'))">
+    <RepositoryUrl>https://example.invalid/delta-shader</RepositoryUrl>
+    <Authors>Delta.Shader contributors</Authors>
   </PropertyGroup>
 </Project>
 

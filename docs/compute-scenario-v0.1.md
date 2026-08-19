@@ -1,6 +1,6 @@
 # Compute scenario for 0.1 MVP
 
-Input C# shader (`tests/GLSH.TestShaders/VectorAdd.cs`):
+Input C# shader (`tests/Delta.Shader.TestShaders/VectorAdd.cs`):
 
 ```csharp
 [ComputeShader(localSizeX: 32)]

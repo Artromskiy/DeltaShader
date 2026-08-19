@@ -1,8 +1,8 @@
-# GLSH
+# Delta.Shader
 
-GLSH — планируемый компилятор ограниченного подмножества C# в шейдеры для
+Delta.Shader — планируемый компилятор ограниченного подмножества C# в шейдеры для
 Vulkan. Пользователь пишет обычные статические C#-методы, использует векторы и
-shader-like API из `Delta.Maths`, а GLSH проверяет код через Roslyn и выпускает
+shader-like API из `Delta.Maths`, а Delta.Shader проверяет код через Roslyn и выпускает
 SPIR-V вместе с описанием ресурсов шейдера.
 
 Этот каталог пока содержит только технический план. Код следует писать
@@ -23,7 +23,7 @@ gate доказывает C# metadata/validation -> IR -> GLSL -> SPIR-V validat
 
 ### Канонический ABI storage data
 
-GLSH использует только `std430` для storage/shared structured data. Второй
+Delta.Shader использует только `std430` для storage/shared structured data. Второй
 layout, включая `scalarBlockLayout`, намеренно не поддерживается. Manifest/IR
 metadata хранит `Offset`, `Alignment`, `Size`, `ArrayStride` и nullable
 `MatrixStride`; текущая генерация ресурсов всегда печатает `std430`.
@@ -42,7 +42,7 @@ metadata хранит `Offset`, `Alignment`, `Size`, `ArrayStride` и nullable
 C# source
   -> Roslyn Compilation + IOperation
   -> проверка разрешённого подмножества C#
-  -> типизированный GLSH IR
+  -> типизированный Delta.Shader IR
   -> Vulkan GLSL 460
   -> glslang/shaderc
   -> SPIR-V
@@ -72,7 +72,7 @@ MVP поддерживает только compute shader. Это позволя�
 1. Статический C#-метод помечен как compute entry point.
 2. Атрибут задаёт размер local workgroup.
 3. Метод читает один storage buffer и пишет во второй.
-4. GLSH создаёт `.glsl`, `.spv` и reflection manifest.
+4. Delta.Shader создаёт `.glsl`, `.spv` и reflection manifest.
 5. Headless-тест через `Silk.NET.Vulkan` выполняет dispatch и сравнивает выходной
    буфер с ожидаемыми значениями на CPU.
 6. Валидационный слой Vulkan не сообщает ошибок.
@@ -102,7 +102,7 @@ MVP поддерживает только compute shader. Это позволя�
 - matrices до определения единой модели layout и порядка умножения;
 - неограниченный C#: поддерживается сознательно небольшой shader subset.
 
-Каждая неподдержанная конструкция должна давать диагностическую ошибку GLSH в
+Каждая неподдержанная конструкция должна давать диагностическую ошибку Delta.Shader в
 точной позиции исходника, а не падение компилятора и не ошибку от glslang в конце
 конвейера.
 
@@ -132,28 +132,28 @@ intrinsic.
 
 Особое внимание требуется layout-у данных. Например, размер C#-структуры и
 размещение `vec3` в `std140`/`std430` нельзя считать совпадающими автоматически.
-GLSH должен сам вычислять offsets/alignments, записывать их в manifest и проверять
+Delta.Shader должен сам вычислять offsets/alignments, записывать их в manifest и проверять
 host-side типы. `Marshal.SizeOf` не является источником истины для shader layout.
 
 ## Предлагаемая структура решения
 
 ```text
-GLSH/
-  GLSH.slnx
+Delta.Shader/
+  Delta.Shader.sln
   global.json
   Directory.Build.props
   Directory.Packages.props
   src/
-    GLSH.Abstractions/          атрибуты и публичные shader/resource contracts
-    GLSH.Compiler/              Roslyn frontend, проверки, IR и pipeline
-    GLSH.Backend.Glsl/          печать Vulkan GLSL и source map
-    GLSH.Tool/                  dotnet glsh check/build/emit
-    GLSH.Analyzers/             IDE/MSBuild diagnostics и позднее code fixes
+    Delta.Shader.Abstractions/          атрибуты и публичные shader/resource contracts
+    Delta.Shader.Compiler/              Roslyn frontend, проверки, IR и pipeline
+    Delta.Shader.Backend.Glsl/          печать Vulkan GLSL и source map
+    Delta.Shader.Tool/                  dotnet delta-shader check/build/emit
+    Delta.Shader.Analyzers/             IDE/MSBuild diagnostics и позднее code fixes
   tests/
-    GLSH.Compiler.Tests/        unit-тесты lowering и diagnostics
-    GLSH.Golden.Tests/          эталонные GLSL/SPIR-V assembly/manifest
-    GLSH.Vulkan.Tests/          реальный headless dispatch через Silk.NET
-    GLSH.TestShaders/           входные позитивные и негативные C#-шейдеры
+    Delta.Shader.Compiler.Tests/        unit-тесты lowering и diagnostics
+    Delta.Shader.Golden.Tests/          эталонные GLSL/SPIR-V assembly/manifest
+    Delta.Shader.Vulkan.Tests/          реальный headless dispatch через Silk.NET
+    Delta.Shader.TestShaders/           входные позитивные и негативные C#-шейдеры
   samples/
     ComputeBuffer/              минимальный исполняемый пример
   docs/
@@ -165,9 +165,9 @@ GLSH/
 ```
 
 На момент начала реализации CLI и тесты разумно нацелить на `.NET 10` LTS.
-Analyzer-safe часть `GLSH.Compiler` и `GLSH.Analyzers` должна иметь совместимый с
+Analyzer-safe часть `Delta.Shader.Compiler` и `Delta.Shader.Analyzers` должна иметь совместимый с
 хостами Roslyn target (обычно `netstandard2.0`), не заставляя IDE загружать
-runtime CLI. Загрузка `.csproj` через MSBuild остаётся в `GLSH.Tool`; compiler
+runtime CLI. Загрузка `.csproj` через MSBuild остаётся в `Delta.Shader.Tool`; compiler
 core получает готовую `Compilation`. Версии Roslyn, Silk.NET и нативных shader
 tools должны быть централизованы и зафиксированы.
 
@@ -178,7 +178,7 @@ test harness и зафиксировать конкретную стабильн
 
 ## Публичная модель шейдера
 
-В `GLSH.Abstractions` нужны только декларативные конструкции без зависимости от
+В `Delta.Shader.Abstractions` нужны только декларативные конструкции без зависимости от
 Vulkan bindings:
 
 - атрибут stage/entry point;
@@ -217,12 +217,12 @@ defines, nullable options и project references. Для первой верси�
 Основные команды планируются такими:
 
 ```text
-dotnet glsh check <project>
-dotnet glsh emit  <project> --backend glsl --keep-source
-dotnet glsh build <project> --target vulkan1.2
+dotnet delta-shader check <project>
+dotnet delta-shader emit  <project> --backend glsl --keep-source
+dotnet delta-shader build <project> --target vulkan1.2
 ```
 
-По умолчанию артефакты должны попадать в `obj/GLSH/<configuration>/<tfm>/`, а
+По умолчанию артефакты должны попадать в `obj/Delta.Shader/<configuration>/<tfm>/`, а
 публикация рядом с приложением — быть отдельной явной опцией.
 
 ### Семантический анализ
@@ -311,7 +311,7 @@ compiler pipeline.
 
 Manifest — стабильный контракт между compiler и runtime. Он должен содержать:
 
-- schema version и версию GLSH;
+- schema version и версию Delta.Shader;
 - entry point, stage и local size;
 - descriptor sets, bindings, descriptor types, array counts и access flags;
 - push-constant ranges;
@@ -327,7 +327,7 @@ Compiler может сформировать manifest из IR, но golden/integ
 
 ## Анализаторы
 
-`GLSH.Analyzers` должны использовать тот же набор правил и таблицу intrinsics,
+`Delta.Shader.Analyzers` должны использовать тот же набор правил и таблицу intrinsics,
 что и CLI. Копировать правила в два проекта нельзя. Analyzer даёт раннюю IDE
 диагностику, а CLI повторяет проверку как авторитетный build step.
 
@@ -335,16 +335,16 @@ Compiler может сформировать manifest из IR, но golden/integ
 
 | ID | Ошибка |
 | --- | --- |
-| `GLSH001` | неподдерживаемая конструкция C# |
-| `GLSH002` | неподдерживаемый shader type |
-| `GLSH003` | вызов метода не входит в intrinsic/user shader call graph |
-| `GLSH004` | неправильная сигнатура entry point |
-| `GLSH005` | конфликт descriptor set/binding или specialization ID |
-| `GLSH006` | тип нельзя безопасно разместить в выбранном buffer layout |
-| `GLSH007` | операция требует capability/feature вне target profile |
-| `GLSH008` | recursion или недопустимый call graph |
-| `GLSH009` | неявное/опасное числовое преобразование |
-| `GLSH010` | недетерминированная либо неоднозначная shader-семантика |
+| `DSH001` | неподдерживаемая конструкция C# |
+| `DSH002` | неподдерживаемый shader type |
+| `DSH003` | вызов метода не входит в intrinsic/user shader call graph |
+| `DSH004` | неправильная сигнатура entry point |
+| `DSH005` | конфликт descriptor set/binding или specialization ID |
+| `DSH006` | тип нельзя безопасно разместить в выбранном buffer layout |
+| `DSH007` | операция требует capability/feature вне target profile |
+| `DSH008` | recursion или недопустимый call graph |
+| `DSH009` | неявное/опасное числовое преобразование |
+| `DSH010` | недетерминированная либо неоднозначная shader-семантика |
 
 У каждой диагностики нужны позитивный тест, негативный тест, точная source span и
 текст с конкретным исправлением. Code fixes не являются частью MVP; первыми можно
@@ -435,7 +435,7 @@ buffer и проверяется по нескольким пикселям/hash
 - [ ] Построить call graph.
 - [ ] Реализовать типы, literals, locals, operators, return и простые вызовы.
 - [ ] Ввести общую библиотеку правил для analyzer и CLI.
-- [ ] Реализовать `GLSH001..GLSH010` с тестами.
+- [ ] Реализовать `DSH001..DSH010` с тестами.
 
 Готово, когда поддержанный пример превращается в валидированный IR, а каждая
 запрещённая конструкция даёт ожидаемую диагностику в исходной позиции.
@@ -562,3 +562,33 @@ store, return. Затем добавить functions, selection, loop и тол�
 
 После этого язык следует расширять маленькими вертикальными срезами, сохраняя
 одинаковое поведение IDE analyzer, CLI, backend-а и runtime tests.
+
+
+## CI, tests, and benchmarks
+
+The GitHub Actions workflow is [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+Pull requests and pushes to `main` build in Release, run correctness tests, and
+perform BenchmarkDotNet discovery only; they do not record performance numbers.
+Measured benchmarks run only from **Actions → Build, tests and benchmarks → Run
+workflow** with `run_benchmarks=true`. Results are uploaded from
+`artifacts/benchmarks` for 30 days.
+
+Repository conventions:
+
+- correctness projects are named `*.Tests.csproj`; projects using
+  `Microsoft.NET.Test.Sdk` run through `dotnet test`, while custom executable
+  harnesses must be listed explicitly in the workflow and return a non-zero exit
+  code on failure;
+- BenchmarkDotNet projects are named `*.Benchmarks.csproj`; this filename is how
+  the workflow discovers them;
+- their entry point must forward CLI arguments with
+  `BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args)`;
+- mark the Delta implementation with `[Benchmark(Baseline = true)]` within every
+  comparable benchmark category; use exactly one baseline per category;
+- add sibling repositories to the checkout steps whenever a
+  `ProjectReference` escapes this repository.
+
+A benchmark added without the naming convention or without CLI argument
+forwarding is not registered and must not be treated as CI coverage. Shared
+GitHub runners are suitable for comparisons within one run, not for small
+cross-run regression claims.

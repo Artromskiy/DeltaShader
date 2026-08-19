@@ -1,7 +1,7 @@
 # ADR-0001: Roslyn IOperation-first Frontend
 
 ## Context
-GLSH compiles a shader-like subset of C# and must preserve source-accurate diagnostics, including symbol-level overload resolution and attribute semantics.
+Delta.Shader compiles a shader-like subset of C# and must preserve source-accurate diagnostics, including symbol-level overload resolution and attribute semantics.
 
 ## Decision
 We implement the primary frontend as Roslyn-based and walk `Compilation` + `IOperation` as the authoritative IR source.

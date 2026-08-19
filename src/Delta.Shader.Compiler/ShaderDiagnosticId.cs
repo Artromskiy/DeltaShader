@@ -1,0 +1,15 @@
+namespace Delta.Shader.Compiler;
+
+public static class ShaderDiagnosticId
+{
+    public const string DSH001 = "DSH001";
+    public const string DSH002 = "DSH002";
+    public const string DSH003 = "DSH003";
+    public const string DSH004 = "DSH004";
+    public const string DSH005 = "DSH005";
+    public const string DSH006 = "DSH006";
+    public const string DSH007 = "DSH007";
+    public const string DSH008 = "DSH008";
+    public const string DSH009 = "DSH009";
+    public const string DSH010 = "DSH010";
+}

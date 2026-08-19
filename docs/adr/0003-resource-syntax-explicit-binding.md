@@ -4,7 +4,7 @@
 For GPU safety and predictable reflection, descriptors must be explicit and stable.
 
 ## Decision
-Resources in GLSH are declared with explicit `{set, binding}` via attributes and wrapper types in `GLSH.Abstractions`.
+Resources in Delta.Shader are declared with explicit `{set, binding}` via attributes and wrapper types in `Delta.Shader.Abstractions`.
 
 ## Consequences
 - No auto-allocated bindings in MVP.
