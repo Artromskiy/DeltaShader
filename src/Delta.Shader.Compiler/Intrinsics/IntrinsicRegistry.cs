@@ -205,7 +205,7 @@ public sealed class IntrinsicRegistry
         {
             "abs", "acos", "asin", "atan", "ceil", "clamp", "cos", "cross", "distance", "dot",
             "exp", "floor", "length", "max", "min", "mix", "normalize", "pow", "round", "sign",
-            "sin", "smoothstep", "sqrt", "step", "tan"
+            "sin", "smoothstep", "smoothStep", "sqrt", "step", "tan"
         };
         var facadeContracts = contract.Functions
             .Where(function => string.Equals(function.TypeClrName, "maths", StringComparison.Ordinal))
@@ -236,7 +236,9 @@ public sealed class IntrinsicRegistry
                 continue;
             }
 
-            methods[method] = new IntrinsicBinding(IntrinsicCategory.Function, method.Name);
+                methods[method] = new IntrinsicBinding(
+                    IntrinsicCategory.Function,
+                    string.Equals(method.Name, "smoothStep", StringComparison.Ordinal) ? "smoothstep" : method.Name);
         }
     }
 
@@ -255,7 +257,8 @@ public sealed class IntrinsicRegistry
 
     public bool TryGetIntrinsic<TSymbol>(TSymbol symbol, out IntrinsicBinding binding)
         where TSymbol : class, ISymbol
-        => _methodsAndProperties.TryGetValue(symbol, out binding);
+        => _methodsAndProperties.TryGetValue(symbol, out binding) ||
+           symbol is IMethodSymbol method && _methodsAndProperties.TryGetValue(method.OriginalDefinition, out binding);
 
     public bool TryMapType(ITypeSymbol type, out string glslType)
         => _types.TryGetValue(type, out glslType);

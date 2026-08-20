@@ -882,6 +882,103 @@ public class IntrinsicCatalogTests
         Assert.DoesNotContain("default", result.Module.Body, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task SampledTexture_CompilesForVertexAndFragment_WithOpaqueAbi()
+    {
+        const string source = @"
+            using Delta.Maths;
+            using Delta.Shader.Abstractions;
+            public static class TextureStages
+            {
+                public struct TextParameters
+                {
+                    public float4 TextColor;
+                    public float4 OutlineColor;
+                    public float OutlineWidth;
+                }
+
+                [VertexShader]
+                public static void Vertex(
+                    [VertexIndex] uint index,
+                    [SampledTexture2D(0, 1, ShaderStageMask.Vertex)] SampledTexture2D atlas,
+                    [Position] out float4 position)
+                {
+                    var sampled = ShaderIntrinsics.SampleVertex<float2, float4>(atlas, new float2(0.5f, 0.5f));
+                    position = sampled;
+                }
+
+                [FragmentShader]
+                public static void Fragment(
+                    [SampledTexture2D(0, 2)] SampledTexture2D atlas,
+                    [FragmentCoord] float2 coord,
+                    [PushConstant] TextParameters parameters,
+                    [FragmentColor] out float4 color)
+                {
+                    var texel = ShaderIntrinsics.SampleFragment<float2, float4>(atlas, coord);
+                    var median = maths.max(maths.min(texel.x, texel.y), maths.min(maths.max(texel.x, texel.y), texel.z));
+                    var edge = ShaderIntrinsics.fwidth(median - 0.5f);
+                    var coverage = 1f - maths.smoothStep(-edge, edge, median - 0.5f);
+                    color = parameters.TextColor * coverage + parameters.OutlineColor * (1f - coverage) * parameters.OutlineWidth;
+                }
+            }";
+
+        var compilation = await LoadCompilerTestProjectCompilationAsync(source);
+        var results = ShaderCompiler.CompileAll(compilation);
+
+        Assert.Equal(2, results.Count);
+        Assert.All(results, result => Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message))));
+
+        var vertex = Assert.Single(results, result => result.Module!.Stage == ShaderStage.Vertex);
+        var vertexResource = Assert.Single(vertex.AbiManifest!.Resources);
+        Assert.Equal("sampled-texture", vertexResource.Category);
+        Assert.Equal(ShaderStage.Vertex, vertexResource.Stage);
+        Assert.Equal("sampler2D", vertexResource.GlslType);
+        Assert.Equal("opaque", vertexResource.Layout);
+        Assert.Equal("none", vertexResource.Packing.Scheme);
+        Assert.Equal(0u, vertexResource.Packing.Stride);
+        var vertexGlsl = Delta.Shader.Backend.Glsl.GlslEmitter.EmitFromModule(vertex.Module!).Source;
+        Assert.Contains("layout(set = 0, binding = 1) uniform sampler2D", vertexGlsl);
+        Assert.Contains("texture(", vertexGlsl);
+        Assert.DoesNotContain("std430) readonly buffer", vertexGlsl);
+
+        var fragment = Assert.Single(results, result => result.Module!.Stage == ShaderStage.Fragment);
+        var fragmentResource = Assert.Single(fragment.AbiManifest!.Resources);
+        Assert.Equal(ShaderStage.Fragment, fragmentResource.Stage);
+        Assert.Equal(2u, fragmentResource.Binding);
+        Assert.Equal(0u, fragmentResource.Offset);
+        Assert.Equal(0u, fragmentResource.ArrayStride);
+        Assert.Equal("main", fragment.AbiManifest.EntryPointName);
+        var fragmentGlsl = Delta.Shader.Backend.Glsl.GlslEmitter.EmitFromModule(fragment.Module!).Source;
+        Assert.Contains("layout(set = 0, binding = 2) uniform sampler2D", fragmentGlsl);
+        Assert.Contains("fwidth", fragmentGlsl);
+        Assert.Contains("smoothstep", fragmentGlsl);
+    }
+
+    [Fact]
+    public async Task SampledTexture_RejectsStageMaskThatExcludesFragment()
+    {
+        const string source = @"
+            using Delta.Maths;
+            using Delta.Shader.Abstractions;
+            public static class InvalidTextureStage
+            {
+                [FragmentShader]
+                public static void Fragment(
+                    [SampledTexture2D(0, 0, ShaderStageMask.Vertex)] SampledTexture2D atlas,
+                    [FragmentColor] out float4 color)
+                {
+                    color = new float4(1f, 1f, 1f, 1f);
+                }
+            }";
+
+        var compilation = await LoadCompilerTestProjectCompilationAsync(source);
+        var result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH011);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Message.Contains("not enabled", StringComparison.Ordinal));
+    }
+
     private static async Task<ShaderCompilationResult> CompileAndValidateEntryPointAsync(
         string source,
         ShaderCompilationOptions? options = null)

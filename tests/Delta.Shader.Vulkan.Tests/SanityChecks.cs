@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
+using Delta.Shader.Abstractions;
 using Delta.Shader.Backend.Glsl;
 using Delta.Shader.Compiler;
 using Delta.Shader.Compiler.IR;
@@ -67,6 +68,68 @@ public class SanityChecks
         var glslCompile = RunTool(glslang, $"-V --target-env vulkan1.2 -S comp {EscapePath(glslFile)} -o {EscapePath(spvFile)}");
         Assert.True(glslCompile.ExitCode == 0, $"glslang failed: {glslCompile.Output}");
 
+        var validation = RunTool(spirvVal, $"--target-env vulkan1.2 {EscapePath(spvFile)}");
+        Assert.True(validation.ExitCode == 0, $"spirv-val failed: {validation.Output}");
+    }
+
+    [Fact]
+    public void FragmentSampledTexture_SdfStyleGlsl_Compiles_And_Validates_With_Glslang_When_Available()
+    {
+        var glslang = ToolPath("glslangValidator");
+        var spirvVal = ToolPath("spirv-val");
+        if (string.IsNullOrWhiteSpace(glslang) || string.IsNullOrWhiteSpace(spirvVal))
+        {
+            throw SkipException.ForSkip("Skip: glslangValidator and/or spirv-val is not installed in PATH.");
+        }
+
+        var module = new ShaderIrModule
+        {
+            Stage = ShaderStage.Fragment,
+            SourceEntryPointName = "MsdfTextFragment",
+            EntryPointName = "MsdfTextFragment",
+            Resources =
+            [
+                new ShaderIrResource
+                {
+                    Name = "atlas",
+                    ParameterName = "atlas",
+                    Category = "sampled-texture",
+                    Set = 0,
+                    Binding = 3,
+                    GlslType = "sampler2D",
+                    ReadOnly = true
+                }
+            ],
+            Outputs =
+            [
+                new ShaderIrInterfaceVariable
+                {
+                    Name = "color",
+                    ParameterName = "color",
+                    GlslType = "vec4",
+                    GlslName = "fragColor",
+                    Builtin = "FragmentColor",
+                    Location = 0
+                }
+            ],
+            Body = "vec4 texel = texture(atlas, vec2(0.5)); float median = max(min(texel.r, texel.g), min(max(texel.r, texel.g), texel.b)); float edge = fwidth(median - 0.5); float coverage = 1.0 - smoothstep(-edge, edge, median - 0.5); fragColor = vec4(coverage);",
+            Requirements = ["Vulkan 1.2", "GLSL 460", "SPIRV 1.5"]
+        };
+
+        var emit = GlslEmitter.EmitFromModule(module);
+        Assert.Contains("#version 460", emit.Source);
+        Assert.Contains("uniform sampler2D", emit.Source);
+        Assert.Contains("texture(", emit.Source);
+        Assert.Contains("fwidth", emit.Source);
+
+        var workspace = Path.Combine(Path.GetTempPath(), "delta-shader-vulkan-test", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(workspace);
+        var glslFile = Path.Combine(workspace, "fragment.glsl");
+        var spvFile = Path.Combine(workspace, "fragment.spv");
+        File.WriteAllText(glslFile, emit.Source);
+
+        var glslCompile = RunTool(glslang, $"-V --target-env vulkan1.2 -S frag {EscapePath(glslFile)} -o {EscapePath(spvFile)}");
+        Assert.True(glslCompile.ExitCode == 0, $"glslang failed: {glslCompile.Output}\n{emit.Source}");
         var validation = RunTool(spirvVal, $"--target-env vulkan1.2 {EscapePath(spvFile)}");
         Assert.True(validation.ExitCode == 0, $"spirv-val failed: {validation.Output}");
     }

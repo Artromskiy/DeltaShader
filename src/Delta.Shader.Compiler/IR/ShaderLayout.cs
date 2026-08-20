@@ -63,22 +63,24 @@ public sealed class ShaderManifest
         var resources = new List<ShaderResourceManifest>(module.Resources.Count);
         foreach (var resource in module.Resources)
         {
-            var layout = resource.Layout ?? ShaderStd430Layout.ForGlslType(resource.GlslType);
+            var opaque = string.Equals(resource.Category, "sampled-texture", StringComparison.Ordinal);
+            var layout = opaque ? null : resource.Layout ?? ShaderStd430Layout.ForGlslType(resource.GlslType);
             resources.Add(new ShaderResourceManifest
             {
                 Name = resource.Name,
                 ParameterName = resource.ParameterName,
                 Category = resource.Category,
+                Stage = module.Stage,
                 Set = resource.Set,
                 Binding = resource.Binding,
                 GlslType = resource.GlslType,
                 ReadOnly = resource.ReadOnly,
-                Layout = ShaderStd430Layout.Standard,
-                Offset = layout.Offset,
-                Alignment = layout.Alignment,
-                Size = layout.Size,
-                ArrayStride = layout.ArrayStride,
-                MatrixStride = layout.MatrixStride,
+                Layout = opaque ? "opaque" : ShaderStd430Layout.Standard,
+                Offset = layout?.Offset ?? 0,
+                Alignment = layout?.Alignment ?? 0,
+                Size = layout?.Size ?? 0,
+                ArrayStride = layout?.ArrayStride ?? 0,
+                MatrixStride = layout?.MatrixStride,
                 Members = resource.Members.Select(member => new ShaderResourceMemberManifest
                 {
                     Name = member.Name,
@@ -142,6 +144,7 @@ public sealed class ShaderManifest
                 Name = resource.Name,
                 ParameterName = resource.ParameterName,
                 Category = resource.Category,
+                Stage = resource.Stage,
                 Set = resource.Set,
                 Binding = resource.Binding,
                 GlslType = resource.GlslType,
@@ -152,10 +155,9 @@ public sealed class ShaderManifest
                 Size = resource.Size,
                 ArrayStride = resource.ArrayStride,
                 MatrixStride = resource.MatrixStride,
-                Packing = new ShaderAbiPackingPlan
-                {
-                    Stride = resource.ArrayStride
-                },
+                Packing = string.Equals(resource.Category, "sampled-texture", StringComparison.Ordinal)
+                    ? new ShaderAbiPackingPlan { Scheme = "none", Strategy = "opaque-resource", Stride = 0 }
+                    : new ShaderAbiPackingPlan { Stride = resource.ArrayStride },
                 Members = resource.Members.Select(member => new ShaderAbiMember
                 {
                     Name = member.Name,
@@ -276,6 +278,7 @@ public sealed class ShaderResourceManifest
     public string Name { get; init; } = string.Empty;
     public string ParameterName { get; init; } = string.Empty;
     public string Category { get; init; } = string.Empty;
+    public ShaderStage Stage { get; init; }
     public uint Set { get; init; }
     public uint Binding { get; init; }
     public string? GlslType { get; init; }

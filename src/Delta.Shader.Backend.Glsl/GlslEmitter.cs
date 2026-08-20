@@ -81,6 +81,15 @@ public static class GlslEmitter
         var identifierMap = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var resource in module.Resources)
         {
+            if (string.Equals(resource.Category, "sampled-texture", StringComparison.Ordinal))
+            {
+                var samplerName = identifiers.Mangle(resource.Name, "sampledTexture");
+                sb.AppendLine($"layout(set = {resource.Set}, binding = {resource.Binding}) uniform sampler2D {samplerName};");
+                sb.AppendLine();
+                identifierMap[resource.Name] = samplerName;
+                continue;
+            }
+
             var storageMode = resource.ReadOnly ? "readonly " : string.Empty;
             var glslType = string.IsNullOrWhiteSpace(resource.GlslType) ? "uint" : resource.GlslType!;
             var blockName = identifiers.Mangle(resource.Name, "resource");

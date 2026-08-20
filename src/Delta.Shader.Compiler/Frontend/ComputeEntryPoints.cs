@@ -127,6 +127,18 @@ public static class ComputeEntryPoints
                 continue;
             }
 
+            if (context.SampledTexture2DType is not null &&
+                SymbolEqualityComparer.Default.Equals(parameter.Type, context.SampledTexture2DType))
+            {
+                diagnostics.Add(new ShaderDiagnostic(
+                    ShaderDiagnosticId.DSH011,
+                    $"Compute entry point parameter '{parameter.Name}' uses SampledTexture2D, but sampled textures are only supported in vertex and fragment stages.",
+                    location?.Path,
+                    location is null ? 0 : location.Value.StartLinePosition.Line + 1,
+                    location is null ? 0 : location.Value.StartLinePosition.Character + 1));
+                continue;
+            }
+
             if (!TryGetBufferElementType(parameter.Type, context, out var elementType))
             {
                 diagnostics.Add(new ShaderDiagnostic(
@@ -700,6 +712,7 @@ public sealed class ModuleCompilationContext
         ReadWriteStorageBufferType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.ReadWriteStorageBuffer`1");
         ReadOnlyStorageBufferValueType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.ReadOnlyStorageBuffer");
         ReadWriteStorageBufferValueType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.ReadWriteStorageBuffer");
+        SampledTexture2DType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.SampledTexture2D");
         ReadOnlyStorageBufferAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.ReadOnlyStorageBufferAttribute");
         ReadWriteStorageBufferAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.ReadWriteStorageBufferAttribute");
         GlobalInvocationIdAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.GlobalInvocationIdAttribute");
@@ -709,6 +722,7 @@ public sealed class ModuleCompilationContext
         FragmentColorAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.FragmentColorAttribute");
         ShaderVaryingAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.ShaderVaryingAttribute");
         PushConstantAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.PushConstantAttribute");
+        SampledTexture2DAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.SampledTexture2DAttribute");
     }
 
     public Compilation Compilation { get; }
@@ -717,6 +731,7 @@ public sealed class ModuleCompilationContext
     public ITypeSymbol? ReadWriteStorageBufferType { get; }
     public ITypeSymbol? ReadOnlyStorageBufferValueType { get; }
     public ITypeSymbol? ReadWriteStorageBufferValueType { get; }
+    public ITypeSymbol? SampledTexture2DType { get; }
     public ITypeSymbol? ReadOnlyStorageBufferAttributeType { get; }
     public ITypeSymbol? ReadWriteStorageBufferAttributeType { get; }
     public ITypeSymbol? GlobalInvocationIdAttributeType { get; }
@@ -726,4 +741,5 @@ public sealed class ModuleCompilationContext
     public ITypeSymbol? FragmentColorAttributeType { get; }
     public ITypeSymbol? ShaderVaryingAttributeType { get; }
     public ITypeSymbol? PushConstantAttributeType { get; }
+    public ITypeSymbol? SampledTexture2DAttributeType { get; }
 }

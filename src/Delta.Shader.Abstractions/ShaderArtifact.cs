@@ -79,6 +79,7 @@ public sealed class ShaderAbiResource
     public string Name { get; set; } = string.Empty;
     public string ParameterName { get; set; } = string.Empty;
     public string Category { get; set; } = string.Empty;
+    public ShaderStage Stage { get; set; }
     public uint Set { get; set; }
     public uint Binding { get; set; }
     public string? GlslType { get; set; }

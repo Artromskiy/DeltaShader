@@ -45,6 +45,8 @@ internal static class GraphicsEntryPoints
         var inputs = new List<ShaderIrInterfaceVariable>();
         var outputs = new List<ShaderIrInterfaceVariable>();
         var pushConstants = new List<ShaderIrPushConstant>();
+        var resources = new List<ShaderIrResource>();
+        var seenBindings = new HashSet<(uint Set, uint Binding)>();
         var structures = new Dictionary<INamedTypeSymbol, ShaderIrStruct>(SymbolEqualityComparer.Default);
         var parameterMap = new Dictionary<IParameterSymbol, string>(SymbolEqualityComparer.Default);
         var pushFieldMap = new Dictionary<IFieldSymbol, string>(SymbolEqualityComparer.Default);
@@ -181,6 +183,46 @@ internal static class GraphicsEntryPoints
                 continue;
             }
 
+            if (context.SampledTexture2DType is not null &&
+                SymbolEqualityComparer.Default.Equals(parameter.Type, context.SampledTexture2DType))
+            {
+                if (!Same(attributeType, context.SampledTexture2DAttributeType) || attribute is null)
+                {
+                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH002,
+                        $"SampledTexture2D parameter '{parameter.Name}' requires [SampledTexture2D(set, binding)].", location);
+                }
+                else if (!SupportsStage(attribute, stage))
+                {
+                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH011,
+                        $"SampledTexture2D parameter '{parameter.Name}' is not enabled for the {stage} stage.", location);
+                }
+                else
+                {
+                    var set = GetUIntArg(attribute, 0);
+                    var binding = GetUIntArg(attribute, 1);
+                    if (!seenBindings.Add((set, binding)))
+                    {
+                        AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH005,
+                            $"Graphics resources cannot share set {set}, binding {binding}.", location);
+                    }
+                    else
+                    {
+                        parameterMap[parameter] = parameter.Name;
+                        resources.Add(new ShaderIrResource
+                        {
+                            Name = parameter.Name,
+                            ParameterName = parameter.Name,
+                            Category = "sampled-texture",
+                            Set = set,
+                            Binding = binding,
+                            GlslType = "sampler2D",
+                            ReadOnly = true
+                        });
+                    }
+                }
+                continue;
+            }
+
             AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH002,
                 $"Graphics entry point parameter '{parameter.Name}' is not a supported stage builtin, varying, or push constant.", location);
         }
@@ -217,7 +259,7 @@ internal static class GraphicsEntryPoints
             Stage = stage,
             SourceEntryPointName = entry.Name,
             EntryPointName = entry.Name,
-            Resources = [],
+            Resources = resources,
             Structs = structures.Values.OrderBy(structure => structure.GlslName, StringComparer.Ordinal).ToArray(),
             Requirements = [$"Vulkan {resultOptions.Profile}", $"GLSL {resultOptions.Glsl}", $"SPIRV {resultOptions.Spirv}"],
             Instructions = new[] { "entrypoint " + entry.Name },
@@ -239,6 +281,24 @@ internal static class GraphicsEntryPoints
         => attribute.ConstructorArguments.Length > index && attribute.ConstructorArguments[index].Value is not null
             ? Convert.ToUInt32(attribute.ConstructorArguments[index].Value)
             : 0;
+
+    private static bool SupportsStage(AttributeData attribute, ShaderStage stage)
+    {
+        if (attribute.ConstructorArguments.Length < 3 || attribute.ConstructorArguments[2].Value is null)
+        {
+            return stage is ShaderStage.Vertex or ShaderStage.Fragment;
+        }
+
+        var mask = Convert.ToInt32(attribute.ConstructorArguments[2].Value);
+        var required = stage switch
+        {
+            ShaderStage.Compute => (int)ShaderStageMask.Compute,
+            ShaderStage.Vertex => (int)ShaderStageMask.Vertex,
+            ShaderStage.Fragment => (int)ShaderStageMask.Fragment,
+            _ => 0
+        };
+        return (mask & required) != 0;
+    }
 
     private static bool TryMapType(ITypeSymbol type, ModuleCompilationContext context, out string glslType)
     {

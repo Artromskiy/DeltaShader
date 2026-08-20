@@ -142,3 +142,47 @@ cd ../DeltaRender
 On macOS that script restores/builds `osx-arm64`, loads MoltenVK, dispatches the
 shader and verifies GPU readback. Common IPC, RID and native-loader failures are
 documented in the workspace `README.md`. Benchmarks are manual only.
+
+## Active UI shader milestone
+
+The next bounded compiler feature is a truthful sampled-texture route for the
+editor text pipeline: texture/sampler declarations, stage validation, typed
+IR, GLSL 460 lowering, manifest metadata and SPIR-V validation. On top of that
+route, provide generated C# SDF and MSDF fragment shaders. MSDF coverage uses
+the median RGB distance with derivative-based anti-aliasing; fixed smoothing
+widths tied to one resolution are not accepted.
+
+The current route uses a Vulkan combined image sampler contract:
+
+    [FragmentShader]
+    public static void Text(
+        [SampledTexture2D(0, 3)] SampledTexture2D atlas,
+        [FragmentCoord] float2 pixel,
+        [FragmentColor] out float4 color)
+    {
+        var msdf = ShaderIntrinsics.SampleFragment<float2, float4>(atlas, pixel);
+        var median = maths.max(maths.min(msdf.x, msdf.y),
+            maths.min(maths.max(msdf.x, msdf.y), msdf.z));
+        var edge = ShaderIntrinsics.fwidth(median - 0.5f);
+        color = new float4(1f - maths.smoothStep(-edge, edge, median - 0.5f));
+    }
+
+The generated GLSL declaration is layout(set = 0, binding = 3) uniform
+sampler2D ...;. The versioned manifest records the resource stage, set,
+binding, sampler2D type, Layout = opaque and packing Scheme = none; there are
+deliberately no std430 offsets or strides for this resource. SampledTexture2D
+is valid in vertex and fragment stages only, and
+ShaderIntrinsics.SampleVertex/SampleFragment are resolved by Roslyn symbol
+identity. fwidth is fragment-only. Texture image ownership, descriptors and
+sampler creation remain runtime responsibilities outside Delta.Shader.
+
+tests/Delta.Shader.TestShaders/GeneratedTextShaders.cs contains the bounded
+SDF and MSDF authoring examples. The MSDF path uses median RGB distance,
+derivative-based smoothing, and explicit std430-compatible push-constant color
+and outline parameters. Runtime lambdas and captures are not part of this
+compile-time static contract.
+
+DeltaShader owns shader-visible contracts and compilation only. DeltaRender
+owns Vulkan images/descriptors/atlases, while DeltaXAML owns text/control
+semantics. Acceptance and ownership are tracked in
+[`../EDITOR_UI_TODO.md`](../EDITOR_UI_TODO.md), P6.

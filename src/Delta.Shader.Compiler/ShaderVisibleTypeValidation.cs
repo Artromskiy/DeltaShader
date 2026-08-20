@@ -48,6 +48,8 @@ public static class ShaderVisibleTypeValidation
                 "Delta.Shader.Abstractions.ReadOnlyStorageBuffer");
             var readWriteValueBuffer = compilation.GetTypeByMetadataName(
                 "Delta.Shader.Abstractions.ReadWriteStorageBuffer");
+            var sampledTexture2D = compilation.GetTypeByMetadataName(
+                "Delta.Shader.Abstractions.SampledTexture2D");
 
             if (namedType.TypeArguments.Length == 1 &&
                 (SymbolEqualityComparer.Default.Equals(namedType.OriginalDefinition, readOnlyBuffer) ||
@@ -59,6 +61,11 @@ public static class ShaderVisibleTypeValidation
 
             if (SymbolEqualityComparer.Default.Equals(namedType, readOnlyValueBuffer) ||
                 SymbolEqualityComparer.Default.Equals(namedType, readWriteValueBuffer))
+            {
+                return compilation.GetSpecialType(SpecialType.System_UInt32);
+            }
+
+            if (SymbolEqualityComparer.Default.Equals(namedType, sampledTexture2D))
             {
                 return compilation.GetSpecialType(SpecialType.System_UInt32);
             }
