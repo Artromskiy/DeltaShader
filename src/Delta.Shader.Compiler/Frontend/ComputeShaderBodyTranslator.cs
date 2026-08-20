@@ -1,4 +1,6 @@
 using System.Globalization;
+using Delta.Shader.Abstractions;
+using Delta.Shader.Compiler.Intrinsics;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -10,9 +12,16 @@ internal sealed class ComputeShaderBodyTranslationResult
     public bool UsesBuiltinInvocationId { get; init; }
 }
 
-internal static class ComputeShaderBodyTranslator
+internal sealed class ComputeShaderBodyTranslator
 {
-    public static bool TryTranslate(
+    private readonly IntrinsicRegistry _intrinsics;
+
+    public ComputeShaderBodyTranslator(IntrinsicRegistry intrinsics)
+    {
+        _intrinsics = intrinsics;
+    }
+
+    public bool TryTranslate(
         IMethodSymbol method,
         MethodDeclarationSyntax methodSyntax,
         SemanticModel semanticModel,
@@ -75,23 +84,28 @@ internal static class ComputeShaderBodyTranslator
             return true;
         }
 
-        if (statement is ExpressionStatementSyntax expressionStatement &&
-            TryTranslateStoreExpression(expressionStatement, semanticModel, invocationParameter, resourceBindings, out var storeBody, out var usesBuiltin, out reason, out diagnosticId))
+        if (statement is ExpressionStatementSyntax expressionStatement)
         {
-            result = new ComputeShaderBodyTranslationResult
+            if (TryTranslateStoreExpression(expressionStatement, semanticModel, invocationParameter, resourceBindings,
+                    out var storeBody, out var usesBuiltin, out reason, out diagnosticId))
             {
-                UsesBuiltinInvocationId = usesBuiltin,
-                Body = storeBody
-            };
+                result = new ComputeShaderBodyTranslationResult
+                {
+                    UsesBuiltinInvocationId = usesBuiltin,
+                    Body = storeBody
+                };
 
-            return true;
+                return true;
+            }
+
+            return false;
         }
 
         reason = "Unsupported compute entry point body shape.";
         return false;
     }
 
-    private static bool TryTranslateStoreExpression(
+    private bool TryTranslateStoreExpression(
         StatementSyntax statement,
         SemanticModel semanticModel,
         IParameterSymbol? invocationParameter,
@@ -159,7 +173,7 @@ internal static class ComputeShaderBodyTranslator
         return true;
     }
 
-    private static bool TryTranslateInvocationCondition(
+    private bool TryTranslateInvocationCondition(
         ExpressionSyntax expression,
         SemanticModel semanticModel,
         IParameterSymbol? invocationParameter,
@@ -195,7 +209,7 @@ internal static class ComputeShaderBodyTranslator
         return true;
     }
 
-    private static bool TryTranslateIndexExpression(
+    private bool TryTranslateIndexExpression(
         ExpressionSyntax expression,
         IParameterSymbol? invocationParameter,
         SemanticModel semanticModel,
@@ -223,7 +237,7 @@ internal static class ComputeShaderBodyTranslator
         return false;
     }
 
-    private static bool TryTranslateValueExpression(
+    private bool TryTranslateValueExpression(
         ExpressionSyntax expression,
         SemanticModel semanticModel,
         IParameterSymbol? invocationParameter,
@@ -329,6 +343,31 @@ internal static class ComputeShaderBodyTranslator
                 return true;
             }
 
+            case ConditionalExpressionSyntax conditional:
+            {
+                if (!TryTranslateConditionExpression(conditional.Condition, semanticModel, invocationParameter, resourceBindings,
+                        out var condition, out var conditionUsesBuiltin, out reason, out diagnosticId))
+                {
+                    return false;
+                }
+
+                if (!TryTranslateValueExpression(conditional.WhenTrue, semanticModel, invocationParameter, resourceBindings,
+                        out var whenTrue, out var trueUsesBuiltin, out reason, out diagnosticId))
+                {
+                    return false;
+                }
+
+                if (!TryTranslateValueExpression(conditional.WhenFalse, semanticModel, invocationParameter, resourceBindings,
+                        out var whenFalse, out var falseUsesBuiltin, out reason, out diagnosticId))
+                {
+                    return false;
+                }
+
+                translated = $"({condition} ? {whenTrue} : {whenFalse})";
+                usesBuiltin = conditionUsesBuiltin || trueUsesBuiltin || falseUsesBuiltin;
+                return true;
+            }
+
             case InvocationExpressionSyntax invocation:
             {
                 if (TryGetSymbol(invocation, semanticModel, out var symbol) &&
@@ -354,6 +393,34 @@ internal static class ComputeShaderBodyTranslator
                     return true;
                 }
 
+                if (symbol is not null &&
+                    _intrinsics.TryGetIntrinsic(symbol, out var intrinsic))
+                {
+                    if (!intrinsic.SupportsStage(ShaderStage.Compute))
+                    {
+                        reason = $"Intrinsic '{symbol.Name}' is not valid in compute stage.";
+                        return false;
+                    }
+
+                    var arguments = new List<string>(invocation.ArgumentList.Arguments.Count);
+                    var intrinsicUsesBuiltin = false;
+                    foreach (var argument in invocation.ArgumentList.Arguments)
+                    {
+                        if (!TryTranslateValueExpression(argument.Expression, semanticModel, invocationParameter, resourceBindings,
+                                out var translatedArgument, out var argumentUsesBuiltin, out reason, out diagnosticId))
+                        {
+                            return false;
+                        }
+
+                        arguments.Add(translatedArgument);
+                        intrinsicUsesBuiltin |= argumentUsesBuiltin;
+                    }
+
+                    translated = $"{intrinsic.GlslName}({string.Join(", ", arguments)})";
+                    usesBuiltin = intrinsicUsesBuiltin;
+                    return true;
+                }
+
                 reason = "Unsupported method call in executable body.";
                 return false;
             }
@@ -364,7 +431,7 @@ internal static class ComputeShaderBodyTranslator
         }
     }
 
-    private static bool TryTranslateNumericLiteral(
+    private bool TryTranslateNumericLiteral(
         LiteralExpressionSyntax literal,
         out string translated,
         out string? reason)
@@ -389,14 +456,14 @@ internal static class ComputeShaderBodyTranslator
         };
     }
 
-    private static bool ThrowLiteralFallback(out string translated, out string? reason)
+    private bool ThrowLiteralFallback(out string translated, out string? reason)
     {
         reason = "Unsupported numeric literal type in executable body.";
         translated = string.Empty;
         return false;
     }
 
-    private static bool TryTranslateResourceTarget(
+    private bool TryTranslateResourceTarget(
         ExpressionSyntax expression,
         SemanticModel semanticModel,
         IReadOnlyDictionary<IParameterSymbol, uint> resourceBindings,
@@ -423,7 +490,7 @@ internal static class ComputeShaderBodyTranslator
         return true;
     }
 
-    private static bool TryTranslateBinaryOperator(string token, out string mapped)
+    private bool TryTranslateBinaryOperator(string token, out string mapped)
     {
         mapped = token switch
         {
@@ -432,55 +499,104 @@ internal static class ComputeShaderBodyTranslator
             "*" => "*",
             "/" => "/",
             "%" => "%",
+            "<" => "<",
+            ">" => ">",
+            "<=" => "<=",
+            ">=" => ">=",
+            "==" => "==",
+            "!=" => "!=",
+            "&&" => "&&",
+            "||" => "||",
             _ => string.Empty
         };
 
         return mapped.Length != 0;
     }
 
-    private static bool TryTranslateConstantValue(int value, out string translated)
+    private bool TryTranslateConditionExpression(
+        ExpressionSyntax expression,
+        SemanticModel semanticModel,
+        IParameterSymbol? invocationParameter,
+        IReadOnlyDictionary<IParameterSymbol, uint> resourceBindings,
+        out string translated,
+        out bool usesBuiltin,
+        out string? reason,
+        out string diagnosticId)
+    {
+        translated = string.Empty;
+        usesBuiltin = false;
+        reason = null;
+        diagnosticId = ShaderDiagnosticId.DSH008;
+
+        if (expression is ParenthesizedExpressionSyntax parenthesized)
+        {
+            return TryTranslateConditionExpression(parenthesized.Expression, semanticModel, invocationParameter, resourceBindings,
+                out translated, out usesBuiltin, out reason, out diagnosticId);
+        }
+
+        if (expression is not BinaryExpressionSyntax binary ||
+            !TryTranslateBinaryOperator(binary.OperatorToken.ValueText, out var op))
+        {
+            reason = "Conditional expressions require a supported comparison or logical binary operator.";
+            return false;
+        }
+
+        if (!TryTranslateValueExpression(binary.Left, semanticModel, invocationParameter, resourceBindings,
+                out var left, out var leftUsesBuiltin, out reason, out diagnosticId) ||
+            !TryTranslateValueExpression(binary.Right, semanticModel, invocationParameter, resourceBindings,
+                out var right, out var rightUsesBuiltin, out reason, out diagnosticId))
+        {
+            return false;
+        }
+
+        translated = $"{left} {op} {right}";
+        usesBuiltin = leftUsesBuiltin || rightUsesBuiltin;
+        return true;
+    }
+
+    private bool TryTranslateConstantValue(int value, out string translated)
     {
         translated = value.ToString(CultureInfo.InvariantCulture);
         return true;
     }
 
-    private static bool TryTranslateConstantValue(uint value, out string translated)
+    private bool TryTranslateConstantValue(uint value, out string translated)
     {
         translated = value.ToString(CultureInfo.InvariantCulture) + "u";
         return true;
     }
 
-    private static bool TryTranslateConstantValue(long value, out string translated)
+    private bool TryTranslateConstantValue(long value, out string translated)
     {
         translated = value.ToString(CultureInfo.InvariantCulture);
         return true;
     }
 
-    private static bool TryTranslateConstantValue(ulong value, out string translated)
+    private bool TryTranslateConstantValue(ulong value, out string translated)
     {
         translated = value.ToString(CultureInfo.InvariantCulture) + "u";
         return true;
     }
 
-    private static bool TryTranslateConstantValue(float value, out string translated)
+    private bool TryTranslateConstantValue(float value, out string translated)
     {
         translated = value.ToString("R", CultureInfo.InvariantCulture);
         return true;
     }
 
-    private static bool TryTranslateConstantValue(double value, out string translated)
+    private bool TryTranslateConstantValue(double value, out string translated)
     {
         translated = value.ToString("R", CultureInfo.InvariantCulture);
         return true;
     }
 
-    private static bool TryGetSymbol(InvocationExpressionSyntax invocation, SemanticModel semanticModel, out IMethodSymbol? symbol)
+    private bool TryGetSymbol(InvocationExpressionSyntax invocation, SemanticModel semanticModel, out IMethodSymbol? symbol)
     {
         symbol = semanticModel.GetSymbolInfo(invocation).Symbol as IMethodSymbol;
         return symbol is not null;
     }
 
-    private static bool TryGetSymbol(MemberAccessExpressionSyntax memberAccess, SemanticModel semanticModel, out ISymbol? symbol)
+    private bool TryGetSymbol(MemberAccessExpressionSyntax memberAccess, SemanticModel semanticModel, out ISymbol? symbol)
     {
         symbol = semanticModel.GetSymbolInfo(memberAccess).Symbol;
         return symbol is not null;

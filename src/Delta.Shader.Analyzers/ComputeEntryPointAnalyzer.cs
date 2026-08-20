@@ -10,6 +10,7 @@ namespace Delta.Shader.Analyzers;
 public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
 {
     public const string DescriptorId = ShaderDiagnosticId.DSH004;
+    private const string VisibleTypeDescriptorId = ShaderDiagnosticId.DSH010;
     private const string GraphicsDescriptorId = ShaderDiagnosticId.DSH012;
 
     private static readonly DiagnosticDescriptor _descriptor = new(
@@ -28,7 +29,16 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [_descriptor, _graphicsDescriptor];
+    private static readonly DiagnosticDescriptor _visibleTypeDescriptor = new(
+        id: VisibleTypeDescriptorId,
+        title: "Invalid shader-visible type",
+        messageFormat: "{0}",
+        category: "Delta.Shader",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
+        [_descriptor, _graphicsDescriptor, _visibleTypeDescriptor];
 
     public override void Initialize(AnalysisContext context)
     {
@@ -59,6 +69,16 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
             if (attribute is null && graphicsAttribute is null)
             {
                 return;
+            }
+
+            foreach (var parameter in methodSymbol.Parameters)
+            {
+                var visibleType = ShaderVisibleTypeValidation.GetVisibleRootType(parameter, context.Compilation);
+                foreach (var issue in ShaderVisibleTypeValidation.Validate(visibleType, parameter))
+                {
+                    var location = issue.Symbol.Locations.FirstOrDefault() ?? parameter.Locations[0];
+                    context.ReportDiagnostic(Diagnostic.Create(_visibleTypeDescriptor, location, issue.Message));
+                }
             }
 
             if (!methodSymbol.IsStatic || methodSymbol.ReturnType.SpecialType != SpecialType.System_Void)

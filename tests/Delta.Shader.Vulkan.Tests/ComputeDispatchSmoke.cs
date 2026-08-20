@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Delta.Render.Core;
 using Delta.Render.Vulkan;
+using Delta.Shader.Abstractions;
 using Delta.Shader.Backend.Glsl;
 using Delta.Shader.Compiler;
 using Delta.Shader.Compiler.IR;
@@ -49,14 +50,14 @@ public sealed class ComputeDispatchSmoke
 
         var spv = await File.ReadAllBytesAsync(spvFile);
         Assert.NotEmpty(spv);
-        var metadata = ToRenderMetadata(compilationResult.Manifest!);
+        var artifact = new ShaderArtifact(spv, compilationResult.AbiManifest!);
 
         await using var device = await CreateComputeDeviceOrSkip();
-        await using var pipeline = device.CreateComputePipeline(spv, in metadata);
+        await using var dispatcher = new ComputeDispatcher<IComputeStorageBuffer>(device, artifact, static buffer => buffer);
 
         foreach (var elementCount in new[] { 0, 1, 7, 8, 9, 64, 65, 129, 256 })
         {
-            await DispatchAndVerifyAsync(device, pipeline, elementCount, metadata.LocalSizeX);
+            await DispatchAndVerifyAsync(device, dispatcher, elementCount, artifact.Manifest.LocalSizeX);
         }
     }
 
@@ -83,7 +84,7 @@ public sealed class ComputeDispatchSmoke
         var current = new DirectoryInfo(AppContext.BaseDirectory);
         while (current is not null)
         {
-            if (File.Exists(Path.Combine(current.FullName, "DeltaShader.sln")))
+            if (File.Exists(Path.Combine(current.FullName, "DeltaShader.slnx")))
             {
                 return current.FullName;
             }
@@ -114,12 +115,11 @@ public sealed class ComputeDispatchSmoke
             bindings);
     }
 
-    private static async Task DispatchAndVerifyAsync(IComputeDevice device, IComputePipeline pipeline, int elementCount, uint localSizeX)
+    private static async Task DispatchAndVerifyAsync(IComputeDevice device, ComputeDispatcher<IComputeStorageBuffer> dispatcher, int elementCount, uint localSizeX)
     {
         if (elementCount == 0)
         {
-            var noOp = device.Dispatch(pipeline, ReadOnlySpan<ComputeBufferBinding>.Empty, 0);
-            Assert.Equal(ComputeDispatchStatus.NoOp, noOp.Status);
+            Assert.Equal(0u, ComputeDispatchDimensions.ForElements(dispatcher.Artifact, 0).X);
             return;
         }
 
@@ -138,17 +138,14 @@ public sealed class ComputeDispatchSmoke
         Assert.True(device.Upload(output, new byte[inputBytes.Length]));
 
         var groups = (uint)((elementCount + (int)localSizeX - 1) / localSizeX);
-        var dispatch = device.Dispatch(
-            pipeline,
-            new[]
-            {
-                new ComputeBufferBinding(0, 0, input),
-                new ComputeBufferBinding(0, 1, output)
-            },
-            groups);
-
-        Assert.True(dispatch.Succeeded, dispatch.Error);
-        Assert.Equal(ComputeDispatchStatus.Executed, dispatch.Status);
+        var request = new ComputeDispatchRequest<IComputeStorageBuffer>(
+            dispatcher.Artifact,
+            ComputeDispatchDimensions.ForElements(dispatcher.Artifact, (uint)elementCount),
+            [
+                new ComputeDispatchBinding<IComputeStorageBuffer>(0, 0, input),
+                new ComputeDispatchBinding<IComputeStorageBuffer>(0, 1, output)
+            ]);
+        await dispatcher.DispatchAsync(request);
 
         var readback = new byte[inputBytes.Length];
         Assert.True(device.Readback(output, readback));

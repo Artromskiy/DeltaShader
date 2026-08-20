@@ -381,8 +381,19 @@
           "xunit.extensibility.core": "[2.9.2]"
         }
       },
+      "delta.maths": {
+        "type": "Project"
+      },
       "delta.shader.abstractions": {
         "type": "Project"
+      },
+      "delta.shader.analyzers": {
+        "type": "Project",
+        "dependencies": {
+          "Delta.Shader.Compiler": "[1.0.0, )",
+          "Microsoft.CodeAnalysis.Analyzers": "[3.11.0, )",
+          "Microsoft.CodeAnalysis.CSharp": "[4.13.0, )"
+        }
       },
       "delta.shader.compiler": {
         "type": "Project",
@@ -395,12 +406,9 @@
       "delta.shader.compiler.referencefixtures": {
         "type": "Project",
         "dependencies": {
-          "Delta.Shader.Abstractions": "[1.0.0, )",
-          "Delta.Maths": "[1.0.0, )"
+          "Delta.Maths": "[1.0.0, )",
+          "Delta.Shader.Abstractions": "[1.0.0, )"
         }
-      },
-      "delta.maths": {
-        "type": "Project"
       },
       "Microsoft.CodeAnalysis.Analyzers": {
         "type": "CentralTransitive",

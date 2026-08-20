@@ -207,11 +207,32 @@ public sealed class IntrinsicRegistry
             "exp", "floor", "length", "max", "min", "mix", "normalize", "pow", "round", "sign",
             "sin", "smoothstep", "sqrt", "step", "tan"
         };
+        var facadeContracts = contract.Functions
+            .Where(function => string.Equals(function.TypeClrName, "maths", StringComparison.Ordinal))
+            .ToArray();
         foreach (var method in mathsType.GetMembers().OfType<IMethodSymbol>())
         {
             if (!method.IsStatic || method.MethodKind != MethodKind.Ordinary || !glslBuiltins.Contains(method.Name) ||
                 !IsGlslValue(method.ReturnType, mappedTypes) || !method.Parameters.All(parameter => IsGlslValue(parameter.Type, mappedTypes)))
             {
+                continue;
+            }
+
+            var methodContracts = facadeContracts
+                .Where(function => string.Equals(function.ClrName, method.Name, StringComparison.Ordinal))
+                .ToArray();
+            if (methodContracts.Length > 0)
+            {
+                var supportedContract = methodContracts.FirstOrDefault(function =>
+                    IsSupportedMapping(function.Mapping) &&
+                    !string.IsNullOrWhiteSpace(function.GlslName) &&
+                    Matches(method, function));
+                if (supportedContract is null)
+                {
+                    continue;
+                }
+
+                methods[method] = new IntrinsicBinding(IntrinsicCategory.Function, supportedContract.GlslName!);
                 continue;
             }
 

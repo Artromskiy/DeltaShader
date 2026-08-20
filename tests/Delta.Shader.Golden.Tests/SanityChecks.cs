@@ -244,6 +244,39 @@ public class SanityChecks
     }
 
     [Fact]
+    public void ComputeDispatchRequest_ValidatesArtifactBindingsAndCalculatesGroups()
+    {
+        var manifest = new ShaderAbiManifest
+        {
+            Stage = ShaderStage.Compute,
+            LocalSizeX = 8,
+            LocalSizeY = 1,
+            LocalSizeZ = 1,
+            Resources =
+            [new ShaderAbiResource
+            {
+                Set = 0,
+                Binding = 1,
+                Access = ShaderResourceAccess.ReadWrite
+            }]
+        };
+        var artifact = new ShaderArtifact(new byte[] { 3, 2, 35, 7 }, manifest);
+
+        var dimensions = ComputeDispatchDimensions.ForElements(artifact, 9);
+        var request = new ComputeDispatchRequest<int>(
+            artifact,
+            dimensions,
+            [new ComputeDispatchBinding<int>(0, 1, 42)]);
+
+        Assert.Equal(new ComputeDispatchDimensions(2, 1, 1), request.Dimensions);
+        Assert.Equal(42, request.Bindings[0].Resource);
+        Assert.Throws<ArgumentException>(() => new ComputeDispatchRequest<int>(
+            artifact,
+            dimensions,
+            [new ComputeDispatchBinding<int>(0, 0, 42)]));
+    }
+
+    [Fact]
     public void EmitFromModule_EmitsStructuredStd430RecordAndMemberMetadata()
     {
         var module = new ShaderIrModule

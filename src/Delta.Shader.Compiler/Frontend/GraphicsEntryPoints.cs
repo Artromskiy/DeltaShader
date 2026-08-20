@@ -51,6 +51,18 @@ internal static class GraphicsEntryPoints
 
         foreach (var parameter in entry.Method.Parameters)
         {
+            var visibleType = ShaderVisibleTypeValidation.GetVisibleRootType(parameter, context.Compilation);
+            var visibleTypeIssues = ShaderVisibleTypeValidation.Validate(visibleType, parameter);
+            foreach (var issue in visibleTypeIssues)
+            {
+                AddDiagnostic(diagnostics, issue.Id, issue.Message, issue.Symbol.Locations.FirstOrDefault()?.GetLineSpan());
+            }
+
+            if (visibleTypeIssues.Count > 0)
+            {
+                continue;
+            }
+
             var attribute = parameter.GetAttributes().FirstOrDefault();
             var attributeType = attribute?.AttributeClass;
             var location = parameter.Locations.FirstOrDefault()?.GetLineSpan();
@@ -348,6 +360,22 @@ internal static class GraphicsShaderBodyTranslator
             return base.VisitIdentifierName(node);
         }
 
+        public override SyntaxNode? VisitLiteralExpression(LiteralExpressionSyntax node)
+        {
+            if (node.IsKind(SyntaxKind.DefaultLiteralExpression))
+            {
+                var typeInfo = _model.GetTypeInfo(node);
+                var type = typeInfo.ConvertedType ?? typeInfo.Type;
+                if (type is not null && TryMap(type, out var glslType))
+                {
+                    var zero = glslType == "bool" ? "false" : glslType is "int" or "uint" ? "0" : "0.0";
+                    return SyntaxFactory.ParseExpression(glslType + "(" + zero + ")");
+                }
+            }
+
+            return base.VisitLiteralExpression(node);
+        }
+
         public override SyntaxNode? VisitMemberAccessExpression(MemberAccessExpressionSyntax node)
         {
             var symbol = _model.GetSymbolInfo(node).Symbol;
@@ -395,7 +423,14 @@ internal static class GraphicsShaderBodyTranslator
         private bool TryMap(ITypeSymbol type, out string glslType)
         {
             if (_context.Intrinsics.TryMapType(type, out glslType)) return true;
-            glslType = type.SpecialType switch { SpecialType.System_Single => "float", SpecialType.System_UInt32 => "uint", SpecialType.System_Int32 => "int", _ => string.Empty };
+            glslType = type.SpecialType switch
+            {
+                SpecialType.System_Boolean => "bool",
+                SpecialType.System_Single => "float",
+                SpecialType.System_UInt32 => "uint",
+                SpecialType.System_Int32 => "int",
+                _ => string.Empty
+            };
             return glslType.Length > 0;
         }
     }

@@ -82,6 +82,18 @@ public static class ComputeEntryPoints
                 continue;
             }
 
+            var visibleType = ShaderVisibleTypeValidation.GetVisibleRootType(parameter, context.Compilation);
+            var visibleTypeIssues = ShaderVisibleTypeValidation.Validate(visibleType, parameter);
+            foreach (var issue in visibleTypeIssues)
+            {
+                diagnostics.Add(CreateDiagnostic(issue.Symbol, issue.Id, issue.Message));
+            }
+
+            if (visibleTypeIssues.Count > 0)
+            {
+                continue;
+            }
+
             var location = parameter.Locations.FirstOrDefault()?.GetLineSpan();
             var attributeInvocationId = parameter.GetAttributes().FirstOrDefault(a =>
                 IsGlobalInvocationIdAttribute(a.AttributeClass, context));
@@ -181,6 +193,17 @@ public static class ComputeEntryPoints
         return new ShaderCompilationResult(entry.Name, diagnostics.Count == 0, diagnostics, module, resultOptions);
     }
 
+    private static ShaderDiagnostic CreateDiagnostic(ISymbol symbol, string id, string message)
+    {
+        var location = symbol.Locations.FirstOrDefault()?.GetLineSpan();
+        return new ShaderDiagnostic(
+            id,
+            message,
+            location?.Path,
+            location is null ? 0 : location.Value.StartLinePosition.Line + 1,
+            location is null ? 0 : location.Value.StartLinePosition.Character + 1);
+    }
+
     private static bool TryBuildParameterResource(
         IParameterSymbol parameter,
         ModuleCompilationContext context,
@@ -197,6 +220,14 @@ public static class ComputeEntryPoints
         if (!TryGetBufferElementType(parameter.Type, context, out var elementType))
         {
             unsupportedReason = $"Unsupported storage buffer wrapper type '{parameter.Type}' in parameter list.";
+            return false;
+        }
+
+        if (ShaderVisibleTypeValidation.TryFindReferenceType(elementType, out var referenceType))
+        {
+            unsupportedReason =
+                $"Shader-visible storage-buffer type '{elementType}' contains reference type '{referenceType}'. Shader types must contain only value types.";
+            diagnosticId = ShaderDiagnosticId.DSH010;
             return false;
         }
 
@@ -220,7 +251,9 @@ public static class ComputeEntryPoints
 
         if (!TryMapShaderType(elementType, context, structDefinitions, new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default), out var elementGlslType, out var elementLayout, out var members, out unsupportedReason))
         {
-            diagnosticId = elementType.TypeKind == TypeKind.Struct && !context.Intrinsics.TryMapType(elementType, out _)
+            diagnosticId = ShaderVisibleTypeValidation.TryFindReferenceType(elementType, out _)
+                ? ShaderDiagnosticId.DSH010
+                : elementType.TypeKind == TypeKind.Struct && !context.Intrinsics.TryMapType(elementType, out _)
                 ? ShaderDiagnosticId.DSH006
                 : ShaderDiagnosticId.DSH002;
             return false;
@@ -354,7 +387,7 @@ public static class ComputeEntryPoints
         }
 
         var semanticModel = context.Compilation.GetSemanticModel(methodSyntax.SyntaxTree);
-        if (!ComputeShaderBodyTranslator.TryTranslate(method, methodSyntax, semanticModel, invocationParameter, storageParameters, out var translation, out reason, out diagnosticId))
+        if (!new ComputeShaderBodyTranslator(context.Intrinsics).TryTranslate(method, methodSyntax, semanticModel, invocationParameter, storageParameters, out var translation, out reason, out diagnosticId))
         {
             return false;
         }

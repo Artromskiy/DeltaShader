@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Collections.Generic;
@@ -10,7 +11,9 @@ using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.MSBuild;
+using Delta.Shader.Analyzers;
 using Xunit;
 
 namespace Delta.Shader.Compiler.Tests;
@@ -239,6 +242,35 @@ public class IntrinsicCatalogTests
     }
 
     [Fact]
+    public async Task IntrinsicRegistry_DoesNotRegisterUnsupportedContractIdentities()
+    {
+        var compilation = await LoadMathsCompilationAsync();
+        var contract = new ShaderContractManifest
+        {
+            Namespace = "Delta.Maths",
+            Types = [new ShaderContractType { ClrName = "float2", GlslName = "vec2", Mapping = "Unsupported" }],
+            Functions = [new ShaderContractFunction
+            {
+                TypeClrName = "maths",
+                ClrName = "sin",
+                ReturnClrName = "float",
+                ParameterClrNames = ["float"],
+                GlslName = "sin",
+                Mapping = "Unsupported"
+            }]
+        };
+
+        var registry = IntrinsicRegistry.Build(compilation, contract);
+        var float2 = compilation.GetTypeByMetadataName("Delta.Maths.float2");
+        var maths = compilation.GetTypeByMetadataName("Delta.Maths.maths");
+        var sin = maths!.GetMembers("sin").OfType<IMethodSymbol>().Single(method =>
+            method.Parameters.Length == 1 && method.Parameters[0].Type.SpecialType == SpecialType.System_Single);
+
+        Assert.False(registry.TryMapType(float2!, out _));
+        Assert.False(registry.TryGetIntrinsic(sin, out _));
+    }
+
+    [Fact]
     public async Task ComputeEntryPoint_ResourcesUseSetBindingAndGlslTypeFromSymbol()
     {
         var source = @"
@@ -440,7 +472,7 @@ public class IntrinsicCatalogTests
     {
         var cases = new[]
         {
-            @"
+            (Source: @"
                 using Delta.Shader.Abstractions;
                 using System.Runtime.InteropServices;
                 namespace Delta.Shader.Compiler.Tests.Fixtures
@@ -456,8 +488,8 @@ public class IntrinsicCatalogTests
                             [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<ExplicitRecord> input) { }
                     }
                 }
-            ",
-            @"
+            ", ExpectedId: ShaderDiagnosticId.DSH006),
+            (Source: @"
                 using Delta.Shader.Abstractions;
                 namespace Delta.Shader.Compiler.Tests.Fixtures
                 {
@@ -468,8 +500,8 @@ public class IntrinsicCatalogTests
                             [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<ManagedRecord> input) { }
                     }
                 }
-            ",
-            @"
+            ", ExpectedId: ShaderDiagnosticId.DSH010),
+            (Source: @"
                 using Delta.Shader.Abstractions;
                 namespace Delta.Shader.Compiler.Tests.Fixtures
                 {
@@ -480,8 +512,8 @@ public class IntrinsicCatalogTests
                             [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<RecursiveRecord> input) { }
                     }
                 }
-            ",
-            @"
+            ", ExpectedId: ShaderDiagnosticId.DSH010),
+            (Source: @"
                 using Delta.Shader.Abstractions;
                 namespace Delta.Shader.Compiler.Tests.Fixtures
                 {
@@ -492,6 +524,47 @@ public class IntrinsicCatalogTests
                             [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<ArrayFieldRecord> input) { }
                     }
                 }
+            ", ExpectedId: ShaderDiagnosticId.DSH010)
+        };
+
+        foreach (var testCase in cases)
+        {
+            var result = await CompileAndValidateEntryPointAsync(testCase.Source);
+            Assert.False(result.Success);
+            Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == testCase.ExpectedId);
+        }
+    }
+
+    [Fact]
+    public async Task ShaderVisibleTypeValidation_RejectsEntryParameterAndStorageReferenceGraphs()
+    {
+        var cases = new[]
+        {
+            @"
+                using Delta.Shader.Abstractions;
+                public static class EntryParameter
+                {
+                    [ComputeShader] public static void Compute(string value) { }
+                }
+            ",
+            @"
+                using Delta.Shader.Abstractions;
+                public class CpuOnlyHelper { public string Name; }
+                public struct StorageRecord { public CpuOnlyHelper Helper; }
+                public static class StorageEntry
+                {
+                    [ComputeShader] public static void Compute(
+                        [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<StorageRecord> values) { }
+                }
+            ",
+            @"
+                using Delta.Shader.Abstractions;
+                public struct RecursiveRecord { public RecursiveRecord[] Children; }
+                public static class RecursiveEntry
+                {
+                    [ComputeShader] public static void Compute(
+                        [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<RecursiveRecord> values) { }
+                }
             "
         };
 
@@ -499,8 +572,65 @@ public class IntrinsicCatalogTests
         {
             var result = await CompileAndValidateEntryPointAsync(source);
             Assert.False(result.Success);
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH006);
+            Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH010);
         }
+    }
+
+    [Fact]
+    public async Task ShaderVisibleTypeValidation_RejectsPushConstantReferencesButIgnoresCpuOnlyHelpers()
+    {
+        const string invalidSource = @"
+            using Delta.Maths;
+            using Delta.Shader.Abstractions;
+            public class CpuOnlyHelper { public string Name; }
+            public struct Constants { public CpuOnlyHelper Helper; }
+            public static class InvalidFragment
+            {
+                [FragmentShader] public static void Fragment(
+                    [PushConstant] Constants constants,
+                    [FragmentColor] out float4 color)
+                { color = new float4(1f, 0f, 0f, 1f); }
+            }";
+
+        var invalidCompilation = await LoadCompilerTestProjectCompilationAsync(invalidSource);
+        var invalidResult = Assert.Single(ShaderCompiler.CompileAll(invalidCompilation));
+        Assert.False(invalidResult.Success);
+        Assert.Contains(invalidResult.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH010);
+
+        const string validSource = @"
+            using Delta.Shader.Abstractions;
+            public class CpuOnlyHelper { public string Name; }
+            public static class ValidCompute
+            {
+                [ComputeShader] public static void Compute([GlobalInvocationId] uint id) { }
+            }";
+
+        var validResult = await CompileAndValidateEntryPointAsync(validSource);
+        Assert.DoesNotContain(validResult.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH010);
+    }
+
+    [Fact]
+    public async Task ShaderVisibleTypeAnalyzer_ReportsDsh010ForGraphicsPushConstantGraph()
+    {
+        const string source = @"
+            using Delta.Maths;
+            using Delta.Shader.Abstractions;
+            public class CpuOnlyHelper { public string Name; }
+            public struct Constants { public CpuOnlyHelper Helper; }
+            public static class InvalidGraphics
+            {
+                [FragmentShader] public static void Fragment(
+                    [PushConstant] Constants constants,
+                    [FragmentColor] out float4 color)
+                { color = new float4(1f, 0f, 0f, 1f); }
+            }";
+
+        var compilation = await LoadCompilerTestProjectCompilationAsync(source);
+        var analyzerResult = await compilation
+            .WithAnalyzers(ImmutableArray.Create<DiagnosticAnalyzer>(new ComputeEntryPointAnalyzer()))
+            .GetAnalyzerDiagnosticsAsync();
+
+        Assert.Contains(analyzerResult, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH010);
     }
 
     [Fact]
@@ -658,6 +788,29 @@ public class IntrinsicCatalogTests
         var result = Assert.Single(ShaderCompiler.CompileAll(compilation));
         Assert.False(result.Success);
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH011);
+    }
+
+    [Fact]
+    public async Task GraphicsEntryPoints_LowerDefaultLiteralToTypedGlslZero()
+    {
+        const string source = @"
+            using Delta.Maths;
+            using Delta.Shader.Abstractions;
+            public static class FullscreenUi
+            {
+                [VertexShader] public static void Vertex(
+                    [VertexIndex] uint index,
+                    [Position] out float4 position)
+                { position = default; }
+            }";
+
+        var compilation = await LoadCompilerTestProjectCompilationAsync(source);
+        var result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.True(result.Success, string.Join("\n", result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        Assert.Contains("gl_Position", result.Module!.Body);
+        Assert.Contains("vec4(0.0)", result.Module.Body);
+        Assert.DoesNotContain("default", result.Module.Body, StringComparison.Ordinal);
     }
 
     private static async Task<ShaderCompilationResult> CompileAndValidateEntryPointAsync(
