@@ -4,11 +4,7 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Folder Name="/src/">
-    <Project Path="src/Delta.Shader.Runtime/Delta.Shader.Runtime.csproj" />
-  </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/Delta.Shader.Runtime.Tests/Delta.Shader.Runtime.Tests.csproj" />
     <Project Path="tests/Delta.Shader.TestShaders/Delta.Shader.TestShaders.csproj" />
   </Folder>
   <Project Path="../Maths/Delta.Maths.csproj" />

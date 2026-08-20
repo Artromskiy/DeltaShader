@@ -101,10 +101,8 @@ dotnet run --project src/Delta.Shader.Tool/Delta.Shader.Tool.csproj \
 
 The analyzer rejects managed mutable state, reference locals, reflection and
 virtual/interface calls with DSH014. Shader-visible reference types remain
-DSH010 errors. Static methods are the compile-time form because C# expression
-trees cannot represent assignment; the existing runtime expression-lambda path
-remains available and uses a separate output resource and returns the computed
-element value.
+DSH010 errors. Static methods are the compile-time shader contract and support
+assignments, locals and indexed resources directly.
 
 ## CLI
 
@@ -122,40 +120,6 @@ dotnet run --project src/Delta.Shader.Tool/Delta.Shader.Tool.csproj \
 `build` writes `<entry>.glsl`, `<entry>.spv` and `<entry>.shader.json`; SPIR-V
 is published only after both validators succeed. Source entry-point names stay
 in metadata while Vulkan entry points are currently emitted as `main`.
-
-## Runtime compute
-
-`ComputeDispatchRequest<TResource>` validates artifact stage, dispatch size and
-exact `(set,binding)` resources. `IComputeDispatcher<TResource>` is the neutral
-runtime boundary; DeltaRender provides the Vulkan adapter.
-
-For runtime authoring, `Delta.Shader.Runtime` exposes
-`ExpressionComputeShaderCompiler.Compile(Expression<TDelegate>, options)`. It
-builds an in-memory Roslyn compilation, runs the same validation/IR/GLSL
-lowering, invokes `glslangValidator` and `spirv-val`, and returns a
-`ShaderArtifact`. The cache key is a structural SHA-256 over generated source
-and compilation profile/bindings; no `MSBuildWorkspace` or temporary project
-is used.
-
-The supported lambda surface is deliberately small: expression-bodied
-void-lambdas with explicitly bound storage-buffer parameters, a uint invocation
-parameter, arithmetic, comparisons, conditionals, storage-buffer
-`Load/Store/Length`, and Delta.Maths contract intrinsics. Unsupported nodes
-return DSH014; missing external validators return DSH015. Statement-bodied
-blocks, closure captures and ordinary compiled delegates are rejected because a
-compiled delegate does not retain a reliable C# AST. A later stage can provide a
-call-site source generator or an explicit expression builder for a larger C#
-subset.
-
-The runnable lambda/Vulkan sample is:
-
-\`\`\`bash
-dotnet run --project ../DeltaRender/tools/Delta.Shader.Compute/Delta.Render.Shader.Compute.csproj \
-  -c Release
-\`\`\`
-
-The sample creates a runtime `ShaderArtifact`, passes it through the neutral
-`IComputeDispatcher<TResource>` contract and attempts Vulkan dispatch/readback.
 
 ## Verify
 
