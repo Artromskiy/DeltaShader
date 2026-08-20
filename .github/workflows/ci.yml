@@ -75,11 +75,11 @@ jobs:
       - name: Restore and build
         working-directory: Delta.Shader
         run: |
-          dotnet restore Delta.Shader.sln
-          dotnet build Delta.Shader.sln -c Release --no-restore
+          dotnet restore DeltaShader.slnx
+          dotnet build DeltaShader.slnx -c Release --no-restore
       - name: Run tests
         working-directory: Delta.Shader
-        run: dotnet test Delta.Shader.sln -c Release --no-build --no-restore
+        run: dotnet test DeltaShader.slnx -c Release --no-build --no-restore
       - name: Benchmark discovery smoke
         working-directory: Delta.Shader
         shell: bash

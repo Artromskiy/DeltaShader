@@ -1,0 +1,24 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/src/">
+    <Project Path="src/Delta.Shader.Runtime/Delta.Shader.Runtime.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Delta.Shader.Runtime.Tests/Delta.Shader.Runtime.Tests.csproj" />
+    <Project Path="tests/Delta.Shader.TestShaders/Delta.Shader.TestShaders.csproj" />
+  </Folder>
+  <Project Path="../Maths/Delta.Maths.csproj" />
+  <Project Path="src/Delta.Shader.Abstractions/Delta.Shader.Abstractions.csproj" />
+  <Project Path="src/Delta.Shader.Analyzers/Delta.Shader.Analyzers.csproj" />
+  <Project Path="src/Delta.Shader.Backend.Glsl/Delta.Shader.Backend.Glsl.csproj" />
+  <Project Path="src/Delta.Shader.Compiler/Delta.Shader.Compiler.csproj" />
+  <Project Path="src/Delta.Shader.Tool/Delta.Shader.Tool.csproj" />
+  <Project Path="tests/Delta.Shader.Compiler.ReferenceFixtures/Delta.Shader.Compiler.ReferenceFixtures.csproj" />
+  <Project Path="tests/Delta.Shader.Compiler.Tests/Delta.Shader.Compiler.Tests.csproj" />
+  <Project Path="tests/Delta.Shader.Golden.Tests/Delta.Shader.Golden.Tests.csproj" />
+  <Project Path="tests/Delta.Shader.Vulkan.Tests/Delta.Shader.Vulkan.Tests.csproj" />
+</Solution>
