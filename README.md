@@ -61,6 +61,39 @@ Delta.Maths symbol and layout mapping comes only from its generated
 `shader-contract.json`. Register `Builtin` and `Helper` identities; never infer
 GLSL semantics from CLR names or register `Unsupported` aliases.
 
+## Compile-time typed kernels
+
+The build-time shader contract is a static method annotated with
+`[ComputeShader]`. Its parameter types and resource attributes are analyzed by
+`Delta.Shader.Analyzers` during Roslyn compilation, then the existing compiler
+and CLI produce GLSL 460, SPIR-V and the ABI manifest:
+
+```csharp
+[ComputeShader(localSizeX: 64)]
+public static void Compute(
+    [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<float> input,
+    [ReadWriteStorageBuffer(0, 1)] ReadWriteStorageBuffer<float> output,
+    [GlobalInvocationId] uint id)
+{
+    output[id] = maths.sin(input[id]);
+}
+```
+
+Build the typed fixture with:
+
+```bash
+dotnet run --project src/Delta.Shader.Tool/Delta.Shader.Tool.csproj \
+  -c Release --no-build -- build \
+  tests/Delta.Shader.TestShaders/Delta.Shader.TestShaders.csproj \
+  --profile vulkan1.2 --spirv 1.5 --glsl 460 --out <directory>
+```
+
+The analyzer rejects managed mutable state, reference locals, reflection and
+virtual/interface calls with DSH014. Shader-visible reference types remain
+DSH010 errors. Static methods are the compile-time form because C# expression
+trees cannot represent assignment; runtime expression lambdas therefore use a
+separate output resource and return the computed element value.
+
 ## CLI
 
 ```bash

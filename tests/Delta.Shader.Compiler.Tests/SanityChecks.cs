@@ -823,6 +823,73 @@ public class IntrinsicCatalogTests
         return ComputeEntryPoints.ValidateAndBuild(context, frontend, options);
     }
 
+    [Fact]
+    public async Task CompileTimeTypedKernel_LowersIndexedResourcesAndMathsThroughTheExistingPipeline()
+    {
+        const string source = @"
+            using Delta.Maths;
+            using Delta.Shader.Abstractions;
+
+            public static class CompileTimeValid
+            {
+                [ComputeShader(localSizeX: 64)]
+                public static void Compute(
+                    [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<float> input,
+                    [ReadWriteStorageBuffer(0, 1)] ReadWriteStorageBuffer<float> output,
+                    [GlobalInvocationId] uint invocation)
+                {
+                    output[invocation] = maths.sin(input[invocation]);
+                }
+            }";
+
+        var result = await CompileAndValidateEntryPointAsync(source);
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        Assert.Contains("output.data[invocation]", result.Module!.Body);
+        Assert.Contains("sin(input.data[invocation])", result.Module.Body);
+    }
+
+    [Fact]
+    public async Task CompileTimeShaderAnalyzer_RejectsManagedStateReflectionVirtualCallsAndReferenceLocals()
+    {
+        const string source = @"
+            using System.Reflection;
+            using Delta.Shader.Abstractions;
+
+            public sealed class VirtualWorker
+            {
+                public virtual uint Next(uint value) => value;
+            }
+
+            public static class CompileTimeInvalid
+            {
+                public static uint MutableState;
+
+                [ComputeShader(localSizeX: 64)]
+                public static void Compute(
+                    [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<uint> input,
+                    [ReadWriteStorageBuffer(0, 1)] ReadWriteStorageBuffer<uint> output,
+                    [GlobalInvocationId] uint invocation)
+                {
+                    string managed = ""not a shader value"";
+                    var reflected = Assembly.GetExecutingAssembly().GetName();
+                    output.Store(invocation, new VirtualWorker().Next(input.Load(invocation)) + MutableState);
+                }
+            }";
+
+        var compilation = await LoadCompilerTestProjectCompilationAsync(source);
+        var diagnostics = await compilation
+            .WithAnalyzers(ImmutableArray.Create<DiagnosticAnalyzer>(new ComputeEntryPointAnalyzer()))
+            .GetAnalyzerDiagnosticsAsync();
+
+        var unsupported = diagnostics.Where(diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH014).ToArray();
+        Assert.True(unsupported.Length >= 4, string.Join(Environment.NewLine, unsupported.Select(diagnostic => diagnostic.GetMessage())));
+        Assert.Contains(unsupported, diagnostic => diagnostic.GetMessage().Contains("Reference local", StringComparison.Ordinal));
+        Assert.Contains(unsupported, diagnostic => diagnostic.GetMessage().Contains("Reflection", StringComparison.Ordinal));
+        Assert.Contains(unsupported, diagnostic => diagnostic.GetMessage().Contains("Virtual", StringComparison.Ordinal));
+        Assert.Contains(unsupported, diagnostic => diagnostic.GetMessage().Contains("mutable state", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static async Task<Compilation> LoadMathsCompilationAsync(string? extraSource = null)
     {
         var root = Path.Combine(FindRepositoryRoot(), "Maths", "Delta.Maths.csproj");

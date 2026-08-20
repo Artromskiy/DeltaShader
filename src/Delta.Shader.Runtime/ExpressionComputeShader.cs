@@ -421,7 +421,14 @@ internal sealed class ExpressionBodyEmitter
                 return EmitMember(member);
             case MethodCallExpression call:
                 return EmitCall(call);
+            case IndexExpression index:
+                return Emit(index.Object!) + "[" + string.Join(", ", index.Arguments.Select(Emit)) + "]";
             case BinaryExpression binary:
+                if (binary.NodeType == ExpressionType.Assign)
+                {
+                    return Emit(binary.Left) + " = " + Emit(binary.Right);
+                }
+
                 return "(" + Emit(binary.Left) + " " + Operator(binary.NodeType) + " " + Emit(binary.Right) + ")";
             case ConditionalExpression conditional:
                 return "(" + Emit(conditional.Test) + " ? " + Emit(conditional.IfTrue) + " : " + Emit(conditional.IfFalse) + ")";

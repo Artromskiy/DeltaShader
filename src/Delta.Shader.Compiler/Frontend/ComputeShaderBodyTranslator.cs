@@ -2,6 +2,7 @@ using System.Globalization;
 using Delta.Shader.Abstractions;
 using Delta.Shader.Compiler.Intrinsics;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Delta.Shader.Compiler;
@@ -124,6 +125,34 @@ internal sealed class ComputeShaderBodyTranslator
         {
             reason = "Store statement must be a single expression statement.";
             return false;
+        }
+
+        if (exprStmt.Expression is AssignmentExpressionSyntax assignment &&
+            assignment.IsKind(SyntaxKind.SimpleAssignmentExpression) &&
+            assignment.Left is ElementAccessExpressionSyntax elementAccess)
+        {
+            if (!TryTranslateResourceTarget(elementAccess.Expression, semanticModel, resourceBindings, out var indexedBuffer, out reason))
+            {
+                return false;
+            }
+
+            if (elementAccess.ArgumentList.Arguments.Count != 1 ||
+                !TryTranslateIndexExpression(elementAccess.ArgumentList.Arguments[0].Expression, invocationParameter, semanticModel,
+                    out var indexedAt, out var indexedUsesBuiltin, out reason))
+            {
+                reason ??= "Indexed storage-buffer access requires exactly one index.";
+                return false;
+            }
+
+            if (!TryTranslateValueExpression(assignment.Right, semanticModel, invocationParameter, resourceBindings,
+                    out var indexedValue, out var indexedValueUsesBuiltin, out reason, out diagnosticId))
+            {
+                return false;
+            }
+
+            translated = $"{indexedBuffer}.data[{indexedAt}] = {indexedValue};";
+            usesBuiltin = indexedUsesBuiltin || indexedValueUsesBuiltin;
+            return true;
         }
 
         if (exprStmt.Expression is not InvocationExpressionSyntax invocation)
@@ -423,6 +452,26 @@ internal sealed class ComputeShaderBodyTranslator
 
                 reason = "Unsupported method call in executable body.";
                 return false;
+            }
+
+            case ElementAccessExpressionSyntax elementAccess:
+            {
+                if (elementAccess.ArgumentList.Arguments.Count != 1 ||
+                    !TryTranslateIndexExpression(elementAccess.ArgumentList.Arguments[0].Expression, invocationParameter, semanticModel,
+                        out var index, out var indexUsesBuiltin, out reason))
+                {
+                    reason ??= "Indexed storage-buffer access requires exactly one index.";
+                    return false;
+                }
+
+                if (!TryTranslateResourceTarget(elementAccess.Expression, semanticModel, resourceBindings, out var bufferName, out reason))
+                {
+                    return false;
+                }
+
+                translated = $"{bufferName}.data[{index}]";
+                usesBuiltin = indexUsesBuiltin;
+                return true;
             }
 
             default:
