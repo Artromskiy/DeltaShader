@@ -35,7 +35,7 @@ public static class GlslEmitter
         if (module.Stage == ShaderStage.Compute && module.UsesBuiltinInvocationId && !string.IsNullOrWhiteSpace(module.InvocationParameterName))
         {
             var invocationName = identifiers.Mangle(module.InvocationParameterName, "invocationIndex");
-            identifierMap[module.InvocationParameterName] = invocationName;
+            identifierMap[module.InvocationParameterName!] = invocationName;
             sb.AppendLine($"    uint {invocationName} = gl_GlobalInvocationID.x;");
         }
 
@@ -43,7 +43,7 @@ public static class GlslEmitter
         if (identifierMap.Count > 0) body = RewriteIdentifiers(body, identifierMap);
         if (!string.IsNullOrWhiteSpace(body))
         {
-            sb.AppendLine("    " + body.Replace("\n", "\n    ", StringComparison.Ordinal));
+            sb.AppendLine("    " + body.Replace("\n", "\n    "));
             sb.AppendLine();
         }
         else sb.AppendLine("    // Delta.Shader auto-generated stage stub");
@@ -108,8 +108,8 @@ public static class GlslEmitter
 
     private static string NormalizeBody(string? body)
     {
-        var normalized = (body ?? string.Empty).Replace("\r\n", "\n", StringComparison.Ordinal).Replace("\r", "\n", StringComparison.Ordinal).Trim();
-        if (normalized.StartsWith("{", StringComparison.Ordinal) && normalized.EndsWith("}", StringComparison.Ordinal)) normalized = normalized[1..^1].Trim();
+        var normalized = (body ?? string.Empty).Replace("\r\n", "\n").Replace("\r", "\n").Trim();
+        if (normalized.StartsWith("{", StringComparison.Ordinal) && normalized.EndsWith("}", StringComparison.Ordinal)) normalized = normalized.Substring(1, normalized.Length - 2).Trim();
         return normalized;
     }
 
@@ -118,7 +118,7 @@ public static class GlslEmitter
         var rewritten = body;
         foreach (var entry in identifierMap.OrderByDescending(entry => entry.Key.Length))
         {
-            if (entry.Key.EndsWith(".data", StringComparison.Ordinal)) rewritten = rewritten.Replace(entry.Key, entry.Value, StringComparison.Ordinal);
+            if (entry.Key.EndsWith(".data", StringComparison.Ordinal)) rewritten = rewritten.Replace(entry.Key, entry.Value);
             else rewritten = Regex.Replace(rewritten, $"\\b{Regex.Escape(entry.Key)}\\b", entry.Value, RegexOptions.None);
         }
         return rewritten;

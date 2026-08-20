@@ -390,9 +390,16 @@
       "delta.shader.analyzers": {
         "type": "Project",
         "dependencies": {
+          "Delta.Shader.Backend.Glsl": "[1.0.0, )",
           "Delta.Shader.Compiler": "[1.0.0, )",
           "Microsoft.CodeAnalysis.Analyzers": "[3.11.0, )",
           "Microsoft.CodeAnalysis.CSharp": "[4.13.0, )"
+        }
+      },
+      "delta.shader.backend.glsl": {
+        "type": "Project",
+        "dependencies": {
+          "Delta.Shader.Compiler": "[1.0.0, )"
         }
       },
       "delta.shader.compiler": {

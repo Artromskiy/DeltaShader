@@ -57,6 +57,7 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         context.EnableConcurrentExecution();
         var computeShaderAttribute = typeof(ComputeShaderAttribute).FullName;
+        var deltaComputeAttribute = typeof(DeltaComputeAttribute).FullName;
         context.RegisterSymbolAction(context =>
         {
             if (context.Compilation.GetTypeByMetadataName(computeShaderAttribute) is not ITypeSymbol attributeType)
@@ -70,7 +71,8 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
             }
 
             var attribute = methodSymbol.GetAttributes()
-                .FirstOrDefault(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, attributeType));
+                .FirstOrDefault(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, attributeType) ||
+                    a.AttributeClass?.ToDisplayString() == deltaComputeAttribute);
 
             var vertexAttribute = context.Compilation.GetTypeByMetadataName(typeof(VertexShaderAttribute).FullName);
             var fragmentAttribute = context.Compilation.GetTypeByMetadataName(typeof(FragmentShaderAttribute).FullName);
@@ -107,7 +109,8 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
         if (context.Node is not MethodDeclarationSyntax syntax ||
             context.SemanticModel.GetDeclaredSymbol(syntax) is not IMethodSymbol method ||
             !method.GetAttributes().Any(attribute =>
-                attribute.AttributeClass?.ToDisplayString() == typeof(ComputeShaderAttribute).FullName))
+                attribute.AttributeClass?.ToDisplayString() == typeof(ComputeShaderAttribute).FullName ||
+                attribute.AttributeClass?.ToDisplayString() == typeof(DeltaComputeAttribute).FullName))
         {
             return;
         }

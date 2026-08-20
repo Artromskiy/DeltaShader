@@ -850,6 +850,40 @@ public class IntrinsicCatalogTests
     }
 
     [Fact]
+    public async Task DeltaComputeGenerator_EmitsGlslManifestAndArtifactWrapper()
+    {
+        const string source = @"
+            using Delta.Maths;
+            using Delta.Shader.Abstractions;
+
+            public static class GeneratedKernel
+            {
+                [DeltaCompute(localSizeX: 64)]
+                public static void Compute(
+                    [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<float> input,
+                    [ReadWriteStorageBuffer(0, 1)] ReadWriteStorageBuffer<float> output,
+                    [GlobalInvocationId] uint invocation)
+                {
+                    output[invocation] = maths.sin(input[invocation]);
+                }
+            }";
+
+        var compilation = await LoadCompilerTestProjectCompilationAsync(source);
+        var parseOptions = compilation.SyntaxTrees.First().Options as CSharpParseOptions;
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            new[] { new DeltaComputeGenerator().AsSourceGenerator() },
+            parseOptions: parseOptions);
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out var generatorDiagnostics);
+
+        Assert.DoesNotContain(generatorDiagnostics, diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+        var generated = Assert.Single(driver.GetRunResult().Results.SelectMany(result => result.GeneratedSources));
+        Assert.Contains("public const string Glsl", generated.SourceText.ToString());
+        Assert.Contains("#version 460", generated.SourceText.ToString());
+        Assert.Contains("ManifestJson", generated.SourceText.ToString());
+        Assert.Contains("CreateArtifact", generated.SourceText.ToString());
+    }
+
+    [Fact]
     public async Task CompileTimeShaderAnalyzer_RejectsManagedStateReflectionVirtualCallsAndReferenceLocals()
     {
         const string source = @"

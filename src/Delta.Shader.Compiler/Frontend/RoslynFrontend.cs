@@ -12,6 +12,7 @@ public sealed class RoslynFrontend
 {
     private readonly Compilation _compilation;
     private readonly Dictionary<ShaderStage, ITypeSymbol?> _stageAttributes;
+    private readonly ITypeSymbol? _deltaComputeAttribute;
 
     public RoslynFrontend(Compilation compilation)
     {
@@ -22,6 +23,7 @@ public sealed class RoslynFrontend
             [ShaderStage.Vertex] = compilation.GetTypeByMetadataName(typeof(VertexShaderAttribute).FullName),
             [ShaderStage.Fragment] = compilation.GetTypeByMetadataName(typeof(FragmentShaderAttribute).FullName)
         };
+        _deltaComputeAttribute = compilation.GetTypeByMetadataName(typeof(DeltaComputeAttribute).FullName);
     }
 
     public IReadOnlyList<ShaderEntryPointSymbol> FindComputeEntryPoints()
@@ -50,20 +52,27 @@ public sealed class RoslynFrontend
                     continue;
                 }
 
-                var stageAttribute = _stageAttributes.FirstOrDefault(pair => pair.Value is not null &&
-                    methodSymbol.GetAttributes().Any(attribute => SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, pair.Value)));
-                if (stageAttribute.Value is null)
+                var computeAttribute = methodSymbol.GetAttributes().FirstOrDefault(attribute =>
+                    SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, _stageAttributes[ShaderStage.Compute]) ||
+                    SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, _deltaComputeAttribute));
+                var stageAttribute = computeAttribute is not null
+                    ? (Stage: ShaderStage.Compute, Attribute: computeAttribute)
+                    : _stageAttributes
+                        .Where(pair => pair.Key != ShaderStage.Compute)
+                        .Select(pair => (Stage: pair.Key, Attribute: methodSymbol.GetAttributes().FirstOrDefault(attribute =>
+                            pair.Value is not null &&
+                            SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, pair.Value))))
+                        .FirstOrDefault(pair => pair.Attribute is not null);
+                if (stageAttribute.Attribute is null)
                 {
                     continue;
                 }
 
-                var attribute = methodSymbol.GetAttributes().First(attribute =>
-                    SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, stageAttribute.Value));
-                var localSize = stageAttribute.Key == ShaderStage.Compute ? ParseLocalSize(attribute) : (x: 1u, y: 1u, z: 1u);
-                var entryPointName = ParseEntryPointName(attribute, stageAttribute.Key)
+                var localSize = stageAttribute.Stage == ShaderStage.Compute ? ParseLocalSize(stageAttribute.Attribute) : (x: 1u, y: 1u, z: 1u);
+                var entryPointName = ParseEntryPointName(stageAttribute.Attribute, stageAttribute.Stage)
                     ?? methodSymbol.Name;
 
-                result.Add(new ShaderEntryPointSymbol(entryPointName, methodSymbol, stageAttribute.Key, localSize.x, localSize.y, localSize.z));
+                result.Add(new ShaderEntryPointSymbol(entryPointName, methodSymbol, stageAttribute.Stage, localSize.x, localSize.y, localSize.z));
             }
         }
 

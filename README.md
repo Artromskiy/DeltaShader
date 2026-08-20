@@ -34,14 +34,14 @@ using Delta.Shader.Abstractions;
 
 public static class Doubler
 {
-    [ComputeShader(localSizeX: 64)]
+    [DeltaCompute(localSizeX: 64)]
     public static void Compute(
         [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<uint> input,
         [ReadWriteStorageBuffer(0, 1)] ReadWriteStorageBuffer<uint> output,
         [GlobalInvocationId] uint invocation)
     {
         if (invocation < input.Length)
-            output.Store(invocation, input.Load(invocation) * 2u + 1u);
+            output[invocation] = input[invocation] * 2u + 1u;
     }
 }
 ```
@@ -63,13 +63,14 @@ GLSL semantics from CLR names or register `Unsupported` aliases.
 
 ## Compile-time typed kernels
 
-The build-time shader contract is a static method annotated with
-`[ComputeShader]`. Its parameter types and resource attributes are analyzed by
-`Delta.Shader.Analyzers` during Roslyn compilation, then the existing compiler
-and CLI produce GLSL 460, SPIR-V and the ABI manifest:
+The build-time shader contract is a static partial method (or static method in
+the CLI fixture) annotated with `[DeltaCompute]`. Its parameter types and
+resource attributes are analyzed by `Delta.Shader.Analyzers` during Roslyn
+compilation, then the existing compiler and CLI produce GLSL 460, SPIR-V and
+the ABI manifest:
 
 ```csharp
-[ComputeShader(localSizeX: 64)]
+[DeltaCompute(localSizeX: 64)]
 public static void Compute(
     [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<float> input,
     [ReadWriteStorageBuffer(0, 1)] ReadWriteStorageBuffer<float> output,
@@ -78,6 +79,16 @@ public static void Compute(
     output[id] = maths.sin(input[id]);
 }
 ```
+
+The source generator also emits a typed `<ContainingType><Method>ShaderArtifact`
+wrapper with GLSL, manifest JSON and `CreateArtifact(byte[] spirv)`. The CLI
+artifact (`.spv` plus `.shader.json`) is the runtime-neutral distribution form;
+it does not require Roslyn, MSBuild or Vulkan bindings in the consumer.
+
+Compile-time constants and local value variables are allowed. Managed closure
+state, runtime captures, reference values, reflection and virtual/interface
+calls are rejected with diagnostics; a runtime value must be an explicit
+resource or a future push-constant parameter rather than an implicit capture.
 
 Build the typed fixture with:
 
@@ -91,8 +102,9 @@ dotnet run --project src/Delta.Shader.Tool/Delta.Shader.Tool.csproj \
 The analyzer rejects managed mutable state, reference locals, reflection and
 virtual/interface calls with DSH014. Shader-visible reference types remain
 DSH010 errors. Static methods are the compile-time form because C# expression
-trees cannot represent assignment; runtime expression lambdas therefore use a
-separate output resource and return the computed element value.
+trees cannot represent assignment; the existing runtime expression-lambda path
+remains available and uses a separate output resource and returns the computed
+element value.
 
 ## CLI
 
