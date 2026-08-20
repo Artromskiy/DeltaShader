@@ -67,9 +67,10 @@ public static class GlslEmitter
     {
         foreach (var push in module.PushConstants)
         {
-            sb.AppendLine("layout(push_constant) uniform DeltaPushConstants");
+            sb.AppendLine("layout(push_constant, std430) uniform DeltaPushConstants");
             sb.AppendLine("{");
-            foreach (var member in push.Members) sb.AppendLine($"    {member.GlslType} {member.GlslName};");
+            foreach (var member in push.Members)
+                sb.AppendLine($"    layout(offset = {member.Offset}) {member.GlslType} {member.GlslName};");
             sb.AppendLine("} pushConstants;");
             sb.AppendLine();
         }

@@ -65,7 +65,7 @@ public class SanityChecks
         };
 
         var emitted = GlslEmitter.EmitFromModule(module);
-        Assert.Contains("layout(push_constant) uniform DeltaPushConstants", emitted.Source);
+        Assert.Contains("layout(push_constant, std430) uniform DeltaPushConstants", emitted.Source);
         Assert.Contains("layout(location = 0) in vec2 varying_0;", emitted.Source);
         Assert.Contains("layout(location = 0) out vec4 fragColor;", emitted.Source);
         Assert.Contains("fwidth", emitted.Source);

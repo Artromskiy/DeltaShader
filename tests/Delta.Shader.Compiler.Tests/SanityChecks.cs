@@ -773,6 +773,75 @@ public class IntrinsicCatalogTests
     }
 
     [Fact]
+    public async Task GraphicsEntryPoints_TransformConformancePreservesColumnMajorCpuGpuContract()
+    {
+        const string source = @"
+            using Delta.Maths;
+            using Delta.Shader.Abstractions;
+            public struct TransformConstants
+            {
+                public float4x4 Model;
+                public float4x4 View;
+                public float4x4 Projection;
+            }
+            public static class TransformConformance
+            {
+                [VertexShader(""CubeVertex"")]
+                public static void Vertex(
+                    [PushConstant] TransformConstants constants,
+                    [Position] out float4 position)
+                {
+                    var vertex = new float3(1f, 2f, 3f);
+                    position = constants.Projection * constants.View * constants.Model * new float4(vertex, 1f);
+                }
+            }";
+
+        var compilation = await LoadCompilerTestProjectCompilationAsync(source);
+        var result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        var module = result.Module!;
+        var push = Assert.Single(result.AbiManifest!.PushConstants);
+        Assert.Equal("mat4", Assert.Single(push.Members, member => member.Name == "Model").GlslType);
+        Assert.Equal(0u, Assert.Single(push.Members, member => member.Name == "Model").Offset);
+        Assert.Equal(64u, Assert.Single(push.Members, member => member.Name == "View").Offset);
+        Assert.Equal(128u, Assert.Single(push.Members, member => member.Name == "Projection").Offset);
+        Assert.All(push.Members, member =>
+        {
+            Assert.Equal(16u, member.Alignment);
+            Assert.Equal(64u, member.Size);
+            Assert.Equal(64u, member.ArrayStride);
+            Assert.Equal(16u, member.MatrixStride);
+        });
+        Assert.Equal(16u, push.Alignment);
+        Assert.Equal(192u, push.Size);
+        Assert.Equal(192u, push.ArrayStride);
+
+        var glsl = Delta.Shader.Backend.Glsl.GlslEmitter.EmitFromModule(module).Source;
+        Assert.Contains("layout(push_constant, std430) uniform DeltaPushConstants", glsl);
+        Assert.Contains("layout(offset = 0) mat4 member_Model", glsl);
+        Assert.Contains("layout(offset = 64) mat4 member_View", glsl);
+        Assert.Contains("layout(offset = 128) mat4 member_Projection", glsl);
+        Assert.Contains("gl_Position", glsl);
+        var projectionIndex = glsl.IndexOf("pushConstants.member_Projection", StringComparison.Ordinal);
+        var viewIndex = glsl.IndexOf("pushConstants.member_View", StringComparison.Ordinal);
+        var modelIndex = glsl.IndexOf("pushConstants.member_Model", StringComparison.Ordinal);
+        Assert.True(projectionIndex >= 0 && projectionIndex < viewIndex && viewIndex < modelIndex);
+        Assert.DoesNotContain("transpose", glsl, StringComparison.OrdinalIgnoreCase);
+
+        var model = float4x4.CreateTRS(new float3(4f, -1f, 2f), quaternion.CreateFromAxisAngle(new float3(0f, 1f, 0f), 0.35f), new float3(2f, 3f, 4f));
+        var view = float4x4.CreateLookTo(new float3(0f, 1f, -8f), new float3(0f, 0f, 1f), new float3(0f, 1f, 0f));
+        var projection = float4x4.CreatePerspectiveFieldOfViewLeftHanded(global::Delta.Maths.Maths.Radians(60f), 16f / 9f, 0.1f, 100f);
+        var vertex = new float4(1f, 2f, 3f, 1f);
+        var cpu = projection * view * model * vertex;
+        Assert.Equal(1f, vertex.w);
+        Assert.True(cpu.w > 0f);
+        Assert.Equal(0f, projection.M44);
+        Assert.Equal(1f, view.M44);
+        Assert.Equal(1f, model.M44);
+    }
+
+    [Fact]
     public async Task GraphicsEntryPoints_RejectFragmentBuiltinInVertexStage()
     {
         const string source = @"
