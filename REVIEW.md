@@ -13,7 +13,7 @@ the current implementation.
 ### 1. Analyzer target graph cannot restore
 
 `Delta.Shader.Analyzers` targets `netstandard2.0` but references `Delta.Shader.Compiler`, which
-targets only `net10.0`. `dotnet restore DeltaShader.sln` fails with `NU1201`.
+targets only `net10.0`. `dotnet restore DeltaShader.slnx` fails with `NU1201`.
 
 The reusable analyzer/compiler rules need a `netstandard2.0`-compatible project
 or compatible multi-targeting. MSBuildWorkspace/CLI-only code must remain in a
@@ -69,7 +69,7 @@ push-constant contract exists.
 
 ## Verification performed
 
-`dotnet restore DeltaShader/DeltaShader.sln --nologo -m:1 /nodeReuse:false` was run after the
+`dotnet restore DeltaShader/DeltaShader.slnx --nologo -m:1 /nodeReuse:false` was run after the
 central package versions were corrected to Silk.NET 2.23.0 and Roslyn Analyzers
 3.11.0. Package-version errors disappeared, exposing the analyzer/compiler TFM
 incompatibility described above. Tests could not run until that restore blocker
