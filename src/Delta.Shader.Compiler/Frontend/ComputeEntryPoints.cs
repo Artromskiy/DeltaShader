@@ -398,8 +398,10 @@ public static class ComputeEntryPoints
     }
 
     private static bool IsReadOnlyStorageBuffer(ITypeSymbol type, ModuleCompilationContext context)
-        => context.ReadOnlyStorageBufferType is not null &&
-            SymbolEqualityComparer.Default.Equals((type as INamedTypeSymbol)?.OriginalDefinition, context.ReadOnlyStorageBufferType);
+        => (context.ReadOnlyStorageBufferType is not null &&
+            SymbolEqualityComparer.Default.Equals((type as INamedTypeSymbol)?.OriginalDefinition, context.ReadOnlyStorageBufferType)) ||
+           (context.ReadOnlyStorageBufferValueType is not null &&
+            SymbolEqualityComparer.Default.Equals((type as INamedTypeSymbol)?.OriginalDefinition, context.ReadOnlyStorageBufferValueType));
 
     private static bool TryBuildStructLayout(
         INamedTypeSymbol type,
@@ -513,14 +515,17 @@ public static class ComputeEntryPoints
             return false;
         }
 
-        if (context.ReadOnlyStorageBufferType is null || context.ReadWriteStorageBufferType is null)
+        var originalDefinition = namedType.OriginalDefinition;
+        if (SymbolEqualityComparer.Default.Equals(originalDefinition, context.ReadOnlyStorageBufferValueType) ||
+            SymbolEqualityComparer.Default.Equals(originalDefinition, context.ReadWriteStorageBufferValueType))
         {
-            return false;
+            elementType = context.Compilation.GetSpecialType(SpecialType.System_UInt32);
+            return true;
         }
 
-        var originalDefinition = namedType.OriginalDefinition;
-        if (!SymbolEqualityComparer.Default.Equals(originalDefinition, context.ReadOnlyStorageBufferType) &&
-            !SymbolEqualityComparer.Default.Equals(originalDefinition, context.ReadWriteStorageBufferType))
+        if (context.ReadOnlyStorageBufferType is null || context.ReadWriteStorageBufferType is null ||
+            (!SymbolEqualityComparer.Default.Equals(originalDefinition, context.ReadOnlyStorageBufferType) &&
+             !SymbolEqualityComparer.Default.Equals(originalDefinition, context.ReadWriteStorageBufferType)))
         {
             return false;
         }
@@ -693,6 +698,8 @@ public sealed class ModuleCompilationContext
         Intrinsics = intrinsics;
         ReadOnlyStorageBufferType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.ReadOnlyStorageBuffer`1");
         ReadWriteStorageBufferType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.ReadWriteStorageBuffer`1");
+        ReadOnlyStorageBufferValueType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.ReadOnlyStorageBuffer");
+        ReadWriteStorageBufferValueType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.ReadWriteStorageBuffer");
         ReadOnlyStorageBufferAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.ReadOnlyStorageBufferAttribute");
         ReadWriteStorageBufferAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.ReadWriteStorageBufferAttribute");
         GlobalInvocationIdAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.GlobalInvocationIdAttribute");
@@ -708,6 +715,8 @@ public sealed class ModuleCompilationContext
     public IntrinsicRegistry Intrinsics { get; }
     public ITypeSymbol? ReadOnlyStorageBufferType { get; }
     public ITypeSymbol? ReadWriteStorageBufferType { get; }
+    public ITypeSymbol? ReadOnlyStorageBufferValueType { get; }
+    public ITypeSymbol? ReadWriteStorageBufferValueType { get; }
     public ITypeSymbol? ReadOnlyStorageBufferAttributeType { get; }
     public ITypeSymbol? ReadWriteStorageBufferAttributeType { get; }
     public ITypeSymbol? GlobalInvocationIdAttributeType { get; }

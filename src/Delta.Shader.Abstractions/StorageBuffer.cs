@@ -12,6 +12,29 @@ public abstract class ShaderStorageBuffer
         "Storage buffer semantics are shader-only. This member is not supported on CPU execution paths.");
 }
 
+public sealed class ReadOnlyStorageBuffer : ShaderStorageBuffer
+{
+    public uint this[uint index] => throw new NotSupportedException(
+        "Shader-only buffer access path. CPU usage is blocked by design.");
+
+    public uint Load(uint index) => this[index];
+}
+
+public sealed class ReadWriteStorageBuffer : ShaderStorageBuffer
+{
+    public uint this[uint index]
+    {
+        get => throw new NotSupportedException(
+            "Shader-only buffer access path. CPU usage is blocked by design.");
+        set => throw new NotSupportedException(
+            "Shader-only buffer access path. CPU usage is blocked by design.");
+    }
+
+    public uint Load(uint index) => this[index];
+
+    public void Store(uint index, uint value) => this[index] = value;
+}
+
 public abstract class ShaderStorageBuffer<T> : ShaderStorageBuffer where T : unmanaged
 {
     public abstract T Load(uint index);

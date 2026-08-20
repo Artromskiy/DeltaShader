@@ -38,18 +38,31 @@ public static class ShaderVisibleTypeValidation
 
     public static ITypeSymbol GetVisibleRootType(IParameterSymbol parameter, Compilation compilation)
     {
-        if (parameter.Type is INamedTypeSymbol namedType && namedType.TypeArguments.Length == 1)
+        if (parameter.Type is INamedTypeSymbol namedType)
         {
             var readOnlyBuffer = compilation.GetTypeByMetadataName(
                 "Delta.Shader.Abstractions.ReadOnlyStorageBuffer`1");
             var readWriteBuffer = compilation.GetTypeByMetadataName(
                 "Delta.Shader.Abstractions.ReadWriteStorageBuffer`1");
+            var readOnlyValueBuffer = compilation.GetTypeByMetadataName(
+                "Delta.Shader.Abstractions.ReadOnlyStorageBuffer");
+            var readWriteValueBuffer = compilation.GetTypeByMetadataName(
+                "Delta.Shader.Abstractions.ReadWriteStorageBuffer");
 
-            if (SymbolEqualityComparer.Default.Equals(namedType.OriginalDefinition, readOnlyBuffer) ||
+            if (namedType.TypeArguments.Length == 1 &&
+                (SymbolEqualityComparer.Default.Equals(namedType.OriginalDefinition, readOnlyBuffer) ||
                 SymbolEqualityComparer.Default.Equals(namedType.OriginalDefinition, readWriteBuffer))
+            )
             {
                 return namedType.TypeArguments[0];
             }
+
+            if (SymbolEqualityComparer.Default.Equals(namedType, readOnlyValueBuffer) ||
+                SymbolEqualityComparer.Default.Equals(namedType, readWriteValueBuffer))
+            {
+                return compilation.GetSpecialType(SpecialType.System_UInt32);
+            }
+
         }
 
         return parameter.Type;

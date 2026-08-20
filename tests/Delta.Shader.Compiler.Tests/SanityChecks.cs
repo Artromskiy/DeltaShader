@@ -850,6 +850,38 @@ public class IntrinsicCatalogTests
     }
 
     [Fact]
+    public async Task NonGenericUIntBuffers_LowerThroughValidationIrAndGlsl()
+    {
+        const string source = @"
+            using Delta.Shader.Abstractions;
+
+            public static class SimpleCompute
+            {
+                [DeltaCompute(localSizeX: 64)]
+                public static void Compute(
+                    [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer input,
+                    [ReadWriteStorageBuffer(0, 1)] ReadWriteStorageBuffer output,
+                    [GlobalInvocationId] uint id)
+                {
+                    if (id < input.Length) output[id] = input[id] * 2u + 1u;
+                }
+            }";
+
+        var result = await CompileAndValidateEntryPointAsync(source);
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        var resources = result.Module!.Resources;
+        Assert.Equal("uint", Assert.Single(resources, resource => resource.ParameterName == "input").GlslType);
+        Assert.Equal("uint", Assert.Single(resources, resource => resource.ParameterName == "output").GlslType);
+        Assert.Contains("output.data[id] = input.data[id] * 2u + 1u", result.Module.Body);
+
+        var glsl = Delta.Shader.Backend.Glsl.GlslEmitter.EmitFromModule(result.Module).Source;
+        Assert.Contains("#version 460", glsl);
+        Assert.Contains("layout(set = 0, binding = 0, std430) readonly buffer", glsl);
+        Assert.Contains("uint data[];", glsl);
+    }
+
+    [Fact]
     public async Task DeltaComputeGenerator_EmitsGlslManifestAndArtifactWrapper()
     {
         const string source = @"
