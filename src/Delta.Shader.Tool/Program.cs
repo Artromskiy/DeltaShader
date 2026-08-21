@@ -74,8 +74,15 @@ static async Task<int> ExecuteEmitAsync(ProgramOptions options)
     {
         if (result.Module is null || result.AbiManifest is null) return 1;
         var entryName = string.IsNullOrWhiteSpace(result.EntryPointName) ? result.Module.Stage.ToString() : result.EntryPointName;
-        var glslFile = Path.Combine(outputDirectory, $"{entryName}.glsl");
-        var manifestFile = Path.Combine(outputDirectory, $"{entryName}.shader.json");
+        var stageSuffix = result.Module.Stage switch
+        {
+            ShaderStage.Vertex => "vert",
+            ShaderStage.Fragment => "frag",
+            _ => "comp"
+        };
+        var fileStem = $"{entryName}.{stageSuffix}";
+        var glslFile = Path.Combine(outputDirectory, $"{fileStem}.glsl");
+        var manifestFile = Path.Combine(outputDirectory, $"{fileStem}.shader.json");
         var emitResult = GlslEmitter.EmitFromModule(result.Module);
         if (!emitResult.Success) return 1;
         await File.WriteAllTextAsync(glslFile, emitResult.Source, new UTF8Encoding(false));
@@ -85,9 +92,8 @@ static async Task<int> ExecuteEmitAsync(ProgramOptions options)
             var glslang = ToolPath("glslangValidator");
             var spirvValidator = ToolPath("spirv-val");
             if (glslang is null || spirvValidator is null) return 1;
-            var spirvFile = Path.Combine(outputDirectory, $"{entryName}.spv");
-            var stage = result.Module.Stage switch { ShaderStage.Vertex => "vert", ShaderStage.Fragment => "frag", _ => "comp" };
-            var compile = RunTool(glslang, $"-V --target-env {EscapeArgument(options.CompilationOptions.Profile)} -S {stage} {EscapeArgument(glslFile)} -o {EscapeArgument(spirvFile)}");
+            var spirvFile = Path.Combine(outputDirectory, $"{fileStem}.spv");
+            var compile = RunTool(glslang, $"-V --target-env {EscapeArgument(options.CompilationOptions.Profile)} -S {stageSuffix} {EscapeArgument(glslFile)} -o {EscapeArgument(spirvFile)}");
             if (compile.ExitCode != 0) { Console.WriteLine($"glslangValidator failed:{Environment.NewLine}{compile.Output}"); return 1; }
             var validation = RunTool(spirvValidator, $"--target-env {EscapeArgument(options.CompilationOptions.Profile)} {EscapeArgument(spirvFile)}");
             if (validation.ExitCode != 0) { Console.WriteLine($"spirv-val failed:{Environment.NewLine}{validation.Output}"); return 1; }

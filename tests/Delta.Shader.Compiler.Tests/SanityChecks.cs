@@ -897,24 +897,26 @@ public class IntrinsicCatalogTests
                     public float OutlineWidth;
                 }
 
-                [VertexShader]
+                [VertexShader(""sdf-text"")]
                 public static void Vertex(
                     [VertexIndex] uint index,
                     [SampledTexture2D(0, 1, ShaderStageMask.Vertex)] SampledTexture2D atlas,
-                    [Position] out float4 position)
+                    [Position] out float4 position,
+                    [ShaderVarying(0)] out float2 uv)
                 {
                     var sampled = ShaderIntrinsics.SampleVertex<float2, float4>(atlas, new float2(0.5f, 0.5f));
                     position = sampled;
+                    uv = new float2(0.5f, 0.5f);
                 }
 
-                [FragmentShader]
+                [FragmentShader(""sdf-text"")]
                 public static void Fragment(
                     [SampledTexture2D(0, 2)] SampledTexture2D atlas,
-                    [FragmentCoord] float2 coord,
+                    [ShaderVarying(0)] float2 uv,
                     [PushConstant] TextParameters parameters,
                     [FragmentColor] out float4 color)
                 {
-                    var texel = ShaderIntrinsics.SampleFragment<float2, float4>(atlas, coord);
+                    var texel = ShaderIntrinsics.SampleFragment<float2, float4>(atlas, uv);
                     var median = maths.max(maths.min(texel.x, texel.y), maths.min(maths.max(texel.x, texel.y), texel.z));
                     var edge = ShaderIntrinsics.fwidth(median - 0.5f);
                     var coverage = 1f - maths.smoothStep(-edge, edge, median - 0.5f);
@@ -930,6 +932,7 @@ public class IntrinsicCatalogTests
 
         var vertex = Assert.Single(results, result => result.Module!.Stage == ShaderStage.Vertex);
         var vertexResource = Assert.Single(vertex.AbiManifest!.Resources);
+        Assert.Equal("sdf-text", vertex.EntryPointName);
         Assert.Equal("sampled-texture", vertexResource.Category);
         Assert.Equal(ShaderStage.Vertex, vertexResource.Stage);
         Assert.Equal("sampler2D", vertexResource.GlslType);
@@ -939,10 +942,12 @@ public class IntrinsicCatalogTests
         var vertexGlsl = Delta.Shader.Backend.Glsl.GlslEmitter.EmitFromModule(vertex.Module!).Source;
         Assert.Contains("layout(set = 0, binding = 1) uniform sampler2D", vertexGlsl);
         Assert.Contains("texture(", vertexGlsl);
+        Assert.Contains("varying_0", vertexGlsl);
         Assert.DoesNotContain("std430) readonly buffer", vertexGlsl);
 
         var fragment = Assert.Single(results, result => result.Module!.Stage == ShaderStage.Fragment);
         var fragmentResource = Assert.Single(fragment.AbiManifest!.Resources);
+        Assert.Equal("sdf-text", fragment.EntryPointName);
         Assert.Equal(ShaderStage.Fragment, fragmentResource.Stage);
         Assert.Equal(2u, fragmentResource.Binding);
         Assert.Equal(0u, fragmentResource.Offset);

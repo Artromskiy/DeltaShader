@@ -12,14 +12,26 @@ public static class GeneratedTextShaders
         public float OutlineWidth;
     }
 
-    [FragmentShader("SdfTextFragment")]
-    public static void SdfText(
+    [VertexShader("sdf-text")]
+    public static void SdfTextVertex(
+        [VertexIndex] uint vertexIndex,
+        [Position] out float4 position,
+        [ShaderVarying(0)] out float2 uv)
+    {
+        var x = (vertexIndex == 0u || vertexIndex == 2u) ? -1f : 3f;
+        var y = vertexIndex == 2u ? 3f : -1f;
+        position = new float4(x, y, 0f, 1f);
+        uv = new float2((x + 1f) * 0.25f, (y + 1f) * 0.25f);
+    }
+
+    [FragmentShader("sdf-text")]
+    public static void SdfTextFragment(
         [SampledTexture2D(0, 3)] SampledTexture2D atlas,
-        [FragmentCoord] float2 fragmentCoord,
+        [ShaderVarying(0)] float2 uv,
         [PushConstant] TextParameters parameters,
         [FragmentColor] out float4 color)
     {
-        var p = fragmentCoord * 0.01f - new float2(0.5f, 0.5f);
+        var p = uv - new float2(0.5f, 0.5f);
         var q = maths.abs(p) - new float2(0.35f, 0.22f) + 0.08f;
         var distance = maths.length(maths.max(q, new float2(0f, 0f))) +
             maths.min(maths.max(q.x, q.y), 0f) - 0.08f;
@@ -28,14 +40,26 @@ public static class GeneratedTextShaders
         color = parameters.TextColor * coverage;
     }
 
-    [FragmentShader("MsdfTextFragment")]
-    public static void MsdfText(
+    [VertexShader("msdf-text")]
+    public static void MsdfTextVertex(
+        [VertexIndex] uint vertexIndex,
+        [Position] out float4 position,
+        [ShaderVarying(0)] out float2 uv)
+    {
+        var x = (vertexIndex == 0u || vertexIndex == 2u) ? -1f : 3f;
+        var y = vertexIndex == 2u ? 3f : -1f;
+        position = new float4(x, y, 0f, 1f);
+        uv = new float2((x + 1f) * 0.25f, (y + 1f) * 0.25f);
+    }
+
+    [FragmentShader("msdf-text")]
+    public static void MsdfTextFragment(
         [SampledTexture2D(0, 4)] SampledTexture2D atlas,
-        [FragmentCoord] float2 fragmentCoord,
+        [ShaderVarying(0)] float2 uv,
         [PushConstant] TextParameters parameters,
         [FragmentColor] out float4 color)
     {
-        var texel = ShaderIntrinsics.SampleFragment<float2, float4>(atlas, fragmentCoord);
+        var texel = ShaderIntrinsics.SampleFragment<float2, float4>(atlas, uv);
         var median = maths.max(
             maths.min(texel.x, texel.y),
             maths.min(maths.max(texel.x, texel.y), texel.z));

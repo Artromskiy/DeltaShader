@@ -83,7 +83,10 @@ public static void Compute(
 The source generator also emits a typed `<ContainingType><Method>ShaderArtifact`
 wrapper with GLSL, manifest JSON and `CreateArtifact(byte[] spirv)`. The CLI
 artifact (`.spv` plus `.shader.json`) is the runtime-neutral distribution form;
-it does not require Roslyn, MSBuild or Vulkan bindings in the consumer.
+it does not require Roslyn, MSBuild or Vulkan bindings in the consumer. For
+graphics stages the CLI writes stage-qualified names such as
+`sdf-text.vert.glsl`, `sdf-text.frag.glsl`, `msdf-text.vert.glsl` and
+`msdf-text.frag.glsl`.
 
 Compile-time constants and local value variables are allowed. Managed closure
 state, runtime captures, reference values, reflection and virtual/interface
@@ -118,8 +121,11 @@ dotnet run --project src/Delta.Shader.Tool/Delta.Shader.Tool.csproj \
 ```
 
 `build` writes `<entry>.glsl`, `<entry>.spv` and `<entry>.shader.json`; SPIR-V
-is published only after both validators succeed. Source entry-point names stay
-in metadata while Vulkan entry points are currently emitted as `main`.
+is published only after both validators succeed. Graphics stages use
+stage-qualified filenames so a vertex/fragment pair becomes
+`<stem>.vert.glsl`, `<stem>.frag.glsl`, `<stem>.vert.spv`, `<stem>.frag.spv`
+and matching manifest files. Source entry-point names stay in metadata while
+Vulkan entry points are currently emitted as `main`.
 
 ## Verify
 
@@ -177,10 +183,10 @@ identity. fwidth is fragment-only. Texture image ownership, descriptors and
 sampler creation remain runtime responsibilities outside Delta.Shader.
 
 tests/Delta.Shader.TestShaders/GeneratedTextShaders.cs contains the bounded
-SDF and MSDF authoring examples. The MSDF path uses median RGB distance,
-derivative-based smoothing, and explicit std430-compatible push-constant color
-and outline parameters. Runtime lambdas and captures are not part of this
-compile-time static contract.
+SDF and MSDF authoring examples as matching vertex/fragment pairs. The MSDF
+path uses median RGB distance, derivative-based smoothing, and explicit
+std430-compatible push-constant color and outline parameters. Runtime lambdas
+and captures are not part of this compile-time static contract.
 
 DeltaShader owns shader-visible contracts and compilation only. DeltaRender
 owns Vulkan images/descriptors/atlases, while DeltaXAML owns text/control
