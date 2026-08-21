@@ -1,5 +1,9 @@
 # Compute scenario for 0.1 MVP
 
+> Historical 0.1 sketch. It uses the retired `[ComputeShader]`/`Load` syntax
+> and is not an authoring guide. The current contract is `[DeltaCompute]` with
+> indexed resource views; see `../README.md` and `../WORKFLOW.md`.
+
 Input C# shader (`tests/Delta.Shader.TestShaders/VectorAdd.cs`):
 
 ```csharp
