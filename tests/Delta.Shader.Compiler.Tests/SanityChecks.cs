@@ -1294,6 +1294,7 @@ public class IntrinsicCatalogTests
     public async Task NonGenericUIntBuffers_LowerThroughValidationIrAndGlsl()
     {
         const string source = @"
+            using Delta.Maths;
             using Delta.Shader.Abstractions;
 
             public static class SimpleCompute
@@ -1354,6 +1355,45 @@ public class IntrinsicCatalogTests
         Assert.Contains("#version 460", generated.SourceText.ToString());
         Assert.Contains("ManifestJson", generated.SourceText.ToString());
         Assert.Contains("CreateArtifact", generated.SourceText.ToString());
+    }
+
+    [Fact]
+    public async Task DeltaComputeGenerator_EmitsTypedGraphicsProgramForVertexFragmentPair()
+    {
+        const string source = @"
+            using Delta.Maths;
+            using Delta.Shader.Abstractions;
+
+            public static class GeneratedGraphics
+            {
+                [VertexShader(""CubeVertex"")]
+                public static void Vertex([VertexIndex] uint index, [Position] out float4 position)
+                {
+                    position = new float4((float)index, 0.0f, 0.0f, 1.0f);
+                }
+
+                [FragmentShader(""CubeFragment"")]
+                public static void Fragment([FragmentColor] out float4 color)
+                {
+                    color = new float4(1.0f, 0.0f, 1.0f, 1.0f);
+                }
+            }";
+
+        var compilation = await LoadCompilerTestProjectCompilationAsync(source);
+        var parseOptions = compilation.SyntaxTrees.First().Options as CSharpParseOptions;
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            new[] { new DeltaComputeGenerator().AsSourceGenerator(), new DeltaGraphicsGenerator().AsSourceGenerator() },
+            parseOptions: parseOptions);
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out var generatorDiagnostics);
+
+        Assert.DoesNotContain(generatorDiagnostics, diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+        var generated = Assert.Single(driver.GetRunResult().Results.SelectMany(result => result.GeneratedSources));
+        var generatedText = generated.SourceText.ToString();
+        Assert.Contains("GraphicsShaderProgram", generatedText);
+        Assert.Contains("FragmentGlsl", generatedText);
+        Assert.Contains("FragmentManifestJson", generatedText);
+        Assert.Contains("CreateProgram", generatedText);
+        Assert.Contains("#version 460", generatedText);
     }
 
     [Fact]

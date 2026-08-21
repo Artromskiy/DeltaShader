@@ -42,6 +42,22 @@ public sealed class ShaderArtifact
     public string EntryPoint => Manifest.EntryPointName;
 }
 
+public sealed class GraphicsShaderProgram
+{
+    public GraphicsShaderProgram(ShaderArtifact vertex, ShaderArtifact fragment)
+    {
+        Vertex = vertex ?? throw new ArgumentNullException(nameof(vertex));
+        Fragment = fragment ?? throw new ArgumentNullException(nameof(fragment));
+        if (vertex.Stage != ShaderStage.Vertex)
+            throw new ArgumentException("The first artifact must contain a vertex stage.", nameof(vertex));
+        if (fragment.Stage != ShaderStage.Fragment)
+            throw new ArgumentException("The second artifact must contain a fragment stage.", nameof(fragment));
+    }
+
+    public ShaderArtifact Vertex { get; }
+    public ShaderArtifact Fragment { get; }
+}
+
 public sealed class ShaderAbiManifest
 {
     public const int CurrentVersion = 4;

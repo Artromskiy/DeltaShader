@@ -16,6 +16,8 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
     private const string VisibleTypeDescriptorId = ShaderDiagnosticId.DSH010;
     private const string GraphicsDescriptorId = ShaderDiagnosticId.DSH012;
     private const string UnsupportedConstructDescriptorId = ShaderDiagnosticId.DSH014;
+    private const string GraphicsPairDescriptorId = ShaderDiagnosticId.DSH017;
+    private const string DuplicateGraphicsNameDescriptorId = ShaderDiagnosticId.DSH018;
 
     private static readonly DiagnosticDescriptor _descriptor = new(
         id: DescriptorId,
@@ -49,8 +51,25 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    private static readonly DiagnosticDescriptor _graphicsPairDescriptor = new(
+        id: GraphicsPairDescriptorId,
+        title: "Incomplete graphics shader pair",
+        messageFormat: "Graphics shader program must declare exactly one vertex and one fragment entry point",
+        category: "Delta.Shader",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor _duplicateGraphicsNameDescriptor = new(
+        id: DuplicateGraphicsNameDescriptorId,
+        title: "Duplicate graphics shader entry name",
+        messageFormat: "Graphics shader source entry point name '{0}' is declared more than once",
+        category: "Delta.Shader",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-        [_descriptor, _graphicsDescriptor, _visibleTypeDescriptor, _unsupportedConstructDescriptor];
+        [_descriptor, _graphicsDescriptor, _visibleTypeDescriptor, _unsupportedConstructDescriptor,
+            _graphicsPairDescriptor, _duplicateGraphicsNameDescriptor];
 
     public override void Initialize(AnalysisContext context)
     {
@@ -83,6 +102,31 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
             if (attribute is null && graphicsAttribute is null)
             {
                 return;
+            }
+
+            if (graphicsAttribute is not null)
+            {
+                var graphicsMethods = methodSymbol.ContainingType?.GetMembers()
+                    .OfType<IMethodSymbol>()
+                    .Where(method => method.GetAttributes().Any(candidate =>
+                        candidate.AttributeClass?.ToDisplayString() == typeof(VertexShaderAttribute).FullName ||
+                        candidate.AttributeClass?.ToDisplayString() == typeof(FragmentShaderAttribute).FullName))
+                    .ToArray() ?? Array.Empty<IMethodSymbol>();
+                var vertices = graphicsMethods.Where(method => method.GetAttributes().Any(candidate =>
+                    candidate.AttributeClass?.ToDisplayString() == typeof(VertexShaderAttribute).FullName)).ToArray();
+                var fragments = graphicsMethods.Where(method => method.GetAttributes().Any(candidate =>
+                    candidate.AttributeClass?.ToDisplayString() == typeof(FragmentShaderAttribute).FullName)).ToArray();
+                if (vertices.Length != 1 || fragments.Length != 1)
+                    context.ReportDiagnostic(Diagnostic.Create(_graphicsPairDescriptor, methodSymbol.Locations[0]));
+
+                var named = graphicsMethods.SelectMany(method => method.GetAttributes()
+                    .Where(candidate => candidate.AttributeClass?.ToDisplayString() == typeof(VertexShaderAttribute).FullName ||
+                        candidate.AttributeClass?.ToDisplayString() == typeof(FragmentShaderAttribute).FullName)
+                    .Select(candidate => candidate.ConstructorArguments.FirstOrDefault().Value as string)
+                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .GroupBy(name => name!, StringComparer.Ordinal));
+                foreach (var duplicate in named.Where(group => group.Count() > 1))
+                    context.ReportDiagnostic(Diagnostic.Create(_duplicateGraphicsNameDescriptor, methodSymbol.Locations[0], duplicate.Key));
             }
 
             foreach (var parameter in methodSymbol.Parameters)
