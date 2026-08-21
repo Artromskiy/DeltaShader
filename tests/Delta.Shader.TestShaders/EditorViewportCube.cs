@@ -24,9 +24,9 @@ public static class EditorViewportCube
 
     [VertexShader("EditorViewportCubeVertex")]
     public static void Vertex(
-        [VertexInput(0)] float3 position,
-        [VertexInput(1)] float3 normal,
-        [VertexInput(2)] float2 uv,
+        [VertexInput(0, Binding = 0, ByteOffset = 0)] float3 position,
+        [VertexInput(1, Binding = 0, ByteOffset = 12)] float3 normal,
+        [VertexInput(2, Binding = 0, ByteOffset = 24)] float2 uv,
         [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<SceneParameters> scene,
         [Position] out float4 clipPosition,
         [ShaderVarying(0)] out float3 worldNormal,

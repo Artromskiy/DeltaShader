@@ -334,9 +334,24 @@ public class SanityChecks
             ],
             VertexInputs =
             [
-                new ShaderIrVertexInput { Name = "position", ParameterName = "position", GlslName = "position", GlslType = "vec3", Location = 0, ByteSize = 12, Alignment = 4, FormatHint = "VK_FORMAT_R32G32B32_SFLOAT" },
-                new ShaderIrVertexInput { Name = "normal", ParameterName = "normal", GlslName = "normal", GlslType = "vec3", Location = 1, ByteSize = 12, Alignment = 4, FormatHint = "VK_FORMAT_R32G32B32_SFLOAT" },
-                new ShaderIrVertexInput { Name = "uv", ParameterName = "uv", GlslName = "uv", GlslType = "vec2", Location = 2, ByteSize = 8, Alignment = 4, FormatHint = "VK_FORMAT_R32G32_SFLOAT" }
+                new ShaderIrVertexInput { Name = "position", ParameterName = "position", GlslName = "position", GlslType = "vec3", Location = 0, Binding = 0, ByteOffset = 0, InputRate = VertexInputRate.Vertex, ByteSize = 12, Alignment = 4, FormatHint = "VK_FORMAT_R32G32B32_SFLOAT" },
+                new ShaderIrVertexInput { Name = "normal", ParameterName = "normal", GlslName = "normal", GlslType = "vec3", Location = 1, Binding = 0, ByteOffset = 12, InputRate = VertexInputRate.Vertex, ByteSize = 12, Alignment = 4, FormatHint = "VK_FORMAT_R32G32B32_SFLOAT" },
+                new ShaderIrVertexInput { Name = "uv", ParameterName = "uv", GlslName = "uv", GlslType = "vec2", Location = 2, Binding = 0, ByteOffset = 24, InputRate = VertexInputRate.Vertex, ByteSize = 8, Alignment = 4, FormatHint = "VK_FORMAT_R32G32_SFLOAT" }
+            ],
+            VertexBuffers =
+            [
+                new ShaderIrVertexBufferBinding
+                {
+                    Binding = 0,
+                    Stride = 32,
+                    InputRate = VertexInputRate.Vertex,
+                    Attributes =
+                    [
+                        new ShaderIrVertexInput { Name = "position", ParameterName = "position", GlslName = "position", GlslType = "vec3", Location = 0, Binding = 0, ByteOffset = 0, InputRate = VertexInputRate.Vertex, ByteSize = 12, Alignment = 4, FormatHint = "VK_FORMAT_R32G32B32_SFLOAT" },
+                        new ShaderIrVertexInput { Name = "normal", ParameterName = "normal", GlslName = "normal", GlslType = "vec3", Location = 1, Binding = 0, ByteOffset = 12, InputRate = VertexInputRate.Vertex, ByteSize = 12, Alignment = 4, FormatHint = "VK_FORMAT_R32G32B32_SFLOAT" },
+                        new ShaderIrVertexInput { Name = "uv", ParameterName = "uv", GlslName = "uv", GlslType = "vec2", Location = 2, Binding = 0, ByteOffset = 24, InputRate = VertexInputRate.Vertex, ByteSize = 8, Alignment = 4, FormatHint = "VK_FORMAT_R32G32_SFLOAT" }
+                    ]
+                }
             ],
             Resources =
             [

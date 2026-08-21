@@ -54,6 +54,7 @@ public sealed class ShaderManifest
     public uint LocalSizeZ { get; init; }
     public string StorageLayout { get; init; } = ShaderStd430Layout.Standard;
     public IReadOnlyList<ShaderVertexInputManifest> VertexInputs { get; init; } = [];
+    public IReadOnlyList<ShaderVertexBufferBindingManifest> VertexBufferBindings { get; init; } = [];
     public IReadOnlyList<ShaderResourceManifest> Resources { get; init; } = [];
     public IReadOnlyList<ShaderInterfaceManifest> Inputs { get; init; } = [];
     public IReadOnlyList<ShaderInterfaceManifest> Outputs { get; init; } = [];
@@ -125,8 +126,29 @@ public sealed class ShaderManifest
             VertexInputs = module.VertexInputs.Select(variable => new ShaderVertexInputManifest
             {
                 Name = variable.Name, ParameterName = variable.ParameterName, GlslName = variable.GlslName,
-                GlslType = variable.GlslType, Location = variable.Location, ByteSize = variable.ByteSize,
+                GlslType = variable.GlslType, Location = variable.Location, Binding = variable.Binding,
+                ByteOffset = variable.ByteOffset, InputRate = variable.InputRate, ByteSize = variable.ByteSize,
                 Alignment = variable.Alignment, FormatHint = variable.FormatHint
+            }).ToArray(),
+            VertexBufferBindings = module.VertexBuffers.Select(binding => new ShaderVertexBufferBindingManifest
+            {
+                Binding = binding.Binding,
+                Stride = binding.Stride,
+                InputRate = binding.InputRate,
+                Attributes = binding.Attributes.Select(attribute => new ShaderVertexInputManifest
+                {
+                    Name = attribute.Name,
+                    ParameterName = attribute.ParameterName,
+                    GlslName = attribute.GlslName,
+                    GlslType = attribute.GlslType,
+                    Location = attribute.Location,
+                    Binding = attribute.Binding,
+                    ByteOffset = attribute.ByteOffset,
+                    InputRate = attribute.InputRate,
+                    ByteSize = attribute.ByteSize,
+                    Alignment = attribute.Alignment,
+                    FormatHint = attribute.FormatHint
+                }).ToArray()
             }).ToArray(),
             Outputs = module.Outputs.Select(variable => new ShaderInterfaceManifest
             {
@@ -220,8 +242,29 @@ public sealed class ShaderManifest
             VertexInputs = VertexInputs.Select(variable => new ShaderAbiVertexInput
             {
                 Name = variable.Name, ParameterName = variable.ParameterName, GlslName = variable.GlslName,
-                GlslType = variable.GlslType, Location = variable.Location, ByteSize = variable.ByteSize,
+                GlslType = variable.GlslType, Location = variable.Location, Binding = variable.Binding,
+                ByteOffset = variable.ByteOffset, InputRate = variable.InputRate, ByteSize = variable.ByteSize,
                 Alignment = variable.Alignment, FormatHint = variable.FormatHint
+            }).ToArray(),
+            VertexBufferBindings = VertexBufferBindings.Select(binding => new ShaderAbiVertexBufferBinding
+            {
+                Binding = binding.Binding,
+                Stride = binding.Stride,
+                InputRate = binding.InputRate,
+                Attributes = binding.Attributes.Select(attribute => new ShaderAbiVertexInput
+                {
+                    Name = attribute.Name,
+                    ParameterName = attribute.ParameterName,
+                    GlslName = attribute.GlslName,
+                    GlslType = attribute.GlslType,
+                    Location = attribute.Location,
+                    Binding = attribute.Binding,
+                    ByteOffset = attribute.ByteOffset,
+                    InputRate = attribute.InputRate,
+                    ByteSize = attribute.ByteSize,
+                    Alignment = attribute.Alignment,
+                    FormatHint = attribute.FormatHint
+                }).ToArray()
             }).ToArray(),
             Outputs = Outputs.Select(variable => new ShaderAbiInterfaceVariable
             {
@@ -284,9 +327,20 @@ public sealed class ShaderVertexInputManifest
     public string GlslName { get; init; } = string.Empty;
     public string GlslType { get; init; } = string.Empty;
     public uint Location { get; init; }
+    public uint Binding { get; init; }
+    public uint ByteOffset { get; init; }
+    public VertexInputRate InputRate { get; init; } = VertexInputRate.Vertex;
     public uint ByteSize { get; init; }
     public uint Alignment { get; init; }
     public string FormatHint { get; init; } = string.Empty;
+}
+
+public sealed class ShaderVertexBufferBindingManifest
+{
+    public uint Binding { get; init; }
+    public uint Stride { get; init; }
+    public VertexInputRate InputRate { get; init; } = VertexInputRate.Vertex;
+    public IReadOnlyList<ShaderVertexInputManifest> Attributes { get; init; } = [];
 }
 
 public sealed class ShaderPushConstantManifest

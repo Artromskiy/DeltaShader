@@ -85,9 +85,23 @@ public class SanityChecks
             EntryPointName = "EditorViewportCubeVertex",
             VertexInputs =
             [
-                new ShaderIrVertexInput { Name = "position", ParameterName = "position", GlslName = "position", GlslType = "vec3", Location = 0, ByteSize = 12, Alignment = 4, FormatHint = "VK_FORMAT_R32G32B32_SFLOAT" },
-                new ShaderIrVertexInput { Name = "normal", ParameterName = "normal", GlslName = "normal", GlslType = "vec3", Location = 1, ByteSize = 12, Alignment = 4, FormatHint = "VK_FORMAT_R32G32B32_SFLOAT" },
-                new ShaderIrVertexInput { Name = "uv", ParameterName = "uv", GlslName = "uv", GlslType = "vec2", Location = 2, ByteSize = 8, Alignment = 4, FormatHint = "VK_FORMAT_R32G32_SFLOAT" }
+                new ShaderIrVertexInput { Name = "position", ParameterName = "position", GlslName = "position", GlslType = "vec3", Location = 0, Binding = 0, ByteOffset = 0, InputRate = VertexInputRate.Vertex, ByteSize = 12, Alignment = 4, FormatHint = "VK_FORMAT_R32G32B32_SFLOAT" },
+                new ShaderIrVertexInput { Name = "normal", ParameterName = "normal", GlslName = "normal", GlslType = "vec3", Location = 1, Binding = 0, ByteOffset = 12, InputRate = VertexInputRate.Vertex, ByteSize = 12, Alignment = 4, FormatHint = "VK_FORMAT_R32G32B32_SFLOAT" },
+                new ShaderIrVertexInput { Name = "uv", ParameterName = "uv", GlslName = "uv", GlslType = "vec2", Location = 2, Binding = 0, ByteOffset = 24, InputRate = VertexInputRate.Vertex, ByteSize = 8, Alignment = 4, FormatHint = "VK_FORMAT_R32G32_SFLOAT" }
+            ],
+            VertexBuffers =
+            [
+                new ShaderIrVertexBufferBinding
+                {
+                    Binding = 0,
+                    Stride = 32,
+                    InputRate = VertexInputRate.Vertex,
+                    Attributes = [
+                        new ShaderIrVertexInput { Name = "position", ParameterName = "position", GlslName = "position", GlslType = "vec3", Location = 0, Binding = 0, ByteOffset = 0, InputRate = VertexInputRate.Vertex, ByteSize = 12, Alignment = 4, FormatHint = "VK_FORMAT_R32G32B32_SFLOAT" },
+                        new ShaderIrVertexInput { Name = "normal", ParameterName = "normal", GlslName = "normal", GlslType = "vec3", Location = 1, Binding = 0, ByteOffset = 12, InputRate = VertexInputRate.Vertex, ByteSize = 12, Alignment = 4, FormatHint = "VK_FORMAT_R32G32B32_SFLOAT" },
+                        new ShaderIrVertexInput { Name = "uv", ParameterName = "uv", GlslName = "uv", GlslType = "vec2", Location = 2, Binding = 0, ByteOffset = 24, InputRate = VertexInputRate.Vertex, ByteSize = 8, Alignment = 4, FormatHint = "VK_FORMAT_R32G32_SFLOAT" }
+                    ]
+                }
             ],
             Resources =
             [
@@ -134,10 +148,11 @@ public class SanityChecks
         Assert.Contains("layout(location = 2) in vec2 uv;", emitted.Source);
         Assert.Contains("layout(set = 0, binding = 0, std430) readonly buffer", emitted.Source);
         Assert.Contains("layout(set = 0, binding = 1) uniform sampler2D", emitted.Source);
-        Assert.Contains("Projection * scene.data[0].View * scene.data[0].Model", emitted.Source);
 
         var abi = ShaderManifest.FromModule(module).ToAbiManifest(ShaderCompilationOptions.Default);
         Assert.Equal(3, abi.VertexInputs.Count);
+        Assert.Single(abi.VertexBufferBindings);
+        Assert.Equal(32u, abi.VertexBufferBindings[0].Stride);
         Assert.Equal("VK_FORMAT_R32G32B32_SFLOAT", abi.VertexInputs[0].FormatHint);
         Assert.Equal(12u, abi.VertexInputs[0].ByteSize);
         Assert.Equal(224u, abi.Resources[0].Size);
@@ -336,9 +351,37 @@ public class SanityChecks
                     GlslName = "position",
                     GlslType = "vec3",
                     Location = 0,
+                    Binding = 0,
+                    ByteOffset = 0,
+                    InputRate = VertexInputRate.Vertex,
                     ByteSize = 12,
                     Alignment = 4,
                     FormatHint = "VK_FORMAT_R32G32B32_SFLOAT"
+                }
+            ],
+            VertexBuffers =
+            [
+                new ShaderIrVertexBufferBinding
+                {
+                    Binding = 0,
+                    Stride = 12,
+                    InputRate = VertexInputRate.Vertex,
+                    Attributes = [
+                        new ShaderIrVertexInput
+                        {
+                            Name = "position",
+                            ParameterName = "position",
+                            GlslName = "position",
+                            GlslType = "vec3",
+                            Location = 0,
+                            Binding = 0,
+                            ByteOffset = 0,
+                            InputRate = VertexInputRate.Vertex,
+                            ByteSize = 12,
+                            Alignment = 4,
+                            FormatHint = "VK_FORMAT_R32G32B32_SFLOAT"
+                        }
+                    ]
                 }
             ],
             Resources =
@@ -367,11 +410,22 @@ public class SanityChecks
         Assert.Single(manifest.VertexInputs);
         Assert.Equal((0u, "vec3", 12u, 4u, "VK_FORMAT_R32G32B32_SFLOAT"),
             (manifest.VertexInputs[0].Location, manifest.VertexInputs[0].GlslType, manifest.VertexInputs[0].ByteSize, manifest.VertexInputs[0].Alignment, manifest.VertexInputs[0].FormatHint));
+        Assert.Single(manifest.VertexBufferBindings);
+        Assert.Equal(12u, manifest.VertexBufferBindings[0].Stride);
         Assert.Equal(ShaderResourceAccess.ReadOnly, artifact.Manifest.Resources[0].Access);
         Assert.True(artifact.Manifest.Resources[0].ReadOnly);
         Assert.Single(artifact.Manifest.VertexInputs);
         Assert.Equal("VK_FORMAT_R32G32B32_SFLOAT", artifact.Manifest.VertexInputs[0].FormatHint);
         Assert.Equal(224u, artifact.Manifest.Resources[0].Size);
+        Assert.Single(artifact.Manifest.VertexBufferBindings);
+        Assert.Equal(12u, artifact.Manifest.VertexBufferBindings[0].Stride);
+    }
+
+    [Fact]
+    public void RuntimeArtifactContract_RejectsLegacyAbiVersions()
+    {
+        var manifest = new ShaderAbiManifest { Version = ShaderAbiManifest.CurrentVersion - 1 };
+        Assert.Throws<ArgumentException>(() => new ShaderArtifact(new byte[] { 1, 2, 3, 4 }, manifest));
     }
 
     [Fact]

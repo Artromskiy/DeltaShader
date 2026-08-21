@@ -862,9 +862,9 @@ public class IntrinsicCatalogTests
             {
                 [VertexShader(""EditorViewportCubeVertex"")]
                 public static void Vertex(
-                    [VertexInput(0)] float3 position,
-                    [VertexInput(1)] float3 normal,
-                    [VertexInput(2)] float2 uv,
+                    [VertexInput(0, Binding = 0, ByteOffset = 0)] float3 position,
+                    [VertexInput(1, Binding = 0, ByteOffset = 12)] float3 normal,
+                    [VertexInput(2, Binding = 0, ByteOffset = 24)] float2 uv,
                     [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<SceneParameters> scene,
                     [Position] out float4 clipPosition,
                     [ShaderVarying(0)] out float3 worldNormal,
@@ -886,6 +886,13 @@ public class IntrinsicCatalogTests
         Assert.Equal((0u, "vec3", "VK_FORMAT_R32G32B32_SFLOAT"), (module.VertexInputs[0].Location, module.VertexInputs[0].GlslType, module.VertexInputs[0].FormatHint));
         Assert.Equal((1u, "vec3", "VK_FORMAT_R32G32B32_SFLOAT"), (module.VertexInputs[1].Location, module.VertexInputs[1].GlslType, module.VertexInputs[1].FormatHint));
         Assert.Equal((2u, "vec2", "VK_FORMAT_R32G32_SFLOAT"), (module.VertexInputs[2].Location, module.VertexInputs[2].GlslType, module.VertexInputs[2].FormatHint));
+        Assert.Single(module.VertexBuffers);
+        Assert.Equal(0u, module.VertexBuffers[0].Binding);
+        Assert.Equal(32u, module.VertexBuffers[0].Stride);
+        Assert.Equal(3, module.VertexBuffers[0].Attributes.Count);
+        Assert.Equal(0u, module.VertexBuffers[0].Attributes[0].ByteOffset);
+        Assert.Equal(12u, module.VertexBuffers[0].Attributes[1].ByteOffset);
+        Assert.Equal(24u, module.VertexBuffers[0].Attributes[2].ByteOffset);
 
         var resource = Assert.Single(module.Resources);
         Assert.Equal("storage-buffer", resource.Category);
@@ -910,8 +917,7 @@ public class IntrinsicCatalogTests
         var projection = float4x4.CreatePerspectiveFieldOfViewLeftHanded(global::Delta.Maths.Maths.Radians(60f), 1f, 0.1f, 100f);
         var vertex = new float4(1f, 0f, 0f, 1f);
         var cpuOrder = projection * view * model * vertex;
-        var gpuOrder = projection * view * model * vertex;
-        Assert.Equal(cpuOrder, gpuOrder);
+        Assert.Equal(cpuOrder, projection * view * model * vertex);
     }
 
     [Fact]

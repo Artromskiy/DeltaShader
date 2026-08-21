@@ -133,12 +133,13 @@ duplicating ABI rules:
 - vertex inputs: location 0 `vec3 position` (`VK_FORMAT_R32G32B32_SFLOAT`),
   location 1 `vec3 normal` (`VK_FORMAT_R32G32B32_SFLOAT`), location 2 `vec2 uv`
   (`VK_FORMAT_R32G32_SFLOAT`)
+- vertex buffer binding: binding 0, stride 32, input rate vertex
 - transform/light scene data: readonly std430 storage buffer at set 0 binding 0
   with `Model`, `View`, `Projection`, `LightDirection`, `LightColor` and the
   manifest offsets/alignment/size values
 - sampled texture: combined sampler at set 0 binding 1
-- draw call shape: indexed or non-indexed triangle list with 36 cube vertices is
-  fine as long as the vertex layout matches the manifest locations and formats
+- draw call shape: a vertex-layout-compatible cube mesh; 36 vertices is the
+  simplest drop-in path
 
 This keeps the vertex layout, buffer offsets and resource bindings single-sourced
 in the shader artifact manifest.

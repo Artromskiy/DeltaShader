@@ -20,6 +20,7 @@ public sealed class ShaderIrModule
     public string? InvocationParameterName { get; init; }
     public IReadOnlyList<ShaderIrInterfaceVariable> Inputs { get; init; } = [];
     public IReadOnlyList<ShaderIrVertexInput> VertexInputs { get; init; } = [];
+    public IReadOnlyList<ShaderIrVertexBufferBinding> VertexBuffers { get; init; } = [];
     public IReadOnlyList<ShaderIrInterfaceVariable> Outputs { get; init; } = [];
     public IReadOnlyList<ShaderIrPushConstant> PushConstants { get; init; } = [];
 }
@@ -41,9 +42,20 @@ public sealed class ShaderIrVertexInput
     public string GlslName { get; init; } = string.Empty;
     public string GlslType { get; init; } = string.Empty;
     public uint Location { get; init; }
+    public uint Binding { get; init; }
+    public uint ByteOffset { get; init; }
+    public VertexInputRate InputRate { get; init; } = VertexInputRate.Vertex;
     public uint ByteSize { get; init; }
     public uint Alignment { get; init; }
     public string FormatHint { get; init; } = string.Empty;
+}
+
+public sealed class ShaderIrVertexBufferBinding
+{
+    public uint Binding { get; init; }
+    public uint Stride { get; init; }
+    public VertexInputRate InputRate { get; init; } = VertexInputRate.Vertex;
+    public IReadOnlyList<ShaderIrVertexInput> Attributes { get; init; } = [];
 }
 
 public sealed class ShaderIrPushConstant

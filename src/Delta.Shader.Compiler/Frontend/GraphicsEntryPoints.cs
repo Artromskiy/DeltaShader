@@ -44,6 +44,7 @@ internal static class GraphicsEntryPoints
 
         var inputs = new List<ShaderIrInterfaceVariable>();
         var vertexInputs = new List<ShaderIrVertexInput>();
+        var vertexBuffers = new List<ShaderIrVertexBufferBinding>();
         var outputs = new List<ShaderIrInterfaceVariable>();
         var pushConstants = new List<ShaderIrPushConstant>();
         var resources = new List<ShaderIrResource>();
@@ -85,9 +86,12 @@ internal static class GraphicsEntryPoints
                 continue;
             }
 
-            if (Same(attributeType, context.VertexInputAttributeType))
+            if (Same(attributeType, context.VertexInputAttributeType) && attribute is not null)
             {
-                var vertexLocation = GetUIntArg(attribute!, 0);
+                var vertexLocation = GetUIntArg(attribute, 0);
+                var vertexBinding = GetUIntNamedArg(attribute, "Binding");
+                var byteOffset = GetUIntNamedArg(attribute, "ByteOffset");
+                var inputRate = GetInputRate(attribute);
                 if (stage != ShaderStage.Vertex || parameter.RefKind != RefKind.None ||
                     !TryMapType(parameter.Type, context, out var vertexType) ||
                     !TryGetVertexInputLayout(vertexType, out var byteSize, out var alignment, out var formatHint))
@@ -100,6 +104,11 @@ internal static class GraphicsEntryPoints
                     AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH013,
                         $"Vertex input location {vertexLocation} is declared more than once.", locationSpan);
                 }
+                else if (vertexInputs.Any(input => input.Binding == vertexBinding && input.ByteOffset == byteOffset))
+                {
+                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH013,
+                        $"Vertex buffer binding {vertexBinding} offset {byteOffset} overlaps with another vertex input.", locationSpan);
+                }
                 else
                 {
                     var glslName = Sanitize(parameter.Name);
@@ -111,6 +120,9 @@ internal static class GraphicsEntryPoints
                         GlslName = glslName,
                         GlslType = vertexType,
                         Location = vertexLocation,
+                        Binding = vertexBinding,
+                        ByteOffset = byteOffset,
+                        InputRate = inputRate,
                         ByteSize = byteSize,
                         Alignment = alignment,
                         FormatHint = formatHint
@@ -343,6 +355,41 @@ internal static class GraphicsEntryPoints
             diagnostics.Add(new ShaderDiagnostic(ShaderDiagnosticId.DSH012, "Fragment shader must declare one [FragmentColor] output.", Severity: ShaderDiagnosticSeverity.Error));
         }
 
+        if (stage == ShaderStage.Vertex && vertexInputs.Count > 0)
+        {
+            foreach (var group in vertexInputs.GroupBy(input => input.Binding))
+            {
+                var ordered = group.OrderBy(input => input.ByteOffset).ToArray();
+                var stride = 0u;
+                var rate = ordered[0].InputRate;
+                foreach (var input in ordered)
+                {
+                    if (input.InputRate != rate)
+                    {
+                        diagnostics.Add(new ShaderDiagnostic(ShaderDiagnosticId.DSH013,
+                            $"Vertex buffer binding {group.Key} mixes input rates.", Severity: ShaderDiagnosticSeverity.Error));
+                        break;
+                    }
+
+                    stride = Math.Max(stride, input.ByteOffset + input.ByteSize);
+                }
+
+                if (group.Any(input => input.ByteSize == 0))
+                {
+                    diagnostics.Add(new ShaderDiagnostic(ShaderDiagnosticId.DSH013,
+                        $"Vertex buffer binding {group.Key} has an input with missing size.", Severity: ShaderDiagnosticSeverity.Error));
+                }
+
+                vertexBuffers.Add(new ShaderIrVertexBufferBinding
+                {
+                    Binding = group.Key,
+                    Stride = AlignUp(stride, 4),
+                    InputRate = rate,
+                    Attributes = ordered
+                });
+            }
+        }
+
         string body = string.Empty;
         if (diagnostics.Count == 0)
         {
@@ -373,6 +420,7 @@ internal static class GraphicsEntryPoints
             Body = body,
             Inputs = inputs,
             VertexInputs = vertexInputs,
+            VertexBuffers = vertexBuffers.OrderBy(binding => binding.Binding).ToArray(),
             Outputs = outputs,
             PushConstants = pushConstants
         };
@@ -389,6 +437,32 @@ internal static class GraphicsEntryPoints
         => attribute.ConstructorArguments.Length > index && attribute.ConstructorArguments[index].Value is not null
             ? Convert.ToUInt32(attribute.ConstructorArguments[index].Value)
             : 0;
+
+    private static uint GetUIntNamedArg(AttributeData attribute, string name)
+    {
+        foreach (var namedArgument in attribute.NamedArguments)
+        {
+            if (namedArgument.Key == name && namedArgument.Value.Value is not null)
+            {
+                return Convert.ToUInt32(namedArgument.Value.Value);
+            }
+        }
+
+        return 0;
+    }
+
+    private static VertexInputRate GetInputRate(AttributeData attribute)
+    {
+        foreach (var namedArgument in attribute.NamedArguments)
+        {
+            if (namedArgument.Key == "InputRate" && namedArgument.Value.Value is int value)
+            {
+                return (VertexInputRate)value;
+            }
+        }
+
+        return VertexInputRate.Vertex;
+    }
 
     private static bool SupportsStage(AttributeData attribute, ShaderStage stage)
     {

@@ -21,8 +21,18 @@ public sealed class ShaderArtifact
             throw new ArgumentException("SPIR-V artifact cannot be empty.", nameof(spirv));
         }
 
+        if (manifest is null)
+        {
+            throw new ArgumentNullException(nameof(manifest));
+        }
+
+        if (manifest.Version != ShaderAbiManifest.CurrentVersion)
+        {
+            throw new ArgumentException($"Unsupported shader ABI manifest version '{manifest.Version}'.", nameof(manifest));
+        }
+
         Spirv = (byte[])spirv.Clone();
-        Manifest = manifest ?? throw new ArgumentNullException(nameof(manifest));
+        Manifest = manifest;
     }
 
     public int FormatVersion => CurrentFormatVersion;
@@ -34,7 +44,7 @@ public sealed class ShaderArtifact
 
 public sealed class ShaderAbiManifest
 {
-    public const int CurrentVersion = 3;
+    public const int CurrentVersion = 4;
 
     public int Version { get; set; } = CurrentVersion;
     public ShaderStage Stage { get; set; } = ShaderStage.Compute;
@@ -50,6 +60,7 @@ public sealed class ShaderAbiManifest
     public IReadOnlyList<ShaderAbiResource> Resources { get; set; } = Array.Empty<ShaderAbiResource>();
     public IReadOnlyList<ShaderAbiInterfaceVariable> Inputs { get; set; } = Array.Empty<ShaderAbiInterfaceVariable>();
     public IReadOnlyList<ShaderAbiVertexInput> VertexInputs { get; set; } = Array.Empty<ShaderAbiVertexInput>();
+    public IReadOnlyList<ShaderAbiVertexBufferBinding> VertexBufferBindings { get; set; } = Array.Empty<ShaderAbiVertexBufferBinding>();
     public IReadOnlyList<ShaderAbiInterfaceVariable> Outputs { get; set; } = Array.Empty<ShaderAbiInterfaceVariable>();
     public IReadOnlyList<ShaderAbiPushConstant> PushConstants { get; set; } = Array.Empty<ShaderAbiPushConstant>();
 }
@@ -71,9 +82,20 @@ public sealed class ShaderAbiVertexInput
     public string GlslName { get; set; } = string.Empty;
     public string GlslType { get; set; } = string.Empty;
     public uint Location { get; set; }
+    public uint Binding { get; set; }
+    public uint ByteOffset { get; set; }
+    public VertexInputRate InputRate { get; set; } = VertexInputRate.Vertex;
     public uint ByteSize { get; set; }
     public uint Alignment { get; set; }
     public string FormatHint { get; set; } = string.Empty;
+}
+
+public sealed class ShaderAbiVertexBufferBinding
+{
+    public uint Binding { get; set; }
+    public uint Stride { get; set; }
+    public VertexInputRate InputRate { get; set; } = VertexInputRate.Vertex;
+    public IReadOnlyList<ShaderAbiVertexInput> Attributes { get; set; } = Array.Empty<ShaderAbiVertexInput>();
 }
 
 public sealed class ShaderAbiPushConstant
