@@ -94,6 +94,8 @@ public class SanityChecks
                     Binding = 0,
                     GlslType = "vec4",
                     ReadOnly = true,
+                    Layout = ShaderStd430Layout.Standard,
+                    Std430Layout = ShaderStd430Layout.ForStruct(16, 16),
                 },
                 new ShaderIrResource
                 {
@@ -104,6 +106,8 @@ public class SanityChecks
                     Binding = 1,
                     GlslType = "float",
                     ReadOnly = false,
+                    Layout = ShaderStd430Layout.Standard,
+                    Std430Layout = ShaderStd430Layout.ForStruct(4, 4),
                 }
             ],
             Requirements = ["Vulkan 1.2", "GLSL 460"],
@@ -219,7 +223,9 @@ public class SanityChecks
                     Set = 2,
                     Binding = 3,
                     GlslType = "vec3",
-                    ReadOnly = false
+                    ReadOnly = false,
+                    Layout = ShaderStd430Layout.Standard,
+                    Std430Layout = ShaderStd430Layout.ForStruct(16, 16)
                 }
             ]
         };
@@ -240,7 +246,7 @@ public class SanityChecks
         Assert.Equal(ShaderResourceAccess.ReadWrite, artifact.Manifest.Resources[0].Access);
         Assert.Equal(16u, artifact.Manifest.Resources[0].Alignment);
         Assert.Equal(16u, artifact.Manifest.Resources[0].ArrayStride);
-        Assert.Equal(12u, artifact.Manifest.Resources[0].Size);
+        Assert.Equal(16u, artifact.Manifest.Resources[0].Size);
     }
 
     [Fact]
@@ -341,7 +347,8 @@ public class SanityChecks
                     Binding = 0,
                     GlslType = "DeltaStruct_TransformRecord",
                     ReadOnly = false,
-                    Layout = ShaderStd430Layout.ForStruct(16, 96),
+                    Layout = ShaderStd430Layout.Standard,
+                    Std430Layout = ShaderStd430Layout.ForStruct(16, 96),
                     Members =
                     [
                         new ShaderIrStructMember

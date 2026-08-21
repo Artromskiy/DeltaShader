@@ -134,6 +134,170 @@ public class SanityChecks
         Assert.True(validation.ExitCode == 0, $"spirv-val failed: {validation.Output}");
     }
 
+    [Fact]
+    public void TextPair_GlyphInstanceSsbo_Compiles_And_Validates_With_Glslang_When_Available()
+    {
+        var glslang = ToolPath("glslangValidator");
+        var spirvVal = ToolPath("spirv-val");
+        if (string.IsNullOrWhiteSpace(glslang) || string.IsNullOrWhiteSpace(spirvVal))
+        {
+            throw SkipException.ForSkip("Skip: glslangValidator and/or spirv-val is not installed in PATH.");
+        }
+
+        var glyphInstance = new ShaderResourceMemberManifest
+        {
+            Name = "PixelMin",
+            GlslName = "member_PixelMin",
+            GlslType = "vec2",
+            Offset = 0,
+            Alignment = 8,
+            Size = 8,
+            ArrayStride = 8
+        };
+
+        var vertexModule = new ShaderIrModule
+        {
+            Stage = ShaderStage.Vertex,
+            SourceEntryPointName = "sdf-text",
+            EntryPointName = "sdf-text",
+            Resources =
+            [
+                new ShaderIrResource
+                {
+                    Name = "glyphs",
+                    ParameterName = "glyphs",
+                    Category = "storage-buffer",
+                    Stage = ShaderStage.Vertex,
+                    Set = 0,
+                    Binding = 0,
+                    GlslType = "DeltaStruct_GlyphInstance",
+                    ReadOnly = true,
+                    Access = ShaderResourceAccess.ReadOnly,
+                    Layout = ShaderStd430Layout.Standard,
+                    Std430Layout = ShaderStd430Layout.ForStruct(16, 48),
+                    Members =
+                    [
+                        new ShaderIrStructMember { Name = "PixelMin", GlslName = "member_PixelMin", GlslType = "vec2", Offset = 0, Alignment = 8, Size = 8, ArrayStride = 8 },
+                        new ShaderIrStructMember { Name = "PixelMax", GlslName = "member_PixelMax", GlslType = "vec2", Offset = 8, Alignment = 8, Size = 8, ArrayStride = 8 },
+                        new ShaderIrStructMember { Name = "UvRect", GlslName = "member_UvRect", GlslType = "vec4", Offset = 16, Alignment = 16, Size = 16, ArrayStride = 16 },
+                        new ShaderIrStructMember { Name = "Color", GlslName = "member_Color", GlslType = "vec4", Offset = 32, Alignment = 16, Size = 16, ArrayStride = 16 }
+                    ]
+                }
+            ],
+            Structs =
+            [
+                new ShaderIrStruct
+                {
+                    Name = "GlyphInstance",
+                    GlslName = "DeltaStruct_GlyphInstance",
+                    Alignment = 16,
+                    Size = 48,
+                    ArrayStride = 48,
+                    Members =
+                    [
+                        new ShaderIrStructMember { Name = "PixelMin", GlslName = "member_PixelMin", GlslType = "vec2", Offset = 0, Alignment = 8, Size = 8, ArrayStride = 8 },
+                        new ShaderIrStructMember { Name = "PixelMax", GlslName = "member_PixelMax", GlslType = "vec2", Offset = 8, Alignment = 8, Size = 8, ArrayStride = 8 },
+                        new ShaderIrStructMember { Name = "UvRect", GlslName = "member_UvRect", GlslType = "vec4", Offset = 16, Alignment = 16, Size = 16, ArrayStride = 16 },
+                        new ShaderIrStructMember { Name = "Color", GlslName = "member_Color", GlslType = "vec4", Offset = 32, Alignment = 16, Size = 16, ArrayStride = 16 }
+                    ]
+                }
+            ],
+            Inputs =
+            [
+                new ShaderIrInterfaceVariable { Name = "instanceIndex", ParameterName = "instanceIndex", GlslType = "uint", GlslName = "gl_InstanceIndex", Builtin = "InstanceIndex" },
+                new ShaderIrInterfaceVariable { Name = "vertexIndex", ParameterName = "vertexIndex", GlslType = "uint", GlslName = "gl_VertexIndex", Builtin = "VertexIndex" }
+            ],
+            Outputs =
+            [
+                new ShaderIrInterfaceVariable { Name = "position", ParameterName = "position", GlslType = "vec4", GlslName = "gl_Position", Builtin = "Position" },
+                new ShaderIrInterfaceVariable { Name = "uv", ParameterName = "uv", GlslType = "vec2", GlslName = "varying_0", Location = 0 },
+                new ShaderIrInterfaceVariable { Name = "glyphColor", ParameterName = "glyphColor", GlslType = "vec4", GlslName = "varying_1", Location = 1 }
+            ],
+            PushConstants =
+            [
+                new ShaderIrPushConstant
+                {
+                    Name = "TextParameters",
+                    ParameterName = "parameters",
+                    GlslType = "DeltaPushConstants",
+                    Alignment = 16,
+                    Size = 64,
+                    ArrayStride = 64,
+                    Members =
+                    [
+                        new ShaderIrStructMember { Name = "Resolution", GlslName = "member_Resolution", GlslType = "vec2", Offset = 0, Alignment = 8, Size = 8, ArrayStride = 8 },
+                        new ShaderIrStructMember { Name = "TextColor", GlslName = "member_TextColor", GlslType = "vec4", Offset = 16, Alignment = 16, Size = 16, ArrayStride = 16 },
+                        new ShaderIrStructMember { Name = "OutlineColor", GlslName = "member_OutlineColor", GlslType = "vec4", Offset = 32, Alignment = 16, Size = 16, ArrayStride = 16 },
+                        new ShaderIrStructMember { Name = "OutlineWidth", GlslName = "member_OutlineWidth", GlslType = "float", Offset = 48, Alignment = 4, Size = 4, ArrayStride = 4 }
+                    ]
+                }
+            ],
+            Body = @"
+                DeltaStruct_GlyphInstance glyph = glyphs.data[gl_InstanceIndex];
+                vec2 min = glyph.member_PixelMin;
+                vec2 max = glyph.member_PixelMax;
+                vec2 uvMin = vec2(glyph.member_UvRect.x, glyph.member_UvRect.y);
+                vec2 uvMax = vec2(glyph.member_UvRect.z, glyph.member_UvRect.w);
+                vec4 pos = vec4(0.0);
+                vec2 outUv = uvMin;
+                if (gl_VertexIndex == 0u) { pos = vec4((min.x / pushConstants.member_Resolution.x) * 2.0 - 1.0, (min.y / pushConstants.member_Resolution.y) * 2.0 - 1.0, 0.0, 1.0); outUv = uvMin; }
+                else if (gl_VertexIndex == 1u) { pos = vec4((max.x / pushConstants.member_Resolution.x) * 2.0 - 1.0, (min.y / pushConstants.member_Resolution.y) * 2.0 - 1.0, 0.0, 1.0); outUv = vec2(uvMax.x, uvMin.y); }
+                else if (gl_VertexIndex == 2u) { pos = vec4((min.x / pushConstants.member_Resolution.x) * 2.0 - 1.0, (max.y / pushConstants.member_Resolution.y) * 2.0 - 1.0, 0.0, 1.0); outUv = vec2(uvMin.x, uvMax.y); }
+                else if (gl_VertexIndex == 3u) { pos = vec4((min.x / pushConstants.member_Resolution.x) * 2.0 - 1.0, (max.y / pushConstants.member_Resolution.y) * 2.0 - 1.0, 0.0, 1.0); outUv = vec2(uvMin.x, uvMax.y); }
+                else if (gl_VertexIndex == 4u) { pos = vec4((max.x / pushConstants.member_Resolution.x) * 2.0 - 1.0, (min.y / pushConstants.member_Resolution.y) * 2.0 - 1.0, 0.0, 1.0); outUv = vec2(uvMax.x, uvMin.y); }
+                else { pos = vec4((max.x / pushConstants.member_Resolution.x) * 2.0 - 1.0, (max.y / pushConstants.member_Resolution.y) * 2.0 - 1.0, 0.0, 1.0); outUv = uvMax; }
+                gl_Position = pos;
+                varying_0 = outUv;
+                varying_1 = glyph.member_Color;
+            ",
+            Requirements = ["Vulkan 1.2", "GLSL 460", "SPIRV 1.5"]
+        };
+
+        var fragmentModule = new ShaderIrModule
+        {
+            Stage = ShaderStage.Fragment,
+            SourceEntryPointName = "sdf-text",
+            EntryPointName = "sdf-text",
+            Resources =
+            [
+                new ShaderIrResource
+                {
+                    Name = "atlas",
+                    ParameterName = "atlas",
+                    Category = "sampled-texture",
+                    Stage = ShaderStage.Fragment,
+                    Set = 0,
+                    Binding = 3,
+                    GlslType = "sampler2D",
+                    ReadOnly = true,
+                    Access = ShaderResourceAccess.ReadOnly,
+                    Layout = "opaque"
+                }
+            ],
+            Inputs =
+            [
+                new ShaderIrInterfaceVariable { Name = "uv", ParameterName = "uv", GlslType = "vec2", GlslName = "varying_0", Location = 0 },
+                new ShaderIrInterfaceVariable { Name = "glyphColor", ParameterName = "glyphColor", GlslType = "vec4", GlslName = "varying_1", Location = 1 }
+            ],
+            Outputs =
+            [
+                new ShaderIrInterfaceVariable { Name = "color", ParameterName = "color", GlslType = "vec4", GlslName = "fragColor", Builtin = "FragmentColor", Location = 0 }
+            ],
+            PushConstants = vertexModule.PushConstants,
+            Body = @"
+                vec4 texel = texture(atlas, varying_0);
+                float distance = texel.x - 0.5;
+                float edge = fwidth(distance);
+                float coverage = 1.0 - smoothstep(-edge, edge, distance);
+                fragColor = pushConstants.member_TextColor * varying_1 * coverage;
+            ",
+            Requirements = ["Vulkan 1.2", "GLSL 460", "SPIRV 1.5"]
+        };
+
+        ValidateModule(glslang, spirvVal, vertexModule, "sdf-text.vert");
+        ValidateModule(glslang, spirvVal, fragmentModule, "sdf-text.frag");
+    }
+
     private static string? ToolPath(string toolName)
     {
         var pathEnv = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
@@ -181,6 +345,26 @@ public class SanityChecks
         process.WaitForExit();
 
         return (process.ExitCode, output.ToString());
+    }
+
+    private static void ValidateModule(string glslang, string spirvVal, ShaderIrModule module, string stem)
+    {
+        var emit = GlslEmitter.EmitFromModule(module);
+        Assert.True(emit.Success);
+
+        var workspace = Path.Combine(Path.GetTempPath(), "delta-shader-vulkan-test", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(workspace);
+
+        var glslFile = Path.Combine(workspace, $"{stem}.glsl");
+        var spvFile = Path.Combine(workspace, $"{stem}.spv");
+        File.WriteAllText(glslFile, emit.Source);
+
+        var stage = module.Stage == ShaderStage.Vertex ? "vert" : "frag";
+        var glslCompile = RunTool(glslang, $"-V --target-env vulkan1.2 -S {stage} {EscapePath(glslFile)} -o {EscapePath(spvFile)}");
+        Assert.True(glslCompile.ExitCode == 0, $"glslang failed: {glslCompile.Output}\n{emit.Source}");
+
+        var validation = RunTool(spirvVal, $"--target-env vulkan1.2 {EscapePath(spvFile)}");
+        Assert.True(validation.ExitCode == 0, $"spirv-val failed: {validation.Output}");
     }
 
     private static string EscapePath(string value) => $"\"{value}\"";

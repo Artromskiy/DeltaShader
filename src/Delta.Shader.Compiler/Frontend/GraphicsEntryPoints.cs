@@ -46,6 +46,7 @@ internal static class GraphicsEntryPoints
         var outputs = new List<ShaderIrInterfaceVariable>();
         var pushConstants = new List<ShaderIrPushConstant>();
         var resources = new List<ShaderIrResource>();
+        var storageBufferTargets = new HashSet<string>(StringComparer.Ordinal);
         var seenBindings = new HashSet<(uint Set, uint Binding)>();
         var structures = new Dictionary<INamedTypeSymbol, ShaderIrStruct>(SymbolEqualityComparer.Default);
         var parameterMap = new Dictionary<IParameterSymbol, string>(SymbolEqualityComparer.Default);
@@ -83,6 +84,20 @@ internal static class GraphicsEntryPoints
                 continue;
             }
 
+            if (Same(attributeType, context.InstanceIndexAttributeType))
+            {
+                if (stage != ShaderStage.Vertex || parameter.Type.SpecialType != SpecialType.System_UInt32 || parameter.RefKind != RefKind.None)
+                {
+                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH011, "[InstanceIndex] is only valid on a value uint parameter of a vertex shader.", location);
+                }
+                else
+                {
+                    parameterMap[parameter] = "uint(gl_InstanceIndex)";
+                    inputs.Add(new ShaderIrInterfaceVariable { Name = parameter.Name, ParameterName = parameter.Name, GlslType = "uint", GlslName = "gl_InstanceIndex", Builtin = "InstanceIndex" });
+                }
+                continue;
+            }
+
             if (Same(attributeType, context.FragmentCoordAttributeType))
             {
                 var coordType = context.Intrinsics.TryMapType(parameter.Type, out var mappedCoordType) ? mappedCoordType : string.Empty;
@@ -94,6 +109,60 @@ internal static class GraphicsEntryPoints
                 {
                     parameterMap[parameter] = "gl_FragCoord.xy";
                     inputs.Add(new ShaderIrInterfaceVariable { Name = parameter.Name, ParameterName = parameter.Name, GlslType = "vec2", GlslName = "gl_FragCoord", Builtin = "FragmentCoord" });
+                }
+                continue;
+            }
+
+            if (context.ReadOnlyStorageBufferType is not null &&
+                SymbolEqualityComparer.Default.Equals((parameter.Type as INamedTypeSymbol)?.OriginalDefinition, context.ReadOnlyStorageBufferType))
+            {
+                if (!Same(attributeType, context.ReadOnlyStorageBufferAttributeType) || attribute is null)
+                {
+                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH002,
+                        $"Storage-buffer parameter '{parameter.Name}' requires [ReadOnlyStorageBuffer(set, binding)].", location);
+                }
+                else if (stage != ShaderStage.Vertex && stage != ShaderStage.Fragment)
+                {
+                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH011,
+                        $"Storage-buffer parameter '{parameter.Name}' is only supported in vertex and fragment stages.", location);
+                }
+                else
+                {
+                    var set = GetUIntArg(attribute, 0);
+                    var binding = GetUIntArg(attribute, 1);
+                    if (!seenBindings.Add((set, binding)))
+                    {
+                        AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH005,
+                            $"Graphics resources cannot share set {set}, binding {binding}.", location);
+                    }
+                    else if (parameter.Type is INamedTypeSymbol namedType &&
+                        namedType.TypeArguments.Length == 1 &&
+                        namedType.TypeArguments[0] is INamedTypeSymbol elementType &&
+                        TryBuildStruct(elementType, context, structures, new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default), out var elementStruct, out _))
+                    {
+                        resources.Add(new ShaderIrResource
+                        {
+                            Name = parameter.Name,
+                            ParameterName = parameter.Name,
+                            Category = "storage-buffer",
+                            Stage = stage,
+                            Set = set,
+                            Binding = binding,
+                            GlslType = elementStruct.GlslName,
+                            ReadOnly = true,
+                            Access = ShaderResourceAccess.ReadOnly,
+                            Layout = ShaderStd430Layout.Standard,
+                            Std430Layout = ShaderStd430Layout.ForStruct(elementStruct.Alignment, elementStruct.Size),
+                            Members = elementStruct.Members
+                        });
+                        storageBufferTargets.Add(parameter.Name);
+                        parameterMap[parameter] = parameter.Name;
+                    }
+                    else
+                    {
+                        AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH006,
+                            $"Storage-buffer parameter '{parameter.Name}' must wrap a sequential shader struct value.", location);
+                    }
                 }
                 continue;
             }
@@ -213,10 +282,13 @@ internal static class GraphicsEntryPoints
                             Name = parameter.Name,
                             ParameterName = parameter.Name,
                             Category = "sampled-texture",
+                            Stage = stage,
                             Set = set,
                             Binding = binding,
                             GlslType = "sampler2D",
-                            ReadOnly = true
+                            ReadOnly = true,
+                            Access = ShaderResourceAccess.ReadOnly,
+                            Layout = "opaque"
                         });
                     }
                 }
@@ -247,7 +319,7 @@ internal static class GraphicsEntryPoints
             else
             {
                 var semanticModel = context.Compilation.GetSemanticModel(syntax.SyntaxTree);
-                if (!GraphicsShaderBodyTranslator.TryTranslate(syntax.Body, semanticModel, context, stage, parameterMap, pushFieldMap, out body, out var reason))
+                if (!GraphicsShaderBodyTranslator.TryTranslate(syntax.Body, semanticModel, context, stage, parameterMap, pushFieldMap, storageBufferTargets, out body, out var reason))
                 {
                     diagnostics.Add(new ShaderDiagnostic(ShaderDiagnosticId.DSH008, reason!, Severity: ShaderDiagnosticSeverity.Error));
                 }
@@ -351,7 +423,7 @@ internal static class GraphicsEntryPoints
 
 internal static class GraphicsShaderBodyTranslator
 {
-    public static bool TryTranslate(BlockSyntax body, SemanticModel model, ModuleCompilationContext context, ShaderStage stage, IReadOnlyDictionary<IParameterSymbol, string> parameterMap, IReadOnlyDictionary<IFieldSymbol, string> pushFieldMap, out string translated, out string? reason)
+    public static bool TryTranslate(BlockSyntax body, SemanticModel model, ModuleCompilationContext context, ShaderStage stage, IReadOnlyDictionary<IParameterSymbol, string> parameterMap, IReadOnlyDictionary<IFieldSymbol, string> pushFieldMap, IReadOnlyCollection<string> storageBufferTargets, out string translated, out string? reason)
     {
         var rewriter = new Rewriter(model, context, stage, parameterMap, pushFieldMap);
         var rewritten = rewriter.Visit(body);
@@ -365,6 +437,8 @@ internal static class GraphicsShaderBodyTranslator
         }
         foreach (var parameter in parameterMap)
             translated = Regex.Replace(translated, $"\\b{Regex.Escape(parameter.Key.Name)}\\b", parameter.Value, RegexOptions.None);
+        foreach (var bufferName in storageBufferTargets)
+            translated = Regex.Replace(translated, $"\\b{Regex.Escape(bufferName)}\\s*\\[", bufferName + ".data[", RegexOptions.None);
         foreach (var invocation in body.DescendantNodes().OfType<InvocationExpressionSyntax>())
         {
             if (_TryBinding(model, context, invocation, stage, out var glslName) && glslName is not null)

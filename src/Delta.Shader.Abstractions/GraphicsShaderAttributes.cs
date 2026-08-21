@@ -35,6 +35,11 @@ public sealed class FragmentCoordAttribute : Attribute
 }
 
 [AttributeUsage(AttributeTargets.Parameter, Inherited = false, AllowMultiple = false)]
+public sealed class InstanceIndexAttribute : Attribute
+{
+}
+
+[AttributeUsage(AttributeTargets.Parameter, Inherited = false, AllowMultiple = false)]
 public sealed class PositionAttribute : Attribute
 {
 }

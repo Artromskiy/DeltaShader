@@ -64,7 +64,7 @@ public sealed class ShaderManifest
         foreach (var resource in module.Resources)
         {
             var opaque = string.Equals(resource.Category, "sampled-texture", StringComparison.Ordinal);
-            var layout = opaque ? null : resource.Layout ?? ShaderStd430Layout.ForGlslType(resource.GlslType);
+            var layout = opaque ? null : resource.Std430Layout;
             resources.Add(new ShaderResourceManifest
             {
                 Name = resource.Name,
@@ -74,8 +74,9 @@ public sealed class ShaderManifest
                 Set = resource.Set,
                 Binding = resource.Binding,
                 GlslType = resource.GlslType,
-                ReadOnly = resource.ReadOnly,
-                Layout = opaque ? "opaque" : ShaderStd430Layout.Standard,
+                ReadOnly = resource.Access == ShaderResourceAccess.ReadOnly,
+                Access = resource.Access,
+                Layout = resource.Layout,
                 Offset = layout?.Offset ?? 0,
                 Alignment = layout?.Alignment ?? 0,
                 Size = layout?.Size ?? 0,
@@ -148,7 +149,7 @@ public sealed class ShaderManifest
                 Set = resource.Set,
                 Binding = resource.Binding,
                 GlslType = resource.GlslType,
-                Access = resource.ReadOnly ? ShaderResourceAccess.ReadOnly : ShaderResourceAccess.ReadWrite,
+                Access = resource.Access,
                 Layout = resource.Layout,
                 Offset = resource.Offset,
                 Alignment = resource.Alignment,
@@ -283,6 +284,7 @@ public sealed class ShaderResourceManifest
     public uint Binding { get; init; }
     public string? GlslType { get; init; }
     public bool ReadOnly { get; init; }
+    public ShaderResourceAccess Access { get; init; } = ShaderResourceAccess.ReadWrite;
     public string Layout { get; init; } = ShaderStd430Layout.Standard;
     public uint Offset { get; init; }
     public uint Alignment { get; init; }

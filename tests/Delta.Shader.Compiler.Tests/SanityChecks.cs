@@ -455,9 +455,9 @@ public class IntrinsicCatalogTests
         Assert.True(result.Success);
         var input = Assert.Single(result.Module!.Resources, resource => resource.ParameterName == "input");
         Assert.Equal("DeltaStruct_Delta_Shader_Compiler_Tests_Fixtures_TransformRecord", input.GlslType);
-        Assert.Equal(16u, input.Layout!.Alignment);
-        Assert.Equal(96u, input.Layout.Size);
-        Assert.Equal(96u, input.Layout.ArrayStride);
+        Assert.Equal(16u, input.Std430Layout!.Alignment);
+        Assert.Equal(96u, input.Std430Layout.Size);
+        Assert.Equal(96u, input.Std430Layout.ArrayStride);
         Assert.Equal(3, input.Members.Count);
         Assert.Equal(("Base", "DeltaStruct_Delta_Shader_Compiler_Tests_Fixtures_TransformBase", 0u, 16u, 16u), (input.Members[0].Name, input.Members[0].GlslType, input.Members[0].Offset, input.Members[0].Alignment, input.Members[0].Size));
         Assert.Single(input.Members[0].Members);
@@ -982,6 +982,152 @@ public class IntrinsicCatalogTests
         Assert.False(result.Success);
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH011);
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Message.Contains("not enabled", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task GraphicsText_GlyphInstances_AreReflected_AsStd430Ssbo_WithInstanceIndex()
+    {
+        const string source = @"
+            using Delta.Maths;
+            using Delta.Shader.Abstractions;
+            public static class TextScene
+            {
+                public struct GlyphInstance
+                {
+                    public float2 PixelMin;
+                    public float2 PixelMax;
+                    public float4 UvRect;
+                    public float4 Color;
+                }
+
+                public struct TextParameters
+                {
+                    public float2 Resolution;
+                    public float4 TextColor;
+                    public float4 OutlineColor;
+                    public float OutlineWidth;
+                }
+
+                [VertexShader(""sdf-text"")]
+                public static void Vertex(
+                    [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<GlyphInstance> glyphs,
+                    [InstanceIndex] uint instanceIndex,
+                    [VertexIndex] uint vertexIndex,
+                    [Position] out float4 position,
+                    [ShaderVarying(0)] out float2 uv,
+                    [ShaderVarying(1)] out float4 glyphColor,
+                    [PushConstant] TextParameters parameters)
+                {
+                    var glyph = glyphs[instanceIndex];
+                    var min = glyph.PixelMin;
+                    var max = glyph.PixelMax;
+                    var uvMin = new float2(glyph.UvRect.x, glyph.UvRect.y);
+                    var uvMax = new float2(glyph.UvRect.z, glyph.UvRect.w);
+                    position = new float4(0f, 0f, 0f, 1f);
+                    uv = uvMin;
+                    glyphColor = glyph.Color;
+                    if (vertexIndex == 0u)
+                    {
+                        position = new float4((min.x / parameters.Resolution.x) * 2f - 1f, (min.y / parameters.Resolution.y) * 2f - 1f, 0f, 1f);
+                        uv = uvMin;
+                    }
+                    else if (vertexIndex == 1u)
+                    {
+                        position = new float4((max.x / parameters.Resolution.x) * 2f - 1f, (min.y / parameters.Resolution.y) * 2f - 1f, 0f, 1f);
+                        uv = new float2(uvMax.x, uvMin.y);
+                    }
+                    else if (vertexIndex == 2u)
+                    {
+                        position = new float4((min.x / parameters.Resolution.x) * 2f - 1f, (max.y / parameters.Resolution.y) * 2f - 1f, 0f, 1f);
+                        uv = new float2(uvMin.x, uvMax.y);
+                    }
+                    else if (vertexIndex == 3u)
+                    {
+                        position = new float4((min.x / parameters.Resolution.x) * 2f - 1f, (max.y / parameters.Resolution.y) * 2f - 1f, 0f, 1f);
+                        uv = new float2(uvMin.x, uvMax.y);
+                    }
+                    else if (vertexIndex == 4u)
+                    {
+                        position = new float4((max.x / parameters.Resolution.x) * 2f - 1f, (min.y / parameters.Resolution.y) * 2f - 1f, 0f, 1f);
+                        uv = new float2(uvMax.x, uvMin.y);
+                    }
+                    else
+                    {
+                        position = new float4((max.x / parameters.Resolution.x) * 2f - 1f, (max.y / parameters.Resolution.y) * 2f - 1f, 0f, 1f);
+                        uv = uvMax;
+                    }
+                }
+
+                [FragmentShader(""sdf-text"")]
+                public static void Fragment(
+                    [SampledTexture2D(0, 3)] SampledTexture2D atlas,
+                    [ShaderVarying(0)] float2 uv,
+                    [ShaderVarying(1)] float4 glyphColor,
+                    [PushConstant] TextParameters parameters,
+                    [FragmentColor] out float4 color)
+                {
+                    var texel = ShaderIntrinsics.SampleFragment<float2, float4>(atlas, uv);
+                    var distance = texel.x - 0.5f;
+                    var edge = ShaderIntrinsics.fwidth(distance);
+                    var coverage = 1f - maths.smoothStep(-edge, edge, distance);
+                    color = parameters.TextColor * glyphColor * coverage;
+                }
+            }";
+
+        var compilation = await LoadCompilerTestProjectCompilationAsync(source);
+        var results = ShaderCompiler.CompileAll(compilation);
+
+        Assert.Equal(2, results.Count);
+        Assert.All(results, result => Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message))));
+
+        var vertex = Assert.Single(results, result => result.Module!.Stage == ShaderStage.Vertex);
+        var glyphResource = Assert.Single(vertex.AbiManifest!.Resources);
+        Assert.Equal("storage-buffer", glyphResource.Category);
+        Assert.Equal(ShaderStage.Vertex, glyphResource.Stage);
+        Assert.Equal(ShaderResourceAccess.ReadOnly, glyphResource.Access);
+        Assert.Equal("std430", glyphResource.Layout);
+        Assert.Equal(0u, glyphResource.Set);
+        Assert.Equal(0u, glyphResource.Binding);
+        Assert.Equal(48u, glyphResource.ArrayStride);
+        Assert.Equal(0u, glyphResource.Members[0].Offset);
+        Assert.Equal(8u, glyphResource.Members[1].Offset);
+        Assert.Equal(16u, glyphResource.Members[2].Offset);
+        Assert.Equal(32u, glyphResource.Members[3].Offset);
+        Assert.Equal(48u, glyphResource.Size);
+        Assert.Equal("InstanceIndex", Assert.Single(vertex.AbiManifest.Inputs, input => input.Builtin == "InstanceIndex").Builtin);
+        var vertexGlsl = Delta.Shader.Backend.Glsl.GlslEmitter.EmitFromModule(vertex.Module!).Source;
+        Assert.Contains("gl_InstanceIndex", vertexGlsl);
+        Assert.Contains("buffer", vertexGlsl);
+        Assert.Contains(".data[", vertexGlsl);
+
+        var fragment = Assert.Single(results, result => result.Module!.Stage == ShaderStage.Fragment);
+        Assert.Equal("sampled-texture", Assert.Single(fragment.AbiManifest!.Resources).Category);
+        var fragmentGlsl = Delta.Shader.Backend.Glsl.GlslEmitter.EmitFromModule(fragment.Module!).Source;
+        Assert.Contains("layout(set = 0, binding = 3) uniform sampler2D", fragmentGlsl);
+        Assert.Contains("fwidth", fragmentGlsl);
+    }
+
+    [Fact]
+    public async Task InstanceIndex_RejectsFragmentStage()
+    {
+        const string source = @"
+            using Delta.Maths;
+            using Delta.Shader.Abstractions;
+            public static class InvalidInstanceIndex
+            {
+                [FragmentShader]
+                public static void Fragment([InstanceIndex] uint instanceIndex, [FragmentColor] out float4 color)
+                {
+                    color = new float4(instanceIndex, instanceIndex, instanceIndex, 1f);
+                }
+            }";
+
+        var compilation = await LoadCompilerTestProjectCompilationAsync(source);
+        var result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH011);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Message.Contains("vertex shader", StringComparison.Ordinal));
     }
 
     private static async Task<ShaderCompilationResult> CompileAndValidateEntryPointAsync(

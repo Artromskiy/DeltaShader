@@ -69,7 +69,6 @@ public static class ShaderVisibleTypeValidation
             {
                 return compilation.GetSpecialType(SpecialType.System_UInt32);
             }
-
         }
 
         return parameter.Type;

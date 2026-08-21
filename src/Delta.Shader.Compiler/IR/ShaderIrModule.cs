@@ -49,11 +49,14 @@ public sealed class ShaderIrResource
     public string Name { get; init; } = string.Empty;
     public string ParameterName { get; init; } = string.Empty;
     public string Category { get; init; } = string.Empty;
+    public ShaderStage Stage { get; init; }
     public uint Set { get; init; }
     public uint Binding { get; init; }
     public string? GlslType { get; init; }
+    public ShaderResourceAccess Access { get; init; } = ShaderResourceAccess.ReadWrite;
     public bool ReadOnly { get; init; }
-    public ShaderStd430Layout? Layout { get; init; }
+    public string Layout { get; init; } = ShaderStd430Layout.Standard;
+    public ShaderStd430Layout? Std430Layout { get; init; }
     public IReadOnlyList<ShaderIrStructMember> Members { get; init; } = [];
 }
 

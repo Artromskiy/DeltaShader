@@ -289,7 +289,7 @@ public static class ComputeEntryPoints
             Binding = key.Binding,
             GlslType = elementGlslType,
             ReadOnly = IsReadOnlyStorageBuffer(parameter.Type, context),
-            Layout = elementLayout,
+            Std430Layout = elementLayout,
             Members = members
         };
 
@@ -717,6 +717,7 @@ public sealed class ModuleCompilationContext
         ReadWriteStorageBufferAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.ReadWriteStorageBufferAttribute");
         GlobalInvocationIdAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.GlobalInvocationIdAttribute");
         VertexIndexAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.VertexIndexAttribute");
+        InstanceIndexAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.InstanceIndexAttribute");
         FragmentCoordAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.FragmentCoordAttribute");
         PositionAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.PositionAttribute");
         FragmentColorAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.FragmentColorAttribute");
@@ -736,6 +737,7 @@ public sealed class ModuleCompilationContext
     public ITypeSymbol? ReadWriteStorageBufferAttributeType { get; }
     public ITypeSymbol? GlobalInvocationIdAttributeType { get; }
     public ITypeSymbol? VertexIndexAttributeType { get; }
+    public ITypeSymbol? InstanceIndexAttributeType { get; }
     public ITypeSymbol? FragmentCoordAttributeType { get; }
     public ITypeSymbol? PositionAttributeType { get; }
     public ITypeSymbol? FragmentColorAttributeType { get; }
