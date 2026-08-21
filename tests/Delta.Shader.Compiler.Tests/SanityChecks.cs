@@ -842,6 +842,124 @@ public class IntrinsicCatalogTests
     }
 
     [Fact]
+    public async Task GraphicsEntryPoints_ViewportCube_EmitsVertexInputs_ReadonlyTransformsAndStableMatrixOrder()
+    {
+        const string source = @"
+            using Delta.Maths;
+            using Delta.Shader.Abstractions;
+
+            public struct SceneParameters
+            {
+                public float4x4 Model;
+                public float4x4 View;
+                public float4x4 Projection;
+                public float3 LightDirection;
+                public float _Padding0;
+                public float4 LightColor;
+            }
+
+            public static class EditorViewportCube
+            {
+                [VertexShader(""EditorViewportCubeVertex"")]
+                public static void Vertex(
+                    [VertexInput(0)] float3 position,
+                    [VertexInput(1)] float3 normal,
+                    [VertexInput(2)] float2 uv,
+                    [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<SceneParameters> scene,
+                    [Position] out float4 clipPosition,
+                    [ShaderVarying(0)] out float3 worldNormal,
+                    [ShaderVarying(1)] out float2 texCoord)
+                {
+                    var modelPosition = scene[0].Model * new float4(position, 1f);
+                    clipPosition = scene[0].Projection * scene[0].View * modelPosition;
+                    worldNormal = maths.normalize((scene[0].Model * new float4(normal, 0f)).xyz);
+                    texCoord = uv;
+                }
+            }";
+
+        var compilation = await LoadCompilerTestProjectCompilationAsync(source);
+        var result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        var module = result.Module!;
+        Assert.Equal(3, module.VertexInputs.Count);
+        Assert.Equal((0u, "vec3", "VK_FORMAT_R32G32B32_SFLOAT"), (module.VertexInputs[0].Location, module.VertexInputs[0].GlslType, module.VertexInputs[0].FormatHint));
+        Assert.Equal((1u, "vec3", "VK_FORMAT_R32G32B32_SFLOAT"), (module.VertexInputs[1].Location, module.VertexInputs[1].GlslType, module.VertexInputs[1].FormatHint));
+        Assert.Equal((2u, "vec2", "VK_FORMAT_R32G32_SFLOAT"), (module.VertexInputs[2].Location, module.VertexInputs[2].GlslType, module.VertexInputs[2].FormatHint));
+
+        var resource = Assert.Single(module.Resources);
+        Assert.Equal("storage-buffer", resource.Category);
+        Assert.Equal(ShaderResourceAccess.ReadOnly, resource.Access);
+        Assert.Equal(0u, resource.Set);
+        Assert.Equal(0u, resource.Binding);
+        Assert.Equal(224u, resource.Std430Layout!.Size);
+        Assert.Equal(16u, resource.Std430Layout.Alignment);
+
+        var glsl = Delta.Shader.Backend.Glsl.GlslEmitter.EmitFromModule(module).Source;
+        Assert.Contains("#version 460", glsl);
+        Assert.Contains("layout(location = 0) in vec3 position;", glsl);
+        Assert.Contains("layout(location = 1) in vec3 normal;", glsl);
+        Assert.Contains("layout(location = 2) in vec2 uv;", glsl);
+        Assert.Contains("member_Projection", glsl);
+        Assert.Contains("member_View", glsl);
+        Assert.Contains("member_Model", glsl);
+        Assert.DoesNotContain("transpose", glsl, StringComparison.OrdinalIgnoreCase);
+
+        var model = float4x4.CreateTRS(new float3(1f, 2f, 3f), quaternion.CreateFromAxisAngle(new float3(0f, 1f, 0f), 0.5f), new float3(2f, 2f, 2f));
+        var view = float4x4.CreateLookTo(new float3(0f, 0f, -5f), new float3(0f, 0f, 1f), new float3(0f, 1f, 0f));
+        var projection = float4x4.CreatePerspectiveFieldOfViewLeftHanded(global::Delta.Maths.Maths.Radians(60f), 1f, 0.1f, 100f);
+        var vertex = new float4(1f, 0f, 0f, 1f);
+        var cpuOrder = projection * view * model * vertex;
+        var gpuOrder = projection * view * model * vertex;
+        Assert.Equal(cpuOrder, gpuOrder);
+    }
+
+    [Fact]
+    public async Task GraphicsEntryPoints_RejectsBadVertexInputLocationsStagesAndManagedTypes()
+    {
+        const string source = @"
+            using Delta.Maths;
+            using Delta.Shader.Abstractions;
+
+            public sealed class ManagedData
+            {
+                public float Value;
+            }
+
+            public static class InvalidViewport
+            {
+                [FragmentShader(""Fragment"")]
+                public static void Fragment([VertexInput(0)] float3 position, [FragmentColor] out float4 color)
+                {
+                    color = new float4(position, 1f);
+                }
+
+                [VertexShader(""Vertex"")]
+                public static void Vertex(
+                    [VertexInput(0)] float3 first,
+                    [VertexInput(0)] float2 duplicate,
+                    [VertexInput(1)] ManagedData managed,
+                    [Position] out float4 position)
+                {
+                    position = new float4(first, 1f);
+                }
+            }";
+
+        var compilation = await LoadCompilerTestProjectCompilationAsync(source);
+        var results = ShaderCompiler.CompileAll(compilation);
+        Assert.Equal(2, results.Count);
+
+        var vertex = Assert.Single(results, result => result.Module?.Stage == ShaderStage.Vertex);
+        Assert.False(vertex.Success);
+        Assert.Contains(vertex.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH013);
+        Assert.Contains(vertex.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH010);
+
+        var fragment = Assert.Single(results, result => result.Module?.Stage == ShaderStage.Fragment);
+        Assert.False(fragment.Success);
+        Assert.Contains(fragment.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH013);
+    }
+
+    [Fact]
     public async Task GraphicsEntryPoints_RejectFragmentBuiltinInVertexStage()
     {
         const string source = @"

@@ -74,6 +74,76 @@ public class SanityChecks
         Assert.Single(abi.PushConstants);
         Assert.Equal(16u, abi.PushConstants[0].Size);
     }
+
+    [Fact]
+    public void EmitFromModule_ProducesVertexInputDeclarationsAndGraphicsBindings()
+    {
+        var module = new ShaderIrModule
+        {
+            Stage = ShaderStage.Vertex,
+            SourceEntryPointName = "EditorViewportCubeVertex",
+            EntryPointName = "EditorViewportCubeVertex",
+            VertexInputs =
+            [
+                new ShaderIrVertexInput { Name = "position", ParameterName = "position", GlslName = "position", GlslType = "vec3", Location = 0, ByteSize = 12, Alignment = 4, FormatHint = "VK_FORMAT_R32G32B32_SFLOAT" },
+                new ShaderIrVertexInput { Name = "normal", ParameterName = "normal", GlslName = "normal", GlslType = "vec3", Location = 1, ByteSize = 12, Alignment = 4, FormatHint = "VK_FORMAT_R32G32B32_SFLOAT" },
+                new ShaderIrVertexInput { Name = "uv", ParameterName = "uv", GlslName = "uv", GlslType = "vec2", Location = 2, ByteSize = 8, Alignment = 4, FormatHint = "VK_FORMAT_R32G32_SFLOAT" }
+            ],
+            Resources =
+            [
+                new ShaderIrResource
+                {
+                    Name = "scene",
+                    ParameterName = "scene",
+                    Category = "storage-buffer",
+                    Stage = ShaderStage.Vertex,
+                    Set = 0,
+                    Binding = 0,
+                    GlslType = "DeltaStruct_SceneParameters",
+                    ReadOnly = true,
+                    Access = ShaderResourceAccess.ReadOnly,
+                    Layout = ShaderStd430Layout.Standard,
+                    Std430Layout = ShaderStd430Layout.ForStruct(16, 224)
+                },
+                new ShaderIrResource
+                {
+                    Name = "albedo",
+                    ParameterName = "albedo",
+                    Category = "sampled-texture",
+                    Stage = ShaderStage.Vertex,
+                    Set = 0,
+                    Binding = 1,
+                    GlslType = "sampler2D",
+                    ReadOnly = true,
+                    Access = ShaderResourceAccess.ReadOnly,
+                    Layout = "opaque"
+                }
+            ],
+            Outputs =
+            [
+                new ShaderIrInterfaceVariable { Name = "position", ParameterName = "position", GlslType = "vec4", GlslName = "gl_Position", Builtin = "Position" },
+                new ShaderIrInterfaceVariable { Name = "worldNormal", ParameterName = "worldNormal", GlslType = "vec3", GlslName = "varying_0", Location = 0 },
+                new ShaderIrInterfaceVariable { Name = "texCoord", ParameterName = "texCoord", GlslType = "vec2", GlslName = "varying_1", Location = 1 }
+            ],
+            Body = "gl_Position = scene.data[0].Projection * scene.data[0].View * scene.data[0].Model * vec4(position, 1.0); varying_0 = normal; varying_1 = uv;"
+        };
+
+        var emitted = GlslEmitter.EmitFromModule(module);
+        Assert.Contains("layout(location = 0) in vec3 position;", emitted.Source);
+        Assert.Contains("layout(location = 1) in vec3 normal;", emitted.Source);
+        Assert.Contains("layout(location = 2) in vec2 uv;", emitted.Source);
+        Assert.Contains("layout(set = 0, binding = 0, std430) readonly buffer", emitted.Source);
+        Assert.Contains("layout(set = 0, binding = 1) uniform sampler2D", emitted.Source);
+        Assert.Contains("Projection * scene.data[0].View * scene.data[0].Model", emitted.Source);
+
+        var abi = ShaderManifest.FromModule(module).ToAbiManifest(ShaderCompilationOptions.Default);
+        Assert.Equal(3, abi.VertexInputs.Count);
+        Assert.Equal("VK_FORMAT_R32G32B32_SFLOAT", abi.VertexInputs[0].FormatHint);
+        Assert.Equal(12u, abi.VertexInputs[0].ByteSize);
+        Assert.Equal(224u, abi.Resources[0].Size);
+        Assert.True(abi.Resources[0].ReadOnly);
+        Assert.Equal(ShaderResourceAccess.ReadOnly, abi.Resources[0].Access);
+    }
     [Fact]
     public void EmitFromModule_ProducesVulkanStyleComputeSignatureAndResources()
     {
@@ -247,6 +317,61 @@ public class SanityChecks
         Assert.Equal(16u, artifact.Manifest.Resources[0].Alignment);
         Assert.Equal(16u, artifact.Manifest.Resources[0].ArrayStride);
         Assert.Equal(16u, artifact.Manifest.Resources[0].Size);
+    }
+
+    [Fact]
+    public void RuntimeArtifactContract_RoundTripsReadOnlyAndVertexInputAbiMetadata()
+    {
+        var module = new ShaderIrModule
+        {
+            Stage = ShaderStage.Vertex,
+            SourceEntryPointName = "EditorViewportCubeVertex",
+            EntryPointName = "EditorViewportCubeVertex",
+            VertexInputs =
+            [
+                new ShaderIrVertexInput
+                {
+                    Name = "position",
+                    ParameterName = "position",
+                    GlslName = "position",
+                    GlslType = "vec3",
+                    Location = 0,
+                    ByteSize = 12,
+                    Alignment = 4,
+                    FormatHint = "VK_FORMAT_R32G32B32_SFLOAT"
+                }
+            ],
+            Resources =
+            [
+                new ShaderIrResource
+                {
+                    Name = "scene",
+                    ParameterName = "scene",
+                    Category = "storage-buffer",
+                    Stage = ShaderStage.Vertex,
+                    Set = 0,
+                    Binding = 0,
+                    GlslType = "DeltaStruct_SceneParameters",
+                    ReadOnly = true,
+                    Access = ShaderResourceAccess.ReadOnly,
+                    Layout = ShaderStd430Layout.Standard,
+                    Std430Layout = ShaderStd430Layout.ForStruct(16, 224)
+                }
+            ]
+        };
+
+        var manifest = ShaderManifest.FromModule(module);
+        var abi = manifest.ToAbiManifest(ShaderCompilationOptions.Default);
+        var artifact = new ShaderArtifact(new byte[] { 1, 2, 3, 4 }, abi);
+
+        Assert.Single(manifest.VertexInputs);
+        Assert.Equal((0u, "vec3", 12u, 4u, "VK_FORMAT_R32G32B32_SFLOAT"),
+            (manifest.VertexInputs[0].Location, manifest.VertexInputs[0].GlslType, manifest.VertexInputs[0].ByteSize, manifest.VertexInputs[0].Alignment, manifest.VertexInputs[0].FormatHint));
+        Assert.Equal(ShaderResourceAccess.ReadOnly, artifact.Manifest.Resources[0].Access);
+        Assert.True(artifact.Manifest.Resources[0].ReadOnly);
+        Assert.Single(artifact.Manifest.VertexInputs);
+        Assert.Equal("VK_FORMAT_R32G32B32_SFLOAT", artifact.Manifest.VertexInputs[0].FormatHint);
+        Assert.Equal(224u, artifact.Manifest.Resources[0].Size);
     }
 
     [Fact]

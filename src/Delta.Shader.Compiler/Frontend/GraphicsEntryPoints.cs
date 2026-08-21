@@ -43,6 +43,7 @@ internal static class GraphicsEntryPoints
         }
 
         var inputs = new List<ShaderIrInterfaceVariable>();
+        var vertexInputs = new List<ShaderIrVertexInput>();
         var outputs = new List<ShaderIrInterfaceVariable>();
         var pushConstants = new List<ShaderIrPushConstant>();
         var resources = new List<ShaderIrResource>();
@@ -68,13 +69,13 @@ internal static class GraphicsEntryPoints
 
             var attribute = parameter.GetAttributes().FirstOrDefault();
             var attributeType = attribute?.AttributeClass;
-            var location = parameter.Locations.FirstOrDefault()?.GetLineSpan();
+            var locationSpan = parameter.Locations.FirstOrDefault()?.GetLineSpan();
 
             if (Same(attributeType, context.VertexIndexAttributeType))
             {
                 if (stage != ShaderStage.Vertex || parameter.Type.SpecialType != SpecialType.System_UInt32 || parameter.RefKind != RefKind.None)
                 {
-                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH011, "[VertexIndex] is only valid on a value uint parameter of a vertex shader.", location);
+                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH011, "[VertexIndex] is only valid on a value uint parameter of a vertex shader.", locationSpan);
                 }
                 else
                 {
@@ -84,11 +85,45 @@ internal static class GraphicsEntryPoints
                 continue;
             }
 
+            if (Same(attributeType, context.VertexInputAttributeType))
+            {
+                var vertexLocation = GetUIntArg(attribute!, 0);
+                if (stage != ShaderStage.Vertex || parameter.RefKind != RefKind.None ||
+                    !TryMapType(parameter.Type, context, out var vertexType) ||
+                    !TryGetVertexInputLayout(vertexType, out var byteSize, out var alignment, out var formatHint))
+                {
+                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH013,
+                        "[VertexInput] is only valid on a value vertex-stage parameter with a supported scalar or vector type.", locationSpan);
+                }
+                else if (vertexInputs.Any(input => input.Location == vertexLocation))
+                {
+                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH013,
+                        $"Vertex input location {vertexLocation} is declared more than once.", locationSpan);
+                }
+                else
+                {
+                    var glslName = Sanitize(parameter.Name);
+                    parameterMap[parameter] = glslName;
+                    vertexInputs.Add(new ShaderIrVertexInput
+                    {
+                        Name = parameter.Name,
+                        ParameterName = parameter.Name,
+                        GlslName = glslName,
+                        GlslType = vertexType,
+                        Location = vertexLocation,
+                        ByteSize = byteSize,
+                        Alignment = alignment,
+                        FormatHint = formatHint
+                    });
+                }
+                continue;
+            }
+
             if (Same(attributeType, context.InstanceIndexAttributeType))
             {
                 if (stage != ShaderStage.Vertex || parameter.Type.SpecialType != SpecialType.System_UInt32 || parameter.RefKind != RefKind.None)
                 {
-                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH011, "[InstanceIndex] is only valid on a value uint parameter of a vertex shader.", location);
+                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH011, "[InstanceIndex] is only valid on a value uint parameter of a vertex shader.", locationSpan);
                 }
                 else
                 {
@@ -103,7 +138,7 @@ internal static class GraphicsEntryPoints
                 var coordType = context.Intrinsics.TryMapType(parameter.Type, out var mappedCoordType) ? mappedCoordType : string.Empty;
                 if (stage != ShaderStage.Fragment || !string.Equals(coordType, "vec2", StringComparison.Ordinal) || parameter.RefKind != RefKind.None)
                 {
-                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH011, "[FragmentCoord] is only valid on a float2 value parameter of a fragment shader.", location);
+                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH011, "[FragmentCoord] is only valid on a float2 value parameter of a fragment shader.", locationSpan);
                 }
                 else
                 {
@@ -119,12 +154,12 @@ internal static class GraphicsEntryPoints
                 if (!Same(attributeType, context.ReadOnlyStorageBufferAttributeType) || attribute is null)
                 {
                     AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH002,
-                        $"Storage-buffer parameter '{parameter.Name}' requires [ReadOnlyStorageBuffer(set, binding)].", location);
+                        $"Storage-buffer parameter '{parameter.Name}' requires [ReadOnlyStorageBuffer(set, binding)].", locationSpan);
                 }
                 else if (stage != ShaderStage.Vertex && stage != ShaderStage.Fragment)
                 {
                     AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH011,
-                        $"Storage-buffer parameter '{parameter.Name}' is only supported in vertex and fragment stages.", location);
+                        $"Storage-buffer parameter '{parameter.Name}' is only supported in vertex and fragment stages.", locationSpan);
                 }
                 else
                 {
@@ -133,7 +168,7 @@ internal static class GraphicsEntryPoints
                     if (!seenBindings.Add((set, binding)))
                     {
                         AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH005,
-                            $"Graphics resources cannot share set {set}, binding {binding}.", location);
+                            $"Graphics resources cannot share set {set}, binding {binding}.", locationSpan);
                     }
                     else if (parameter.Type is INamedTypeSymbol namedType &&
                         namedType.TypeArguments.Length == 1 &&
@@ -161,7 +196,7 @@ internal static class GraphicsEntryPoints
                     else
                     {
                         AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH006,
-                            $"Storage-buffer parameter '{parameter.Name}' must wrap a sequential shader struct value.", location);
+                            $"Storage-buffer parameter '{parameter.Name}' must wrap a sequential shader struct value.", locationSpan);
                     }
                 }
                 continue;
@@ -171,7 +206,7 @@ internal static class GraphicsEntryPoints
             {
                 if (stage != ShaderStage.Vertex || parameter.RefKind != RefKind.Out || !TryMapType(parameter.Type, context, out var positionType) || positionType != "vec4")
                 {
-                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH012, "[Position] is only valid on an out float4 vertex parameter.", location);
+                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH012, "[Position] is only valid on an out float4 vertex parameter.", locationSpan);
                 }
                 else
                 {
@@ -185,7 +220,7 @@ internal static class GraphicsEntryPoints
             {
                 if (stage != ShaderStage.Fragment || parameter.RefKind != RefKind.Out || !TryMapType(parameter.Type, context, out var colorType) || colorType != "vec4")
                 {
-                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH012, "[FragmentColor] is only valid on an out float4 fragment parameter.", location);
+                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH012, "[FragmentColor] is only valid on an out float4 fragment parameter.", locationSpan);
                 }
                 else
                 {
@@ -202,7 +237,7 @@ internal static class GraphicsEntryPoints
                     (stage == ShaderStage.Vertex && parameter.RefKind != RefKind.Out) ||
                     (stage == ShaderStage.Fragment && parameter.RefKind != RefKind.None))
                 {
-                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH012, "Shader varyings must be vertex out or fragment value vector parameters.", location);
+                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH012, "Shader varyings must be vertex out or fragment value vector parameters.", locationSpan);
                 }
                 else
                 {
@@ -219,11 +254,11 @@ internal static class GraphicsEntryPoints
                 var namedType = parameter.Type as INamedTypeSymbol;
                 if (parameter.RefKind != RefKind.None || namedType is null)
                 {
-                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH006, "Push constant parameters must be sequential shader structs.", location);
+                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH006, "Push constant parameters must be sequential shader structs.", locationSpan);
                 }
                 else if (!TryBuildStruct(namedType, context, structures, new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default), out var pushStruct, out var pushReason))
                 {
-                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH006, pushReason ?? "Push constant parameters must be sequential shader structs.", location);
+                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH006, pushReason ?? "Push constant parameters must be sequential shader structs.", locationSpan);
                 }
                 else
                 {
@@ -258,12 +293,12 @@ internal static class GraphicsEntryPoints
                 if (!Same(attributeType, context.SampledTexture2DAttributeType) || attribute is null)
                 {
                     AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH002,
-                        $"SampledTexture2D parameter '{parameter.Name}' requires [SampledTexture2D(set, binding)].", location);
+                        $"SampledTexture2D parameter '{parameter.Name}' requires [SampledTexture2D(set, binding)].", locationSpan);
                 }
                 else if (!SupportsStage(attribute, stage))
                 {
                     AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH011,
-                        $"SampledTexture2D parameter '{parameter.Name}' is not enabled for the {stage} stage.", location);
+                        $"SampledTexture2D parameter '{parameter.Name}' is not enabled for the {stage} stage.", locationSpan);
                 }
                 else
                 {
@@ -272,7 +307,7 @@ internal static class GraphicsEntryPoints
                     if (!seenBindings.Add((set, binding)))
                     {
                         AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH005,
-                            $"Graphics resources cannot share set {set}, binding {binding}.", location);
+                            $"Graphics resources cannot share set {set}, binding {binding}.", locationSpan);
                     }
                     else
                     {
@@ -296,7 +331,7 @@ internal static class GraphicsEntryPoints
             }
 
             AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH002,
-                $"Graphics entry point parameter '{parameter.Name}' is not a supported stage builtin, varying, or push constant.", location);
+                $"Graphics entry point parameter '{parameter.Name}' is not a supported stage builtin, varying, or push constant.", locationSpan);
         }
 
         if (stage == ShaderStage.Vertex && outputs.All(output => output.Builtin != "Position"))
@@ -337,6 +372,7 @@ internal static class GraphicsEntryPoints
             Instructions = new[] { "entrypoint " + entry.Name },
             Body = body,
             Inputs = inputs,
+            VertexInputs = vertexInputs,
             Outputs = outputs,
             PushConstants = pushConstants
         };
@@ -384,6 +420,28 @@ internal static class GraphicsEntryPoints
             _ => string.Empty
         };
         return glslType.Length != 0;
+    }
+
+    private static bool TryGetVertexInputLayout(string glslType, out uint byteSize, out uint alignment, out string formatHint)
+    {
+        (byteSize, alignment, formatHint) = glslType switch
+        {
+            "float" => (4u, 4u, "VK_FORMAT_R32_SFLOAT"),
+            "int" => (4u, 4u, "VK_FORMAT_R32_SINT"),
+            "uint" => (4u, 4u, "VK_FORMAT_R32_UINT"),
+            "vec2" => (8u, 4u, "VK_FORMAT_R32G32_SFLOAT"),
+            "ivec2" => (8u, 4u, "VK_FORMAT_R32G32_SINT"),
+            "uvec2" => (8u, 4u, "VK_FORMAT_R32G32_UINT"),
+            "vec3" => (12u, 4u, "VK_FORMAT_R32G32B32_SFLOAT"),
+            "ivec3" => (12u, 4u, "VK_FORMAT_R32G32B32_SINT"),
+            "uvec3" => (12u, 4u, "VK_FORMAT_R32G32B32_UINT"),
+            "vec4" => (16u, 4u, "VK_FORMAT_R32G32B32A32_SFLOAT"),
+            "ivec4" => (16u, 4u, "VK_FORMAT_R32G32B32A32_SINT"),
+            "uvec4" => (16u, 4u, "VK_FORMAT_R32G32B32A32_UINT"),
+            _ => default
+        };
+
+        return byteSize != 0;
     }
 
     private static bool TryBuildStruct(INamedTypeSymbol type, ModuleCompilationContext context, Dictionary<INamedTypeSymbol, ShaderIrStruct> definitions, HashSet<INamedTypeSymbol> visiting, out ShaderIrStruct structure, out string? reason)

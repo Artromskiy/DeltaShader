@@ -34,7 +34,7 @@ public sealed class ShaderArtifact
 
 public sealed class ShaderAbiManifest
 {
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
 
     public int Version { get; set; } = CurrentVersion;
     public ShaderStage Stage { get; set; } = ShaderStage.Compute;
@@ -49,6 +49,7 @@ public sealed class ShaderAbiManifest
     public uint LocalSizeZ { get; set; }
     public IReadOnlyList<ShaderAbiResource> Resources { get; set; } = Array.Empty<ShaderAbiResource>();
     public IReadOnlyList<ShaderAbiInterfaceVariable> Inputs { get; set; } = Array.Empty<ShaderAbiInterfaceVariable>();
+    public IReadOnlyList<ShaderAbiVertexInput> VertexInputs { get; set; } = Array.Empty<ShaderAbiVertexInput>();
     public IReadOnlyList<ShaderAbiInterfaceVariable> Outputs { get; set; } = Array.Empty<ShaderAbiInterfaceVariable>();
     public IReadOnlyList<ShaderAbiPushConstant> PushConstants { get; set; } = Array.Empty<ShaderAbiPushConstant>();
 }
@@ -61,6 +62,18 @@ public sealed class ShaderAbiInterfaceVariable
     public string GlslType { get; set; } = string.Empty;
     public uint Location { get; set; }
     public string? Builtin { get; set; }
+}
+
+public sealed class ShaderAbiVertexInput
+{
+    public string Name { get; set; } = string.Empty;
+    public string ParameterName { get; set; } = string.Empty;
+    public string GlslName { get; set; } = string.Empty;
+    public string GlslType { get; set; } = string.Empty;
+    public uint Location { get; set; }
+    public uint ByteSize { get; set; }
+    public uint Alignment { get; set; }
+    public string FormatHint { get; set; } = string.Empty;
 }
 
 public sealed class ShaderAbiPushConstant
@@ -83,6 +96,7 @@ public sealed class ShaderAbiResource
     public uint Set { get; set; }
     public uint Binding { get; set; }
     public string? GlslType { get; set; }
+    public bool ReadOnly { get; set; }
     public ShaderResourceAccess Access { get; set; } = ShaderResourceAccess.ReadWrite;
     public string Layout { get; set; } = "std430";
     public uint Offset { get; set; }

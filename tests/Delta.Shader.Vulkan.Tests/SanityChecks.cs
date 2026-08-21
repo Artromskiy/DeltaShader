@@ -298,6 +298,142 @@ public class SanityChecks
         ValidateModule(glslang, spirvVal, fragmentModule, "sdf-text.frag");
     }
 
+    [Fact]
+    public void EditorViewportCube_VertexAndFragment_Compiles_And_Validates_With_Glslang_When_Available()
+    {
+        var glslang = ToolPath("glslangValidator");
+        var spirvVal = ToolPath("spirv-val");
+        if (string.IsNullOrWhiteSpace(glslang) || string.IsNullOrWhiteSpace(spirvVal))
+        {
+            throw SkipException.ForSkip("Skip: glslangValidator and/or spirv-val is not installed in PATH.");
+        }
+
+        var vertexModule = new ShaderIrModule
+        {
+            Stage = ShaderStage.Vertex,
+            SourceEntryPointName = "EditorViewportCubeVertex",
+            EntryPointName = "EditorViewportCubeVertex",
+            Structs =
+            [
+                new ShaderIrStruct
+                {
+                    Name = "SceneParameters",
+                    GlslName = "DeltaStruct_SceneParameters",
+                    Alignment = 16,
+                    Size = 224,
+                    ArrayStride = 224,
+                    Members =
+                    [
+                        new ShaderIrStructMember { Name = "Model", GlslName = "member_Model", GlslType = "mat4", Offset = 0, Alignment = 16, Size = 64, ArrayStride = 64, MatrixStride = 16 },
+                        new ShaderIrStructMember { Name = "View", GlslName = "member_View", GlslType = "mat4", Offset = 64, Alignment = 16, Size = 64, ArrayStride = 64, MatrixStride = 16 },
+                        new ShaderIrStructMember { Name = "Projection", GlslName = "member_Projection", GlslType = "mat4", Offset = 128, Alignment = 16, Size = 64, ArrayStride = 64, MatrixStride = 16 },
+                        new ShaderIrStructMember { Name = "LightDirection", GlslName = "member_LightDirection", GlslType = "vec3", Offset = 192, Alignment = 16, Size = 12, ArrayStride = 16 },
+                        new ShaderIrStructMember { Name = "LightColor", GlslName = "member_LightColor", GlslType = "vec4", Offset = 208, Alignment = 16, Size = 16, ArrayStride = 16 }
+                    ]
+                }
+            ],
+            VertexInputs =
+            [
+                new ShaderIrVertexInput { Name = "position", ParameterName = "position", GlslName = "position", GlslType = "vec3", Location = 0, ByteSize = 12, Alignment = 4, FormatHint = "VK_FORMAT_R32G32B32_SFLOAT" },
+                new ShaderIrVertexInput { Name = "normal", ParameterName = "normal", GlslName = "normal", GlslType = "vec3", Location = 1, ByteSize = 12, Alignment = 4, FormatHint = "VK_FORMAT_R32G32B32_SFLOAT" },
+                new ShaderIrVertexInput { Name = "uv", ParameterName = "uv", GlslName = "uv", GlslType = "vec2", Location = 2, ByteSize = 8, Alignment = 4, FormatHint = "VK_FORMAT_R32G32_SFLOAT" }
+            ],
+            Resources =
+            [
+                new ShaderIrResource
+                {
+                    Name = "scene",
+                    ParameterName = "scene",
+                    Category = "storage-buffer",
+                    Stage = ShaderStage.Vertex,
+                    Set = 0,
+                    Binding = 0,
+                    GlslType = "DeltaStruct_SceneParameters",
+                    ReadOnly = true,
+                    Access = ShaderResourceAccess.ReadOnly,
+                    Layout = ShaderStd430Layout.Standard,
+                    Std430Layout = ShaderStd430Layout.ForStruct(16, 224),
+                    Members =
+                    [
+                        new ShaderIrStructMember { Name = "Model", GlslName = "member_Model", GlslType = "mat4", Offset = 0, Alignment = 16, Size = 64, ArrayStride = 64, MatrixStride = 16 },
+                        new ShaderIrStructMember { Name = "View", GlslName = "member_View", GlslType = "mat4", Offset = 64, Alignment = 16, Size = 64, ArrayStride = 64, MatrixStride = 16 },
+                        new ShaderIrStructMember { Name = "Projection", GlslName = "member_Projection", GlslType = "mat4", Offset = 128, Alignment = 16, Size = 64, ArrayStride = 64, MatrixStride = 16 },
+                        new ShaderIrStructMember { Name = "LightDirection", GlslName = "member_LightDirection", GlslType = "vec3", Offset = 192, Alignment = 16, Size = 12, ArrayStride = 16 },
+                        new ShaderIrStructMember { Name = "LightColor", GlslName = "member_LightColor", GlslType = "vec4", Offset = 208, Alignment = 16, Size = 16, ArrayStride = 16 }
+                    ]
+                }
+            ],
+            Outputs =
+            [
+                new ShaderIrInterfaceVariable { Name = "clipPosition", ParameterName = "clipPosition", GlslType = "vec4", GlslName = "gl_Position", Builtin = "Position" },
+                new ShaderIrInterfaceVariable { Name = "worldNormal", ParameterName = "worldNormal", GlslType = "vec3", GlslName = "varying_0", Location = 0 },
+                new ShaderIrInterfaceVariable { Name = "texCoord", ParameterName = "texCoord", GlslType = "vec2", GlslName = "varying_1", Location = 1 }
+            ],
+            Body = @"
+                vec4 modelPosition = scene.data[0].member_Model * vec4(position, 1.0);
+                gl_Position = scene.data[0].member_Projection * scene.data[0].member_View * modelPosition;
+                varying_0 = normalize((scene.data[0].member_Model * vec4(normal, 0.0)).xyz);
+                varying_1 = uv;
+            "
+        };
+
+        var fragmentModule = new ShaderIrModule
+        {
+            Stage = ShaderStage.Fragment,
+            SourceEntryPointName = "EditorViewportCubeFragment",
+            EntryPointName = "EditorViewportCubeFragment",
+            Structs = vertexModule.Structs,
+            Resources =
+            [
+                new ShaderIrResource
+                {
+                    Name = "scene",
+                    ParameterName = "scene",
+                    Category = "storage-buffer",
+                    Stage = ShaderStage.Fragment,
+                    Set = 0,
+                    Binding = 0,
+                    GlslType = "DeltaStruct_SceneParameters",
+                    ReadOnly = true,
+                    Access = ShaderResourceAccess.ReadOnly,
+                    Layout = ShaderStd430Layout.Standard,
+                    Std430Layout = ShaderStd430Layout.ForStruct(16, 224)
+                },
+                new ShaderIrResource
+                {
+                    Name = "albedo",
+                    ParameterName = "albedo",
+                    Category = "sampled-texture",
+                    Stage = ShaderStage.Fragment,
+                    Set = 0,
+                    Binding = 1,
+                    GlslType = "sampler2D",
+                    ReadOnly = true,
+                    Access = ShaderResourceAccess.ReadOnly,
+                    Layout = "opaque"
+                }
+            ],
+            Inputs =
+            [
+                new ShaderIrInterfaceVariable { Name = "worldNormal", ParameterName = "worldNormal", GlslType = "vec3", GlslName = "varying_0", Location = 0 },
+                new ShaderIrInterfaceVariable { Name = "texCoord", ParameterName = "texCoord", GlslType = "vec2", GlslName = "varying_1", Location = 1 }
+            ],
+            Outputs =
+            [
+                new ShaderIrInterfaceVariable { Name = "color", ParameterName = "color", GlslType = "vec4", GlslName = "fragColor", Builtin = "FragmentColor", Location = 0 }
+            ],
+            Body = @"
+                vec4 baseColor = texture(albedo, varying_1);
+                vec3 lightDirection = normalize(-scene.data[0].member_LightDirection);
+                float diffuse = max(0.0, dot(varying_0, lightDirection));
+                fragColor = baseColor * scene.data[0].member_LightColor * diffuse;
+            "
+        };
+
+        ValidateModule(glslang, spirvVal, vertexModule, "editor-viewport-cube.vert");
+        ValidateModule(glslang, spirvVal, fragmentModule, "editor-viewport-cube.frag");
+    }
+
     private static string? ToolPath(string toolName)
     {
         var pathEnv = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;

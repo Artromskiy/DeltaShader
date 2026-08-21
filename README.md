@@ -127,6 +127,22 @@ stage-qualified filenames so a vertex/fragment pair becomes
 and matching manifest files. Source entry-point names stay in metadata while
 Vulkan entry points are currently emitted as `main`.
 
+For the current viewport/cube contract, Rend consumes the manifest without
+duplicating ABI rules:
+
+- vertex inputs: location 0 `vec3 position` (`VK_FORMAT_R32G32B32_SFLOAT`),
+  location 1 `vec3 normal` (`VK_FORMAT_R32G32B32_SFLOAT`), location 2 `vec2 uv`
+  (`VK_FORMAT_R32G32_SFLOAT`)
+- transform/light scene data: readonly std430 storage buffer at set 0 binding 0
+  with `Model`, `View`, `Projection`, `LightDirection`, `LightColor` and the
+  manifest offsets/alignment/size values
+- sampled texture: combined sampler at set 0 binding 1
+- draw call shape: indexed or non-indexed triangle list with 36 cube vertices is
+  fine as long as the vertex layout matches the manifest locations and formats
+
+This keeps the vertex layout, buffer offsets and resource bindings single-sourced
+in the shader artifact manifest.
+
 ## Verify
 
 From this repository:

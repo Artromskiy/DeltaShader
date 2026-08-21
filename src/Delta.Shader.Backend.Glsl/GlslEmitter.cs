@@ -28,6 +28,7 @@ public static class GlslEmitter
         EmitStructs(sb, module);
         EmitPushConstants(sb, module);
         var identifierMap = EmitResources(sb, module, identifiers);
+        EmitVertexInputs(sb, module, identifiers, identifierMap);
         EmitInterfaces(sb, module);
         sb.AppendLine();
         sb.AppendLine("void main()");
@@ -104,6 +105,21 @@ public static class GlslEmitter
             identifierMap[$"{resource.Name}.data"] = $"{instanceName}.{dataMemberName}";
         }
         return identifierMap;
+    }
+
+    private static void EmitVertexInputs(StringBuilder sb, ShaderIrModule module, GlslIdentifierMangler identifiers, Dictionary<string, string> identifierMap)
+    {
+        foreach (var variable in module.VertexInputs)
+        {
+            var glslName = identifiers.Mangle(variable.GlslName, variable.Name);
+            sb.AppendLine($"layout(location = {variable.Location}) in {variable.GlslType} {glslName};");
+            identifierMap[variable.Name] = glslName;
+        }
+
+        if (module.VertexInputs.Count > 0)
+        {
+            sb.AppendLine();
+        }
     }
 
     private static void EmitInterfaces(StringBuilder sb, ShaderIrModule module)

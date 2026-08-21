@@ -717,6 +717,7 @@ public sealed class ModuleCompilationContext
         ReadWriteStorageBufferAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.ReadWriteStorageBufferAttribute");
         GlobalInvocationIdAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.GlobalInvocationIdAttribute");
         VertexIndexAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.VertexIndexAttribute");
+        VertexInputAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.VertexInputAttribute");
         InstanceIndexAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.InstanceIndexAttribute");
         FragmentCoordAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.FragmentCoordAttribute");
         PositionAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.PositionAttribute");
@@ -737,6 +738,7 @@ public sealed class ModuleCompilationContext
     public ITypeSymbol? ReadWriteStorageBufferAttributeType { get; }
     public ITypeSymbol? GlobalInvocationIdAttributeType { get; }
     public ITypeSymbol? VertexIndexAttributeType { get; }
+    public ITypeSymbol? VertexInputAttributeType { get; }
     public ITypeSymbol? InstanceIndexAttributeType { get; }
     public ITypeSymbol? FragmentCoordAttributeType { get; }
     public ITypeSymbol? PositionAttributeType { get; }

@@ -30,6 +30,17 @@ public sealed class VertexIndexAttribute : Attribute
 }
 
 [AttributeUsage(AttributeTargets.Parameter, Inherited = false, AllowMultiple = false)]
+public sealed class VertexInputAttribute : Attribute
+{
+    public uint Location { get; }
+
+    public VertexInputAttribute(uint location)
+    {
+        Location = location;
+    }
+}
+
+[AttributeUsage(AttributeTargets.Parameter, Inherited = false, AllowMultiple = false)]
 public sealed class FragmentCoordAttribute : Attribute
 {
 }

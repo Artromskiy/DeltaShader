@@ -53,6 +53,7 @@ public sealed class ShaderManifest
     public uint LocalSizeY { get; init; }
     public uint LocalSizeZ { get; init; }
     public string StorageLayout { get; init; } = ShaderStd430Layout.Standard;
+    public IReadOnlyList<ShaderVertexInputManifest> VertexInputs { get; init; } = [];
     public IReadOnlyList<ShaderResourceManifest> Resources { get; init; } = [];
     public IReadOnlyList<ShaderInterfaceManifest> Inputs { get; init; } = [];
     public IReadOnlyList<ShaderInterfaceManifest> Outputs { get; init; } = [];
@@ -121,6 +122,12 @@ public sealed class ShaderManifest
                 Name = variable.Name, ParameterName = variable.ParameterName, GlslName = variable.GlslName,
                 GlslType = variable.GlslType, Location = variable.Location, Builtin = variable.Builtin
             }).ToArray(),
+            VertexInputs = module.VertexInputs.Select(variable => new ShaderVertexInputManifest
+            {
+                Name = variable.Name, ParameterName = variable.ParameterName, GlslName = variable.GlslName,
+                GlslType = variable.GlslType, Location = variable.Location, ByteSize = variable.ByteSize,
+                Alignment = variable.Alignment, FormatHint = variable.FormatHint
+            }).ToArray(),
             Outputs = module.Outputs.Select(variable => new ShaderInterfaceManifest
             {
                 Name = variable.Name, ParameterName = variable.ParameterName, GlslName = variable.GlslName,
@@ -149,6 +156,7 @@ public sealed class ShaderManifest
                 Set = resource.Set,
                 Binding = resource.Binding,
                 GlslType = resource.GlslType,
+                ReadOnly = resource.ReadOnly,
                 Access = resource.Access,
                 Layout = resource.Layout,
                 Offset = resource.Offset,
@@ -209,6 +217,12 @@ public sealed class ShaderManifest
                 Name = variable.Name, ParameterName = variable.ParameterName, GlslName = variable.GlslName,
                 GlslType = variable.GlslType, Location = variable.Location, Builtin = variable.Builtin
             }).ToArray(),
+            VertexInputs = VertexInputs.Select(variable => new ShaderAbiVertexInput
+            {
+                Name = variable.Name, ParameterName = variable.ParameterName, GlslName = variable.GlslName,
+                GlslType = variable.GlslType, Location = variable.Location, ByteSize = variable.ByteSize,
+                Alignment = variable.Alignment, FormatHint = variable.FormatHint
+            }).ToArray(),
             Outputs = Outputs.Select(variable => new ShaderAbiInterfaceVariable
             {
                 Name = variable.Name, ParameterName = variable.ParameterName, GlslName = variable.GlslName,
@@ -261,6 +275,18 @@ public sealed class ShaderInterfaceManifest
     public string GlslType { get; init; } = string.Empty;
     public uint Location { get; init; }
     public string? Builtin { get; init; }
+}
+
+public sealed class ShaderVertexInputManifest
+{
+    public string Name { get; init; } = string.Empty;
+    public string ParameterName { get; init; } = string.Empty;
+    public string GlslName { get; init; } = string.Empty;
+    public string GlslType { get; init; } = string.Empty;
+    public uint Location { get; init; }
+    public uint ByteSize { get; init; }
+    public uint Alignment { get; init; }
+    public string FormatHint { get; init; } = string.Empty;
 }
 
 public sealed class ShaderPushConstantManifest

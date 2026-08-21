@@ -19,6 +19,7 @@ public sealed class ShaderIrModule
     public bool UsesBuiltinInvocationId { get; init; }
     public string? InvocationParameterName { get; init; }
     public IReadOnlyList<ShaderIrInterfaceVariable> Inputs { get; init; } = [];
+    public IReadOnlyList<ShaderIrVertexInput> VertexInputs { get; init; } = [];
     public IReadOnlyList<ShaderIrInterfaceVariable> Outputs { get; init; } = [];
     public IReadOnlyList<ShaderIrPushConstant> PushConstants { get; init; } = [];
 }
@@ -31,6 +32,18 @@ public sealed class ShaderIrInterfaceVariable
     public string GlslType { get; init; } = string.Empty;
     public uint Location { get; init; }
     public string? Builtin { get; init; }
+}
+
+public sealed class ShaderIrVertexInput
+{
+    public string Name { get; init; } = string.Empty;
+    public string ParameterName { get; init; } = string.Empty;
+    public string GlslName { get; init; } = string.Empty;
+    public string GlslType { get; init; } = string.Empty;
+    public uint Location { get; init; }
+    public uint ByteSize { get; init; }
+    public uint Alignment { get; init; }
+    public string FormatHint { get; init; } = string.Empty;
 }
 
 public sealed class ShaderIrPushConstant
