@@ -27,3 +27,9 @@ Inspect emitted GLSL and manifest as well as test totals. `dotnet test` and
 `MSBuildWorkspace` need local IPC; a sandbox `SocketException`/named-pipe denial
 requires rerunning the same command outside the sandbox, not parallel retries.
 The real GPU compute smoke is owned by DeltaRender.
+
+## Code metrics
+
+Run the manual GitHub Actions `Code metrics` workflow when maintainability
+evidence is needed. It enables CA1501/CA1502/CA1505/CA1506 as report-only
+diagnostics and uploads the SARIF, build log and exit summary as artifacts.
