@@ -1,5 +1,3 @@
-using System;
-
 namespace Delta.Shader.Abstractions;
 
 public enum ShaderResourceAccess

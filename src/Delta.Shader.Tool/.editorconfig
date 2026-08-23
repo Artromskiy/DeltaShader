@@ -1,0 +1,6 @@
+# The CLI predates the repository var-style policy and intentionally mixes
+# explicit types with local inference while preserving its stable host code.
+root = false
+
+[*.cs]
+dotnet_diagnostic.IDE0008.severity = none

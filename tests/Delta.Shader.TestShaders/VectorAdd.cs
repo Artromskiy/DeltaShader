@@ -24,6 +24,8 @@ public static class VectorAdd
         [GlobalInvocationId] uint invocation)
     {
         if (invocation < input.Length)
+        {
             output.Store(invocation, input.Load(invocation));
+        }
     }
 }

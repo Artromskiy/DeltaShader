@@ -72,7 +72,11 @@ static async Task<int> ExecuteEmitAsync(ProgramOptions options)
     Directory.CreateDirectory(outputDirectory);
     foreach (var result in results)
     {
-        if (result.Module is null || result.AbiManifest is null) return 1;
+        if (result.Module is null || result.AbiManifest is null)
+        {
+            return 1;
+        }
+
         var entryName = string.IsNullOrWhiteSpace(result.EntryPointName) ? result.Module.Stage.ToString() : result.EntryPointName;
         var stageSuffix = result.Module.Stage switch
         {
@@ -84,14 +88,22 @@ static async Task<int> ExecuteEmitAsync(ProgramOptions options)
         var glslFile = Path.Combine(outputDirectory, $"{fileStem}.glsl");
         var manifestFile = Path.Combine(outputDirectory, $"{fileStem}.shader.json");
         var emitResult = GlslEmitter.EmitFromModule(result.Module);
-        if (!emitResult.Success) return 1;
+        if (!emitResult.Success)
+        {
+            return 1;
+        }
+
         await File.WriteAllTextAsync(glslFile, emitResult.Source, new UTF8Encoding(false));
         await File.WriteAllTextAsync(manifestFile, JsonSerializer.Serialize(result.AbiManifest, new JsonSerializerOptions { WriteIndented = true }), new UTF8Encoding(false));
         if (string.Equals(options.Backend, "spirv", StringComparison.OrdinalIgnoreCase))
         {
             var glslang = ToolPath("glslangValidator");
             var spirvValidator = ToolPath("spirv-val");
-            if (glslang is null || spirvValidator is null) return 1;
+            if (glslang is null || spirvValidator is null)
+            {
+                return 1;
+            }
+
             var spirvFile = Path.Combine(outputDirectory, $"{fileStem}.spv");
             var compile = RunTool(glslang, $"-V --target-env {EscapeArgument(options.CompilationOptions.Profile)} -S {stageSuffix} {EscapeArgument(glslFile)} -o {EscapeArgument(spirvFile)}");
             if (compile.ExitCode != 0) { Console.WriteLine($"glslangValidator failed:{Environment.NewLine}{compile.Output}"); return 1; }
@@ -114,7 +126,7 @@ static async Task<IReadOnlyList<ShaderCompilationResult>> CompileProjectAsync(Pr
         MSBuildLocator.RegisterDefaults();
     }
 
-        using var workspace = MSBuildWorkspace.Create();
+    using var workspace = MSBuildWorkspace.Create();
     var project = await workspace.OpenProjectAsync(options.ProjectPath);
     var compilation = await project.GetCompilationAsync();
 
@@ -123,8 +135,8 @@ static async Task<IReadOnlyList<ShaderCompilationResult>> CompileProjectAsync(Pr
         return [new ShaderCompilationResult(string.Empty, false, [new ShaderDiagnostic(ShaderDiagnosticId.DSH004, $"Unable to load compilation for project '{options.ProjectPath}'.")])];
     }
 
-        return ShaderCompiler.CompileAll(compilation, options.CompilationOptions);
-    }
+    return ShaderCompiler.CompileAll(compilation, options.CompilationOptions);
+}
 
 static ProgramOptions ParseOptions(string[] args)
 {

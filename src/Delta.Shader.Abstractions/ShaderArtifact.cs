@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace Delta.Shader.Abstractions;
 
 public enum ShaderStage
@@ -49,9 +46,14 @@ public sealed class GraphicsShaderProgram
         Vertex = vertex ?? throw new ArgumentNullException(nameof(vertex));
         Fragment = fragment ?? throw new ArgumentNullException(nameof(fragment));
         if (vertex.Stage != ShaderStage.Vertex)
+        {
             throw new ArgumentException("The first artifact must contain a vertex stage.", nameof(vertex));
+        }
+
         if (fragment.Stage != ShaderStage.Fragment)
+        {
             throw new ArgumentException("The second artifact must contain a fragment stage.", nameof(fragment));
+        }
     }
 
     public ShaderArtifact Vertex { get; }

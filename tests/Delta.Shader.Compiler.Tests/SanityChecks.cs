@@ -1,11 +1,13 @@
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using Delta.Maths;
 using Delta.Shader.Abstractions;
+using Delta.Shader.Analyzers;
 using Delta.Shader.Compiler.Intrinsics;
+using Delta.Shader.Compiler.IR;
 using Delta.Shader.Compiler.Syntax;
 using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis;
@@ -13,7 +15,6 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.MSBuild;
-using Delta.Shader.Analyzers;
 using Xunit;
 
 namespace Delta.Shader.Compiler.Tests;
@@ -35,11 +36,11 @@ public class IntrinsicCatalogTests
     [Fact]
     public async Task DeltaMaths_VectorTypes_AreMappedTo_GlslVectorTypes_BySymbolIdentity()
     {
-        var compilation = await LoadMathsCompilationAsync();
+        Compilation compilation = await LoadMathsCompilationAsync();
         var registry = IntrinsicRegistry.Build(compilation);
 
-        var float2 = compilation.GetTypeByMetadataName("Delta.Maths.float2");
-        var int3 = compilation.GetTypeByMetadataName("Delta.Maths.int3");
+        INamedTypeSymbol? float2 = compilation.GetTypeByMetadataName("Delta.Maths.float2");
+        INamedTypeSymbol? int3 = compilation.GetTypeByMetadataName("Delta.Maths.int3");
 
         Assert.NotNull(float2);
         Assert.NotNull(int3);
@@ -52,17 +53,17 @@ public class IntrinsicCatalogTests
     [Fact]
     public async Task DeltaMaths_MathsFunctions_AreMatchedByISymbol_AndMapOverloads()
     {
-        var compilation = await LoadMathsCompilationAsync();
+        Compilation compilation = await LoadMathsCompilationAsync();
         var registry = IntrinsicRegistry.Build(compilation);
-        var maths = compilation.GetTypeByMetadataName("Delta.Maths.maths")!;
+        INamedTypeSymbol maths = compilation.GetTypeByMetadataName("Delta.Maths.maths")!;
 
-        var sinFloat = maths.GetMembers("sin").OfType<IMethodSymbol>().Single(m =>
+        IMethodSymbol sinFloat = maths.GetMembers("sin").OfType<IMethodSymbol>().Single(m =>
             m.Parameters.Length == 1 && m.Parameters[0].Type.SpecialType == SpecialType.System_Single);
-        var dotFloat3 = maths.GetMembers("dot").OfType<IMethodSymbol>().Single(m =>
+        IMethodSymbol dotFloat3 = maths.GetMembers("dot").OfType<IMethodSymbol>().Single(m =>
             m.Parameters.Length == 2 &&
             m.Parameters[0].Type.Name == "float3" &&
             m.Parameters[1].Type.Name == "float3");
-        var dotFloat4 = maths.GetMembers("dot").OfType<IMethodSymbol>().Single(m =>
+        IMethodSymbol dotFloat4 = maths.GetMembers("dot").OfType<IMethodSymbol>().Single(m =>
             m.Parameters.Length == 2 &&
             m.Parameters[0].Type.Name == "float4" &&
             m.Parameters[1].Type.Name == "float4");
@@ -70,9 +71,9 @@ public class IntrinsicCatalogTests
         Assert.NotNull(sinFloat);
         Assert.NotNull(dotFloat3);
         Assert.NotNull(dotFloat4);
-        Assert.True(registry.TryGetIntrinsic(sinFloat, out var sinIntrinsic));
-        Assert.True(registry.TryGetIntrinsic(dotFloat3, out var dot3Intrinsic));
-        Assert.True(registry.TryGetIntrinsic(dotFloat4, out var dot4Intrinsic));
+        Assert.True(registry.TryGetIntrinsic(sinFloat, out IntrinsicBinding? sinIntrinsic));
+        Assert.True(registry.TryGetIntrinsic(dotFloat3, out IntrinsicBinding? dot3Intrinsic));
+        Assert.True(registry.TryGetIntrinsic(dotFloat4, out IntrinsicBinding? dot4Intrinsic));
         Assert.Equal("sin", sinIntrinsic.GlslName);
         Assert.Equal("dot", dot3Intrinsic.GlslName);
         Assert.Equal("dot", dot4Intrinsic.GlslName);
@@ -82,24 +83,24 @@ public class IntrinsicCatalogTests
     [Fact]
     public async Task DeltaMaths_VectorConstructors_Operators_Swizzles_AreSymbolMapped()
     {
-        var compilation = await LoadMathsCompilationAsync();
+        Compilation compilation = await LoadMathsCompilationAsync();
         var registry = IntrinsicRegistry.Build(compilation);
-        var float4 = compilation.GetTypeByMetadataName("Delta.Maths.float4")!;
-        var float3 = compilation.GetTypeByMetadataName("Delta.Maths.float3")!;
+        INamedTypeSymbol float4 = compilation.GetTypeByMetadataName("Delta.Maths.float4")!;
+        INamedTypeSymbol float3 = compilation.GetTypeByMetadataName("Delta.Maths.float3")!;
 
-        var ctorByScalars = float4.InstanceConstructors.First(c =>
+        IMethodSymbol ctorByScalars = float4.InstanceConstructors.First(c =>
             c.Parameters.Length == 4 &&
             c.Parameters.All(p => p.Type.SpecialType == SpecialType.System_Single));
-        var ctorByFloat3AndScalar = float4.InstanceConstructors.First(c =>
+        IMethodSymbol ctorByFloat3AndScalar = float4.InstanceConstructors.First(c =>
             c.Parameters.Length == 2 &&
             c.Parameters[0].Type.Name == "float3" &&
             c.Parameters[1].Type.SpecialType == SpecialType.System_Single);
-        var plus = float4.GetMembers().OfType<IMethodSymbol>().First(m =>
+        IMethodSymbol plus = float4.GetMembers().OfType<IMethodSymbol>().First(m =>
             m.MethodKind == MethodKind.UserDefinedOperator &&
             m.Name == "op_Addition" &&
             m.Parameters.Length == 2 &&
             m.Parameters.All(p => p.Type.Name == "float4"));
-        var swizzle = float3.GetMembers("xyz").OfType<IPropertySymbol>().FirstOrDefault();
+        IPropertySymbol? swizzle = float3.GetMembers("xyz").OfType<IPropertySymbol>().FirstOrDefault();
 
         Assert.NotNull(float4);
         Assert.NotNull(float3);
@@ -126,15 +127,15 @@ public class IntrinsicCatalogTests
             }
             ";
 
-        var compilation = await LoadMathsCompilationAsync(fixtureSource);
+        Compilation compilation = await LoadMathsCompilationAsync(fixtureSource);
         var registry = IntrinsicRegistry.Build(compilation);
-        var deltaMaths = compilation.GetTypeByMetadataName("Delta.Maths.maths")!;
-        var fakeMaths = compilation.GetTypeByMetadataName("Delta.Shader.Compiler.Tests.Fixtures.MathsNameCollision")!;
-        var deltaSin = deltaMaths.GetMembers("sin").OfType<IMethodSymbol>().Single(m =>
+        INamedTypeSymbol deltaMaths = compilation.GetTypeByMetadataName("Delta.Maths.maths")!;
+        INamedTypeSymbol fakeMaths = compilation.GetTypeByMetadataName("Delta.Shader.Compiler.Tests.Fixtures.MathsNameCollision")!;
+        IMethodSymbol deltaSin = deltaMaths.GetMembers("sin").OfType<IMethodSymbol>().Single(m =>
             m.Parameters.Length == 1 && m.Parameters[0].Type.SpecialType == SpecialType.System_Single);
-        var fakeSin = fakeMaths.GetMembers("sin").OfType<IMethodSymbol>().Single(m =>
+        IMethodSymbol fakeSin = fakeMaths.GetMembers("sin").OfType<IMethodSymbol>().Single(m =>
             m.Parameters.Length == 1 && m.Parameters[0].Type.SpecialType == SpecialType.System_Single);
-        var fakeDot = fakeMaths.GetMembers("dot").OfType<IMethodSymbol>().Single(m =>
+        IMethodSymbol fakeDot = fakeMaths.GetMembers("dot").OfType<IMethodSymbol>().Single(m =>
             m.Parameters.Length == 2 &&
             m.Parameters[0].Type.Name == "float3" &&
             m.Parameters[1].Type.Name == "float3");
@@ -147,18 +148,18 @@ public class IntrinsicCatalogTests
     [Fact]
     public async Task DeltaMaths_IntrinsicRegistry_MapsReferenceProjectSymbolsBySymbolIdentity()
     {
-        var compilation = await LoadReferenceFixtureCompilationAsync();
+        Compilation compilation = await LoadReferenceFixtureCompilationAsync();
         var registry = IntrinsicRegistry.Build(compilation);
 
-        var fixtureType = compilation.GetTypeByMetadataName("Delta.Shader.Compiler.ReferenceFixtures.VectorSymbolFixture");
-        var method = fixtureType?.GetMembers("SymbolMapKernel").OfType<IMethodSymbol>().SingleOrDefault();
+        INamedTypeSymbol? fixtureType = compilation.GetTypeByMetadataName("Delta.Shader.Compiler.ReferenceFixtures.VectorSymbolFixture");
+        IMethodSymbol? method = fixtureType?.GetMembers("SymbolMapKernel").OfType<IMethodSymbol>().SingleOrDefault();
 
         Assert.NotNull(fixtureType);
         Assert.NotNull(method);
         Assert.NotNull(method!.DeclaringSyntaxReferences.FirstOrDefault());
 
         var syntax = (MethodDeclarationSyntax)method!.DeclaringSyntaxReferences[0].GetSyntax();
-        var semanticModel = compilation.GetSemanticModel(syntax.SyntaxTree);
+        SemanticModel semanticModel = compilation.GetSemanticModel(syntax.SyntaxTree);
 
         var constructors = syntax
             .DescendantNodes()
@@ -209,32 +210,32 @@ public class IntrinsicCatalogTests
     [Fact]
     public async Task DeltaMaths_ShaderContract_MapsMatrixQuaternionOverloadsByFullSignature()
     {
-        var compilation = await LoadMathsCompilationAsync();
+        Compilation compilation = await LoadMathsCompilationAsync();
         var contract = ShaderContractManifest.LoadEmbedded();
         var registry = IntrinsicRegistry.Build(compilation, contract);
 
-        var matrix = compilation.GetTypeByMetadataName("Delta.Maths.float4x4")!;
-        var quaternion = compilation.GetTypeByMetadataName("Delta.Maths.quaternion")!;
-        var matrixType = contract.Types.Single(type => type.ClrName == "float4x4");
-        var quaternionType = contract.Types.Single(type => type.ClrName == "quaternion");
+        INamedTypeSymbol matrix = compilation.GetTypeByMetadataName("Delta.Maths.float4x4")!;
+        INamedTypeSymbol quaternion = compilation.GetTypeByMetadataName("Delta.Maths.quaternion")!;
+        ShaderContractType matrixType = contract.Types.Single(type => type.ClrName == "float4x4");
+        ShaderContractType quaternionType = contract.Types.Single(type => type.ClrName == "quaternion");
 
         Assert.Equal("mat4", matrixType.GlslName);
         Assert.Equal("vec4", quaternionType.GlslName);
         Assert.Equal("Builtin", matrixType.Mapping);
         Assert.Equal("Builtin", quaternionType.Mapping);
 
-        var matrixMultiply = matrix.GetMembers().OfType<IMethodSymbol>().Single(method =>
+        IMethodSymbol matrixMultiply = matrix.GetMembers().OfType<IMethodSymbol>().Single(method =>
             method.MethodKind == MethodKind.UserDefinedOperator &&
             method.Name == "op_Multiply" &&
             method.Parameters.Length == 2 &&
             method.Parameters.All(parameter => parameter.Type.Name == "float4x4"));
-        var quaternionMultiply = quaternion.GetMembers().OfType<IMethodSymbol>().Single(method =>
+        IMethodSymbol quaternionMultiply = quaternion.GetMembers().OfType<IMethodSymbol>().Single(method =>
             method.MethodKind == MethodKind.UserDefinedOperator &&
             method.Name == "op_Multiply" &&
             method.Parameters.All(parameter => parameter.Type.Name == "quaternion"));
 
-        Assert.True(registry.TryGetIntrinsic(matrixMultiply, out var matrixBinding));
-        Assert.True(registry.TryGetIntrinsic(quaternionMultiply, out var quaternionBinding));
+        Assert.True(registry.TryGetIntrinsic(matrixMultiply, out IntrinsicBinding? matrixBinding));
+        Assert.True(registry.TryGetIntrinsic(quaternionMultiply, out IntrinsicBinding? quaternionBinding));
         Assert.Equal("*", matrixBinding.GlslName);
         Assert.Equal("matrix", matrixBinding.RequiredCapability);
         Assert.Equal("delta_quaternionMultiply", quaternionBinding.GlslName);
@@ -244,7 +245,7 @@ public class IntrinsicCatalogTests
     [Fact]
     public async Task IntrinsicRegistry_DoesNotRegisterUnsupportedContractIdentities()
     {
-        var compilation = await LoadMathsCompilationAsync();
+        Compilation compilation = await LoadMathsCompilationAsync();
         var contract = new ShaderContractManifest
         {
             Namespace = "Delta.Maths",
@@ -261,9 +262,9 @@ public class IntrinsicCatalogTests
         };
 
         var registry = IntrinsicRegistry.Build(compilation, contract);
-        var float2 = compilation.GetTypeByMetadataName("Delta.Maths.float2");
-        var maths = compilation.GetTypeByMetadataName("Delta.Maths.maths");
-        var sin = maths!.GetMembers("sin").OfType<IMethodSymbol>().Single(method =>
+        INamedTypeSymbol? float2 = compilation.GetTypeByMetadataName("Delta.Maths.float2");
+        INamedTypeSymbol? maths = compilation.GetTypeByMetadataName("Delta.Maths.maths");
+        IMethodSymbol sin = maths!.GetMembers("sin").OfType<IMethodSymbol>().Single(method =>
             method.Parameters.Length == 1 && method.Parameters[0].Type.SpecialType == SpecialType.System_Single);
 
         Assert.False(registry.TryMapType(float2!, out _));
@@ -291,8 +292,8 @@ public class IntrinsicCatalogTests
             }
             ";
 
-        var result = await CompileAndValidateEntryPointAsync(source);
-        var module = result.Module!;
+        ShaderCompilationResult result = await CompileAndValidateEntryPointAsync(source);
+        ShaderIrModule module = result.Module!;
 
         Assert.True(result.Success);
         Assert.Equal("Compute", result.EntryPointName);
@@ -301,8 +302,8 @@ public class IntrinsicCatalogTests
         Assert.Equal(4u, module.LocalSizeZ);
         Assert.Equal(2, module.Resources.Count);
 
-        var input = module.Resources.First(r => r.ParameterName == "input");
-        var output = module.Resources.First(r => r.ParameterName == "output");
+        ShaderIrResource input = module.Resources.First(r => r.ParameterName == "input");
+        ShaderIrResource output = module.Resources.First(r => r.ParameterName == "output");
         Assert.Equal(0u, input.Set);
         Assert.Equal(0u, input.Binding);
         Assert.True(input.ReadOnly);
@@ -330,7 +331,7 @@ public class IntrinsicCatalogTests
             }
         ";
 
-        var result = await CompileAndValidateEntryPointAsync(source);
+        ShaderCompilationResult result = await CompileAndValidateEntryPointAsync(source);
         Assert.False(result.Success);
         Assert.True(result.Diagnostics.Count(d => d.Id == ShaderDiagnosticId.DSH002) >= 2);
     }
@@ -356,7 +357,7 @@ public class IntrinsicCatalogTests
             }
             ";
 
-        var result = await CompileAndValidateEntryPointAsync(source);
+        ShaderCompilationResult result = await CompileAndValidateEntryPointAsync(source);
         Assert.False(result.Success);
         Assert.Contains(result.Diagnostics, d => d.Id == ShaderDiagnosticId.DSH002);
     }
@@ -381,7 +382,7 @@ public class IntrinsicCatalogTests
             }
             ";
 
-        var result = await CompileAndValidateEntryPointAsync(
+        ShaderCompilationResult result = await CompileAndValidateEntryPointAsync(
             source,
             new ShaderCompilationOptions { Profile = "vulkan1.2", Spirv = "1.6" });
 
@@ -409,7 +410,7 @@ public class IntrinsicCatalogTests
             }
             ";
 
-        var result = await CompileAndValidateEntryPointAsync(source);
+        ShaderCompilationResult result = await CompileAndValidateEntryPointAsync(source);
         Assert.False(result.Success);
         Assert.Contains(result.Diagnostics, d => d.Id == ShaderDiagnosticId.DSH005);
     }
@@ -450,10 +451,10 @@ public class IntrinsicCatalogTests
             }
             ";
 
-        var result = await CompileAndValidateEntryPointAsync(source);
+        ShaderCompilationResult result = await CompileAndValidateEntryPointAsync(source);
 
         Assert.True(result.Success);
-        var input = Assert.Single(result.Module!.Resources, resource => resource.ParameterName == "input");
+        ShaderIrResource input = Assert.Single(result.Module!.Resources, resource => resource.ParameterName == "input");
         Assert.Equal("DeltaStruct_Delta_Shader_Compiler_Tests_Fixtures_TransformRecord", input.GlslType);
         Assert.Equal(16u, input.Std430Layout!.Alignment);
         Assert.Equal(96u, input.Std430Layout.Size);
@@ -470,7 +471,7 @@ public class IntrinsicCatalogTests
     [Fact]
     public async Task ComputeEntryPoint_RejectsUnsupportedStructLayoutsAndFields()
     {
-        var cases = new[]
+        (string Source, string ExpectedId)[] cases = new[]
         {
             (Source: @"
                 using Delta.Shader.Abstractions;
@@ -527,9 +528,9 @@ public class IntrinsicCatalogTests
             ", ExpectedId: ShaderDiagnosticId.DSH010)
         };
 
-        foreach (var testCase in cases)
+        foreach ((string Source, string ExpectedId) testCase in cases)
         {
-            var result = await CompileAndValidateEntryPointAsync(testCase.Source);
+            ShaderCompilationResult result = await CompileAndValidateEntryPointAsync(testCase.Source);
             Assert.False(result.Success);
             Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == testCase.ExpectedId);
         }
@@ -570,7 +571,7 @@ public class IntrinsicCatalogTests
 
         foreach (var source in cases)
         {
-            var result = await CompileAndValidateEntryPointAsync(source);
+            ShaderCompilationResult result = await CompileAndValidateEntryPointAsync(source);
             Assert.False(result.Success);
             Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH010);
         }
@@ -592,8 +593,8 @@ public class IntrinsicCatalogTests
                 { color = new float4(1f, 0f, 0f, 1f); }
             }";
 
-        var invalidCompilation = await LoadCompilerTestProjectCompilationAsync(invalidSource);
-        var invalidResult = Assert.Single(ShaderCompiler.CompileAll(invalidCompilation));
+        Compilation invalidCompilation = await LoadCompilerTestProjectCompilationAsync(invalidSource);
+        ShaderCompilationResult invalidResult = Assert.Single(ShaderCompiler.CompileAll(invalidCompilation));
         Assert.False(invalidResult.Success);
         Assert.Contains(invalidResult.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH010);
 
@@ -605,7 +606,7 @@ public class IntrinsicCatalogTests
                 [ComputeShader] public static void Compute([GlobalInvocationId] uint id) { }
             }";
 
-        var validResult = await CompileAndValidateEntryPointAsync(validSource);
+        ShaderCompilationResult validResult = await CompileAndValidateEntryPointAsync(validSource);
         Assert.DoesNotContain(validResult.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH010);
     }
 
@@ -625,8 +626,8 @@ public class IntrinsicCatalogTests
                 { color = new float4(1f, 0f, 0f, 1f); }
             }";
 
-        var compilation = await LoadCompilerTestProjectCompilationAsync(source);
-        var analyzerResult = await compilation
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source);
+        ImmutableArray<Diagnostic> analyzerResult = await compilation
             .WithAnalyzers(ImmutableArray.Create<DiagnosticAnalyzer>(new ComputeEntryPointAnalyzer()))
             .GetAnalyzerDiagnosticsAsync();
 
@@ -760,13 +761,13 @@ public class IntrinsicCatalogTests
                 }
             }";
 
-        var compilation = await LoadCompilerTestProjectCompilationAsync(source);
-        var results = ShaderCompiler.CompileAll(compilation);
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source);
+        IReadOnlyList<ShaderCompilationResult> results = ShaderCompiler.CompileAll(compilation);
         Assert.Equal(2, results.Count);
         Assert.All(results, result => Assert.True(result.Success, string.Join("\n", result.Diagnostics.Select(diagnostic => diagnostic.Message))));
-        var vertex = Assert.Single(results, result => result.Module!.Stage == ShaderStage.Vertex);
+        ShaderCompilationResult vertex = Assert.Single(results, result => result.Module!.Stage == ShaderStage.Vertex);
         Assert.Equal("FullscreenVertex", vertex.Module!.SourceEntryPointName);
-        var fragment = Assert.Single(results, result => result.Module!.Stage == ShaderStage.Fragment);
+        ShaderCompilationResult fragment = Assert.Single(results, result => result.Module!.Stage == ShaderStage.Fragment);
         Assert.Equal("FullscreenFragment", fragment.Module!.SourceEntryPointName);
         Assert.Equal("main", fragment.AbiManifest!.EntryPointName);
         Assert.Single(fragment.AbiManifest.PushConstants);
@@ -796,12 +797,12 @@ public class IntrinsicCatalogTests
                 }
             }";
 
-        var compilation = await LoadCompilerTestProjectCompilationAsync(source);
-        var result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
 
         Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
-        var module = result.Module!;
-        var push = Assert.Single(result.AbiManifest!.PushConstants);
+        ShaderIrModule module = result.Module!;
+        ShaderAbiPushConstant push = Assert.Single(result.AbiManifest!.PushConstants);
         Assert.Equal("mat4", Assert.Single(push.Members, member => member.Name == "Model").GlslType);
         Assert.Equal(0u, Assert.Single(push.Members, member => member.Name == "Model").Offset);
         Assert.Equal(64u, Assert.Single(push.Members, member => member.Name == "View").Offset);
@@ -833,7 +834,7 @@ public class IntrinsicCatalogTests
         var view = float4x4.CreateLookTo(new float3(0f, 1f, -8f), new float3(0f, 0f, 1f), new float3(0f, 1f, 0f));
         var projection = float4x4.CreatePerspectiveFieldOfViewLeftHanded(global::Delta.Maths.Maths.Radians(60f), 16f / 9f, 0.1f, 100f);
         var vertex = new float4(1f, 2f, 3f, 1f);
-        var cpu = projection * view * model * vertex;
+        float4 cpu = projection * view * model * vertex;
         Assert.Equal(1f, vertex.w);
         Assert.True(cpu.w > 0f);
         Assert.Equal(0f, projection.M44);
@@ -877,11 +878,11 @@ public class IntrinsicCatalogTests
                 }
             }";
 
-        var compilation = await LoadCompilerTestProjectCompilationAsync(source);
-        var result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
 
         Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
-        var module = result.Module!;
+        ShaderIrModule module = result.Module!;
         Assert.Equal(3, module.VertexInputs.Count);
         Assert.Equal((0u, "vec3", "VK_FORMAT_R32G32B32_SFLOAT"), (module.VertexInputs[0].Location, module.VertexInputs[0].GlslType, module.VertexInputs[0].FormatHint));
         Assert.Equal((1u, "vec3", "VK_FORMAT_R32G32B32_SFLOAT"), (module.VertexInputs[1].Location, module.VertexInputs[1].GlslType, module.VertexInputs[1].FormatHint));
@@ -894,7 +895,7 @@ public class IntrinsicCatalogTests
         Assert.Equal(12u, module.VertexBuffers[0].Attributes[1].ByteOffset);
         Assert.Equal(24u, module.VertexBuffers[0].Attributes[2].ByteOffset);
 
-        var resource = Assert.Single(module.Resources);
+        ShaderIrResource resource = Assert.Single(module.Resources);
         Assert.Equal("storage-buffer", resource.Category);
         Assert.Equal(ShaderResourceAccess.ReadOnly, resource.Access);
         Assert.Equal(0u, resource.Set);
@@ -916,7 +917,7 @@ public class IntrinsicCatalogTests
         var view = float4x4.CreateLookTo(new float3(0f, 0f, -5f), new float3(0f, 0f, 1f), new float3(0f, 1f, 0f));
         var projection = float4x4.CreatePerspectiveFieldOfViewLeftHanded(global::Delta.Maths.Maths.Radians(60f), 1f, 0.1f, 100f);
         var vertex = new float4(1f, 0f, 0f, 1f);
-        var cpuOrder = projection * view * model * vertex;
+        float4 cpuOrder = projection * view * model * vertex;
         Assert.Equal(cpuOrder, projection * view * model * vertex);
     }
 
@@ -951,16 +952,16 @@ public class IntrinsicCatalogTests
                 }
             }";
 
-        var compilation = await LoadCompilerTestProjectCompilationAsync(source);
-        var results = ShaderCompiler.CompileAll(compilation);
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source);
+        IReadOnlyList<ShaderCompilationResult> results = ShaderCompiler.CompileAll(compilation);
         Assert.Equal(2, results.Count);
 
-        var vertex = Assert.Single(results, result => result.Module?.Stage == ShaderStage.Vertex);
+        ShaderCompilationResult vertex = Assert.Single(results, result => result.Module?.Stage == ShaderStage.Vertex);
         Assert.False(vertex.Success);
         Assert.Contains(vertex.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH013);
         Assert.Contains(vertex.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH010);
 
-        var fragment = Assert.Single(results, result => result.Module?.Stage == ShaderStage.Fragment);
+        ShaderCompilationResult fragment = Assert.Single(results, result => result.Module?.Stage == ShaderStage.Fragment);
         Assert.False(fragment.Success);
         Assert.Contains(fragment.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH013);
     }
@@ -977,8 +978,8 @@ public class IntrinsicCatalogTests
                 { position = new float4(coord.x, 0f, 0f, 1f); }
             }";
 
-        var compilation = await LoadCompilerTestProjectCompilationAsync(source);
-        var result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
         Assert.False(result.Success);
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH011);
     }
@@ -997,8 +998,8 @@ public class IntrinsicCatalogTests
                 { position = default; }
             }";
 
-        var compilation = await LoadCompilerTestProjectCompilationAsync(source);
-        var result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
 
         Assert.True(result.Success, string.Join("\n", result.Diagnostics.Select(diagnostic => diagnostic.Message)));
         Assert.Contains("gl_Position", result.Module!.Body);
@@ -1048,14 +1049,14 @@ public class IntrinsicCatalogTests
                 }
             }";
 
-        var compilation = await LoadCompilerTestProjectCompilationAsync(source);
-        var results = ShaderCompiler.CompileAll(compilation);
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source);
+        IReadOnlyList<ShaderCompilationResult> results = ShaderCompiler.CompileAll(compilation);
 
         Assert.Equal(2, results.Count);
         Assert.All(results, result => Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message))));
 
-        var vertex = Assert.Single(results, result => result.Module!.Stage == ShaderStage.Vertex);
-        var vertexResource = Assert.Single(vertex.AbiManifest!.Resources);
+        ShaderCompilationResult vertex = Assert.Single(results, result => result.Module!.Stage == ShaderStage.Vertex);
+        ShaderAbiResource vertexResource = Assert.Single(vertex.AbiManifest!.Resources);
         Assert.Equal("sdf-text", vertex.EntryPointName);
         Assert.Equal("sampled-texture", vertexResource.Category);
         Assert.Equal(ShaderStage.Vertex, vertexResource.Stage);
@@ -1069,8 +1070,8 @@ public class IntrinsicCatalogTests
         Assert.Contains("varying_0", vertexGlsl);
         Assert.DoesNotContain("std430) readonly buffer", vertexGlsl);
 
-        var fragment = Assert.Single(results, result => result.Module!.Stage == ShaderStage.Fragment);
-        var fragmentResource = Assert.Single(fragment.AbiManifest!.Resources);
+        ShaderCompilationResult fragment = Assert.Single(results, result => result.Module!.Stage == ShaderStage.Fragment);
+        ShaderAbiResource fragmentResource = Assert.Single(fragment.AbiManifest!.Resources);
         Assert.Equal("sdf-text", fragment.EntryPointName);
         Assert.Equal(ShaderStage.Fragment, fragmentResource.Stage);
         Assert.Equal(2u, fragmentResource.Binding);
@@ -1100,8 +1101,8 @@ public class IntrinsicCatalogTests
                 }
             }";
 
-        var compilation = await LoadCompilerTestProjectCompilationAsync(source);
-        var result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
 
         Assert.False(result.Success);
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH011);
@@ -1198,14 +1199,14 @@ public class IntrinsicCatalogTests
                 }
             }";
 
-        var compilation = await LoadCompilerTestProjectCompilationAsync(source);
-        var results = ShaderCompiler.CompileAll(compilation);
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source);
+        IReadOnlyList<ShaderCompilationResult> results = ShaderCompiler.CompileAll(compilation);
 
         Assert.Equal(2, results.Count);
         Assert.All(results, result => Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message))));
 
-        var vertex = Assert.Single(results, result => result.Module!.Stage == ShaderStage.Vertex);
-        var glyphResource = Assert.Single(vertex.AbiManifest!.Resources);
+        ShaderCompilationResult vertex = Assert.Single(results, result => result.Module!.Stage == ShaderStage.Vertex);
+        ShaderAbiResource glyphResource = Assert.Single(vertex.AbiManifest!.Resources);
         Assert.Equal("storage-buffer", glyphResource.Category);
         Assert.Equal(ShaderStage.Vertex, glyphResource.Stage);
         Assert.Equal(ShaderResourceAccess.ReadOnly, glyphResource.Access);
@@ -1224,7 +1225,7 @@ public class IntrinsicCatalogTests
         Assert.Contains("buffer", vertexGlsl);
         Assert.Contains(".data[", vertexGlsl);
 
-        var fragment = Assert.Single(results, result => result.Module!.Stage == ShaderStage.Fragment);
+        ShaderCompilationResult fragment = Assert.Single(results, result => result.Module!.Stage == ShaderStage.Fragment);
         Assert.Equal("sampled-texture", Assert.Single(fragment.AbiManifest!.Resources).Category);
         var fragmentGlsl = Delta.Shader.Backend.Glsl.GlslEmitter.EmitFromModule(fragment.Module!).Source;
         Assert.Contains("layout(set = 0, binding = 3) uniform sampler2D", fragmentGlsl);
@@ -1246,8 +1247,8 @@ public class IntrinsicCatalogTests
                 }
             }";
 
-        var compilation = await LoadCompilerTestProjectCompilationAsync(source);
-        var result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
 
         Assert.False(result.Success);
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH011);
@@ -1258,7 +1259,7 @@ public class IntrinsicCatalogTests
         string source,
         ShaderCompilationOptions? options = null)
     {
-        var compilation = await LoadCompilerTestProjectCompilationAsync(source);
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source);
         var context = new ModuleCompilationContext(compilation);
         var frontend = new RoslynFrontend(compilation);
         return ComputeEntryPoints.ValidateAndBuild(context, frontend, options);
@@ -1283,7 +1284,7 @@ public class IntrinsicCatalogTests
                 }
             }";
 
-        var result = await CompileAndValidateEntryPointAsync(source);
+        ShaderCompilationResult result = await CompileAndValidateEntryPointAsync(source);
 
         Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
         Assert.Contains("output.data[invocation]", result.Module!.Body);
@@ -1309,10 +1310,10 @@ public class IntrinsicCatalogTests
                 }
             }";
 
-        var result = await CompileAndValidateEntryPointAsync(source);
+        ShaderCompilationResult result = await CompileAndValidateEntryPointAsync(source);
 
         Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
-        var resources = result.Module!.Resources;
+        IReadOnlyList<ShaderIrResource> resources = result.Module!.Resources;
         Assert.Equal("uint", Assert.Single(resources, resource => resource.ParameterName == "input").GlslType);
         Assert.Equal("uint", Assert.Single(resources, resource => resource.ParameterName == "output").GlslType);
         Assert.Contains("output.data[id] = input.data[id] * 2u + 1u", result.Module.Body);
@@ -1342,10 +1343,10 @@ public class IntrinsicCatalogTests
                 }
             }";
 
-        var result = await CompileAndValidateEntryPointAsync(source);
+        ShaderCompilationResult result = await CompileAndValidateEntryPointAsync(source);
         Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
-        var module = Assert.IsType<Delta.Shader.Compiler.IR.ShaderIrModule>(result.Module);
-        var texture = Assert.Single(module.Resources, resource => resource.Category == "sampled-texture");
+        ShaderIrModule module = Assert.IsType<Delta.Shader.Compiler.IR.ShaderIrModule>(result.Module);
+        ShaderIrResource texture = Assert.Single(module.Resources, resource => resource.Category == "sampled-texture");
         Assert.Equal(ShaderStage.Compute, texture.Stage);
         Assert.Equal(0u, texture.Set);
         Assert.Equal(2u, texture.Binding);
@@ -1367,7 +1368,7 @@ public class IntrinsicCatalogTests
                 }
             }";
 
-        var result = await CompileAndValidateEntryPointAsync(source);
+        ShaderCompilationResult result = await CompileAndValidateEntryPointAsync(source);
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH011);
     }
 
@@ -1389,10 +1390,10 @@ public class IntrinsicCatalogTests
                 }
             }";
 
-        var result = await CompileAndValidateEntryPointAsync(source);
+        ShaderCompilationResult result = await CompileAndValidateEntryPointAsync(source);
 
         Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
-        var module = Assert.IsType<Delta.Shader.Compiler.IR.ShaderIrModule>(result.Module);
+        ShaderIrModule module = Assert.IsType<Delta.Shader.Compiler.IR.ShaderIrModule>(result.Module);
         Assert.Contains("output.data[id] = input.data[id] * 2u + 1u", module.Body);
     }
 
@@ -1417,7 +1418,7 @@ public class IntrinsicCatalogTests
                 }
             }";
 
-        var result = await CompileAndValidateEntryPointAsync(source);
+        ShaderCompilationResult result = await CompileAndValidateEntryPointAsync(source);
 
         Assert.False(result.Success);
         Assert.Contains(result.Diagnostics, diagnostic =>
@@ -1444,15 +1445,15 @@ public class IntrinsicCatalogTests
                 }
             }";
 
-        var compilation = await LoadCompilerTestProjectCompilationAsync(source);
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source);
         var parseOptions = compilation.SyntaxTrees.First().Options as CSharpParseOptions;
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
             new[] { new DeltaComputeGenerator().AsSourceGenerator() },
             parseOptions: parseOptions);
-        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out var generatorDiagnostics);
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out ImmutableArray<Diagnostic> generatorDiagnostics);
 
         Assert.DoesNotContain(generatorDiagnostics, diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
-        var generated = Assert.Single(driver.GetRunResult().Results.SelectMany(result => result.GeneratedSources));
+        GeneratedSourceResult generated = Assert.Single(driver.GetRunResult().Results.SelectMany(result => result.GeneratedSources));
         Assert.Contains("public const string Glsl", generated.SourceText.ToString());
         Assert.Contains("#version 460", generated.SourceText.ToString());
         Assert.Contains("ManifestJson", generated.SourceText.ToString());
@@ -1481,15 +1482,15 @@ public class IntrinsicCatalogTests
                 }
             }";
 
-        var compilation = await LoadCompilerTestProjectCompilationAsync(source);
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source);
         var parseOptions = compilation.SyntaxTrees.First().Options as CSharpParseOptions;
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
             new[] { new DeltaComputeGenerator().AsSourceGenerator(), new DeltaGraphicsGenerator().AsSourceGenerator() },
             parseOptions: parseOptions);
-        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out var generatorDiagnostics);
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out ImmutableArray<Diagnostic> generatorDiagnostics);
 
         Assert.DoesNotContain(generatorDiagnostics, diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
-        var generated = Assert.Single(driver.GetRunResult().Results.SelectMany(result => result.GeneratedSources));
+        GeneratedSourceResult generated = Assert.Single(driver.GetRunResult().Results.SelectMany(result => result.GeneratedSources));
         var generatedText = generated.SourceText.ToString();
         Assert.Contains("GraphicsShaderProgram", generatedText);
         Assert.Contains("FragmentGlsl", generatedText);
@@ -1526,12 +1527,12 @@ public class IntrinsicCatalogTests
                 }
             }";
 
-        var compilation = await LoadCompilerTestProjectCompilationAsync(source);
-        var diagnostics = await compilation
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source);
+        ImmutableArray<Diagnostic> diagnostics = await compilation
             .WithAnalyzers(ImmutableArray.Create<DiagnosticAnalyzer>(new ComputeEntryPointAnalyzer()))
             .GetAnalyzerDiagnosticsAsync();
 
-        var unsupported = diagnostics.Where(diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH014).ToArray();
+        Diagnostic[] unsupported = diagnostics.Where(diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH014).ToArray();
         Assert.True(unsupported.Length >= 4, string.Join(Environment.NewLine, unsupported.Select(diagnostic => diagnostic.GetMessage())));
         Assert.Contains(unsupported, diagnostic => diagnostic.GetMessage().Contains("Reference local", StringComparison.Ordinal));
         Assert.Contains(unsupported, diagnostic => diagnostic.GetMessage().Contains("Reflection", StringComparison.Ordinal));
@@ -1542,9 +1543,9 @@ public class IntrinsicCatalogTests
     private static async Task<Compilation> LoadMathsCompilationAsync(string? extraSource = null)
     {
         var root = Path.Combine(FindRepositoryRoot(), "Maths", "Delta.Maths.csproj");
-        using var workspace = CreateWorkspace();
-        var project = await workspace.OpenProjectAsync(root);
-        var baseCompilation = await project.GetCompilationAsync();
+        using MSBuildWorkspace workspace = CreateWorkspace();
+        Project project = await workspace.OpenProjectAsync(root);
+        Compilation? baseCompilation = await project.GetCompilationAsync();
         Assert.NotNull(baseCompilation);
 
         if (string.IsNullOrWhiteSpace(extraSource))
@@ -1552,18 +1553,18 @@ public class IntrinsicCatalogTests
             return baseCompilation!;
         }
 
-        var parseOptions = baseCompilation.SyntaxTrees.FirstOrDefault()?.Options as CSharpParseOptions
+        CSharpParseOptions parseOptions = baseCompilation.SyntaxTrees.FirstOrDefault()?.Options as CSharpParseOptions
             ?? CSharpParseOptions.Default;
-        var parsedTree = CSharpSyntaxTree.ParseText(extraSource, parseOptions);
+        SyntaxTree parsedTree = CSharpSyntaxTree.ParseText(extraSource, parseOptions);
         return baseCompilation.AddSyntaxTrees(parsedTree);
     }
 
     private static async Task<Compilation> LoadReferenceFixtureCompilationAsync()
     {
         var root = ResolveProjectPath("tests", "Delta.Shader.Compiler.ReferenceFixtures", "Delta.Shader.Compiler.ReferenceFixtures.csproj");
-        using var workspace = CreateWorkspace();
-        var project = await workspace.OpenProjectAsync(root);
-        var baseCompilation = await project.GetCompilationAsync();
+        using MSBuildWorkspace workspace = CreateWorkspace();
+        Project project = await workspace.OpenProjectAsync(root);
+        Compilation? baseCompilation = await project.GetCompilationAsync();
         Assert.NotNull(baseCompilation);
 
         return baseCompilation!;
@@ -1572,9 +1573,9 @@ public class IntrinsicCatalogTests
     private static async Task<Compilation> LoadCompilerTestProjectCompilationAsync(string extraSource)
     {
         var root = ResolveProjectPath("tests", "Delta.Shader.Compiler.Tests", "Delta.Shader.Compiler.Tests.csproj");
-        using var workspace = CreateWorkspace();
-        var project = await workspace.OpenProjectAsync(root);
-        var baseCompilation = await project.GetCompilationAsync();
+        using MSBuildWorkspace workspace = CreateWorkspace();
+        Project project = await workspace.OpenProjectAsync(root);
+        Compilation? baseCompilation = await project.GetCompilationAsync();
         Assert.NotNull(baseCompilation);
 
         if (string.IsNullOrWhiteSpace(extraSource))
@@ -1582,9 +1583,9 @@ public class IntrinsicCatalogTests
             return baseCompilation!;
         }
 
-        var parseOptions = baseCompilation.SyntaxTrees.FirstOrDefault()?.Options as CSharpParseOptions
+        CSharpParseOptions parseOptions = baseCompilation.SyntaxTrees.FirstOrDefault()?.Options as CSharpParseOptions
             ?? CSharpParseOptions.Default;
-        var parsedTree = CSharpSyntaxTree.ParseText(extraSource, parseOptions);
+        SyntaxTree parsedTree = CSharpSyntaxTree.ParseText(extraSource, parseOptions);
         return baseCompilation.AddSyntaxTrees(parsedTree);
     }
 

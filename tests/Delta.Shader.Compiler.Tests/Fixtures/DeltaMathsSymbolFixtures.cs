@@ -19,8 +19,8 @@ public static class DeltaMathsSymbolFixtures
         [ReadWriteStorageBuffer(0, 1)] ReadWriteStorageBuffer<float2> result,
         uint i)
     {
-        var v = values.Load(i);
-        var sw = v.xy;
+        float4 v = values.Load(i);
+        float2 sw = v.xy;
         result.Store(i, new float2(sw.x, sw.y));
     }
 }
