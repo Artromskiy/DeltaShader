@@ -1,13 +1,15 @@
 # Compute scenario for 0.1 MVP
 
-> Historical 0.1 sketch. It uses the retired `[ComputeShader]`/`Load` syntax
-> and is not an authoring guide. The current contract is `[DeltaCompute]` with
-> indexed resource views; see `../README.md` and `../WORKFLOW.md`.
+> Historical 0.1 sketch. The current contract is `[DeltaCompute]` with indexed
+> resource views; see `../README.md` and `../WORKFLOW.md`.
+>
+> Runtime compilation of arbitrary lambdas is intentionally outside this
+> slice; the shader source must be a static compile-time method.
 
 Input C# shader (`tests/Delta.Shader.TestShaders/VectorAdd.cs`):
 
 ```csharp
-[ComputeShader(localSizeX: 32)]
+[DeltaCompute(localSizeX: 32)]
 public static void Add(
     ReadOnlyStorageBuffer<float4> inputA,
     ReadOnlyStorageBuffer<float4> inputB,
@@ -15,7 +17,7 @@ public static void Add(
     uint3 invocation)
 {
     var idx = (uint)invocation.x;
-    output[idx] = inputA.Load(idx) + inputB.Load(idx);
+    output[idx] = inputA[idx] + inputB[idx];
 }
 ```
 

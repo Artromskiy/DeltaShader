@@ -130,12 +130,68 @@ public static class ComputeEntryPoints
             if (context.SampledTexture2DType is not null &&
                 SymbolEqualityComparer.Default.Equals(parameter.Type, context.SampledTexture2DType))
             {
-                diagnostics.Add(new ShaderDiagnostic(
-                    ShaderDiagnosticId.DSH011,
-                    $"Compute entry point parameter '{parameter.Name}' uses SampledTexture2D, but sampled textures are only supported in vertex and fragment stages.",
-                    location?.Path,
-                    location is null ? 0 : location.Value.StartLinePosition.Line + 1,
-                    location is null ? 0 : location.Value.StartLinePosition.Character + 1));
+                var textureAttribute = parameter.GetAttributes().FirstOrDefault(attribute =>
+                    SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, context.SampledTexture2DAttributeType));
+                if (textureAttribute is null || textureAttribute.ConstructorArguments.Length < 3)
+                {
+                    diagnostics.Add(new ShaderDiagnostic(
+                        ShaderDiagnosticId.DSH002,
+                        $"SampledTexture2D parameter '{parameter.Name}' requires [SampledTexture2D(set, binding, stages)].",
+                        location?.Path,
+                        location is null ? 0 : location.Value.StartLinePosition.Line + 1,
+                        location is null ? 0 : location.Value.StartLinePosition.Character + 1));
+                }
+                else if (!SupportsComputeStage(textureAttribute))
+                {
+                    diagnostics.Add(new ShaderDiagnostic(
+                        ShaderDiagnosticId.DSH011,
+                        $"SampledTexture2D parameter '{parameter.Name}' is not enabled for the compute stage.",
+                        location?.Path,
+                        location is null ? 0 : location.Value.StartLinePosition.Line + 1,
+                        location is null ? 0 : location.Value.StartLinePosition.Character + 1));
+                }
+                else
+                {
+                    var set = GetAttributeUIntArg(textureAttribute, 0);
+                    var binding = GetAttributeUIntArg(textureAttribute, 1);
+                    if (!set.HasValue || !binding.HasValue)
+                    {
+                        diagnostics.Add(new ShaderDiagnostic(
+                            ShaderDiagnosticId.DSH002,
+                            $"SampledTexture2D parameter '{parameter.Name}' requires unsigned set and binding arguments.",
+                            location?.Path,
+                            location is null ? 0 : location.Value.StartLinePosition.Line + 1,
+                            location is null ? 0 : location.Value.StartLinePosition.Character + 1));
+                        continue;
+                    }
+
+                    var key = (Set: set.Value, Binding: binding.Value);
+                    if (!seenBindings.Add(key))
+                    {
+                        diagnostics.Add(new ShaderDiagnostic(ShaderDiagnosticId.DSH005,
+                            $"Duplicate descriptor (set = {key.Set}, binding = {key.Binding}) detected for '{parameter.Name}'.",
+                            location?.Path,
+                            location is null ? 0 : location.Value.StartLinePosition.Line + 1,
+                            location is null ? 0 : location.Value.StartLinePosition.Character + 1));
+                    }
+                    else
+                    {
+                        storageBuffers[parameter] = binding.Value;
+                        resources.Add(new ShaderIrResource
+                        {
+                            Name = SanitizeName(parameter.Name),
+                            ParameterName = parameter.Name,
+                            Category = "sampled-texture",
+                            Stage = ShaderStage.Compute,
+                            Set = set.Value,
+                            Binding = binding.Value,
+                            GlslType = "sampler2D",
+                            ReadOnly = true,
+                            Access = ShaderResourceAccess.ReadOnly,
+                            Layout = "opaque"
+                        });
+                    }
+                }
                 continue;
             }
 
@@ -361,6 +417,16 @@ public static class ComputeEntryPoints
     {
         return SymbolEqualityComparer.Default.Equals(attributeType, context.ReadOnlyStorageBufferAttributeType)
             || SymbolEqualityComparer.Default.Equals(attributeType, context.ReadWriteStorageBufferAttributeType);
+    }
+
+    private static bool SupportsComputeStage(AttributeData attribute)
+    {
+        if (attribute.ConstructorArguments.Length < 3 || attribute.ConstructorArguments[2].Value is not int value)
+        {
+            return false;
+        }
+
+        return (((ShaderStageMask)value) & ShaderStageMask.Compute) != 0;
     }
 
     private static bool IsGlobalInvocationIdAttribute(

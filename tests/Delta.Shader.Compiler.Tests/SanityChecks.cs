@@ -1324,6 +1324,108 @@ public class IntrinsicCatalogTests
     }
 
     [Fact]
+    public async Task ComputeSampledTexture_LowersWithComputeStageAbi()
+    {
+        const string source = @"
+            using Delta.Maths;
+            using Delta.Shader.Abstractions;
+
+            public static class ComputeTexture
+            {
+                [DeltaCompute(localSizeX: 8)]
+                public static void Compute(
+                    [SampledTexture2D(0, 2, ShaderStageMask.Compute)] SampledTexture2D atlas,
+                    [ReadWriteStorageBuffer(0, 1)] ReadWriteStorageBuffer<float4> output,
+                    [GlobalInvocationId] uint id)
+                {
+                    output[id] = ShaderIntrinsics.SampleCompute<float2, float4>(atlas, new float2(0.5f, 0.5f));
+                }
+            }";
+
+        var result = await CompileAndValidateEntryPointAsync(source);
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        var module = Assert.IsType<Delta.Shader.Compiler.IR.ShaderIrModule>(result.Module);
+        var texture = Assert.Single(module.Resources, resource => resource.Category == "sampled-texture");
+        Assert.Equal(ShaderStage.Compute, texture.Stage);
+        Assert.Equal(0u, texture.Set);
+        Assert.Equal(2u, texture.Binding);
+        Assert.Equal(ShaderResourceAccess.ReadOnly, texture.Access);
+        Assert.Contains("texture(atlas", result.Module.Body);
+    }
+
+    [Fact]
+    public async Task ComputeSampledTexture_RejectsMissingComputeStageMask()
+    {
+        const string source = @"
+            using Delta.Shader.Abstractions;
+
+            public static class InvalidComputeTexture
+            {
+                [DeltaCompute]
+                public static void Compute([SampledTexture2D(0, 0, ShaderStageMask.Fragment)] SampledTexture2D atlas)
+                {
+                }
+            }";
+
+        var result = await CompileAndValidateEntryPointAsync(source);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH011);
+    }
+
+    [Fact]
+    public async Task ComputeStorageBufferIndexer_LowersTypedPayload()
+    {
+        const string source = @"
+            using Delta.Shader.Abstractions;
+
+            public static class IndexedPayloadCompute
+            {
+                [DeltaCompute(localSizeX: 8)]
+                public static void Compute(
+                    [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<uint> input,
+                    [ReadWriteStorageBuffer(0, 1)] ReadWriteStorageBuffer<uint> output,
+                    [GlobalInvocationId] uint id)
+                {
+                    if (id < input.Length) output[id] = input[id] * 2u + 1u;
+                }
+            }";
+
+        var result = await CompileAndValidateEntryPointAsync(source);
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        var module = Assert.IsType<Delta.Shader.Compiler.IR.ShaderIrModule>(result.Module);
+        Assert.Contains("output.data[id] = input.data[id] * 2u + 1u", module.Body);
+    }
+
+    [Fact]
+    public async Task ComputeStorageBuffer_RejectsManagedReferencePayload()
+    {
+        const string source = @"
+            using Delta.Shader.Abstractions;
+
+            public struct ManagedPayload
+            {
+                public string Label;
+                public uint Value;
+            }
+
+            public static class ManagedPayloadCompute
+            {
+                [DeltaCompute]
+                public static void Compute(
+                    [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<ManagedPayload> input)
+                {
+                }
+            }";
+
+        var result = await CompileAndValidateEntryPointAsync(source);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Id == ShaderDiagnosticId.DSH010 &&
+            diagnostic.Message.Contains("reference", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public async Task DeltaComputeGenerator_EmitsGlslManifestAndArtifactWrapper()
     {
         const string source = @"

@@ -121,6 +121,17 @@ internal sealed class ComputeShaderBodyTranslator
         reason = null;
         diagnosticId = ShaderDiagnosticId.DSH008;
 
+        if (statement is BlockSyntax block)
+        {
+            if (block.Statements.Count != 1)
+            {
+                reason = "Store block must contain a single expression statement.";
+                return false;
+            }
+
+            statement = block.Statements[0];
+        }
+
         if (statement is not ExpressionStatementSyntax exprStmt)
         {
             reason = "Store statement must be a single expression statement.";
@@ -283,157 +294,13 @@ internal sealed class ComputeShaderBodyTranslator
 
         switch (expression)
         {
-            case LiteralExpressionSyntax literal:
-            {
-                return TryTranslateNumericLiteral(literal, out translated, out reason);
-            }
-
-            case IdentifierNameSyntax identifier:
-            {
-                if (invocationParameter is not null &&
-                    identifier.Identifier.Text == invocationParameter.Name)
+            case ObjectCreationExpressionSyntax objectCreation
+                when semanticModel.GetTypeInfo(objectCreation).Type is { } objectCreationType &&
+                     _intrinsics.TryMapType(objectCreationType, out var constructorType):
                 {
-                    translated = identifier.Identifier.Text;
-                    usesBuiltin = true;
-                    return true;
-                }
-
-                reason = $"Unsupported identifier '{identifier.Identifier.Text}' in executable body.";
-                return false;
-            }
-
-            case ParenthesizedExpressionSyntax parenthesized:
-            {
-                if (TryTranslateValueExpression(parenthesized.Expression, semanticModel, invocationParameter, resourceBindings,
-                        out var inner, out var innerUsesBuiltin, out reason, out diagnosticId))
-                {
-                    translated = $"({inner})";
-                    usesBuiltin = innerUsesBuiltin;
-                    return true;
-                }
-
-                return false;
-            }
-
-            case MemberAccessExpressionSyntax memberAccess:
-            {
-                if (TryGetSymbol(memberAccess, semanticModel, out var memberSymbol) &&
-                    memberSymbol is IPropertySymbol property &&
-                    property.Name == "Length" &&
-                    property.Parameters.Length == 0 &&
-                    property.Type.SpecialType == SpecialType.System_UInt32 &&
-                    property.ContainingType.MetadataName == "ShaderStorageBuffer" &&
-                    property.ContainingType.ContainingNamespace.ToDisplayString() == "Delta.Shader.Abstractions" &&
-                    TryTranslateResourceTarget(memberAccess.Expression, semanticModel, resourceBindings, out var resourceName, out reason))
-                {
-                    translated = $"{resourceName}.data.length()";
-                    return true;
-                }
-
-                reason = "Only StorageBuffer.Length is supported as a member value in executable MVP body.";
-                return false;
-            }
-
-            case PrefixUnaryExpressionSyntax unary when unary.OperatorToken.ValueText == "-":
-            {
-                if (TryTranslateValueExpression(unary.Operand, semanticModel, invocationParameter, resourceBindings,
-                        out var inner, out var innerUsesBuiltin, out reason, out diagnosticId))
-                {
-                    translated = $"-{inner}";
-                    usesBuiltin = innerUsesBuiltin;
-                    return true;
-                }
-
-                return false;
-            }
-
-            case BinaryExpressionSyntax binary:
-            {
-                if (!TryTranslateBinaryOperator(binary.OperatorToken.ValueText, out var op))
-                {
-                    reason = $"Unsupported binary operator '{binary.OperatorToken}' in executable body.";
-                    return false;
-                }
-
-                if (!TryTranslateValueExpression(binary.Left, semanticModel, invocationParameter, resourceBindings,
-                        out var left, out var leftBuiltin, out reason, out diagnosticId))
-                {
-                    return false;
-                }
-
-                if (!TryTranslateValueExpression(binary.Right, semanticModel, invocationParameter, resourceBindings,
-                        out var right, out var rightBuiltin, out reason, out diagnosticId))
-                {
-                    return false;
-                }
-
-                translated = $"{left} {op} {right}";
-                usesBuiltin = leftBuiltin || rightBuiltin;
-                return true;
-            }
-
-            case ConditionalExpressionSyntax conditional:
-            {
-                if (!TryTranslateConditionExpression(conditional.Condition, semanticModel, invocationParameter, resourceBindings,
-                        out var condition, out var conditionUsesBuiltin, out reason, out diagnosticId))
-                {
-                    return false;
-                }
-
-                if (!TryTranslateValueExpression(conditional.WhenTrue, semanticModel, invocationParameter, resourceBindings,
-                        out var whenTrue, out var trueUsesBuiltin, out reason, out diagnosticId))
-                {
-                    return false;
-                }
-
-                if (!TryTranslateValueExpression(conditional.WhenFalse, semanticModel, invocationParameter, resourceBindings,
-                        out var whenFalse, out var falseUsesBuiltin, out reason, out diagnosticId))
-                {
-                    return false;
-                }
-
-                translated = $"({condition} ? {whenTrue} : {whenFalse})";
-                usesBuiltin = conditionUsesBuiltin || trueUsesBuiltin || falseUsesBuiltin;
-                return true;
-            }
-
-            case InvocationExpressionSyntax invocation:
-            {
-                if (TryGetSymbol(invocation, semanticModel, out var symbol) &&
-                    symbol is not null &&
-                    symbol.Name == "Load" &&
-                    symbol.Parameters.Length == 1 &&
-                    invocation.ArgumentList.Arguments.Count == 1 &&
-                    invocation.Expression is MemberAccessExpressionSyntax memberAccess)
-                {
-                    if (!TryTranslateIndexExpression(invocation.ArgumentList.Arguments[0].Expression, invocationParameter, semanticModel,
-                            out var index, out var indexUsesBuiltin, out reason))
-                    {
-                        return false;
-                    }
-
-                    if (!TryTranslateResourceTarget(memberAccess.Expression, semanticModel, resourceBindings, out var resourceName, out reason))
-                    {
-                        return false;
-                    }
-
-                    translated = $"{resourceName}.data[{index}]";
-                    usesBuiltin = indexUsesBuiltin;
-                    return true;
-                }
-
-                if (symbol is not null &&
-                    _intrinsics.TryGetIntrinsic(symbol, out var intrinsic))
-                {
-                    if (!intrinsic.SupportsStage(ShaderStage.Compute))
-                    {
-                        reason = $"Intrinsic '{symbol.Name}' is not valid in compute stage.";
-                        return false;
-                    }
-
-                    var arguments = new List<string>(invocation.ArgumentList.Arguments.Count);
-                    var intrinsicUsesBuiltin = false;
-                    foreach (var argument in invocation.ArgumentList.Arguments)
+                    var arguments = new List<string>(objectCreation.ArgumentList?.Arguments.Count ?? 0);
+                    var constructorUsesBuiltin = false;
+                    foreach (var argument in objectCreation.ArgumentList?.Arguments ?? default)
                     {
                         if (!TryTranslateValueExpression(argument.Expression, semanticModel, invocationParameter, resourceBindings,
                                 out var translatedArgument, out var argumentUsesBuiltin, out reason, out diagnosticId))
@@ -442,37 +309,211 @@ internal sealed class ComputeShaderBodyTranslator
                         }
 
                         arguments.Add(translatedArgument);
-                        intrinsicUsesBuiltin |= argumentUsesBuiltin;
+                        constructorUsesBuiltin |= argumentUsesBuiltin;
                     }
 
-                    translated = $"{intrinsic.GlslName}({string.Join(", ", arguments)})";
-                    usesBuiltin = intrinsicUsesBuiltin;
+                    translated = $"{constructorType}({string.Join(", ", arguments)})";
+                    usesBuiltin = constructorUsesBuiltin;
                     return true;
                 }
 
-                reason = "Unsupported method call in executable body.";
-                return false;
-            }
+            case LiteralExpressionSyntax literal:
+                {
+                    return TryTranslateNumericLiteral(literal, out translated, out reason);
+                }
+
+            case IdentifierNameSyntax identifier:
+                {
+                    if (invocationParameter is not null &&
+                        identifier.Identifier.Text == invocationParameter.Name)
+                    {
+                        translated = identifier.Identifier.Text;
+                        usesBuiltin = true;
+                        return true;
+                    }
+
+                    if (semanticModel.GetSymbolInfo(identifier).Symbol is IParameterSymbol resourceParameter &&
+                        resourceBindings.ContainsKey(resourceParameter))
+                    {
+                        translated = identifier.Identifier.Text;
+                        return true;
+                    }
+
+                    reason = $"Unsupported identifier '{identifier.Identifier.Text}' in executable body.";
+                    return false;
+                }
+
+            case ParenthesizedExpressionSyntax parenthesized:
+                {
+                    if (TryTranslateValueExpression(parenthesized.Expression, semanticModel, invocationParameter, resourceBindings,
+                            out var inner, out var innerUsesBuiltin, out reason, out diagnosticId))
+                    {
+                        translated = $"({inner})";
+                        usesBuiltin = innerUsesBuiltin;
+                        return true;
+                    }
+
+                    return false;
+                }
+
+            case MemberAccessExpressionSyntax memberAccess:
+                {
+                    if (TryGetSymbol(memberAccess, semanticModel, out var memberSymbol) &&
+                        memberSymbol is IPropertySymbol property &&
+                        property.Name == "Length" &&
+                        property.Parameters.Length == 0 &&
+                        property.Type.SpecialType == SpecialType.System_UInt32 &&
+                        property.ContainingType.MetadataName == "ShaderStorageBuffer" &&
+                        property.ContainingType.ContainingNamespace.ToDisplayString() == "Delta.Shader.Abstractions" &&
+                        TryTranslateResourceTarget(memberAccess.Expression, semanticModel, resourceBindings, out var resourceName, out reason))
+                    {
+                        translated = $"{resourceName}.data.length()";
+                        return true;
+                    }
+
+                    reason = "Only StorageBuffer.Length is supported as a member value in executable MVP body.";
+                    return false;
+                }
+
+            case PrefixUnaryExpressionSyntax unary when unary.OperatorToken.ValueText == "-":
+                {
+                    if (TryTranslateValueExpression(unary.Operand, semanticModel, invocationParameter, resourceBindings,
+                            out var inner, out var innerUsesBuiltin, out reason, out diagnosticId))
+                    {
+                        translated = $"-{inner}";
+                        usesBuiltin = innerUsesBuiltin;
+                        return true;
+                    }
+
+                    return false;
+                }
+
+            case BinaryExpressionSyntax binary:
+                {
+                    if (!TryTranslateBinaryOperator(binary.OperatorToken.ValueText, out var op))
+                    {
+                        reason = $"Unsupported binary operator '{binary.OperatorToken}' in executable body.";
+                        return false;
+                    }
+
+                    if (!TryTranslateValueExpression(binary.Left, semanticModel, invocationParameter, resourceBindings,
+                            out var left, out var leftBuiltin, out reason, out diagnosticId))
+                    {
+                        return false;
+                    }
+
+                    if (!TryTranslateValueExpression(binary.Right, semanticModel, invocationParameter, resourceBindings,
+                            out var right, out var rightBuiltin, out reason, out diagnosticId))
+                    {
+                        return false;
+                    }
+
+                    translated = $"{left} {op} {right}";
+                    usesBuiltin = leftBuiltin || rightBuiltin;
+                    return true;
+                }
+
+            case ConditionalExpressionSyntax conditional:
+                {
+                    if (!TryTranslateConditionExpression(conditional.Condition, semanticModel, invocationParameter, resourceBindings,
+                            out var condition, out var conditionUsesBuiltin, out reason, out diagnosticId))
+                    {
+                        return false;
+                    }
+
+                    if (!TryTranslateValueExpression(conditional.WhenTrue, semanticModel, invocationParameter, resourceBindings,
+                            out var whenTrue, out var trueUsesBuiltin, out reason, out diagnosticId))
+                    {
+                        return false;
+                    }
+
+                    if (!TryTranslateValueExpression(conditional.WhenFalse, semanticModel, invocationParameter, resourceBindings,
+                            out var whenFalse, out var falseUsesBuiltin, out reason, out diagnosticId))
+                    {
+                        return false;
+                    }
+
+                    translated = $"({condition} ? {whenTrue} : {whenFalse})";
+                    usesBuiltin = conditionUsesBuiltin || trueUsesBuiltin || falseUsesBuiltin;
+                    return true;
+                }
+
+            case InvocationExpressionSyntax invocation:
+                {
+                    if (TryGetSymbol(invocation, semanticModel, out var symbol) &&
+                        symbol is not null &&
+                        symbol.Name == "Load" &&
+                        symbol.Parameters.Length == 1 &&
+                        invocation.ArgumentList.Arguments.Count == 1 &&
+                        invocation.Expression is MemberAccessExpressionSyntax memberAccess)
+                    {
+                        if (!TryTranslateIndexExpression(invocation.ArgumentList.Arguments[0].Expression, invocationParameter, semanticModel,
+                                out var index, out var indexUsesBuiltin, out reason))
+                        {
+                            return false;
+                        }
+
+                        if (!TryTranslateResourceTarget(memberAccess.Expression, semanticModel, resourceBindings, out var resourceName, out reason))
+                        {
+                            return false;
+                        }
+
+                        translated = $"{resourceName}.data[{index}]";
+                        usesBuiltin = indexUsesBuiltin;
+                        return true;
+                    }
+
+                    if (symbol is not null &&
+                        _intrinsics.TryGetIntrinsic(symbol, out var intrinsic))
+                    {
+                        if (!intrinsic.SupportsStage(ShaderStage.Compute))
+                        {
+                            reason = $"Intrinsic '{symbol.Name}' is not valid in compute stage.";
+                            return false;
+                        }
+
+                        var arguments = new List<string>(invocation.ArgumentList.Arguments.Count);
+                        var intrinsicUsesBuiltin = false;
+                        foreach (var argument in invocation.ArgumentList.Arguments)
+                        {
+                            if (!TryTranslateValueExpression(argument.Expression, semanticModel, invocationParameter, resourceBindings,
+                                    out var translatedArgument, out var argumentUsesBuiltin, out reason, out diagnosticId))
+                            {
+                                return false;
+                            }
+
+                            arguments.Add(translatedArgument);
+                            intrinsicUsesBuiltin |= argumentUsesBuiltin;
+                        }
+
+                        translated = $"{intrinsic.GlslName}({string.Join(", ", arguments)})";
+                        usesBuiltin = intrinsicUsesBuiltin;
+                        return true;
+                    }
+
+                    reason = "Unsupported method call in executable body.";
+                    return false;
+                }
 
             case ElementAccessExpressionSyntax elementAccess:
-            {
-                if (elementAccess.ArgumentList.Arguments.Count != 1 ||
-                    !TryTranslateIndexExpression(elementAccess.ArgumentList.Arguments[0].Expression, invocationParameter, semanticModel,
-                        out var index, out var indexUsesBuiltin, out reason))
                 {
-                    reason ??= "Indexed storage-buffer access requires exactly one index.";
-                    return false;
-                }
+                    if (elementAccess.ArgumentList.Arguments.Count != 1 ||
+                        !TryTranslateIndexExpression(elementAccess.ArgumentList.Arguments[0].Expression, invocationParameter, semanticModel,
+                            out var index, out var indexUsesBuiltin, out reason))
+                    {
+                        reason ??= "Indexed storage-buffer access requires exactly one index.";
+                        return false;
+                    }
 
-                if (!TryTranslateResourceTarget(elementAccess.Expression, semanticModel, resourceBindings, out var bufferName, out reason))
-                {
-                    return false;
-                }
+                    if (!TryTranslateResourceTarget(elementAccess.Expression, semanticModel, resourceBindings, out var bufferName, out reason))
+                    {
+                        return false;
+                    }
 
-                translated = $"{bufferName}.data[{index}]";
-                usesBuiltin = indexUsesBuiltin;
-                return true;
-            }
+                    translated = $"{bufferName}.data[{index}]";
+                    usesBuiltin = indexUsesBuiltin;
+                    return true;
+                }
 
             default:
                 reason = "Unsupported expression in executable body.";

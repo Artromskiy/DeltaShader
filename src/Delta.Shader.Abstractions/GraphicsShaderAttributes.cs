@@ -105,4 +105,8 @@ public static class ShaderIntrinsics
     [ShaderIntrinsic("texture", ShaderStage.Fragment)]
     public static TColor SampleFragment<TCoordinate, TColor>(SampledTexture2D texture, TCoordinate coordinate)
         => throw new NotSupportedException();
+
+    [ShaderIntrinsic("texture", ShaderStage.Compute)]
+    public static TColor SampleCompute<TCoordinate, TColor>(SampledTexture2D texture, TCoordinate coordinate)
+        => throw new NotSupportedException();
 }

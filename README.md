@@ -46,6 +46,15 @@ virtual/interface dispatch are analyzer errors.
 Runtime values are explicit resources or constants, not implicit closure
 captures. The source generator emits typed artifact wrappers; the CLI publishes
 `.glsl`, `.spv` and `.shader.json` files so consumers need no Roslyn/MSBuild.
+Arbitrary runtime lambda compilation is not implemented: a `Delegate` or
+expression tree is never transpiled at runtime. Use a static `[DeltaCompute]`
+method in the compile-time authoring project.
+
+Compute shaders may declare a `[SampledTexture2D(set, binding, ShaderStageMask.Compute)]`
+resource and sample it through `ShaderIntrinsics.SampleCompute<TCoordinate, TColor>`.
+Generic storage buffers expose indexed access (`buffer[index]`) as the canonical
+authoring form; `Load`/`Store` remain compatibility members. Texture resources are
+opaque combined samplers supplied by the runtime and do not expose CPU storage.
 
 Maths mapping comes only from its generated `shader-contract.json` and Roslyn
 symbol identity. Source entry names stay in metadata while Vulkan entry points

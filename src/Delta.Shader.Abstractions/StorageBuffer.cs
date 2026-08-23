@@ -37,6 +37,8 @@ public sealed class ReadWriteStorageBuffer : ShaderStorageBuffer
 
 public abstract class ShaderStorageBuffer<T> : ShaderStorageBuffer where T : unmanaged
 {
+    public virtual T this[uint index] => throw new NotSupportedException(
+        "Shader-only buffer access path. CPU usage is blocked by design for Delta.Shader compute prototype.");
     public abstract T Load(uint index);
     public virtual void Store(uint index, T value) => throw new NotSupportedException(
         "Shader-only buffer access path. CPU usage is blocked by design for Delta.Shader compute prototype.");
@@ -44,7 +46,7 @@ public abstract class ShaderStorageBuffer<T> : ShaderStorageBuffer where T : unm
 
 public sealed class ReadOnlyStorageBuffer<T> : ShaderStorageBuffer<T> where T : unmanaged
 {
-    public T this[uint index]
+    public override T this[uint index]
     {
         get => throw new NotSupportedException(
             "Shader-only buffer access path. CPU usage is blocked by design for Delta.Shader compute prototype.");
@@ -59,7 +61,7 @@ public sealed class ReadOnlyStorageBuffer<T> : ShaderStorageBuffer<T> where T : 
 
 public sealed class ReadWriteStorageBuffer<T> : ShaderStorageBuffer<T> where T : unmanaged
 {
-    public T this[uint index]
+    public new T this[uint index]
     {
         get => throw new NotSupportedException(
             "Shader-only buffer access path. CPU usage is blocked by design for Delta.Shader compute prototype.");
