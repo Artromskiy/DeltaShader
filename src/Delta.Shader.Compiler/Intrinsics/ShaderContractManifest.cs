@@ -49,7 +49,8 @@ public sealed class ShaderContractType
     public string? GlslName { get; set; }
 
     [JsonPropertyName("mapping")]
-    public string Mapping { get; set; } = "Unsupported";
+    [JsonConverter(typeof(ShaderContractMappingJsonConverter))]
+    public ShaderContractMapping Mapping { get; set; } = ShaderContractMapping.Unsupported;
 
     [JsonPropertyName("columnMajor")]
     public bool? ColumnMajor { get; set; }
@@ -86,7 +87,8 @@ public sealed class ShaderContractFunction
     public string? GlslName { get; set; }
 
     [JsonPropertyName("mapping")]
-    public string Mapping { get; set; } = "Unsupported";
+    [JsonConverter(typeof(ShaderContractMappingJsonConverter))]
+    public ShaderContractMapping Mapping { get; set; } = ShaderContractMapping.Unsupported;
 
     [JsonPropertyName("requiredCapability")]
     public string? RequiredCapability { get; set; }

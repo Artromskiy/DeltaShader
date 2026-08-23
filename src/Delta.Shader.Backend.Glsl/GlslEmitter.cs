@@ -19,6 +19,11 @@ public static class GlslEmitter
 {
     public static GlslEmitResult EmitFromModule(ShaderIrModule module)
     {
+        if (module is null)
+        {
+            throw new ArgumentNullException(nameof(module));
+        }
+
         var sb = new StringBuilder();
         sb.AppendLine("#version 460");
         if (module.Stage == ShaderStage.Compute)
@@ -97,7 +102,7 @@ public static class GlslEmitter
         var identifierMap = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var resource in module.Resources)
         {
-            if (string.Equals(resource.Category, "sampled-texture", StringComparison.Ordinal))
+            if (resource.Category == ShaderResourceKind.SampledTexture2D)
             {
                 var samplerName = identifiers.Mangle(resource.Name, "sampledTexture");
                 sb.AppendLine($"layout(set = {resource.Set}, binding = {resource.Binding}) uniform sampler2D {samplerName};");

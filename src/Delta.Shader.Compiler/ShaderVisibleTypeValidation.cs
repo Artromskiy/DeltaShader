@@ -26,6 +26,11 @@ public static class ShaderVisibleTypeValidation
         ITypeSymbol rootType,
         ISymbol? rootSymbol = null)
     {
+        if (rootType is null)
+        {
+            throw new ArgumentNullException(nameof(rootType));
+        }
+
         var issues = new List<ShaderVisibleTypeIssue>();
         Visit(
             rootType,
@@ -38,6 +43,16 @@ public static class ShaderVisibleTypeValidation
 
     public static ITypeSymbol GetVisibleRootType(IParameterSymbol parameter, Compilation compilation)
     {
+        if (parameter is null)
+        {
+            throw new ArgumentNullException(nameof(parameter));
+        }
+
+        if (compilation is null)
+        {
+            throw new ArgumentNullException(nameof(compilation));
+        }
+
         if (parameter.Type is INamedTypeSymbol namedType)
         {
             var readOnlyBuffer = compilation.GetTypeByMetadataName(

@@ -73,7 +73,7 @@ public sealed class ShaderIrResource
 {
     public string Name { get; init; } = string.Empty;
     public string ParameterName { get; init; } = string.Empty;
-    public string Category { get; init; } = string.Empty;
+    public ShaderResourceKind Category { get; init; } = ShaderResourceKind.Unknown;
     public ShaderStage Stage { get; init; }
     public uint Set { get; init; }
     public uint Binding { get; init; }

@@ -192,7 +192,7 @@ internal static class GraphicsEntryPoints
                         {
                             Name = parameter.Name,
                             ParameterName = parameter.Name,
-                            Category = "storage-buffer",
+                            Category = ShaderResourceKind.StorageBuffer,
                             Stage = stage,
                             Set = set,
                             Binding = binding,
@@ -335,7 +335,7 @@ internal static class GraphicsEntryPoints
                         {
                             Name = parameter.Name,
                             ParameterName = parameter.Name,
-                            Category = "sampled-texture",
+                            Category = ShaderResourceKind.SampledTexture2D,
                             Stage = stage,
                             Set = set,
                             Binding = binding,

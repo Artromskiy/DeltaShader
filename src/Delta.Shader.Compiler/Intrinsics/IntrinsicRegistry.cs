@@ -47,6 +47,11 @@ public sealed class IntrinsicRegistry
 
     public static IntrinsicRegistry Build(Compilation compilation, ShaderContractManifest? contract = null)
     {
+        if (compilation is null)
+        {
+            throw new ArgumentNullException(nameof(compilation));
+        }
+
         contract ??= ShaderContractManifest.LoadEmbedded();
 
         var methods = new Dictionary<ISymbol, IntrinsicBinding>(SymbolEqualityComparer.Default);
@@ -112,9 +117,8 @@ public sealed class IntrinsicRegistry
     private static string FullName(ShaderContractManifest contract, string typeName)
         => contract.Namespace + "." + typeName;
 
-    private static bool IsSupportedMapping(string mapping)
-        => string.Equals(mapping, "Builtin", StringComparison.Ordinal) ||
-           string.Equals(mapping, "Helper", StringComparison.Ordinal);
+    private static bool IsSupportedMapping(ShaderContractMapping mapping)
+        => mapping is ShaderContractMapping.Builtin or ShaderContractMapping.Helper;
 
     private static void RegisterTypeMembers(
         Dictionary<ISymbol, IntrinsicBinding> methods,

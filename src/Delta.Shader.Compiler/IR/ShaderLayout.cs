@@ -62,10 +62,15 @@ public sealed class ShaderManifest
 
     public static ShaderManifest FromModule(ShaderIrModule module)
     {
+        if (module is null)
+        {
+            throw new ArgumentNullException(nameof(module));
+        }
+
         var resources = new List<ShaderResourceManifest>(module.Resources.Count);
         foreach (var resource in module.Resources)
         {
-            var opaque = string.Equals(resource.Category, "sampled-texture", StringComparison.Ordinal);
+            var opaque = resource.Category == ShaderResourceKind.SampledTexture2D;
             var layout = opaque ? null : resource.Std430Layout;
             resources.Add(new ShaderResourceManifest
             {
@@ -185,6 +190,11 @@ public sealed class ShaderManifest
 
     public ShaderAbiManifest ToAbiManifest(ShaderCompilationOptions options)
     {
+        if (options is null)
+        {
+            throw new ArgumentNullException(nameof(options));
+        }
+
         var resources = new List<ShaderAbiResource>(Resources.Count);
         foreach (var resource in Resources)
         {
@@ -192,7 +202,7 @@ public sealed class ShaderManifest
             {
                 Name = resource.Name,
                 ParameterName = resource.ParameterName,
-                Category = resource.Category,
+                Category = resource.Category.ToMetadataName(),
                 Stage = resource.Stage,
                 Set = resource.Set,
                 Binding = resource.Binding,
@@ -205,7 +215,7 @@ public sealed class ShaderManifest
                 Size = resource.Size,
                 ArrayStride = resource.ArrayStride,
                 MatrixStride = resource.MatrixStride,
-                Packing = string.Equals(resource.Category, "sampled-texture", StringComparison.Ordinal)
+                Packing = resource.Category == ShaderResourceKind.SampledTexture2D
                     ? new ShaderAbiPackingPlan { Scheme = "none", Strategy = "opaque-resource", Stride = 0 }
                     : new ShaderAbiPackingPlan { Stride = resource.ArrayStride },
                 Members = resource.Members.Select(member => new ShaderAbiMember
@@ -411,7 +421,7 @@ public sealed class ShaderResourceManifest
 {
     public string Name { get; init; } = string.Empty;
     public string ParameterName { get; init; } = string.Empty;
-    public string Category { get; init; } = string.Empty;
+    public ShaderResourceKind Category { get; init; } = ShaderResourceKind.Unknown;
     public ShaderStage Stage { get; init; }
     public uint Set { get; init; }
     public uint Binding { get; init; }

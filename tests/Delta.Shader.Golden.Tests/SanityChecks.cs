@@ -109,7 +109,7 @@ public class SanityChecks
                 {
                     Name = "scene",
                     ParameterName = "scene",
-                    Category = "storage-buffer",
+                    Category = ShaderResourceKind.StorageBuffer,
                     Stage = ShaderStage.Vertex,
                     Set = 0,
                     Binding = 0,
@@ -123,7 +123,7 @@ public class SanityChecks
                 {
                     Name = "albedo",
                     ParameterName = "albedo",
-                    Category = "sampled-texture",
+                    Category = ShaderResourceKind.SampledTexture2D,
                     Stage = ShaderStage.Vertex,
                     Set = 0,
                     Binding = 1,
@@ -174,7 +174,7 @@ public class SanityChecks
                 {
                     Name = "input",
                     ParameterName = "input",
-                    Category = "storage-buffer",
+                    Category = ShaderResourceKind.StorageBuffer,
                     Set = 0,
                     Binding = 0,
                     GlslType = "vec4",
@@ -186,7 +186,7 @@ public class SanityChecks
                 {
                     Name = "output",
                     ParameterName = "output",
-                    Category = "storage-buffer",
+                    Category = ShaderResourceKind.StorageBuffer,
                     Set = 0,
                     Binding = 1,
                     GlslType = "float",
@@ -235,7 +235,7 @@ public class SanityChecks
                 {
                     Name = "if",
                     ParameterName = "if",
-                    Category = "storage-buffer",
+                    Category = ShaderResourceKind.StorageBuffer,
                     Set = 0,
                     Binding = 0,
                     GlslType = "uint",
@@ -245,7 +245,7 @@ public class SanityChecks
                 {
                     Name = "if",
                     ParameterName = "if2",
-                    Category = "storage-buffer",
+                    Category = ShaderResourceKind.StorageBuffer,
                     Set = 0,
                     Binding = 1,
                     GlslType = "uint",
@@ -304,7 +304,7 @@ public class SanityChecks
                 {
                     Name = "values",
                     ParameterName = "values",
-                    Category = "storage-buffer",
+                    Category = ShaderResourceKind.StorageBuffer,
                     Set = 2,
                     Binding = 3,
                     GlslType = "vec3",
@@ -390,7 +390,7 @@ public class SanityChecks
                 {
                     Name = "scene",
                     ParameterName = "scene",
-                    Category = "storage-buffer",
+                    Category = ShaderResourceKind.StorageBuffer,
                     Stage = ShaderStage.Vertex,
                     Set = 0,
                     Binding = 0,
@@ -521,7 +521,7 @@ public class SanityChecks
                 {
                     Name = "records",
                     ParameterName = "records",
-                    Category = "storage-buffer",
+                    Category = ShaderResourceKind.StorageBuffer,
                     Set = 0,
                     Binding = 0,
                     GlslType = "DeltaStruct_TransformRecord",

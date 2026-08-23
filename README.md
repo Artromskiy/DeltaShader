@@ -15,6 +15,13 @@ compute-dispatch contracts. It depends on neither Roslyn nor Vulkan.
 DeltaRender consumes this contract and must not define another manifest or
 graphics-program type.
 
+Closed resource categories use `ShaderResourceKind` inside the compiler and
+IR. The serialized `ShaderAbiResource.Category` field keeps its legacy
+`storage-buffer`/`sampled-texture` wire names for consumer compatibility;
+adapter code can map it with `ShaderResourceKindExtensions`, which returns
+`Unknown` for future values. GLSL names, CLR symbol names and profile/version
+strings remain strings because they are extensible identifiers.
+
 Storage and shared structures use std430. The manifest is authoritative for
 offset, alignment, size, array stride and matrix stride. Storage `bool` is four
 bytes; CLR `float3[]` must be packed according to the manifest rather than

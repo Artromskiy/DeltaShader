@@ -181,7 +181,7 @@ public static class ComputeEntryPoints
                         {
                             Name = SanitizeName(parameter.Name),
                             ParameterName = parameter.Name,
-                            Category = "sampled-texture",
+                            Category = ShaderResourceKind.SampledTexture2D,
                             Stage = ShaderStage.Compute,
                             Set = set.Value,
                             Binding = binding.Value,
@@ -340,7 +340,7 @@ public static class ComputeEntryPoints
         {
             Name = SanitizeName(parameter.Name),
             ParameterName = parameter.Name,
-            Category = "storage-buffer",
+            Category = ShaderResourceKind.StorageBuffer,
             Set = key.Set,
             Binding = key.Binding,
             GlslType = elementGlslType,

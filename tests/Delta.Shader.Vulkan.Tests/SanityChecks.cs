@@ -34,7 +34,7 @@ public class SanityChecks
                 {
                     Name = "input",
                     ParameterName = "input",
-                    Category = "storage-buffer",
+                    Category = ShaderResourceKind.StorageBuffer,
                     Set = 0,
                     Binding = 0,
                     GlslType = "float",
@@ -44,7 +44,7 @@ public class SanityChecks
                 {
                     Name = "output",
                     ParameterName = "output",
-                    Category = "storage-buffer",
+                    Category = ShaderResourceKind.StorageBuffer,
                     Set = 0,
                     Binding = 1,
                     GlslType = "float",
@@ -93,7 +93,7 @@ public class SanityChecks
                 {
                     Name = "atlas",
                     ParameterName = "atlas",
-                    Category = "sampled-texture",
+                    Category = ShaderResourceKind.SampledTexture2D,
                     Set = 0,
                     Binding = 3,
                     GlslType = "sampler2D",
@@ -166,7 +166,7 @@ public class SanityChecks
                 {
                     Name = "glyphs",
                     ParameterName = "glyphs",
-                    Category = "storage-buffer",
+                    Category = ShaderResourceKind.StorageBuffer,
                     Stage = ShaderStage.Vertex,
                     Set = 0,
                     Binding = 0,
@@ -264,7 +264,7 @@ public class SanityChecks
                 {
                     Name = "atlas",
                     ParameterName = "atlas",
-                    Category = "sampled-texture",
+                    Category = ShaderResourceKind.SampledTexture2D,
                     Stage = ShaderStage.Fragment,
                     Set = 0,
                     Binding = 3,
@@ -359,7 +359,7 @@ public class SanityChecks
                 {
                     Name = "scene",
                     ParameterName = "scene",
-                    Category = "storage-buffer",
+                    Category = ShaderResourceKind.StorageBuffer,
                     Stage = ShaderStage.Vertex,
                     Set = 0,
                     Binding = 0,
@@ -404,7 +404,7 @@ public class SanityChecks
                 {
                     Name = "scene",
                     ParameterName = "scene",
-                    Category = "storage-buffer",
+                    Category = ShaderResourceKind.StorageBuffer,
                     Stage = ShaderStage.Fragment,
                     Set = 0,
                     Binding = 0,
@@ -418,7 +418,7 @@ public class SanityChecks
                 {
                     Name = "albedo",
                     ParameterName = "albedo",
-                    Category = "sampled-texture",
+                    Category = ShaderResourceKind.SampledTexture2D,
                     Stage = ShaderStage.Fragment,
                     Set = 0,
                     Binding = 1,

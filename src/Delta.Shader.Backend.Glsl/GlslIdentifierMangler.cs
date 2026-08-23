@@ -14,6 +14,11 @@ public sealed class GlslIdentifierMangler
 
     public GlslIdentifierMangler(params string[] generatedNames)
     {
+        if (generatedNames is null)
+        {
+            throw new ArgumentNullException(nameof(generatedNames));
+        }
+
         foreach (var name in generatedNames)
         {
             if (!string.IsNullOrWhiteSpace(name))
@@ -25,6 +30,11 @@ public sealed class GlslIdentifierMangler
 
     public string Mangle(string? rawName, string fallback = "identifier")
     {
+        if (fallback is null)
+        {
+            throw new ArgumentNullException(nameof(fallback));
+        }
+
         var candidate = NormalizeAscii(rawName, fallback);
         if (IsReserved(candidate))
         {

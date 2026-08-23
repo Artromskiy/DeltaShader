@@ -1,3 +1,4 @@
+using System;
 using Delta.Shader.Compiler.IR;
 using Delta.Shader.Abstractions;
 using System.Collections.Generic;
@@ -12,6 +13,11 @@ public static class ShaderCompiler
         Compilation compilation,
         ShaderCompilationOptions? options = null)
     {
+        if (compilation is null)
+        {
+            throw new ArgumentNullException(nameof(compilation));
+        }
+
         var context = new ModuleCompilationContext(compilation);
         var frontend = new RoslynFrontend(compilation);
         return ComputeEntryPoints.ValidateAndBuild(context, frontend, options);
@@ -21,6 +27,11 @@ public static class ShaderCompiler
         Compilation compilation,
         ShaderCompilationOptions? options = null)
     {
+        if (compilation is null)
+        {
+            throw new ArgumentNullException(nameof(compilation));
+        }
+
         var context = new ModuleCompilationContext(compilation);
         var frontend = new RoslynFrontend(compilation);
         var entries = frontend.FindShaderEntryPoints();

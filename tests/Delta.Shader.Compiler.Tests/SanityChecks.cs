@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Delta.Maths;
 using Delta.Shader.Abstractions;
@@ -31,6 +32,38 @@ public class IntrinsicCatalogTests
         public HostTransformBase Base;
         public quaternion Rotation;
         public float4x4 Transform;
+    }
+
+    [Fact]
+    public void ClosedMetadata_UsesTypedKinds_AndPreservesWireNames()
+    {
+        var manifest = new ShaderAbiManifest
+        {
+            Resources =
+            [
+                new ShaderAbiResource
+                {
+                    Name = "values",
+                    Category = "storage-buffer"
+                }
+            ]
+        };
+
+        var json = JsonSerializer.Serialize(manifest);
+        Assert.Contains("\"Category\":\"storage-buffer\"", json, StringComparison.Ordinal);
+
+        var roundTrip = JsonSerializer.Deserialize<ShaderAbiManifest>(json);
+        Assert.NotNull(roundTrip);
+        Assert.Equal(ShaderResourceKind.StorageBuffer, ShaderResourceKindExtensions.ParseMetadataName(Assert.Single(roundTrip.Resources).Category));
+
+        var unknownResourceJson = json.Replace("storage-buffer", "future-resource", StringComparison.Ordinal);
+        var unknownResourceManifest = JsonSerializer.Deserialize<ShaderAbiManifest>(unknownResourceJson);
+        Assert.NotNull(unknownResourceManifest);
+        Assert.Equal(ShaderResourceKind.Unknown, ShaderResourceKindExtensions.ParseMetadataName(Assert.Single(unknownResourceManifest.Resources).Category));
+
+        var unknownMapping = JsonSerializer.Deserialize<ShaderContractType>("{\"mapping\":\"future-mapping\"}");
+        Assert.NotNull(unknownMapping);
+        Assert.Equal(ShaderContractMapping.Unknown, unknownMapping.Mapping);
     }
 
     [Fact]
@@ -222,8 +255,8 @@ public class IntrinsicCatalogTests
 
         Assert.Equal("mat4", matrixType.GlslName);
         Assert.Equal("vec4", quaternionType.GlslName);
-        Assert.Equal("Builtin", matrixType.Mapping);
-        Assert.Equal("Builtin", quaternionType.Mapping);
+        Assert.Equal(ShaderContractMapping.Builtin, matrixType.Mapping);
+        Assert.Equal(ShaderContractMapping.Builtin, quaternionType.Mapping);
 
         IMethodSymbol matrixMultiply = matrix.GetMembers().OfType<IMethodSymbol>().Single(method =>
             method.MethodKind == MethodKind.UserDefinedOperator &&
@@ -250,7 +283,7 @@ public class IntrinsicCatalogTests
         var contract = new ShaderContractManifest
         {
             Namespace = "Delta.Maths",
-            Types = [new ShaderContractType { ClrName = "float2", GlslName = "vec2", Mapping = "Unsupported" }],
+            Types = [new ShaderContractType { ClrName = "float2", GlslName = "vec2", Mapping = ShaderContractMapping.Unsupported }],
             Functions = [new ShaderContractFunction
             {
                 TypeClrName = "maths",
@@ -258,7 +291,7 @@ public class IntrinsicCatalogTests
                 ReturnClrName = "float",
                 ParameterClrNames = ["float"],
                 GlslName = "sin",
-                Mapping = "Unsupported"
+                Mapping = ShaderContractMapping.Unsupported
             }]
         };
 
@@ -897,7 +930,7 @@ public class IntrinsicCatalogTests
         Assert.Equal(24u, module.VertexBuffers[0].Attributes[2].ByteOffset);
 
         ShaderIrResource resource = Assert.Single(module.Resources);
-        Assert.Equal("storage-buffer", resource.Category);
+        Assert.Equal(ShaderResourceKind.StorageBuffer, resource.Category);
         Assert.Equal(ShaderResourceAccess.ReadOnly, resource.Access);
         Assert.Equal(0u, resource.Set);
         Assert.Equal(0u, resource.Binding);
@@ -1347,7 +1380,7 @@ public class IntrinsicCatalogTests
         ShaderCompilationResult result = await CompileAndValidateEntryPointAsync(source).ConfigureAwait(true);
         Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
         ShaderIrModule module = Assert.IsType<Delta.Shader.Compiler.IR.ShaderIrModule>(result.Module);
-        ShaderIrResource texture = Assert.Single(module.Resources, resource => resource.Category == "sampled-texture");
+        ShaderIrResource texture = Assert.Single(module.Resources, resource => resource.Category == ShaderResourceKind.SampledTexture2D);
         Assert.Equal(ShaderStage.Compute, texture.Stage);
         Assert.Equal(0u, texture.Set);
         Assert.Equal(2u, texture.Binding);
