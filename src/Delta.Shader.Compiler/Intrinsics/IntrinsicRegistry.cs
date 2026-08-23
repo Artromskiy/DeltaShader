@@ -236,9 +236,9 @@ public sealed class IntrinsicRegistry
                 continue;
             }
 
-                methods[method] = new IntrinsicBinding(
-                    IntrinsicCategory.Function,
-                    string.Equals(method.Name, "smoothStep", StringComparison.Ordinal) ? "smoothstep" : method.Name);
+            methods[method] = new IntrinsicBinding(
+                IntrinsicCategory.Function,
+                string.Equals(method.Name, "smoothStep", StringComparison.Ordinal) ? "smoothstep" : method.Name);
         }
     }
 

@@ -120,15 +120,26 @@ public sealed class ShaderManifest
             Resources = resources,
             Inputs = module.Inputs.Select(variable => new ShaderInterfaceManifest
             {
-                Name = variable.Name, ParameterName = variable.ParameterName, GlslName = variable.GlslName,
-                GlslType = variable.GlslType, Location = variable.Location, Builtin = variable.Builtin
+                Name = variable.Name,
+                ParameterName = variable.ParameterName,
+                GlslName = variable.GlslName,
+                GlslType = variable.GlslType,
+                Location = variable.Location,
+                Builtin = variable.Builtin
             }).ToArray(),
             VertexInputs = module.VertexInputs.Select(variable => new ShaderVertexInputManifest
             {
-                Name = variable.Name, ParameterName = variable.ParameterName, GlslName = variable.GlslName,
-                GlslType = variable.GlslType, Location = variable.Location, Binding = variable.Binding,
-                ByteOffset = variable.ByteOffset, InputRate = variable.InputRate, ByteSize = variable.ByteSize,
-                Alignment = variable.Alignment, FormatHint = variable.FormatHint
+                Name = variable.Name,
+                ParameterName = variable.ParameterName,
+                GlslName = variable.GlslName,
+                GlslType = variable.GlslType,
+                Location = variable.Location,
+                Binding = variable.Binding,
+                ByteOffset = variable.ByteOffset,
+                InputRate = variable.InputRate,
+                ByteSize = variable.ByteSize,
+                Alignment = variable.Alignment,
+                FormatHint = variable.FormatHint
             }).ToArray(),
             VertexBufferBindings = module.VertexBuffers.Select(binding => new ShaderVertexBufferBindingManifest
             {
@@ -152,13 +163,21 @@ public sealed class ShaderManifest
             }).ToArray(),
             Outputs = module.Outputs.Select(variable => new ShaderInterfaceManifest
             {
-                Name = variable.Name, ParameterName = variable.ParameterName, GlslName = variable.GlslName,
-                GlslType = variable.GlslType, Location = variable.Location, Builtin = variable.Builtin
+                Name = variable.Name,
+                ParameterName = variable.ParameterName,
+                GlslName = variable.GlslName,
+                GlslType = variable.GlslType,
+                Location = variable.Location,
+                Builtin = variable.Builtin
             }).ToArray(),
             PushConstants = module.PushConstants.Select(push => new ShaderPushConstantManifest
             {
-                Name = push.Name, ParameterName = push.ParameterName, GlslType = push.GlslType,
-                Alignment = push.Alignment, Size = push.Size, ArrayStride = push.ArrayStride,
+                Name = push.Name,
+                ParameterName = push.ParameterName,
+                GlslType = push.GlslType,
+                Alignment = push.Alignment,
+                Size = push.Size,
+                ArrayStride = push.ArrayStride,
                 Members = push.Members.Select(ToManifestMember).ToArray()
             }).ToArray()
         };
@@ -236,15 +255,26 @@ public sealed class ShaderManifest
             Resources = resources,
             Inputs = Inputs.Select(variable => new ShaderAbiInterfaceVariable
             {
-                Name = variable.Name, ParameterName = variable.ParameterName, GlslName = variable.GlslName,
-                GlslType = variable.GlslType, Location = variable.Location, Builtin = variable.Builtin
+                Name = variable.Name,
+                ParameterName = variable.ParameterName,
+                GlslName = variable.GlslName,
+                GlslType = variable.GlslType,
+                Location = variable.Location,
+                Builtin = variable.Builtin
             }).ToArray(),
             VertexInputs = VertexInputs.Select(variable => new ShaderAbiVertexInput
             {
-                Name = variable.Name, ParameterName = variable.ParameterName, GlslName = variable.GlslName,
-                GlslType = variable.GlslType, Location = variable.Location, Binding = variable.Binding,
-                ByteOffset = variable.ByteOffset, InputRate = variable.InputRate, ByteSize = variable.ByteSize,
-                Alignment = variable.Alignment, FormatHint = variable.FormatHint
+                Name = variable.Name,
+                ParameterName = variable.ParameterName,
+                GlslName = variable.GlslName,
+                GlslType = variable.GlslType,
+                Location = variable.Location,
+                Binding = variable.Binding,
+                ByteOffset = variable.ByteOffset,
+                InputRate = variable.InputRate,
+                ByteSize = variable.ByteSize,
+                Alignment = variable.Alignment,
+                FormatHint = variable.FormatHint
             }).ToArray(),
             VertexBufferBindings = VertexBufferBindings.Select(binding => new ShaderAbiVertexBufferBinding
             {
@@ -268,13 +298,21 @@ public sealed class ShaderManifest
             }).ToArray(),
             Outputs = Outputs.Select(variable => new ShaderAbiInterfaceVariable
             {
-                Name = variable.Name, ParameterName = variable.ParameterName, GlslName = variable.GlslName,
-                GlslType = variable.GlslType, Location = variable.Location, Builtin = variable.Builtin
+                Name = variable.Name,
+                ParameterName = variable.ParameterName,
+                GlslName = variable.GlslName,
+                GlslType = variable.GlslType,
+                Location = variable.Location,
+                Builtin = variable.Builtin
             }).ToArray(),
             PushConstants = PushConstants.Select(push => new ShaderAbiPushConstant
             {
-                Name = push.Name, ParameterName = push.ParameterName, GlslType = push.GlslType,
-                Alignment = push.Alignment, Size = push.Size, ArrayStride = push.ArrayStride,
+                Name = push.Name,
+                ParameterName = push.ParameterName,
+                GlslType = push.GlslType,
+                Alignment = push.Alignment,
+                Size = push.Size,
+                ArrayStride = push.ArrayStride,
                 Members = push.Members.Select(ToAbiMember).ToArray()
             }).ToArray()
         };
@@ -283,18 +321,28 @@ public sealed class ShaderManifest
     private static ShaderResourceMemberManifest ToManifestMember(ShaderIrStructMember member)
         => new()
         {
-            Name = member.Name, GlslName = member.GlslName, GlslType = member.GlslType,
-            Offset = member.Offset, Alignment = member.Alignment, Size = member.Size,
-            ArrayStride = member.ArrayStride, MatrixStride = member.MatrixStride,
+            Name = member.Name,
+            GlslName = member.GlslName,
+            GlslType = member.GlslType,
+            Offset = member.Offset,
+            Alignment = member.Alignment,
+            Size = member.Size,
+            ArrayStride = member.ArrayStride,
+            MatrixStride = member.MatrixStride,
             Members = member.Members.Select(ToManifestMember).ToArray()
         };
 
     private static ShaderAbiMember ToAbiMember(ShaderIrStructMember member)
         => new()
         {
-            Name = member.Name, GlslName = member.GlslName, GlslType = member.GlslType,
-            Offset = member.Offset, Alignment = member.Alignment, Size = member.Size,
-            ArrayStride = member.ArrayStride, MatrixStride = member.MatrixStride,
+            Name = member.Name,
+            GlslName = member.GlslName,
+            GlslType = member.GlslType,
+            Offset = member.Offset,
+            Alignment = member.Alignment,
+            Size = member.Size,
+            ArrayStride = member.ArrayStride,
+            MatrixStride = member.MatrixStride,
             HostRepresentation = member.GlslType.StartsWith("bvec", StringComparison.Ordinal) || member.GlslType == "bool" ? "bool32" : "std430",
             Members = member.Members.Select(ToAbiMember).ToArray()
         };
@@ -302,9 +350,14 @@ public sealed class ShaderManifest
     private static ShaderAbiMember ToAbiMember(ShaderResourceMemberManifest member)
         => new()
         {
-            Name = member.Name, GlslName = member.GlslName, GlslType = member.GlslType,
-            Offset = member.Offset, Alignment = member.Alignment, Size = member.Size,
-            ArrayStride = member.ArrayStride, MatrixStride = member.MatrixStride,
+            Name = member.Name,
+            GlslName = member.GlslName,
+            GlslType = member.GlslType,
+            Offset = member.Offset,
+            Alignment = member.Alignment,
+            Size = member.Size,
+            ArrayStride = member.ArrayStride,
+            MatrixStride = member.MatrixStride,
             HostRepresentation = member.GlslType.StartsWith("bvec", StringComparison.Ordinal) || member.GlslType == "bool" ? "bool32" : "std430",
             Members = member.Members.Select(ToAbiMember).ToArray()
         };

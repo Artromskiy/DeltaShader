@@ -4,10 +4,10 @@ using System.Text;
 
 namespace Delta.Shader.Backend.Glsl;
 
-    /// <summary>
-    /// Produces deterministic identifiers accepted by Vulkan GLSL 4.60.
-    /// A single scope must be shared by all names emitted into one module.
-    /// </summary>
+/// <summary>
+/// Produces deterministic identifiers accepted by Vulkan GLSL 4.60.
+/// A single scope must be shared by all names emitted into one module.
+/// </summary>
 public sealed class GlslIdentifierMangler
 {
     private readonly HashSet<string> _usedNames = new(StringComparer.Ordinal);
