@@ -30,18 +30,24 @@ public sealed class DeltaComputeGenerator : IIncrementalGenerator
         {
             return;
         }
+
+        var method = methods.FirstOrDefault(static candidate => candidate is not null);
+        if (method is null)
+        {
+            return;
+        }
+
         var result = ShaderCompiler.Compile(compilation);
         if (!result.Success || result.Module is null || result.AbiManifest is null)
         {
             foreach (var diagnostic in result.Diagnostics)
             {
-                context.ReportDiagnostic(Diagnostic.Create(Descriptor, methods[0]!.Locations.FirstOrDefault(), $"{diagnostic.Id}: {diagnostic.Message}"));
+                context.ReportDiagnostic(Diagnostic.Create(Descriptor, method.Locations.FirstOrDefault(), $"{diagnostic.Id}: {diagnostic.Message}"));
             }
             return;
         }
         var emitted = GlslEmitter.EmitFromModule(result.Module);
-        if (!emitted.Success) { context.ReportDiagnostic(Diagnostic.Create(Descriptor, methods[0]!.Locations.FirstOrDefault(), "GLSL generation failed for the [DeltaCompute] method.")); return; }
-        var method = methods[0]!;
+        if (!emitted.Success) { context.ReportDiagnostic(Diagnostic.Create(Descriptor, method.Locations.FirstOrDefault(), "GLSL generation failed for the [DeltaCompute] method.")); return; }
         var className = Sanitize(method.ContainingType.Name) + Sanitize(method.Name) + "ShaderArtifact";
         var ns = method.ContainingNamespace.IsGlobalNamespace ? string.Empty : $"namespace {method.ContainingNamespace.ToDisplayString()};";
         var source = "using System;\nusing System.Text.Json;\nusing Delta.Shader.Abstractions;\n\n" + ns + "\n\npublic static class " + className + "\n{\n" +

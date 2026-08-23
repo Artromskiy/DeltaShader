@@ -35,10 +35,12 @@ public static class GlslEmitter
         sb.AppendLine();
         sb.AppendLine("void main()");
         sb.AppendLine("{");
-        if (module.Stage == ShaderStage.Compute && module.UsesBuiltinInvocationId && !string.IsNullOrWhiteSpace(module.InvocationParameterName))
+        if (module.Stage == ShaderStage.Compute &&
+            module.UsesBuiltinInvocationId &&
+            module.InvocationParameterName is { Length: > 0 } invocationParameterName)
         {
-            var invocationName = identifiers.Mangle(module.InvocationParameterName, "invocationIndex");
-            identifierMap[module.InvocationParameterName!] = invocationName;
+            var invocationName = identifiers.Mangle(invocationParameterName, "invocationIndex");
+            identifierMap[invocationParameterName] = invocationName;
             sb.AppendLine($"    uint {invocationName} = gl_GlobalInvocationID.x;");
         }
 
@@ -105,7 +107,10 @@ public static class GlslEmitter
             }
 
             var storageMode = resource.ReadOnly ? "readonly " : string.Empty;
-            var glslType = string.IsNullOrWhiteSpace(resource.GlslType) ? "uint" : resource.GlslType!;
+            var glslType = resource.GlslType is { } resourceGlslType &&
+                           !string.IsNullOrWhiteSpace(resourceGlslType)
+                ? resourceGlslType
+                : "uint";
             var blockName = identifiers.Mangle(resource.Name, "resource");
             var instanceName = identifiers.Mangle(resource.Name + "_instance", "resourceInstance");
             var dataMemberName = identifiers.Mangle("data");

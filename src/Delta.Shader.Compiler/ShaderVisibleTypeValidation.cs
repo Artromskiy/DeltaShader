@@ -74,7 +74,9 @@ public static class ShaderVisibleTypeValidation
         return parameter.Type;
     }
 
-    public static bool TryFindReferenceType(ITypeSymbol type, out ITypeSymbol referenceType)
+    public static bool TryFindReferenceType(
+        ITypeSymbol type,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out ITypeSymbol? referenceType)
         => TryFindReferenceType(type, new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default), out referenceType);
 
     private static void Visit(
@@ -142,7 +144,7 @@ public static class ShaderVisibleTypeValidation
     private static bool TryFindReferenceType(
         ITypeSymbol type,
         HashSet<INamedTypeSymbol> visiting,
-        out ITypeSymbol referenceType)
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out ITypeSymbol? referenceType)
     {
         if (type is IArrayTypeSymbol || type.IsReferenceType)
         {
@@ -163,7 +165,7 @@ public static class ShaderVisibleTypeValidation
             visiting.Remove(namedType);
         }
 
-        referenceType = default!;
+        referenceType = null;
         return false;
     }
 }

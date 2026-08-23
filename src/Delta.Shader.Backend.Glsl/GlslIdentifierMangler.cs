@@ -43,7 +43,9 @@ public sealed class GlslIdentifierMangler
 
     private static string NormalizeAscii(string? rawName, string fallback)
     {
-        var value = string.IsNullOrWhiteSpace(rawName) ? fallback : rawName!;
+        var value = rawName is not null && !string.IsNullOrWhiteSpace(rawName)
+            ? rawName
+            : fallback;
         var result = new StringBuilder(value.Length + 1);
 
         for (var index = 0; index < value.Length; index++)

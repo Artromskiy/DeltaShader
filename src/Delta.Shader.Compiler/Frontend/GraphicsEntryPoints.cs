@@ -185,7 +185,8 @@ internal static class GraphicsEntryPoints
                     else if (parameter.Type is INamedTypeSymbol namedType &&
                         namedType.TypeArguments.Length == 1 &&
                         namedType.TypeArguments[0] is INamedTypeSymbol elementType &&
-                        TryBuildStruct(elementType, context, structures, new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default), out var elementStruct, out _))
+                        TryBuildStruct(elementType, context, structures, new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default), out var elementStruct, out _) &&
+                        elementStruct is not null)
                     {
                         resources.Add(new ShaderIrResource
                         {
@@ -244,7 +245,13 @@ internal static class GraphicsEntryPoints
 
             if (Same(attributeType, context.ShaderVaryingAttributeType))
             {
-                var varyingLocation = GetUIntArg(attribute!, 0);
+                if (attribute is null)
+                {
+                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH012, "[ShaderVarying] requires a valid location argument.", locationSpan);
+                    continue;
+                }
+
+                var varyingLocation = GetUIntArg(attribute, 0);
                 if (!TryMapType(parameter.Type, context, out var varyingType) || varyingType is not ("vec2" or "vec3" or "vec4") ||
                     (stage == ShaderStage.Vertex && parameter.RefKind != RefKind.Out) ||
                     (stage == ShaderStage.Fragment && parameter.RefKind != RefKind.None))
@@ -268,7 +275,7 @@ internal static class GraphicsEntryPoints
                 {
                     AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH006, "Push constant parameters must be sequential shader structs.", locationSpan);
                 }
-                else if (!TryBuildStruct(namedType, context, structures, new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default), out var pushStruct, out var pushReason))
+                else if (!TryBuildStruct(namedType, context, structures, new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default), out var pushStruct, out var pushReason) || pushStruct is null)
                 {
                     AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH006, pushReason ?? "Push constant parameters must be sequential shader structs.", locationSpan);
                 }
@@ -278,7 +285,7 @@ internal static class GraphicsEntryPoints
                     {
                         Name = "DeltaPushConstants",
                         ParameterName = parameter.Name,
-                        GlslType = pushStruct!.GlslName,
+                        GlslType = pushStruct.GlslName,
                         Alignment = pushStruct.Alignment,
                         Size = pushStruct.Size,
                         ArrayStride = pushStruct.ArrayStride,
@@ -286,7 +293,7 @@ internal static class GraphicsEntryPoints
                     };
                     pushConstants.Add(push);
                     parameterMap[parameter] = "pushConstants";
-                    foreach (var field in namedType!.GetMembers().OfType<IFieldSymbol>().Where(field => !field.IsStatic))
+                    foreach (var field in namedType.GetMembers().OfType<IFieldSymbol>().Where(field => !field.IsStatic))
                     {
                         var member = pushStruct.Members.FirstOrDefault(candidate => candidate.Name == field.Name);
                         if (member is not null)
@@ -403,7 +410,7 @@ internal static class GraphicsEntryPoints
                 var semanticModel = context.Compilation.GetSemanticModel(syntax.SyntaxTree);
                 if (!GraphicsShaderBodyTranslator.TryTranslate(syntax.Body, semanticModel, context, stage, parameterMap, pushFieldMap, storageBufferTargets, out body, out var reason))
                 {
-                    diagnostics.Add(new ShaderDiagnostic(ShaderDiagnosticId.DSH008, reason!, Severity: ShaderDiagnosticSeverity.Error));
+                    diagnostics.Add(new ShaderDiagnostic(ShaderDiagnosticId.DSH008, reason ?? "Unable to translate graphics shader body.", Severity: ShaderDiagnosticSeverity.Error));
                 }
             }
         }
@@ -521,33 +528,33 @@ internal static class GraphicsEntryPoints
         return byteSize != 0;
     }
 
-    private static bool TryBuildStruct(INamedTypeSymbol type, ModuleCompilationContext context, Dictionary<INamedTypeSymbol, ShaderIrStruct> definitions, HashSet<INamedTypeSymbol> visiting, out ShaderIrStruct structure, out string? reason)
+    private static bool TryBuildStruct(INamedTypeSymbol type, ModuleCompilationContext context, Dictionary<INamedTypeSymbol, ShaderIrStruct> definitions, HashSet<INamedTypeSymbol> visiting, out ShaderIrStruct? structure, out string? reason)
     {
-        if (definitions.TryGetValue(type, out structure!)) { reason = null; return true; }
-        if (!visiting.Add(type)) { structure = default!; reason = $"Recursive shader struct '{type.ToDisplayString()}' is not supported."; return false; }
+        if (definitions.TryGetValue(type, out var existing)) { structure = existing; reason = null; return true; }
+        if (!visiting.Add(type)) { structure = null; reason = $"Recursive shader struct '{type.ToDisplayString()}' is not supported."; return false; }
         var layout = type.GetAttributes().FirstOrDefault(attribute => attribute.AttributeClass?.ToDisplayString() == "System.Runtime.InteropServices.StructLayoutAttribute");
         if (layout?.ConstructorArguments.FirstOrDefault().Value is int kind && (kind == 2 || kind == 3))
-        { visiting.Remove(type); structure = default!; reason = $"Shader struct '{type.ToDisplayString()}' uses explicit or auto layout."; return false; }
+        { visiting.Remove(type); structure = null; reason = $"Shader struct '{type.ToDisplayString()}' uses explicit or auto layout."; return false; }
         var members = new List<ShaderIrStructMember>();
         uint offset = 0, alignment = 1;
         foreach (var field in type.GetMembers().OfType<IFieldSymbol>().Where(field => !field.IsStatic))
         {
             if (!TryMapType(field.Type, context, out var glslType) && field.Type is INamedTypeSymbol nested && nested.TypeKind == TypeKind.Struct)
             {
-                if (!TryBuildStruct(nested, context, definitions, visiting, out var nestedStruct, out reason)) { structure = default!; visiting.Remove(type); return false; }
+                if (!TryBuildStruct(nested, context, definitions, visiting, out var nestedStruct, out reason) || nestedStruct is null) { structure = null; visiting.Remove(type); return false; }
                 glslType = nestedStruct.GlslName;
                 var nestedLayout = ShaderStd430Layout.ForStruct(nestedStruct.Alignment, nestedStruct.Size);
                 offset = AlignUp(offset, nestedLayout.Alignment);
                 members.Add(new ShaderIrStructMember { Name = field.Name, GlslName = "member_" + Sanitize(field.Name), GlslType = glslType, Offset = offset, Alignment = nestedLayout.Alignment, Size = nestedLayout.Size, ArrayStride = nestedLayout.ArrayStride, Members = nestedStruct.Members });
                 offset += nestedLayout.Size; alignment = Math.Max(alignment, nestedLayout.Alignment); continue;
             }
-            if (string.IsNullOrEmpty(glslType)) { structure = default!; visiting.Remove(type); reason = $"Shader struct field '{field.Name}' has unsupported type '{field.Type}'."; return false; }
+            if (string.IsNullOrEmpty(glslType)) { structure = null; visiting.Remove(type); reason = $"Shader struct field '{field.Name}' has unsupported type '{field.Type}'."; return false; }
             var fieldLayout = ShaderStd430Layout.ForGlslType(glslType);
             offset = AlignUp(offset, fieldLayout.Alignment);
             members.Add(new ShaderIrStructMember { Name = field.Name, GlslName = "member_" + Sanitize(field.Name), GlslType = glslType, Offset = offset, Alignment = fieldLayout.Alignment, Size = fieldLayout.Size, ArrayStride = fieldLayout.ArrayStride, MatrixStride = fieldLayout.MatrixStride });
             offset += fieldLayout.Size; alignment = Math.Max(alignment, fieldLayout.Alignment);
         }
-        if (members.Count == 0) { structure = default!; visiting.Remove(type); reason = $"Shader struct '{type.ToDisplayString()}' has no instance data fields."; return false; }
+        if (members.Count == 0) { structure = null; visiting.Remove(type); reason = $"Shader struct '{type.ToDisplayString()}' has no instance data fields."; return false; }
         structure = new ShaderIrStruct { Name = type.ToDisplayString(), GlslName = "DeltaStruct_" + Sanitize(type.ToDisplayString()), Alignment = alignment, Size = AlignUp(offset, alignment), ArrayStride = AlignUp(offset, alignment), Members = members };
         definitions[type] = structure; visiting.Remove(type); reason = null; return true;
     }
@@ -680,7 +687,7 @@ internal static class GraphicsShaderBodyTranslator
         public override SyntaxNode? VisitInvocationExpression(InvocationExpressionSyntax node)
         {
             var symbol = _model.GetSymbolInfo(node).Symbol as IMethodSymbol;
-            var args = node.ArgumentList.Arguments.Select(argument => Visit(argument.Expression)!).ToArray();
+            var args = node.ArgumentList.Arguments.Select(argument => Visit(argument.Expression) ?? throw new InvalidOperationException("Shader expression visitor returned no argument node.")).ToArray();
             if (symbol is not null && _context.Intrinsics.TryGetIntrinsic(symbol, out var binding))
             {
                 if (!binding.SupportsStage(_stage))
@@ -701,7 +708,7 @@ internal static class GraphicsShaderBodyTranslator
             var type = _model.GetTypeInfo(node).Type;
             if (type is not null && _context.Intrinsics.TryMapType(type, out var glslType))
             {
-                var args = node.ArgumentList?.Arguments.Select(argument => Visit(argument.Expression)!).ToArray() ?? Array.Empty<ExpressionSyntax>();
+                var args = node.ArgumentList?.Arguments.Select(argument => Visit(argument.Expression) ?? throw new InvalidOperationException("Shader expression visitor returned no argument node.")).ToArray() ?? Array.Empty<ExpressionSyntax>();
                 return SyntaxFactory.ParseExpression(glslType + "(" + string.Join(", ", args.Select(argument => argument.ToFullString())) + ")");
             }
             return base.VisitObjectCreationExpression(node);

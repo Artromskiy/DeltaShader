@@ -63,7 +63,12 @@ public sealed class IntrinsicRegistry
                 continue;
             }
 
-            types[type] = typeContract.GlslName!;
+            if (typeContract.GlslName is not { Length: > 0 } glslTypeName)
+            {
+                continue;
+            }
+
+            types[type] = glslTypeName;
             RegisterTypeMembers(methods, type);
         }
 
@@ -86,9 +91,14 @@ public sealed class IntrinsicRegistry
                 var category = method.MethodKind == MethodKind.UserDefinedOperator
                     ? IntrinsicCategory.Operator
                     : IntrinsicCategory.Function;
+                if (functionContract.GlslName is not { Length: > 0 } glslFunctionName)
+                {
+                    continue;
+                }
+
                 methods[method] = new IntrinsicBinding(
                     category,
-                    functionContract.GlslName!,
+                    glslFunctionName,
                     RequiredCapability: functionContract.RequiredCapability,
                     ShaderStages: functionContract.Stages);
             }
@@ -181,11 +191,11 @@ public sealed class IntrinsicRegistry
             var stage = attribute.ConstructorArguments[1].Value is int stageValue
                 ? ((ShaderStage)stageValue).ToString().ToLowerInvariant()
                 : "compute";
-            if (!string.IsNullOrWhiteSpace(glslName))
+            if (glslName is { Length: > 0 } attributeGlslName)
             {
                 methods[method] = new IntrinsicBinding(
                     IntrinsicCategory.Function,
-                    glslName!,
+                    attributeGlslName,
                     stage,
                     ShaderStages: [stage]);
             }
@@ -235,7 +245,12 @@ public sealed class IntrinsicRegistry
                     continue;
                 }
 
-                methods[method] = new IntrinsicBinding(IntrinsicCategory.Function, supportedContract.GlslName!);
+                if (supportedContract.GlslName is not { Length: > 0 } supportedGlslName)
+                {
+                    continue;
+                }
+
+                methods[method] = new IntrinsicBinding(IntrinsicCategory.Function, supportedGlslName);
                 continue;
             }
 

@@ -42,7 +42,7 @@ public static class ComputeEntryPoints
         {
             diagnostics.Add(new ShaderDiagnostic(
                 ShaderDiagnosticId.DSH007,
-                profileError!,
+                profileError ?? "The selected shader profile is not compatible with the compiler.",
                 Severity: ShaderDiagnosticSeverity.Error));
         }
 
@@ -69,7 +69,7 @@ public static class ComputeEntryPoints
             var loc = entry.Method.Locations.FirstOrDefault()?.GetLineSpan();
             diagnostics.Add(new ShaderDiagnostic(
                 ShaderDiagnosticId.DSH007,
-                localSizeError!,
+                localSizeError ?? "The compute local size is invalid.",
                 loc?.Path,
                 loc is null ? 0 : loc.Value.StartLinePosition.Line + 1,
                 loc is null ? 0 : loc.Value.StartLinePosition.Character + 1));
@@ -210,7 +210,7 @@ public static class ComputeEntryPoints
             {
                 diagnostics.Add(new ShaderDiagnostic(
                     diagnosticId,
-                    unsupportedReason!,
+                    unsupportedReason ?? "Unsupported compute shader resource.",
                     location?.Path,
                     location is null ? 0 : location.Value.StartLinePosition.Line + 1,
                     location is null ? 0 : location.Value.StartLinePosition.Character + 1));
@@ -387,10 +387,10 @@ public static class ComputeEntryPoints
             default:
                 if (type is INamedTypeSymbol namedType && namedType.TypeKind == TypeKind.Struct)
                 {
-                    if (!TryBuildStructLayout(namedType, context, structDefinitions, visiting, out var structure, out reason))
+                    if (!TryBuildStructLayout(namedType, context, structDefinitions, visiting, out var structure, out reason) || structure is null)
                     {
                         glslType = string.Empty;
-                        layout = default!;
+                        layout = ShaderStd430Layout.ForGlslType("uint");
                         return false;
                     }
 
@@ -401,7 +401,7 @@ public static class ComputeEntryPoints
                 }
 
                 glslType = string.Empty;
-                layout = default!;
+                layout = ShaderStd430Layout.ForGlslType("uint");
                 reason = $"Unsupported shader type '{type}'. Shader records must contain only supported unmanaged scalar, vector, matrix, quaternion, or nested record fields.";
                 return false;
         }
@@ -470,7 +470,13 @@ public static class ComputeEntryPoints
             return false;
         }
 
-        body = translation!.Body;
+        if (translation is null)
+        {
+            reason ??= "Unable to translate compute shader body.";
+            return false;
+        }
+
+        body = translation.Body;
         usesBuiltinInvocationId = translation.UsesBuiltinInvocationId;
         return true;
     }
@@ -486,18 +492,19 @@ public static class ComputeEntryPoints
         ModuleCompilationContext context,
         Dictionary<INamedTypeSymbol, ShaderIrStruct> structDefinitions,
         HashSet<INamedTypeSymbol> visiting,
-        out ShaderIrStruct structure,
+        out ShaderIrStruct? structure,
         out string reason)
     {
-        if (structDefinitions.TryGetValue(type, out structure!))
+        if (structDefinitions.TryGetValue(type, out var existing))
         {
+            structure = existing;
             reason = string.Empty;
             return true;
         }
 
         if (!visiting.Add(type))
         {
-            structure = default!;
+            structure = null;
             reason = $"Recursive shader struct '{type.ToDisplayString()}' is not supported.";
             return false;
         }
@@ -510,7 +517,7 @@ public static class ComputeEntryPoints
             if (layoutKind is int kind && (kind == 2 || kind == 3))
             {
                 visiting.Remove(type);
-                structure = default!;
+                structure = null;
                 reason = $"Shader struct '{type.ToDisplayString()}' uses explicit or auto layout; only sequential layout is supported for std430 reflection.";
                 return false;
             }
@@ -524,7 +531,7 @@ public static class ComputeEntryPoints
             if (field.Type is IArrayTypeSymbol arrayType && SymbolEqualityComparer.Default.Equals(arrayType.ElementType, type))
             {
                 visiting.Remove(type);
-                structure = default!;
+                structure = null;
                 reason = $"Recursive shader struct '{type.ToDisplayString()}' through field '{field.Name}' is not supported.";
                 return false;
             }
@@ -532,7 +539,7 @@ public static class ComputeEntryPoints
             if (!TryMapShaderType(field.Type, context, structDefinitions, visiting, out var fieldGlslType, out var fieldLayout, out var nestedMembers, out reason))
             {
                 visiting.Remove(type);
-                structure = default!;
+                structure = null;
                 reason = $"Shader struct field '{type.ToDisplayString()}.{field.Name}' is unsupported: {reason}";
                 return false;
             }
@@ -557,7 +564,7 @@ public static class ComputeEntryPoints
         if (members.Count == 0)
         {
             visiting.Remove(type);
-            structure = default!;
+            structure = null;
             reason = $"Shader struct '{type.ToDisplayString()}' has no instance data fields.";
             return false;
         }
@@ -584,9 +591,9 @@ public static class ComputeEntryPoints
     private static bool TryGetBufferElementType(
         ITypeSymbol type,
         ModuleCompilationContext context,
-        out ITypeSymbol elementType)
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out ITypeSymbol? elementType)
     {
-        elementType = default!;
+        elementType = null;
 
         if (type is not INamedTypeSymbol namedType)
         {

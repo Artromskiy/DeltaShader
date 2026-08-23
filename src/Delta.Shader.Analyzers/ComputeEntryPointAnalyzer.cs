@@ -125,8 +125,8 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
                     .Where(candidate => candidate.AttributeClass?.ToDisplayString() == typeof(VertexShaderAttribute).FullName ||
                         candidate.AttributeClass?.ToDisplayString() == typeof(FragmentShaderAttribute).FullName)
                     .Select(candidate => candidate.ConstructorArguments.FirstOrDefault().Value as string)
-                    .Where(name => !string.IsNullOrWhiteSpace(name))
-                    .GroupBy(name => name!, StringComparer.Ordinal));
+                    .OfType<string>()
+                    .GroupBy(name => name, StringComparer.Ordinal));
                 foreach (var duplicate in named.Where(group => group.Count() > 1))
                 {
                     context.ReportDiagnostic(Diagnostic.Create(_duplicateGraphicsNameDescriptor, methodSymbol.Locations[0], duplicate.Key));
