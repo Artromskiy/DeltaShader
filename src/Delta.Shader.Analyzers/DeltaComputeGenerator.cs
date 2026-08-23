@@ -26,11 +26,17 @@ public sealed class DeltaComputeGenerator : IIncrementalGenerator
     }
     private static void Execute(Compilation compilation, ImmutableArray<IMethodSymbol?> methods, SourceProductionContext context)
     {
-        if (methods.IsDefaultOrEmpty) return;
+        if (methods.IsDefaultOrEmpty)
+        {
+            return;
+        }
         var result = ShaderCompiler.Compile(compilation);
         if (!result.Success || result.Module is null || result.AbiManifest is null)
         {
-            foreach (var diagnostic in result.Diagnostics) context.ReportDiagnostic(Diagnostic.Create(Descriptor, methods[0]!.Locations.FirstOrDefault(), $"{diagnostic.Id}: {diagnostic.Message}"));
+            foreach (var diagnostic in result.Diagnostics)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(Descriptor, methods[0]!.Locations.FirstOrDefault(), $"{diagnostic.Id}: {diagnostic.Message}"));
+            }
             return;
         }
         var emitted = GlslEmitter.EmitFromModule(result.Module);

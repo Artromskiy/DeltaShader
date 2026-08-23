@@ -13,15 +13,13 @@ public sealed class ShaderArtifact
 
     public ShaderArtifact(byte[] spirv, ShaderAbiManifest manifest)
     {
-        if (spirv is null || spirv.Length == 0)
+        ArgumentGuard.NotNull(spirv, nameof(spirv));
+        if (spirv.Length == 0)
         {
             throw new ArgumentException("SPIR-V artifact cannot be empty.", nameof(spirv));
         }
 
-        if (manifest is null)
-        {
-            throw new ArgumentNullException(nameof(manifest));
-        }
+        ArgumentGuard.NotNull(manifest, nameof(manifest));
 
         if (manifest.Version != ShaderAbiManifest.CurrentVersion)
         {
@@ -33,6 +31,10 @@ public sealed class ShaderArtifact
     }
 
     public int FormatVersion => CurrentFormatVersion;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Design",
+        "CA1819",
+        Justification = "The runtime-neutral ABI exposes owned SPIR-V bytes; the constructor clones them and consumers require a byte array for Vulkan upload.")]
     public byte[] Spirv { get; }
     public ShaderAbiManifest Manifest { get; }
     public ShaderStage Stage => Manifest.Stage;

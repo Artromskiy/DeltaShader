@@ -3,23 +3,31 @@ using Delta.Shader.Abstractions;
 
 namespace Delta.Shader.TestShaders;
 
-public static class EditorViewportCube
+internal static class EditorViewportCube
 {
     public struct CubeVertex
     {
-        public float3 Position;
-        public float3 Normal;
-        public float2 Uv;
+        public float3 Position = default;
+        public float3 Normal = default;
+        public float2 Uv = default;
+
+        public CubeVertex()
+        {
+        }
     }
 
     public struct SceneParameters
     {
-        public float4x4 Model;
-        public float4x4 View;
-        public float4x4 Projection;
-        public float3 LightDirection;
-        public float _Padding0;
-        public float4 LightColor;
+        public float4x4 Model = default;
+        public float4x4 View = default;
+        public float4x4 Projection = default;
+        public float3 LightDirection = default;
+        public float _Padding0 = default;
+        public float4 LightColor = default;
+
+        public SceneParameters()
+        {
+        }
     }
 
     [VertexShader("EditorViewportCubeVertex")]

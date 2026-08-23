@@ -484,7 +484,10 @@ internal static class GraphicsEntryPoints
 
     private static bool TryMapType(ITypeSymbol type, ModuleCompilationContext context, out string glslType)
     {
-        if (context.Intrinsics.TryMapType(type, out glslType)) return true;
+        if (context.Intrinsics.TryMapType(type, out glslType))
+        {
+            return true;
+        }
         glslType = type.SpecialType switch
         {
             SpecialType.System_Single => "float",
@@ -568,19 +571,27 @@ internal static class GraphicsShaderBodyTranslator
             }
         }
         foreach (var parameter in parameterMap)
+        {
             translated = Regex.Replace(translated, $"\\b{Regex.Escape(parameter.Key.Name)}\\b", parameter.Value, RegexOptions.None);
+        }
         foreach (var bufferName in storageBufferTargets)
+        {
             translated = Regex.Replace(translated, $"\\b{Regex.Escape(bufferName)}\\s*\\[", bufferName + ".data[", RegexOptions.None);
+        }
         foreach (var invocation in body.DescendantNodes().OfType<InvocationExpressionSyntax>())
         {
             if (_TryBinding(model, context, invocation, stage, out var glslName) && glslName is not null)
+            {
                 translated = translated.Replace(invocation.Expression.ToString(), glslName);
+            }
         }
         foreach (var creation in body.DescendantNodes().OfType<ObjectCreationExpressionSyntax>())
         {
             var type = model.GetTypeInfo(creation).Type;
             if (type is not null && context.Intrinsics.TryMapType(type, out var glslType))
+            {
                 translated = translated.Replace("new " + creation.Type.ToString(), glslType);
+            }
         }
         foreach (var declaration in body.DescendantNodes().OfType<VariableDeclarationSyntax>().Where(declaration => declaration.Type.IsVar && declaration.Variables.Count == 1))
         {
@@ -588,7 +599,9 @@ internal static class GraphicsShaderBodyTranslator
                 ? model.GetTypeInfo(initializer.Value).Type
                 : null;
             if (type is not null && context.Intrinsics.TryMapType(type, out var glslType))
+            {
                 translated = Regex.Replace(translated, $"\\b{Regex.Escape(glslType)}(?=[A-Za-z_]\\w*\\s*=)", glslType + " ", RegexOptions.None);
+            }
         }
         translated = translated.Replace(";", ";\n").Replace("\r\n", "\n").Replace("\r", "\n");
         translated = Regex.Replace(translated, @"\b(vec[234]|ivec[234]|uvec[234]|bvec[234]|mat[234]|float|int|uint|bool)([A-Za-z_]\w*)\s*=", "$1 $2 =", RegexOptions.None);
@@ -600,9 +613,18 @@ internal static class GraphicsShaderBodyTranslator
     private static bool _TryBinding(SemanticModel model, ModuleCompilationContext context, InvocationExpressionSyntax invocation, ShaderStage stage, out string? glslName)
     {
         glslName = null;
-        if (model.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method || !context.Intrinsics.TryGetIntrinsic(method, out var binding)) return false;
-        if (!binding.SupportsStage(stage)) return false;
-        if (binding.GlslName is "*" or "/" or "+" or "-") return false;
+        if (model.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method || !context.Intrinsics.TryGetIntrinsic(method, out var binding))
+        {
+            return false;
+        }
+        if (!binding.SupportsStage(stage))
+        {
+            return false;
+        }
+        if (binding.GlslName is "*" or "/" or "+" or "-")
+        {
+            return false;
+        }
         glslName = binding.GlslName;
         return true;
     }
@@ -622,7 +644,10 @@ internal static class GraphicsShaderBodyTranslator
         public override SyntaxNode? VisitIdentifierName(IdentifierNameSyntax node)
         {
             var symbol = _model.GetSymbolInfo(node).Symbol;
-            if (symbol is IParameterSymbol parameter && _parameters.TryGetValue(parameter, out var parameterName)) return SyntaxFactory.ParseName(parameterName);
+            if (symbol is IParameterSymbol parameter && _parameters.TryGetValue(parameter, out var parameterName))
+            {
+                return SyntaxFactory.ParseName(parameterName);
+            }
             return base.VisitIdentifierName(node);
         }
 
@@ -645,7 +670,10 @@ internal static class GraphicsShaderBodyTranslator
         public override SyntaxNode? VisitMemberAccessExpression(MemberAccessExpressionSyntax node)
         {
             var symbol = _model.GetSymbolInfo(node).Symbol;
-            if (symbol is IFieldSymbol field && _pushFields.TryGetValue(field, out var fieldName)) return SyntaxFactory.ParseExpression(fieldName);
+            if (symbol is IFieldSymbol field && _pushFields.TryGetValue(field, out var fieldName))
+            {
+                return SyntaxFactory.ParseExpression(fieldName);
+            }
             return base.VisitMemberAccessExpression(node);
         }
 
@@ -656,8 +684,13 @@ internal static class GraphicsShaderBodyTranslator
             if (symbol is not null && _context.Intrinsics.TryGetIntrinsic(symbol, out var binding))
             {
                 if (!binding.SupportsStage(_stage))
-                { Reason ??= $"Intrinsic '{symbol.Name}' is not valid in {_stage} stage."; }
-                if (binding.GlslName is "*" or "/" or "+" or "-") return base.VisitInvocationExpression(node);
+                {
+                    Reason ??= $"Intrinsic '{symbol.Name}' is not valid in {_stage} stage.";
+                }
+                if (binding.GlslName is "*" or "/" or "+" or "-")
+                {
+                    return base.VisitInvocationExpression(node);
+                }
                 return SyntaxFactory.ParseExpression(binding.GlslName + "(" + string.Join(", ", args.Select(argument => argument.ToFullString())) + ")");
             }
             return base.VisitInvocationExpression(node);
@@ -681,14 +714,20 @@ internal static class GraphicsShaderBodyTranslator
                 var type = node.Variables[0].Initializer is { } initializer
                     ? _model.GetTypeInfo(initializer.Value).Type
                     : null;
-                if (type is not null && TryMap(type, out var glslType)) return node.WithType(SyntaxFactory.ParseTypeName(glslType));
+                if (type is not null && TryMap(type, out var glslType))
+                {
+                    return node.WithType(SyntaxFactory.ParseTypeName(glslType));
+                }
             }
             return base.VisitVariableDeclaration(node);
         }
 
         private bool TryMap(ITypeSymbol type, out string glslType)
         {
-            if (_context.Intrinsics.TryMapType(type, out glslType)) return true;
+            if (_context.Intrinsics.TryMapType(type, out glslType))
+            {
+                return true;
+            }
             glslType = type.SpecialType switch
             {
                 SpecialType.System_Boolean => "bool",

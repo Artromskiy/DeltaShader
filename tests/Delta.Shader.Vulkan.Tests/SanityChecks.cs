@@ -56,7 +56,7 @@ public class SanityChecks
 
         var emit = GlslEmitter.EmitFromModule(module);
         Assert.True(emit.Success);
-        Assert.Contains("void main()", emit.Source);
+        Assert.Contains("void main()", emit.Source, StringComparison.Ordinal);
 
         var workspace = Path.Combine(Path.GetTempPath(), "delta-shader-vulkan-test", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(workspace);
@@ -117,10 +117,10 @@ public class SanityChecks
         };
 
         var emit = GlslEmitter.EmitFromModule(module);
-        Assert.Contains("#version 460", emit.Source);
-        Assert.Contains("uniform sampler2D", emit.Source);
-        Assert.Contains("texture(", emit.Source);
-        Assert.Contains("fwidth", emit.Source);
+        Assert.Contains("#version 460", emit.Source, StringComparison.Ordinal);
+        Assert.Contains("uniform sampler2D", emit.Source, StringComparison.Ordinal);
+        Assert.Contains("texture(", emit.Source, StringComparison.Ordinal);
+        Assert.Contains("fwidth", emit.Source, StringComparison.Ordinal);
 
         var workspace = Path.Combine(Path.GetTempPath(), "delta-shader-vulkan-test", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(workspace);

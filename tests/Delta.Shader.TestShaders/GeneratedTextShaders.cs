@@ -3,22 +3,30 @@ using Delta.Shader.Abstractions;
 
 namespace Delta.Shader.TestShaders;
 
-public static class GeneratedTextShaders
+internal static class GeneratedTextShaders
 {
     public struct GlyphInstance
     {
-        public float2 PixelMin;
-        public float2 PixelMax;
-        public float4 UvRect;
-        public float4 Color;
+        public float2 PixelMin = default;
+        public float2 PixelMax = default;
+        public float4 UvRect = default;
+        public float4 Color = default;
+
+        public GlyphInstance()
+        {
+        }
     }
 
     public struct TextParameters
     {
-        public float2 Resolution;
-        public float4 TextColor;
-        public float4 OutlineColor;
-        public float OutlineWidth;
+        public float2 Resolution = default;
+        public float4 TextColor = default;
+        public float4 OutlineColor = default;
+        public float OutlineWidth = default;
+
+        public TextParameters()
+        {
+        }
     }
 
     [VertexShader("sdf-text")]

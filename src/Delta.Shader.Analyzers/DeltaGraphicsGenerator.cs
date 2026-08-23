@@ -28,12 +28,23 @@ public sealed class DeltaGraphicsGenerator : IIncrementalGenerator
     }
     private static void Execute(Compilation compilation, ImmutableArray<IMethodSymbol?> methods, SourceProductionContext context)
     {
-        if (methods.IsDefaultOrEmpty) return;
+        if (methods.IsDefaultOrEmpty)
+        {
+            return;
+        }
         var vertices = methods.Where(m => m!.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == typeof(VertexShaderAttribute).FullName)).ToArray();
         var fragments = methods.Where(m => m!.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == typeof(FragmentShaderAttribute).FullName)).ToArray();
         if (vertices.Length != 1 || fragments.Length != 1) { context.ReportDiagnostic(Diagnostic.Create(Descriptor, methods[0]!.Locations.FirstOrDefault(), "DSH017: exactly one vertex and one fragment shader are required for a generated graphics program.")); return; }
         var results = ShaderCompiler.CompileAll(compilation).Where(r => r.Module?.Stage is ShaderStage.Vertex or ShaderStage.Fragment).ToArray();
-        if (results.Length != 2 || results.Any(r => !r.Success || r.AbiManifest is null || r.Module is null)) { foreach (var d in results.SelectMany(r => r.Diagnostics)) context.ReportDiagnostic(Diagnostic.Create(Descriptor, methods[0]!.Locations.FirstOrDefault(), $"{d.Id}: {d.Message}")); return; }
+        if (results.Length != 2 || results.Any(r => !r.Success || r.AbiManifest is null || r.Module is null))
+        {
+            foreach (var d in results.SelectMany(r => r.Diagnostics))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(Descriptor, methods[0]!.Locations.FirstOrDefault(), $"{d.Id}: {d.Message}"));
+            }
+
+            return;
+        }
         var emitted = results.Select(r => (r, GlslEmitter.EmitFromModule(r.Module!))).ToArray();
         if (emitted.Any(x => !x.Item2.Success)) { context.ReportDiagnostic(Diagnostic.Create(Descriptor, methods[0]!.Locations.FirstOrDefault(), "GLSL generation failed for the graphics shader pair.")); return; }
         var vertex = results.Single(r => r.Module!.Stage == ShaderStage.Vertex);

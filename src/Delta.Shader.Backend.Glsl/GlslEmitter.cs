@@ -22,7 +22,9 @@ public static class GlslEmitter
         var sb = new StringBuilder();
         sb.AppendLine("#version 460");
         if (module.Stage == ShaderStage.Compute)
+        {
             sb.AppendLine($"layout(local_size_x = {module.LocalSizeX}, local_size_y = {module.LocalSizeY}, local_size_z = {module.LocalSizeZ}) in;");
+        }
 
         var identifiers = new GlslIdentifierMangler("main");
         EmitStructs(sb, module);
@@ -41,13 +43,19 @@ public static class GlslEmitter
         }
 
         var body = NormalizeBody(module.Body);
-        if (identifierMap.Count > 0) body = RewriteIdentifiers(body, identifierMap);
+        if (identifierMap.Count > 0)
+        {
+            body = RewriteIdentifiers(body, identifierMap);
+        }
         if (!string.IsNullOrWhiteSpace(body))
         {
             sb.AppendLine("    " + body.Replace("\n", "\n    "));
             sb.AppendLine();
         }
-        else sb.AppendLine("    // Delta.Shader auto-generated stage stub");
+        else
+        {
+            sb.AppendLine("    // Delta.Shader auto-generated stage stub");
+        }
         sb.AppendLine("}");
         return new GlslEmitResult { Source = sb.ToString() };
     }
@@ -58,7 +66,10 @@ public static class GlslEmitter
         {
             sb.AppendLine($"struct {structure.GlslName}");
             sb.AppendLine("{");
-            foreach (var member in structure.Members) sb.AppendLine($"    {member.GlslType} {member.GlslName};");
+            foreach (var member in structure.Members)
+            {
+                sb.AppendLine($"    {member.GlslType} {member.GlslName};");
+            }
             sb.AppendLine("};");
             sb.AppendLine();
         }
@@ -71,7 +82,9 @@ public static class GlslEmitter
             sb.AppendLine("layout(push_constant, std430) uniform DeltaPushConstants");
             sb.AppendLine("{");
             foreach (var member in push.Members)
+            {
                 sb.AppendLine($"    layout(offset = {member.Offset}) {member.GlslType} {member.GlslName};");
+            }
             sb.AppendLine("} pushConstants;");
             sb.AppendLine();
         }
@@ -125,17 +138,30 @@ public static class GlslEmitter
     private static void EmitInterfaces(StringBuilder sb, ShaderIrModule module)
     {
         foreach (var variable in module.Inputs.Where(variable => variable.Builtin is null))
+        {
             sb.AppendLine($"layout(location = {variable.Location}) in {variable.GlslType} {variable.GlslName};");
+        }
         foreach (var variable in module.Outputs.Where(variable => variable.Builtin is null))
+        {
             sb.AppendLine($"layout(location = {variable.Location}) out {variable.GlslType} {variable.GlslName};");
-        if (module.Outputs.Any(variable => variable.Builtin == "FragmentColor")) sb.AppendLine("layout(location = 0) out vec4 fragColor;");
-        if (module.Outputs.Count > 0 || module.Inputs.Count > 0) sb.AppendLine();
+        }
+        if (module.Outputs.Any(variable => variable.Builtin == "FragmentColor"))
+        {
+            sb.AppendLine("layout(location = 0) out vec4 fragColor;");
+        }
+        if (module.Outputs.Count > 0 || module.Inputs.Count > 0)
+        {
+            sb.AppendLine();
+        }
     }
 
     private static string NormalizeBody(string? body)
     {
         var normalized = (body ?? string.Empty).Replace("\r\n", "\n").Replace("\r", "\n").Trim();
-        if (normalized.StartsWith("{", StringComparison.Ordinal) && normalized.EndsWith("}", StringComparison.Ordinal)) normalized = normalized.Substring(1, normalized.Length - 2).Trim();
+        if (normalized.StartsWith("{", StringComparison.Ordinal) && normalized.EndsWith("}", StringComparison.Ordinal))
+        {
+            normalized = normalized.Substring(1, normalized.Length - 2).Trim();
+        }
         return normalized;
     }
 
@@ -144,8 +170,14 @@ public static class GlslEmitter
         var rewritten = body;
         foreach (var entry in identifierMap.OrderByDescending(entry => entry.Key.Length))
         {
-            if (entry.Key.EndsWith(".data", StringComparison.Ordinal)) rewritten = rewritten.Replace(entry.Key, entry.Value);
-            else rewritten = Regex.Replace(rewritten, $"\\b{Regex.Escape(entry.Key)}\\b", entry.Value, RegexOptions.None);
+            if (entry.Key.EndsWith(".data", StringComparison.Ordinal))
+            {
+                rewritten = rewritten.Replace(entry.Key, entry.Value);
+            }
+            else
+            {
+                rewritten = Regex.Replace(rewritten, $"\\b{Regex.Escape(entry.Key)}\\b", entry.Value, RegexOptions.None);
+            }
         }
         return rewritten;
     }
@@ -158,13 +190,27 @@ public static class GlslEmitter
         var ordered = new List<ShaderIrStruct>(structures.Count);
         void Visit(ShaderIrStruct structure)
         {
-            if (visited.Contains(structure.GlslName)) return;
-            if (!active.Add(structure.GlslName)) throw new InvalidOperationException($"Recursive GLSL struct dependency '{structure.GlslName}'.");
+            if (visited.Contains(structure.GlslName))
+            {
+                return;
+            }
+            if (!active.Add(structure.GlslName))
+            {
+                throw new InvalidOperationException($"Recursive GLSL struct dependency '{structure.GlslName}'.");
+            }
             foreach (var member in structure.Members)
-                if (member.Members.Count > 0 && byName.TryGetValue(member.GlslType, out var dependency)) Visit(dependency);
+            {
+                if (member.Members.Count > 0 && byName.TryGetValue(member.GlslType, out var dependency))
+                {
+                    Visit(dependency);
+                }
+            }
             active.Remove(structure.GlslName); visited.Add(structure.GlslName); ordered.Add(structure);
         }
-        foreach (var structure in structures.OrderBy(structure => structure.GlslName, StringComparer.Ordinal)) Visit(structure);
+        foreach (var structure in structures.OrderBy(structure => structure.GlslName, StringComparer.Ordinal))
+        {
+            Visit(structure);
+        }
         return ordered;
     }
 }

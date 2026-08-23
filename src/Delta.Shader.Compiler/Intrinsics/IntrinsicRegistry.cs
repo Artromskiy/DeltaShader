@@ -199,7 +199,10 @@ public sealed class IntrinsicRegistry
         ShaderContractManifest contract)
     {
         var mathsType = compilation.GetTypeByMetadataName(contract.Namespace + ".maths");
-        if (mathsType is null) return;
+        if (mathsType is null)
+        {
+            return;
+        }
 
         var glslBuiltins = new HashSet<string>(StringComparer.Ordinal)
         {

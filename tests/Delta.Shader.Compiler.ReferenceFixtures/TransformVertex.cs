@@ -3,14 +3,18 @@ using Delta.Shader.Abstractions;
 
 namespace Delta.Shader.Compiler.ReferenceFixtures;
 
-public struct TransformConstants
+internal struct TransformConstants
 {
-    public float4x4 Model;
-    public float4x4 View;
-    public float4x4 Projection;
+    public float4x4 Model = default;
+    public float4x4 View = default;
+    public float4x4 Projection = default;
+
+    public TransformConstants()
+    {
+    }
 }
 
-public static class TransformVertex
+internal static class TransformVertex
 {
     [VertexShader("CubeVertex")]
     public static void Vertex(

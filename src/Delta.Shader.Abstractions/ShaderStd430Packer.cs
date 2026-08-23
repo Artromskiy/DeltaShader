@@ -7,15 +7,8 @@ public static class ShaderStd430Packer
 {
     public static byte[] Pack<T>(IReadOnlyList<T> values, ShaderAbiResource resource)
     {
-        if (values is null)
-        {
-            throw new ArgumentNullException(nameof(values));
-        }
-
-        if (resource is null)
-        {
-            throw new ArgumentNullException(nameof(resource));
-        }
+        ArgumentGuard.NotNull(values, nameof(values));
+        ArgumentGuard.NotNull(resource, nameof(resource));
 
         if (resource.Packing.Scheme != "std430" || resource.Packing.Strategy != "std430-explicit-members")
         {
@@ -45,7 +38,13 @@ public static class ShaderStd430Packer
         var bytes = new byte[checked(values.Count * (int)resource.ArrayStride)];
         for (var index = 0; index < values.Count; index++)
         {
-            PackMembers(values[index]!, resource.Members, bytes, checked((uint)(index * resource.ArrayStride)));
+            object? value = values[index];
+            if (value is null)
+            {
+                throw new InvalidOperationException($"Shader resource element at index {index} cannot be null.");
+            }
+
+            PackMembers(value, resource.Members, bytes, checked((uint)(index * resource.ArrayStride)));
         }
 
         return bytes;
@@ -152,13 +151,15 @@ public static class ShaderStd430Packer
         var field = type.GetField(name, BindingFlags.Instance | BindingFlags.Public);
         if (field is not null)
         {
-            return field.GetValue(value)!;
+            var fieldValue = field.GetValue(value);
+            return fieldValue ?? throw new InvalidOperationException($"Host member '{name}' cannot be null.");
         }
 
         var property = type.GetProperty(name, BindingFlags.Instance | BindingFlags.Public);
         if (property?.GetMethod is not null)
         {
-            return property.GetValue(value)!;
+            var propertyValue = property.GetValue(value);
+            return propertyValue ?? throw new InvalidOperationException($"Host member '{name}' cannot be null.");
         }
 
         throw new InvalidOperationException($"Host value type '{type}' has no public member '{name}'.");

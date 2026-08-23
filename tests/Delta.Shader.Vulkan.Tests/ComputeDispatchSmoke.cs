@@ -26,7 +26,7 @@ public sealed class ComputeDispatchSmoke
         Assert.NotNull(glslang);
         Assert.NotNull(spirvVal);
 
-        var compilation = await LoadTestShaderCompilationAsync();
+        var compilation = await LoadTestShaderCompilationAsync().ConfigureAwait(false);
         var compilationResult = ShaderCompiler.Compile(compilation);
         Assert.True(compilationResult.Success, string.Join(Environment.NewLine, compilationResult.Diagnostics.Select(d => d.Message)));
         Assert.NotNull(compilationResult.Module);
@@ -40,7 +40,7 @@ public sealed class ComputeDispatchSmoke
 
         var glslFile = Path.Combine(workspace, "compute.glsl");
         var spvFile = Path.Combine(workspace, "compute.spv");
-        await File.WriteAllTextAsync(glslFile, emit.Source);
+        await File.WriteAllTextAsync(glslFile, emit.Source).ConfigureAwait(false);
 
         var compile = RunTool(glslang, $"-V --target-env vulkan1.2 -S comp {EscapePath(glslFile)} -o {EscapePath(spvFile)}");
         Assert.True(compile.ExitCode == 0, $"glslang failed: {compile.Output}");
@@ -48,16 +48,23 @@ public sealed class ComputeDispatchSmoke
         var validate = RunTool(spirvVal, $"--target-env vulkan1.2 {EscapePath(spvFile)}");
         Assert.True(validate.ExitCode == 0, $"spirv-val failed: {validate.Output}");
 
-        var spv = await File.ReadAllBytesAsync(spvFile);
+        var spv = await File.ReadAllBytesAsync(spvFile).ConfigureAwait(false);
         Assert.NotEmpty(spv);
         var artifact = new ShaderArtifact(spv, compilationResult.AbiManifest!);
 
-        await using var device = await CreateComputeDeviceOrSkip();
-        await using var dispatcher = new ComputeDispatcher<IComputeStorageBuffer>(device, artifact, static buffer => buffer);
-
-        foreach (var elementCount in new[] { 0, 1, 7, 8, 9, 64, 65, 129, 256 })
+        var device = await CreateComputeDeviceOrSkip().ConfigureAwait(false);
+        await using var deviceLease = device.ConfigureAwait(false);
+        var dispatcher = new ComputeDispatcher<IComputeStorageBuffer>(device, artifact, static buffer => buffer);
+        try
         {
-            await DispatchAndVerifyAsync(device, dispatcher, elementCount, artifact.Manifest.LocalSizeX);
+            foreach (var elementCount in new[] { 0, 1, 7, 8, 9, 64, 65, 129, 256 })
+            {
+                await DispatchAndVerifyAsync(device, dispatcher, elementCount, artifact.Manifest.LocalSizeX).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            await dispatcher.DisposeAsync().ConfigureAwait(false);
         }
     }
 
@@ -72,8 +79,8 @@ public sealed class ComputeDispatchSmoke
         var projectPath = Path.Combine(root, "tests", "Delta.Shader.TestShaders", "Delta.Shader.TestShaders.csproj");
 
         using var workspace = MSBuildWorkspace.Create();
-        var project = await workspace.OpenProjectAsync(projectPath);
-        var compilation = await project.GetCompilationAsync();
+        var project = await workspace.OpenProjectAsync(projectPath).ConfigureAwait(false);
+        var compilation = await project.GetCompilationAsync().ConfigureAwait(false);
 
         Assert.NotNull(compilation);
         return compilation!;
@@ -115,7 +122,7 @@ public sealed class ComputeDispatchSmoke
             bindings);
     }
 
-    private static async Task DispatchAndVerifyAsync(IComputeDevice device, ComputeDispatcher<IComputeStorageBuffer> dispatcher, int elementCount, uint localSizeX)
+    private static async Task DispatchAndVerifyAsync(VulkanComputeDevice device, ComputeDispatcher<IComputeStorageBuffer> dispatcher, int elementCount, uint localSizeX)
     {
         if (elementCount == 0)
         {
@@ -132,8 +139,10 @@ public sealed class ComputeDispatchSmoke
         var inputBytes = MemoryMarshal.AsBytes(outputValues.AsSpan()).ToArray();
 
         var inputCountBytes = checked((ulong)(elementCount * sizeof(float)));
-        await using var input = device.CreateStorageBuffer(inputCountBytes);
-        await using var output = device.CreateStorageBuffer(inputCountBytes);
+        var input = device.CreateStorageBuffer(inputCountBytes);
+        await using var inputLease = input.ConfigureAwait(false);
+        var output = device.CreateStorageBuffer(inputCountBytes);
+        await using var outputLease = output.ConfigureAwait(false);
         Assert.True(device.Upload(input, inputBytes));
         Assert.True(device.Upload(output, new byte[inputBytes.Length]));
 
@@ -145,7 +154,7 @@ public sealed class ComputeDispatchSmoke
                 new ComputeDispatchBinding<IComputeStorageBuffer>(0, 0, input),
                 new ComputeDispatchBinding<IComputeStorageBuffer>(0, 1, output)
             ]);
-        await dispatcher.DispatchAsync(request);
+        await dispatcher.DispatchAsync(request).ConfigureAwait(false);
 
         var readback = new byte[inputBytes.Length];
         Assert.True(device.Readback(output, readback));
@@ -162,7 +171,7 @@ public sealed class ComputeDispatchSmoke
     {
         try
         {
-            return await Task.Run(static () => new VulkanComputeDevice(new VulkanRendererOptions()));
+            return await Task.Run(static () => new VulkanComputeDevice(new VulkanRendererOptions())).ConfigureAwait(false);
         }
         catch (Exception ex)
         {

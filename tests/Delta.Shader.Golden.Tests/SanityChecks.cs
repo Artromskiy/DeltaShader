@@ -26,11 +26,11 @@ public class SanityChecks
         };
 
         var emitted = GlslEmitter.EmitFromModule(module);
-        Assert.Contains("#version 460", emitted.Source);
-        Assert.DoesNotContain("local_size", emitted.Source);
-        Assert.Contains("layout(location = 0) out vec2 varying_0;", emitted.Source);
-        Assert.Contains("gl_Position = vec4", emitted.Source);
-        Assert.Contains("void main()", emitted.Source);
+        Assert.Contains("#version 460", emitted.Source, StringComparison.Ordinal);
+        Assert.DoesNotContain("local_size", emitted.Source, StringComparison.Ordinal);
+        Assert.Contains("layout(location = 0) out vec2 varying_0;", emitted.Source, StringComparison.Ordinal);
+        Assert.Contains("gl_Position = vec4", emitted.Source, StringComparison.Ordinal);
+        Assert.Contains("void main()", emitted.Source, StringComparison.Ordinal);
         var abi = ShaderManifest.FromModule(module).ToAbiManifest(ShaderCompilationOptions.Default);
         Assert.Equal(ShaderStage.Vertex, abi.Stage);
         Assert.Equal("Vertex", abi.SourceEntryPointName);
@@ -65,10 +65,10 @@ public class SanityChecks
         };
 
         var emitted = GlslEmitter.EmitFromModule(module);
-        Assert.Contains("layout(push_constant, std430) uniform DeltaPushConstants", emitted.Source);
-        Assert.Contains("layout(location = 0) in vec2 varying_0;", emitted.Source);
-        Assert.Contains("layout(location = 0) out vec4 fragColor;", emitted.Source);
-        Assert.Contains("fwidth", emitted.Source);
+        Assert.Contains("layout(push_constant, std430) uniform DeltaPushConstants", emitted.Source, StringComparison.Ordinal);
+        Assert.Contains("layout(location = 0) in vec2 varying_0;", emitted.Source, StringComparison.Ordinal);
+        Assert.Contains("layout(location = 0) out vec4 fragColor;", emitted.Source, StringComparison.Ordinal);
+        Assert.Contains("fwidth", emitted.Source, StringComparison.Ordinal);
         var abi = ShaderManifest.FromModule(module).ToAbiManifest(ShaderCompilationOptions.Default);
         Assert.Equal(ShaderStage.Fragment, abi.Stage);
         Assert.Single(abi.PushConstants);
@@ -143,11 +143,11 @@ public class SanityChecks
         };
 
         var emitted = GlslEmitter.EmitFromModule(module);
-        Assert.Contains("layout(location = 0) in vec3 position;", emitted.Source);
-        Assert.Contains("layout(location = 1) in vec3 normal;", emitted.Source);
-        Assert.Contains("layout(location = 2) in vec2 uv;", emitted.Source);
-        Assert.Contains("layout(set = 0, binding = 0, std430) readonly buffer", emitted.Source);
-        Assert.Contains("layout(set = 0, binding = 1) uniform sampler2D", emitted.Source);
+        Assert.Contains("layout(location = 0) in vec3 position;", emitted.Source, StringComparison.Ordinal);
+        Assert.Contains("layout(location = 1) in vec3 normal;", emitted.Source, StringComparison.Ordinal);
+        Assert.Contains("layout(location = 2) in vec2 uv;", emitted.Source, StringComparison.Ordinal);
+        Assert.Contains("layout(set = 0, binding = 0, std430) readonly buffer", emitted.Source, StringComparison.Ordinal);
+        Assert.Contains("layout(set = 0, binding = 1) uniform sampler2D", emitted.Source, StringComparison.Ordinal);
 
         var abi = ShaderManifest.FromModule(module).ToAbiManifest(ShaderCompilationOptions.Default);
         Assert.Equal(3, abi.VertexInputs.Count);
@@ -202,13 +202,13 @@ public class SanityChecks
         var emitted = GlslEmitter.EmitFromModule(module);
 
         Assert.True(emitted.Success);
-        Assert.Contains("layout(local_size_x = 16, local_size_y = 1, local_size_z = 1) in;", emitted.Source);
-        Assert.Contains("layout(set = 0, binding = 0, std430) readonly buffer _input", emitted.Source);
-        Assert.Contains("layout(set = 0, binding = 1, std430) buffer _output", emitted.Source);
-        Assert.Contains("vec4 data[]", emitted.Source);
-        Assert.Contains("float data_0[]", emitted.Source);
-        Assert.Contains("void main()", emitted.Source);
-        Assert.DoesNotContain("void ComputeMain()", emitted.Source);
+        Assert.Contains("layout(local_size_x = 16, local_size_y = 1, local_size_z = 1) in;", emitted.Source, StringComparison.Ordinal);
+        Assert.Contains("layout(set = 0, binding = 0, std430) readonly buffer _input", emitted.Source, StringComparison.Ordinal);
+        Assert.Contains("layout(set = 0, binding = 1, std430) buffer _output", emitted.Source, StringComparison.Ordinal);
+        Assert.Contains("vec4 data[]", emitted.Source, StringComparison.Ordinal);
+        Assert.Contains("float data_0[]", emitted.Source, StringComparison.Ordinal);
+        Assert.Contains("void main()", emitted.Source, StringComparison.Ordinal);
+        Assert.DoesNotContain("void ComputeMain()", emitted.Source, StringComparison.Ordinal);
 
         var manifest = ShaderManifest.FromModule(module);
         Assert.Equal("std430", manifest.StorageLayout);
@@ -258,8 +258,8 @@ public class SanityChecks
 
         var emitted = GlslEmitter.EmitFromModule(module);
 
-        Assert.Contains("layout(set = 0, binding = 0, std430) readonly buffer _if", emitted.Source);
-        Assert.Contains("layout(set = 0, binding = 1, std430) buffer _if_0", emitted.Source);
+        Assert.Contains("layout(set = 0, binding = 0, std430) readonly buffer _if", emitted.Source, StringComparison.Ordinal);
+        Assert.Contains("layout(set = 0, binding = 1, std430) buffer _if_0", emitted.Source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -570,9 +570,9 @@ public class SanityChecks
         var abi = ShaderManifest.FromModule(module).ToAbiManifest(ShaderCompilationOptions.Default);
         var resource = abi.Resources.Single();
 
-        Assert.Contains("struct DeltaStruct_TransformRecord", emitted.Source);
-        Assert.Contains("vec3 member_Position;", emitted.Source);
-        Assert.Contains("mat4 member_Transform;", emitted.Source);
+        Assert.Contains("struct DeltaStruct_TransformRecord", emitted.Source, StringComparison.Ordinal);
+        Assert.Contains("vec3 member_Position;", emitted.Source, StringComparison.Ordinal);
+        Assert.Contains("mat4 member_Transform;", emitted.Source, StringComparison.Ordinal);
         Assert.Equal(96u, resource.ArrayStride);
         Assert.Equal(3, resource.Members.Count);
         Assert.Equal(32u, resource.Members[2].Offset);

@@ -117,7 +117,9 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
                 var fragments = graphicsMethods.Where(method => method.GetAttributes().Any(candidate =>
                     candidate.AttributeClass?.ToDisplayString() == typeof(FragmentShaderAttribute).FullName)).ToArray();
                 if (vertices.Length != 1 || fragments.Length != 1)
+                {
                     context.ReportDiagnostic(Diagnostic.Create(_graphicsPairDescriptor, methodSymbol.Locations[0]));
+                }
 
                 var named = graphicsMethods.SelectMany(method => method.GetAttributes()
                     .Where(candidate => candidate.AttributeClass?.ToDisplayString() == typeof(VertexShaderAttribute).FullName ||
@@ -126,7 +128,9 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
                     .Where(name => !string.IsNullOrWhiteSpace(name))
                     .GroupBy(name => name!, StringComparer.Ordinal));
                 foreach (var duplicate in named.Where(group => group.Count() > 1))
+                {
                     context.ReportDiagnostic(Diagnostic.Create(_duplicateGraphicsNameDescriptor, methodSymbol.Locations[0], duplicate.Key));
+                }
             }
 
             foreach (var parameter in methodSymbol.Parameters)

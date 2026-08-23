@@ -19,15 +19,15 @@ if (options.IsUsage)
 
 return options.Command switch
 {
-    "check" => await ExecuteCheckAsync(options),
-    "emit" => await ExecuteEmitAsync(options),
-    "build" => await ExecuteEmitAsync(options),
+    "CHECK" => await ExecuteCheckAsync(options).ConfigureAwait(false),
+    "EMIT" => await ExecuteEmitAsync(options).ConfigureAwait(false),
+    "BUILD" => await ExecuteEmitAsync(options).ConfigureAwait(false),
     _ => throw new InvalidOperationException($"Unhandled command '{options.Command}'.")
 };
 
 static async Task<int> ExecuteCheckAsync(ProgramOptions options)
 {
-    var results = await CompileProjectAsync(options);
+    var results = await CompileProjectAsync(options).ConfigureAwait(false);
     var success = results.All(result => result.Success);
     Console.WriteLine($"Shader entry points: {(success ? "valid" : "invalid")}");
     foreach (var result in results)
@@ -51,7 +51,7 @@ static async Task<int> ExecuteEmitAsync(ProgramOptions options)
         return 1;
     }
 
-    var results = await CompileProjectAsync(options);
+    var results = await CompileProjectAsync(options).ConfigureAwait(false);
     if (results.Any(result => !result.Success))
     {
         Console.WriteLine("Emit failed: compile diagnostics:");
@@ -93,8 +93,8 @@ static async Task<int> ExecuteEmitAsync(ProgramOptions options)
             return 1;
         }
 
-        await File.WriteAllTextAsync(glslFile, emitResult.Source, new UTF8Encoding(false));
-        await File.WriteAllTextAsync(manifestFile, JsonSerializer.Serialize(result.AbiManifest, new JsonSerializerOptions { WriteIndented = true }), new UTF8Encoding(false));
+        await File.WriteAllTextAsync(glslFile, emitResult.Source, new UTF8Encoding(false)).ConfigureAwait(false);
+        await File.WriteAllTextAsync(manifestFile, JsonSerializer.Serialize(result.AbiManifest, new JsonSerializerOptions { WriteIndented = true }), new UTF8Encoding(false)).ConfigureAwait(false);
         if (string.Equals(options.Backend, "spirv", StringComparison.OrdinalIgnoreCase))
         {
             var glslang = ToolPath("glslangValidator");
@@ -109,8 +109,10 @@ static async Task<int> ExecuteEmitAsync(ProgramOptions options)
             if (compile.ExitCode != 0) { Console.WriteLine($"glslangValidator failed:{Environment.NewLine}{compile.Output}"); return 1; }
             var validation = RunTool(spirvValidator, $"--target-env {EscapeArgument(options.CompilationOptions.Profile)} {EscapeArgument(spirvFile)}");
             if (validation.ExitCode != 0) { Console.WriteLine($"spirv-val failed:{Environment.NewLine}{validation.Output}"); return 1; }
-            var artifact = new ShaderArtifact(await File.ReadAllBytesAsync(spirvFile), result.AbiManifest);
-            await File.WriteAllBytesAsync(spirvFile, artifact.Spirv);
+            var artifact = new ShaderArtifact(
+                await File.ReadAllBytesAsync(spirvFile).ConfigureAwait(false),
+                result.AbiManifest);
+            await File.WriteAllBytesAsync(spirvFile, artifact.Spirv).ConfigureAwait(false);
             Console.WriteLine($"Wrote {spirvFile}");
         }
         Console.WriteLine($"Wrote {glslFile}");
@@ -127,8 +129,8 @@ static async Task<IReadOnlyList<ShaderCompilationResult>> CompileProjectAsync(Pr
     }
 
     using var workspace = MSBuildWorkspace.Create();
-    var project = await workspace.OpenProjectAsync(options.ProjectPath);
-    var compilation = await project.GetCompilationAsync();
+    var project = await workspace.OpenProjectAsync(options.ProjectPath).ConfigureAwait(false);
+    var compilation = await project.GetCompilationAsync().ConfigureAwait(false);
 
     if (compilation is null)
     {
@@ -145,8 +147,8 @@ static ProgramOptions ParseOptions(string[] args)
         return new ProgramOptions("usage", string.Empty, true, ShaderCompilationOptions.Default, null, string.Empty);
     }
 
-    var command = args[0].ToLowerInvariant();
-    if (command is not "check" and not "emit" and not "build")
+    var command = args[0].ToUpperInvariant();
+    if (command is not "CHECK" and not "EMIT" and not "BUILD")
     {
         return new ProgramOptions(command, string.Empty, true, ShaderCompilationOptions.Default, null, string.Empty);
     }

@@ -3,12 +3,16 @@ using Delta.Shader.Abstractions;
 
 namespace Delta.Shader.TestShaders;
 
-public static class FullscreenUi
+internal static class FullscreenUi
 {
     public struct UiPushConstants
     {
-        public float2 Resolution;
-        public float Time;
+        public float2 Resolution = default;
+        public float Time = default;
+
+        public UiPushConstants()
+        {
+        }
     }
 
     [VertexShader]

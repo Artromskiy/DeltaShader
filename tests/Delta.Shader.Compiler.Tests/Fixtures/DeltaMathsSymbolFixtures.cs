@@ -3,7 +3,7 @@ using Delta.Shader.Abstractions;
 
 namespace Delta.Shader.Compiler.Tests.Fixtures;
 
-public static class DeltaMathsSymbolFixtures
+internal static class DeltaMathsSymbolFixtures
 {
     public static void FixtureOne(
         [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<float> a,

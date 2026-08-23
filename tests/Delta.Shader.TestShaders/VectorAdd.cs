@@ -3,18 +3,26 @@ using Delta.Maths;
 
 namespace Delta.Shader.TestShaders;
 
-public static class VectorAdd
+internal static class VectorAdd
 {
     public struct TransformBase
     {
-        public float3 Position;
+        public float3 Position = default;
+
+        public TransformBase()
+        {
+        }
     }
 
     public struct TransformRecord
     {
-        public TransformBase Base;
-        public quaternion Rotation;
-        public float4x4 Transform;
+        public TransformBase Base = default;
+        public quaternion Rotation = default;
+        public float4x4 Transform = default;
+
+        public TransformRecord()
+        {
+        }
     }
 
     [ComputeShader(localSizeX: 8)]

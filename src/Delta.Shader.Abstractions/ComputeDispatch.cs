@@ -16,13 +16,12 @@ public readonly struct ComputeDispatchDimensions : IEquatable<ComputeDispatchDim
     public bool Equals(ComputeDispatchDimensions other) => X == other.X && Y == other.Y && Z == other.Z;
     public override bool Equals(object? obj) => obj is ComputeDispatchDimensions other && Equals(other);
     public override int GetHashCode() => unchecked((int)(X * 397u ^ Y * 17u ^ Z));
+    public static bool operator ==(ComputeDispatchDimensions left, ComputeDispatchDimensions right) => left.Equals(right);
+    public static bool operator !=(ComputeDispatchDimensions left, ComputeDispatchDimensions right) => !left.Equals(right);
 
     public static ComputeDispatchDimensions ForElements(ShaderArtifact artifact, uint elementCount)
     {
-        if (artifact is null)
-        {
-            throw new ArgumentNullException(nameof(artifact));
-        }
+        ArgumentGuard.NotNull(artifact, nameof(artifact));
         if (artifact.Stage != ShaderStage.Compute)
         {
             throw new ArgumentException("The shader artifact must contain a compute stage.", nameof(artifact));
@@ -41,7 +40,7 @@ public readonly struct ComputeDispatchDimensions : IEquatable<ComputeDispatchDim
     }
 }
 
-public readonly struct ComputeDispatchBinding<TResource>
+public readonly struct ComputeDispatchBinding<TResource> : IEquatable<ComputeDispatchBinding<TResource>>
 {
     public ComputeDispatchBinding(uint set, uint binding, TResource resource)
     {
@@ -53,6 +52,18 @@ public readonly struct ComputeDispatchBinding<TResource>
     public uint Set { get; }
     public uint Binding { get; }
     public TResource Resource { get; }
+
+    public bool Equals(ComputeDispatchBinding<TResource> other)
+        => Set == other.Set && Binding == other.Binding && EqualityComparer<TResource>.Default.Equals(Resource, other.Resource);
+
+    public override bool Equals(object? obj) => obj is ComputeDispatchBinding<TResource> other && Equals(other);
+    public override int GetHashCode()
+    {
+        var resourceHash = Resource is null ? 0 : EqualityComparer<TResource>.Default.GetHashCode(Resource);
+        return unchecked((int)(Set * 397u ^ Binding * 17u ^ (uint)resourceHash));
+    }
+    public static bool operator ==(ComputeDispatchBinding<TResource> left, ComputeDispatchBinding<TResource> right) => left.Equals(right);
+    public static bool operator !=(ComputeDispatchBinding<TResource> left, ComputeDispatchBinding<TResource> right) => !left.Equals(right);
 }
 
 public sealed class ComputeDispatchRequest<TResource>
@@ -62,14 +73,16 @@ public sealed class ComputeDispatchRequest<TResource>
         ComputeDispatchDimensions dimensions,
         IReadOnlyList<ComputeDispatchBinding<TResource>> bindings)
     {
-        Artifact = artifact ?? throw new ArgumentNullException(nameof(artifact));
+        ArgumentGuard.NotNull(artifact, nameof(artifact));
+        Artifact = artifact;
         if (artifact.Stage != ShaderStage.Compute)
         {
             throw new ArgumentException("The shader artifact must contain a compute stage.", nameof(artifact));
         }
 
         Dimensions = dimensions;
-        Bindings = bindings ?? throw new ArgumentNullException(nameof(bindings));
+        ArgumentGuard.NotNull(bindings, nameof(bindings));
+        Bindings = bindings;
 
         var expected = new HashSet<(uint Set, uint Binding)>(artifact.Manifest.Resources
             .Select(resource => (resource.Set, resource.Binding)));
