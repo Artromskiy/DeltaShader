@@ -17,4 +17,7 @@
     <RepositoryUrl>https://example.invalid/delta-shader</RepositoryUrl>
     <Authors>Delta.Shader contributors</Authors>
   </PropertyGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)CodeMetricsConfig.txt" />
+  </ItemGroup>
 </Project>
