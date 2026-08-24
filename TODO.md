@@ -1,8 +1,12 @@
 # DeltaShader TODO
 
-No compiler-local task is currently selected. `Delta.Shader.Abstractions`
-remains the canonical owner of `GraphicsShaderProgram` and the versioned
-artifact manifest; the current duplicate-type migration belongs to DeltaRender.
+- Keep `Delta.Shader.Abstractions` as the canonical owner of
+  `GraphicsShaderProgram`; DeltaRender owns removal of its consumer duplicate.
+- Make validated artifact/manifest state immutable and expose SPIR-V through a
+  read-only representation plus an explicit upload accessor.
+- Keep static analyzer-driven authoring as production API. Runtime Roslyn/lambda
+  transpilation remains deferred tooling research and must be described
+  consistently in README/playground/sample docs.
 
 Shared SDF/MSDF and graphics acceptance is tracked in
 [../EDITOR_UI_TODO.md](../EDITOR_UI_TODO.md).

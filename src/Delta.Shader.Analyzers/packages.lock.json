@@ -103,16 +103,6 @@
           "System.Threading.Tasks.Extensions": "4.6.3"
         }
       },
-      "System.Memory": {
-        "type": "Transitive",
-        "resolved": "4.6.3",
-        "contentHash": "qdcDOgnFZY40+Q9876JUHnlHu7bosOHX8XISRoH94fwk6hgaeQGSgfZd8srWRZNt5bV9ZW2TljcegDNxsf+96A==",
-        "dependencies": {
-          "System.Buffers": "4.6.1",
-          "System.Numerics.Vectors": "4.6.1",
-          "System.Runtime.CompilerServices.Unsafe": "6.1.2"
-        }
-      },
       "System.Numerics.Vectors": {
         "type": "Transitive",
         "resolved": "4.6.1",
@@ -160,7 +150,10 @@
         }
       },
       "delta.shader.abstractions": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "System.Memory": "[4.5.5, )"
+        }
       },
       "delta.shader.backend.glsl": {
         "type": "Project",
@@ -175,6 +168,17 @@
           "Microsoft.CodeAnalysis.Analyzers": "[3.11.0, )",
           "Microsoft.CodeAnalysis.CSharp": "[4.13.0, )",
           "System.Text.Json": "[10.0.3, )"
+        }
+      },
+      "System.Memory": {
+        "type": "CentralTransitive",
+        "requested": "[4.5.5, )",
+        "resolved": "4.6.3",
+        "contentHash": "qdcDOgnFZY40+Q9876JUHnlHu7bosOHX8XISRoH94fwk6hgaeQGSgfZd8srWRZNt5bV9ZW2TljcegDNxsf+96A==",
+        "dependencies": {
+          "System.Buffers": "4.6.1",
+          "System.Numerics.Vectors": "4.6.1",
+          "System.Runtime.CompilerServices.Unsafe": "6.1.2"
         }
       }
     }
