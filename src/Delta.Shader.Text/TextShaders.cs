@@ -1,35 +1,41 @@
 using Delta.Maths;
 using Delta.Shader.Abstractions;
+using System.Diagnostics.CodeAnalysis;
 
-namespace Delta.Shader.TestShaders;
+namespace Delta.Shader.Text;
 
-internal static class GeneratedTextShaders
+[SuppressMessage("Design", "CA1051", Justification = "Public fields are the declared shader-visible std430 payload.")]
+[SuppressMessage("Design", "CA1815", Justification = "Field-only shader ABI record; equality is not part of the serialized layout contract.")]
+public struct GlyphInstance
 {
-    public struct GlyphInstance
+    public float2 PixelMin = default;
+    public float2 PixelMax = default;
+    public float4 UvRect = default;
+    public float4 Color = default;
+
+    public GlyphInstance()
     {
-        public float2 PixelMin = default;
-        public float2 PixelMax = default;
-        public float4 UvRect = default;
-        public float4 Color = default;
-
-        public GlyphInstance()
-        {
-        }
     }
+}
 
-    public struct TextParameters
+[SuppressMessage("Design", "CA1051", Justification = "Public fields are the declared shader-visible push-constant payload.")]
+[SuppressMessage("Design", "CA1815", Justification = "Field-only shader ABI record; equality is not part of the serialized layout contract.")]
+public struct TextParameters
+{
+    public float2 Resolution = default;
+    public float4 TextColor = default;
+    public float4 OutlineColor = default;
+    public float OutlineWidth = default;
+
+    public TextParameters()
     {
-        public float2 Resolution = default;
-        public float4 TextColor = default;
-        public float4 OutlineColor = default;
-        public float OutlineWidth = default;
-
-        public TextParameters()
-        {
-        }
     }
+}
 
+public static class TextShaders
+{
     [VertexShader("sdf-text")]
+    [SuppressMessage("Design", "CA1062", Justification = "Shader entry points are compile-time authoring methods; the analyzer lowers resource parameters instead of executing them on the CLR.")]
     public static void SdfTextVertex(
         [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<GlyphInstance> glyphs,
         [InstanceIndex] uint instanceIndex,
@@ -47,32 +53,32 @@ internal static class GeneratedTextShaders
 
         if (vertexIndex == 0u)
         {
-            position = new float4((min.x / parameters.Resolution.x) * 2f - 1f, (min.y / parameters.Resolution.y) * 2f - 1f, 0f, 1f);
+            position = new float4((min.x / parameters.Resolution.x) * 2f - 1f, 1f - (min.y / parameters.Resolution.y) * 2f, 0f, 1f);
             uv = uvMin;
         }
         else if (vertexIndex == 1u)
         {
-            position = new float4((max.x / parameters.Resolution.x) * 2f - 1f, (min.y / parameters.Resolution.y) * 2f - 1f, 0f, 1f);
+            position = new float4((max.x / parameters.Resolution.x) * 2f - 1f, 1f - (min.y / parameters.Resolution.y) * 2f, 0f, 1f);
             uv = new float2(uvMax.x, uvMin.y);
         }
         else if (vertexIndex == 2u)
         {
-            position = new float4((min.x / parameters.Resolution.x) * 2f - 1f, (max.y / parameters.Resolution.y) * 2f - 1f, 0f, 1f);
+            position = new float4((min.x / parameters.Resolution.x) * 2f - 1f, 1f - (max.y / parameters.Resolution.y) * 2f, 0f, 1f);
             uv = new float2(uvMin.x, uvMax.y);
         }
         else if (vertexIndex == 3u)
         {
-            position = new float4((min.x / parameters.Resolution.x) * 2f - 1f, (max.y / parameters.Resolution.y) * 2f - 1f, 0f, 1f);
+            position = new float4((min.x / parameters.Resolution.x) * 2f - 1f, 1f - (max.y / parameters.Resolution.y) * 2f, 0f, 1f);
             uv = new float2(uvMin.x, uvMax.y);
         }
         else if (vertexIndex == 4u)
         {
-            position = new float4((max.x / parameters.Resolution.x) * 2f - 1f, (min.y / parameters.Resolution.y) * 2f - 1f, 0f, 1f);
+            position = new float4((max.x / parameters.Resolution.x) * 2f - 1f, 1f - (min.y / parameters.Resolution.y) * 2f, 0f, 1f);
             uv = new float2(uvMax.x, uvMin.y);
         }
         else
         {
-            position = new float4((max.x / parameters.Resolution.x) * 2f - 1f, (max.y / parameters.Resolution.y) * 2f - 1f, 0f, 1f);
+            position = new float4((max.x / parameters.Resolution.x) * 2f - 1f, 1f - (max.y / parameters.Resolution.y) * 2f, 0f, 1f);
             uv = uvMax;
         }
 
@@ -90,11 +96,12 @@ internal static class GeneratedTextShaders
         var texel = ShaderIntrinsics.SampleFragment<float2, float4>(atlas, uv);
         var distance = texel.x - 0.5f;
         var edge = ShaderIntrinsics.fwidth(distance);
-        var coverage = 1f - maths.smoothStep(-edge, edge, distance);
+        var coverage = maths.smoothStep(-edge, edge, distance);
         color = parameters.TextColor * glyphColor * coverage;
     }
 
     [VertexShader("msdf-text")]
+    [SuppressMessage("Design", "CA1062", Justification = "Shader entry points are compile-time authoring methods; the analyzer lowers resource parameters instead of executing them on the CLR.")]
     public static void MsdfTextVertex(
         [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<GlyphInstance> glyphs,
         [InstanceIndex] uint instanceIndex,
@@ -112,32 +119,32 @@ internal static class GeneratedTextShaders
 
         if (vertexIndex == 0u)
         {
-            position = new float4((min.x / parameters.Resolution.x) * 2f - 1f, (min.y / parameters.Resolution.y) * 2f - 1f, 0f, 1f);
+            position = new float4((min.x / parameters.Resolution.x) * 2f - 1f, 1f - (min.y / parameters.Resolution.y) * 2f, 0f, 1f);
             uv = uvMin;
         }
         else if (vertexIndex == 1u)
         {
-            position = new float4((max.x / parameters.Resolution.x) * 2f - 1f, (min.y / parameters.Resolution.y) * 2f - 1f, 0f, 1f);
+            position = new float4((max.x / parameters.Resolution.x) * 2f - 1f, 1f - (min.y / parameters.Resolution.y) * 2f, 0f, 1f);
             uv = new float2(uvMax.x, uvMin.y);
         }
         else if (vertexIndex == 2u)
         {
-            position = new float4((min.x / parameters.Resolution.x) * 2f - 1f, (max.y / parameters.Resolution.y) * 2f - 1f, 0f, 1f);
+            position = new float4((min.x / parameters.Resolution.x) * 2f - 1f, 1f - (max.y / parameters.Resolution.y) * 2f, 0f, 1f);
             uv = new float2(uvMin.x, uvMax.y);
         }
         else if (vertexIndex == 3u)
         {
-            position = new float4((min.x / parameters.Resolution.x) * 2f - 1f, (max.y / parameters.Resolution.y) * 2f - 1f, 0f, 1f);
+            position = new float4((min.x / parameters.Resolution.x) * 2f - 1f, 1f - (max.y / parameters.Resolution.y) * 2f, 0f, 1f);
             uv = new float2(uvMin.x, uvMax.y);
         }
         else if (vertexIndex == 4u)
         {
-            position = new float4((max.x / parameters.Resolution.x) * 2f - 1f, (min.y / parameters.Resolution.y) * 2f - 1f, 0f, 1f);
+            position = new float4((max.x / parameters.Resolution.x) * 2f - 1f, 1f - (min.y / parameters.Resolution.y) * 2f, 0f, 1f);
             uv = new float2(uvMax.x, uvMin.y);
         }
         else
         {
-            position = new float4((max.x / parameters.Resolution.x) * 2f - 1f, (max.y / parameters.Resolution.y) * 2f - 1f, 0f, 1f);
+            position = new float4((max.x / parameters.Resolution.x) * 2f - 1f, 1f - (max.y / parameters.Resolution.y) * 2f, 0f, 1f);
             uv = uvMax;
         }
 
@@ -158,8 +165,9 @@ internal static class GeneratedTextShaders
             maths.min(maths.max(texel.x, texel.y), texel.z));
         var signedDistance = median - 0.5f;
         var edge = ShaderIntrinsics.fwidth(signedDistance);
-        var coverage = 1f - maths.smoothStep(-edge, edge, signedDistance);
-        var outline = 1f - coverage;
-        color = parameters.TextColor * glyphColor * coverage + parameters.OutlineColor * outline * parameters.OutlineWidth;
+        var fillCoverage = maths.smoothStep(-edge, edge, signedDistance);
+        var outerCoverage = maths.smoothStep(-edge, edge, signedDistance + parameters.OutlineWidth);
+        var outlineContribution = maths.max(outerCoverage - fillCoverage, 0f);
+        color = parameters.TextColor * glyphColor * fillCoverage + parameters.OutlineColor * glyphColor * outlineContribution;
     }
 }

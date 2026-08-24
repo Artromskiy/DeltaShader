@@ -11,9 +11,13 @@ public sealed class ShaderCompilationResult
         bool success,
         IReadOnlyList<ShaderDiagnostic> diagnostics,
         ShaderIrModule? module = null,
-        ShaderCompilationOptions? options = null)
+        ShaderCompilationOptions? options = null,
+        string? sourceMethodName = null,
+        string? sourceMethodIdentity = null)
     {
         EntryPointName = entryPointName;
+        SourceMethodName = sourceMethodName ?? entryPointName;
+        SourceMethodIdentity = sourceMethodIdentity ?? SourceMethodName;
         Success = success;
         Diagnostics = diagnostics;
         Module = module;
@@ -22,6 +26,8 @@ public sealed class ShaderCompilationResult
     }
 
     public string EntryPointName { get; }
+    public string SourceMethodName { get; }
+    public string SourceMethodIdentity { get; }
     public bool Success { get; }
     public IReadOnlyList<ShaderDiagnostic> Diagnostics { get; }
     public ShaderIrModule? Module { get; }

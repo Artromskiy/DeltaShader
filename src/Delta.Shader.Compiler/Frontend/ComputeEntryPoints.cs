@@ -15,13 +15,18 @@ public static class ComputeEntryPoints
     public static ShaderCompilationResult ValidateAndBuild(
         ModuleCompilationContext context,
         RoslynFrontend frontend,
-        ShaderCompilationOptions? options = null)
+        ShaderCompilationOptions? options = null,
+        string? entryPointName = null,
+        string? entryPointIdentity = null)
     {
         var resultOptions = options ?? ShaderCompilationOptions.Default;
         var diagnostics = new List<ShaderDiagnostic>();
-        var entries = frontend.FindComputeEntryPoints();
+        var entries = frontend.FindComputeEntryPoints()
+            .Where(entry => (entryPointName is null || entry.Method.Name == entryPointName) &&
+                (entryPointIdentity is null || entry.Method.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == entryPointIdentity))
+            .ToArray();
 
-        if (entries.Count == 0)
+        if (entries.Length == 0)
         {
             diagnostics.Add(new ShaderDiagnostic(
                 ShaderDiagnosticId.DSH004,
@@ -30,7 +35,7 @@ public static class ComputeEntryPoints
             return new ShaderCompilationResult(string.Empty, false, diagnostics);
         }
 
-        if (entries.Count > 1)
+        if (entries.Length > 1)
         {
             diagnostics.Add(new ShaderDiagnostic(
                 ShaderDiagnosticId.DSH004,
@@ -258,7 +263,7 @@ public static class ComputeEntryPoints
             InvocationParameterName = invocationParameter?.Name
         };
 
-        return new ShaderCompilationResult(entry.Name, diagnostics.Count == 0, diagnostics, module, resultOptions);
+        return new ShaderCompilationResult(entry.Name, diagnostics.Count == 0, diagnostics, module, resultOptions, entry.Method.Name, entry.Method.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
     }
 
     private static ShaderDiagnostic CreateDiagnostic(ISymbol symbol, string id, string message)

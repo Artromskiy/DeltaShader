@@ -17,11 +17,16 @@ internal static class GraphicsEntryPoints
         ModuleCompilationContext context,
         RoslynFrontend frontend,
         ShaderStage stage,
-        ShaderCompilationOptions? options = null)
+        ShaderCompilationOptions? options = null,
+        string? entryPointName = null,
+        string? entryPointIdentity = null)
     {
         var resultOptions = options ?? ShaderCompilationOptions.Default;
         var diagnostics = new List<ShaderDiagnostic>();
-        var entries = frontend.FindShaderEntryPoints().Where(entry => entry.Stage == stage).ToArray();
+        var entries = frontend.FindShaderEntryPoints()
+            .Where(entry => entry.Stage == stage && (entryPointName is null || entry.Method.Name == entryPointName) &&
+                (entryPointIdentity is null || entry.Method.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == entryPointIdentity))
+            .ToArray();
         if (entries.Length == 0)
         {
             diagnostics.Add(new ShaderDiagnostic(ShaderDiagnosticId.DSH004,
@@ -400,6 +405,24 @@ internal static class GraphicsEntryPoints
         string body = string.Empty;
         if (diagnostics.Count == 0)
         {
+            var structNames = new Dictionary<INamedTypeSymbol, string>(SymbolEqualityComparer.Default);
+            foreach (var definition in structures)
+            {
+                structNames[definition.Key] = definition.Value.GlslName;
+            }
+            var structFields = new Dictionary<IFieldSymbol, string>(SymbolEqualityComparer.Default);
+            foreach (var definition in structures)
+            {
+                foreach (var field in definition.Key.GetMembers().OfType<IFieldSymbol>().Where(field => !field.IsStatic))
+                {
+                    var member = definition.Value.Members.FirstOrDefault(candidate => candidate.Name == field.Name);
+                    if (member is not null)
+                    {
+                        structFields[field] = member.GlslName;
+                    }
+                }
+            }
+
             var syntax = entry.Method.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() as MethodDeclarationSyntax;
             if (syntax?.Body is null)
             {
@@ -408,7 +431,7 @@ internal static class GraphicsEntryPoints
             else
             {
                 var semanticModel = context.Compilation.GetSemanticModel(syntax.SyntaxTree);
-                if (!GraphicsShaderBodyTranslator.TryTranslate(syntax.Body, semanticModel, context, stage, parameterMap, pushFieldMap, storageBufferTargets, out body, out var reason))
+                if (!GraphicsShaderBodyTranslator.TryTranslate(syntax.Body, semanticModel, context, stage, parameterMap, pushFieldMap, structNames, structFields, storageBufferTargets, out body, out var reason))
                 {
                     diagnostics.Add(new ShaderDiagnostic(ShaderDiagnosticId.DSH008, reason ?? "Unable to translate graphics shader body.", Severity: ShaderDiagnosticSeverity.Error));
                 }
@@ -431,7 +454,7 @@ internal static class GraphicsEntryPoints
             Outputs = outputs,
             PushConstants = pushConstants
         };
-        return new ShaderCompilationResult(entry.Name, diagnostics.Count == 0, diagnostics, module, resultOptions);
+        return new ShaderCompilationResult(entry.Name, diagnostics.Count == 0, diagnostics, module, resultOptions, entry.Method.Name, entry.Method.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
     }
 
     private static void AddDiagnostic(List<ShaderDiagnostic> diagnostics, string id, string message, FileLinePositionSpan? location)
@@ -565,9 +588,9 @@ internal static class GraphicsEntryPoints
 
 internal static class GraphicsShaderBodyTranslator
 {
-    public static bool TryTranslate(BlockSyntax body, SemanticModel model, ModuleCompilationContext context, ShaderStage stage, IReadOnlyDictionary<IParameterSymbol, string> parameterMap, IReadOnlyDictionary<IFieldSymbol, string> pushFieldMap, IReadOnlyCollection<string> storageBufferTargets, out string translated, out string? reason)
+    public static bool TryTranslate(BlockSyntax body, SemanticModel model, ModuleCompilationContext context, ShaderStage stage, IReadOnlyDictionary<IParameterSymbol, string> parameterMap, IReadOnlyDictionary<IFieldSymbol, string> pushFieldMap, IReadOnlyDictionary<INamedTypeSymbol, string> structNames, IReadOnlyDictionary<IFieldSymbol, string> structFields, IReadOnlyCollection<string> storageBufferTargets, out string translated, out string? reason)
     {
-        var rewriter = new Rewriter(model, context, stage, parameterMap, pushFieldMap);
+        var rewriter = new Rewriter(model, context, stage, parameterMap, pushFieldMap, structNames, structFields);
         var rewritten = rewriter.Visit(body);
         translated = rewritten?.ToFullString().Trim() ?? string.Empty;
         foreach (var field in pushFieldMap)
@@ -612,6 +635,10 @@ internal static class GraphicsShaderBodyTranslator
         }
         translated = translated.Replace(";", ";\n").Replace("\r\n", "\n").Replace("\r", "\n");
         translated = Regex.Replace(translated, @"\b(vec[234]|ivec[234]|uvec[234]|bvec[234]|mat[234]|float|int|uint|bool)([A-Za-z_]\w*)\s*=", "$1 $2 =", RegexOptions.None);
+        foreach (var structName in structNames.Values)
+        {
+            translated = Regex.Replace(translated, $@"\b({Regex.Escape(structName)})([A-Za-z_]\w*)\s*=", "$1 $2 =", RegexOptions.None);
+        }
         translated = System.Text.RegularExpressions.Regex.Replace(translated, @"(?<=\d)f\b", string.Empty);
         reason = rewriter.Reason;
         return reason is null;
@@ -643,10 +670,12 @@ internal static class GraphicsShaderBodyTranslator
         private readonly ShaderStage _stage;
         private readonly IReadOnlyDictionary<IParameterSymbol, string> _parameters;
         private readonly IReadOnlyDictionary<IFieldSymbol, string> _pushFields;
+        private readonly IReadOnlyDictionary<INamedTypeSymbol, string> _structNames;
+        private readonly IReadOnlyDictionary<IFieldSymbol, string> _structFields;
         public string? Reason { get; private set; }
 
-        public Rewriter(SemanticModel model, ModuleCompilationContext context, ShaderStage stage, IReadOnlyDictionary<IParameterSymbol, string> parameters, IReadOnlyDictionary<IFieldSymbol, string> pushFields)
-        { _model = model; _context = context; _stage = stage; _parameters = parameters; _pushFields = pushFields; }
+        public Rewriter(SemanticModel model, ModuleCompilationContext context, ShaderStage stage, IReadOnlyDictionary<IParameterSymbol, string> parameters, IReadOnlyDictionary<IFieldSymbol, string> pushFields, IReadOnlyDictionary<INamedTypeSymbol, string> structNames, IReadOnlyDictionary<IFieldSymbol, string> structFields)
+        { _model = model; _context = context; _stage = stage; _parameters = parameters; _pushFields = pushFields; _structNames = structNames; _structFields = structFields; }
 
         public override SyntaxNode? VisitIdentifierName(IdentifierNameSyntax node)
         {
@@ -680,6 +709,11 @@ internal static class GraphicsShaderBodyTranslator
             if (symbol is IFieldSymbol field && _pushFields.TryGetValue(field, out var fieldName))
             {
                 return SyntaxFactory.ParseExpression(fieldName);
+            }
+            if (symbol is IFieldSymbol structField && _structFields.TryGetValue(structField, out var structFieldName))
+            {
+                var receiver = Visit(node.Expression)?.ToFullString() ?? node.Expression.ToFullString();
+                return SyntaxFactory.ParseExpression(receiver + "." + structFieldName);
             }
             return base.VisitMemberAccessExpression(node);
         }
@@ -721,6 +755,11 @@ internal static class GraphicsShaderBodyTranslator
                 var type = node.Variables[0].Initializer is { } initializer
                     ? _model.GetTypeInfo(initializer.Value).Type
                     : null;
+                if (type is INamedTypeSymbol namedType && _structNames.TryGetValue(namedType, out var structName))
+                {
+                    return node.WithType(SyntaxFactory.ParseTypeName(structName));
+                }
+
                 if (type is not null && TryMap(type, out var glslType))
                 {
                     return node.WithType(SyntaxFactory.ParseTypeName(glslType));

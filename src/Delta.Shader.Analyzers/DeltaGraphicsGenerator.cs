@@ -38,39 +38,84 @@ public sealed class DeltaGraphicsGenerator : IIncrementalGenerator
             return;
         }
 
-        var firstMethod = methodsInAssembly[0];
         var vertices = methodsInAssembly.Where(m => m.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == typeof(VertexShaderAttribute).FullName)).ToArray();
         var fragments = methodsInAssembly.Where(m => m.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == typeof(FragmentShaderAttribute).FullName)).ToArray();
-        if (vertices.Length != 1 || fragments.Length != 1) { context.ReportDiagnostic(Diagnostic.Create(Descriptor, firstMethod.Locations.FirstOrDefault(), "DSH017: exactly one vertex and one fragment shader are required for a generated graphics program.")); return; }
+        var singlePair = vertices.Length == 1 && fragments.Length == 1;
+        var pairNames = singlePair
+            ? ["__single_graphics_pair"]
+            : vertices.Select(GetShaderName).Concat(fragments.Select(GetShaderName)).Distinct(StringComparer.Ordinal).ToArray();
         var results = ShaderCompiler.CompileAll(compilation).Where(r => r.Module?.Stage is ShaderStage.Vertex or ShaderStage.Fragment).ToArray();
-        if (results.Length != 2 || results.Any(r => !r.Success || r.AbiManifest is null || r.Module is null))
+        if (results.Any(r => !r.Success || r.AbiManifest is null || r.Module is null))
         {
             foreach (var d in results.SelectMany(r => r.Diagnostics))
             {
-                context.ReportDiagnostic(Diagnostic.Create(Descriptor, firstMethod.Locations.FirstOrDefault(), $"{d.Id}: {d.Message}"));
+                context.ReportDiagnostic(Diagnostic.Create(Descriptor, methodsInAssembly[0].Locations.FirstOrDefault(), $"{d.Id}: {d.Message}"));
             }
 
             return;
         }
-        var vertexResult = results.Single(result => result.Module?.Stage == ShaderStage.Vertex);
-        var fragmentResult = results.Single(result => result.Module?.Stage == ShaderStage.Fragment);
-        var vertexModule = vertexResult.Module ?? throw new InvalidOperationException("Vertex shader module is missing after successful compilation.");
-        var fragmentModule = fragmentResult.Module ?? throw new InvalidOperationException("Fragment shader module is missing after successful compilation.");
-        var vertexEmit = GlslEmitter.EmitFromModule(vertexModule);
-        var fragmentEmit = GlslEmitter.EmitFromModule(fragmentModule);
-        if (!vertexEmit.Success || !fragmentEmit.Success) { context.ReportDiagnostic(Diagnostic.Create(Descriptor, firstMethod.Locations.FirstOrDefault(), "GLSL generation failed for the graphics shader pair.")); return; }
-        var vertexManifest = vertexResult.AbiManifest ?? throw new InvalidOperationException("Vertex shader manifest is missing after successful compilation.");
-        var fragmentManifest = fragmentResult.AbiManifest ?? throw new InvalidOperationException("Fragment shader manifest is missing after successful compilation.");
-        var vertexGlsl = vertexEmit.Source;
-        var fragmentGlsl = fragmentEmit.Source;
-        var type = vertices[0].ContainingType;
-        var name = Sanitize(type.Name) + "GraphicsShaderProgram";
-        var ns = type.ContainingNamespace.IsGlobalNamespace ? string.Empty : $"namespace {type.ContainingNamespace.ToDisplayString()};";
-        var source = "using System;\nusing System.Text.Json;\nusing Delta.Shader.Abstractions;\n\n" + ns + "\n\npublic static class " + name + "\n{\n" +
-            "    public const string VertexGlsl = " + Literal(vertexGlsl) + ";\n    public const string FragmentGlsl = " + Literal(fragmentGlsl) + ";\n    public const string VertexManifestJson = " + Literal(JsonSerializer.Serialize(vertexManifest)) + ";\n    public const string FragmentManifestJson = " + Literal(JsonSerializer.Serialize(fragmentManifest)) + ";\n\n" +
-            "    public static GraphicsShaderProgram CreateProgram(byte[] vertexSpirv, byte[] fragmentSpirv)\n    {\n        var v = JsonSerializer.Deserialize<ShaderAbiManifest>(VertexManifestJson);\n        var f = JsonSerializer.Deserialize<ShaderAbiManifest>(FragmentManifestJson);\n        if (v is null || f is null) throw new InvalidOperationException(\"Generated graphics manifests could not be deserialized.\");\n        return new GraphicsShaderProgram(new ShaderArtifact(vertexSpirv, v), new ShaderArtifact(fragmentSpirv, f));\n    }\n}\n";
-        context.AddSource(name + ".g.cs", SourceText.From(source, Encoding.UTF8));
+        foreach (var pairName in pairNames)
+        {
+            var pairVertices = singlePair ? vertices : vertices.Where(method => GetShaderName(method) == pairName).ToArray();
+            var pairFragments = singlePair ? fragments : fragments.Where(method => GetShaderName(method) == pairName).ToArray();
+            if (pairVertices.Length != 1 || pairFragments.Length != 1)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(Descriptor, methodsInAssembly[0].Locations.FirstOrDefault(), $"DSH017: graphics pair '{pairName}' requires exactly one vertex and one fragment shader."));
+                continue;
+            }
+
+            var resultsByIdentity = results.GroupBy(result => result.SourceMethodIdentity)
+                .ToDictionary(group => group.Key, group => group.ToArray(), StringComparer.Ordinal);
+            var vertexIdentity = pairVertices[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            var fragmentIdentity = pairFragments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            var vertexResult = resultsByIdentity.TryGetValue(vertexIdentity, out var vertexMatches) && vertexMatches.Length == 1 ? vertexMatches[0] : null;
+            var fragmentResult = resultsByIdentity.TryGetValue(fragmentIdentity, out var fragmentMatches) && fragmentMatches.Length == 1 ? fragmentMatches[0] : null;
+            if (vertexResult?.Module is null || vertexResult.AbiManifest is null || fragmentResult?.Module is null || fragmentResult.AbiManifest is null)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(Descriptor, pairVertices[0].Locations.FirstOrDefault(), $"DSH017: graphics pair '{pairName}' did not produce both shader modules."));
+                continue;
+            }
+
+            var vertexEmit = GlslEmitter.EmitFromModule(vertexResult.Module);
+            var fragmentEmit = GlslEmitter.EmitFromModule(fragmentResult.Module);
+            if (!vertexEmit.Success || !fragmentEmit.Success)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(Descriptor, pairVertices[0].Locations.FirstOrDefault(), $"GLSL generation failed for graphics pair '{pairName}'."));
+                continue;
+            }
+
+            var type = pairVertices[0].ContainingType;
+            var name = pairNames.Length == 1 ? Sanitize(type.Name) + "GraphicsShaderProgram" : Pascalize(pairName) + "GraphicsShaderProgram";
+            var ns = type.ContainingNamespace.IsGlobalNamespace ? string.Empty : $"namespace {type.ContainingNamespace.ToDisplayString()};";
+            var source = "using System;\nusing System.Text.Json;\nusing Delta.Shader.Abstractions;\n\n" + ns + "\n\npublic static class " + name + "\n{\n" +
+                "    public const string VertexGlsl = " + Literal(vertexEmit.Source) + ";\n    public const string FragmentGlsl = " + Literal(fragmentEmit.Source) + ";\n    public const string VertexManifestJson = " + Literal(JsonSerializer.Serialize(vertexResult.AbiManifest)) + ";\n    public const string FragmentManifestJson = " + Literal(JsonSerializer.Serialize(fragmentResult.AbiManifest)) + ";\n\n" +
+                "    public static GraphicsShaderProgram CreateProgram(byte[] vertexSpirv, byte[] fragmentSpirv)\n    {\n        var v = JsonSerializer.Deserialize<ShaderAbiManifest>(VertexManifestJson);\n        var f = JsonSerializer.Deserialize<ShaderAbiManifest>(FragmentManifestJson);\n        if (v is null || f is null) throw new InvalidOperationException(\"Generated graphics manifests could not be deserialized.\");\n        return new GraphicsShaderProgram(new ShaderArtifact(vertexSpirv, v), new ShaderArtifact(fragmentSpirv, f));\n    }\n}\n";
+            context.AddSource(name + ".g.cs", SourceText.From(source, Encoding.UTF8));
+        }
+    }
+    private static string GetShaderName(IMethodSymbol method)
+    {
+        var attribute = method.GetAttributes().First(attribute => attribute.AttributeClass?.ToDisplayString() == typeof(VertexShaderAttribute).FullName || attribute.AttributeClass?.ToDisplayString() == typeof(FragmentShaderAttribute).FullName);
+        return attribute.ConstructorArguments.FirstOrDefault().Value?.ToString() ?? method.Name;
     }
     private static string Sanitize(string name) => string.Concat(name.Select(c => char.IsLetterOrDigit(c) || c == '_' ? c : '_')) is { Length: > 0 } value ? value : "Graphics";
+    private static string Pascalize(string name)
+    {
+        var result = new StringBuilder();
+        var capitalize = true;
+        foreach (var character in name)
+        {
+            if (!char.IsLetterOrDigit(character) && character != '_')
+            {
+                capitalize = true;
+                continue;
+            }
+
+            result.Append(capitalize ? char.ToUpperInvariant(character) : character);
+            capitalize = false;
+        }
+
+        return result.Length == 0 ? "Graphics" : result.ToString();
+    }
     private static string Literal(string value) => "\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "\\r").Replace("\n", "\\n") + "\"";
 }

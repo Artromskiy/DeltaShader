@@ -41,10 +41,9 @@ public static class ShaderCompiler
                 [new ShaderDiagnostic(ShaderDiagnosticId.DSH004, "No shader entry point found.", Severity: ShaderDiagnosticSeverity.Error)])];
         }
 
-        return entries.GroupBy(entry => entry.Stage)
-            .Select(group => group.Key == ShaderStage.Compute
-                ? ComputeEntryPoints.ValidateAndBuild(context, frontend, options)
-                : GraphicsEntryPoints.ValidateAndBuild(context, frontend, group.Key, options))
+        return entries.Select(entry => entry.Stage == ShaderStage.Compute
+                ? ComputeEntryPoints.ValidateAndBuild(context, frontend, options, entry.Method.Name, entry.Method.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))
+                : GraphicsEntryPoints.ValidateAndBuild(context, frontend, entry.Stage, options, entry.Method.Name, entry.Method.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
             .ToArray();
     }
 }

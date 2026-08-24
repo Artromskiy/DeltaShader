@@ -11,6 +11,7 @@
     <ProjectReference Include="..\\..\\src\\Delta.Shader.Backend.Glsl\\Delta.Shader.Backend.Glsl.csproj" />
     <ProjectReference Include="..\\..\\src\\Delta.Shader.Compiler\\Delta.Shader.Compiler.csproj" />
     <ProjectReference Include="..\\..\\src\\Delta.Shader.Tool\\Delta.Shader.Tool.csproj" />
+    <ProjectReference Include="..\\..\\src\\Delta.Shader.Text\\Delta.Shader.Text.csproj" />
     <ProjectReference Include="..\\..\\..\\DeltaRender\\src\\Delta.Render.Core\\Delta.Render.Core.csproj" />
     <ProjectReference Include="..\\..\\..\\DeltaRender\\src\\Delta.Render.Vulkan\\Delta.Render.Vulkan.csproj" />
     <PackageReference Include="Silk.NET.Vulkan" />

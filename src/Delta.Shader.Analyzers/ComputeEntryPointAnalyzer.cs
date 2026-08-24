@@ -54,7 +54,7 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
     private static readonly DiagnosticDescriptor _graphicsPairDescriptor = new(
         id: GraphicsPairDescriptorId,
         title: "Incomplete graphics shader pair",
-        messageFormat: "Graphics shader program must declare exactly one vertex and one fragment entry point",
+        messageFormat: "Graphics shader pair '{0}' must declare exactly one vertex and one fragment entry point",
         category: "Delta.Shader",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
@@ -112,24 +112,23 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
                         candidate.AttributeClass?.ToDisplayString() == typeof(VertexShaderAttribute).FullName ||
                         candidate.AttributeClass?.ToDisplayString() == typeof(FragmentShaderAttribute).FullName))
                     .ToArray() ?? Array.Empty<IMethodSymbol>();
-                var vertices = graphicsMethods.Where(method => method.GetAttributes().Any(candidate =>
-                    candidate.AttributeClass?.ToDisplayString() == typeof(VertexShaderAttribute).FullName)).ToArray();
-                var fragments = graphicsMethods.Where(method => method.GetAttributes().Any(candidate =>
-                    candidate.AttributeClass?.ToDisplayString() == typeof(FragmentShaderAttribute).FullName)).ToArray();
-                if (vertices.Length != 1 || fragments.Length != 1)
-                {
-                    context.ReportDiagnostic(Diagnostic.Create(_graphicsPairDescriptor, methodSymbol.Locations[0]));
-                }
-
-                var named = graphicsMethods.SelectMany(method => method.GetAttributes()
+                var entries = graphicsMethods.SelectMany(method => method.GetAttributes()
                     .Where(candidate => candidate.AttributeClass?.ToDisplayString() == typeof(VertexShaderAttribute).FullName ||
                         candidate.AttributeClass?.ToDisplayString() == typeof(FragmentShaderAttribute).FullName)
-                    .Select(candidate => candidate.ConstructorArguments.FirstOrDefault().Value as string)
-                    .OfType<string>()
-                    .GroupBy(name => name, StringComparer.Ordinal));
-                foreach (var duplicate in named.Where(group => group.Count() > 1))
+                    .Select(candidate => (Stage: candidate.AttributeClass?.ToDisplayString() == typeof(VertexShaderAttribute).FullName ? "vertex" : "fragment",
+                        Name: candidate.ConstructorArguments.FirstOrDefault().Value as string ?? method.Name)))
+                    .ToArray();
+                var singlePair = entries.Count(entry => entry.Stage == "vertex") == 1 && entries.Count(entry => entry.Stage == "fragment") == 1;
+                foreach (var pair in entries.GroupBy(entry => entry.Name, StringComparer.Ordinal)
+                    .Where(group => !singlePair && (group.Count(entry => entry.Stage == "vertex") != 1 || group.Count(entry => entry.Stage == "fragment") != 1)))
                 {
-                    context.ReportDiagnostic(Diagnostic.Create(_duplicateGraphicsNameDescriptor, methodSymbol.Locations[0], duplicate.Key));
+                    context.ReportDiagnostic(Diagnostic.Create(_graphicsPairDescriptor, methodSymbol.Locations[0], pair.Key));
+                }
+
+                foreach (var duplicate in entries.GroupBy(entry => (entry.Stage, entry.Name))
+                    .Where(group => group.Count() > 1))
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(_duplicateGraphicsNameDescriptor, methodSymbol.Locations[0], duplicate.Key.Name));
                 }
             }
 

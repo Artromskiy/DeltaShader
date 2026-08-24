@@ -57,6 +57,33 @@ Arbitrary runtime lambda compilation is not implemented: a `Delegate` or
 expression tree is never transpiled at runtime. Use a static `[DeltaCompute]`
 method in the compile-time authoring project.
 
+## Reusable text artifacts
+
+Reference `src/Delta.Shader.Text/Delta.Shader.Text.csproj` together with
+`Delta.Maths` and the Delta.Shader analyzer. The project owns the static C#
+authoring source and the generator publishes two factories:
+
+```csharp
+var sdf = SdfTextGraphicsShaderProgram.CreateProgram(vertexSpirv, fragmentSpirv);
+var msdf = MsdfTextGraphicsShaderProgram.CreateProgram(vertexSpirv, fragmentSpirv);
+```
+
+Each factory also exposes generated `VertexGlsl`, `FragmentGlsl`,
+`VertexManifestJson` and `FragmentManifestJson`; SPIR-V is supplied by the
+explicit CLI/tool build step, not checked in. Both programs use the same
+immutable ABI: a readonly std430 `GlyphInstance[]` at set 0/binding 0 with
+stride 48 and member offsets `PixelMin=0`, `PixelMax=8`, `UvRect=16`,
+`Color=32`, plus `TextParameters` push constants of size 64. The SDF fragment
+uses atlas sampler set 0/binding 3; the MSDF fragment uses set 0/binding 4.
+The atlas is a readonly combined `sampler2D`; the vertex stage emits six
+vertices per instance from `VertexIndex` and reads `InstanceIndex`. Glyph pixel
+coordinates use the canonical top-left UI convention: `clip.y = 1 -
+pixel.y / resolution.y * 2`; renderer viewport state remains separate.
+Consumers
+must use the manifest for descriptor and push-constant layout rather than
+duplicating these values. The factories are shader artifacts only and do not
+own Vulkan, texture or atlas resources.
+
 Compute shaders may declare a `[SampledTexture2D(set, binding, ShaderStageMask.Compute)]`
 resource and sample it through `ShaderIntrinsics.SampleCompute<TCoordinate, TColor>`.
 Generic storage buffers expose indexed access (`buffer[index]`) as the canonical

@@ -7,13 +7,6 @@
       },
       "delta.shader.abstractions": {
         "type": "Project"
-      },
-      "delta.shader.text": {
-        "type": "Project",
-        "dependencies": {
-          "Delta.Maths": "[1.0.0, )",
-          "Delta.Shader.Abstractions": "[1.0.0, )"
-        }
       }
     }
   }

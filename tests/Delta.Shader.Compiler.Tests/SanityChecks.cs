@@ -1267,6 +1267,40 @@ public class IntrinsicCatalogTests
     }
 
     [Fact]
+    public async Task GraphicsStructFieldLowering_PreservesLocalWithMatchingFieldName()
+    {
+        const string source = @"
+            using Delta.Maths;
+            using Delta.Shader.Abstractions;
+            public static class StructFieldSymbols
+            {
+                public struct Payload
+                {
+                    public float4 Color;
+                }
+
+                [VertexShader]
+                public static void Vertex(
+                    [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<Payload> payloads,
+                    [VertexIndex] uint index,
+                    [Position] out float4 position)
+                {
+                    var payload = payloads[index];
+                    var Color = new float4(0.25f, 0.5f, 0.75f, 1f);
+                    position = payload.Color + Color;
+                }
+            }";
+
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        Assert.Contains("member_Color", result.Module!.Body, StringComparison.Ordinal);
+        Assert.Contains("+ Color", result.Module.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain("member_member_Color", result.Module.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task InstanceIndex_RejectsFragmentStage()
     {
         const string source = @"
