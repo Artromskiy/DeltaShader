@@ -750,6 +750,12 @@ internal static class GraphicsShaderBodyTranslator
 
         public override SyntaxNode? VisitVariableDeclaration(VariableDeclarationSyntax node)
         {
+            var rewritten = base.VisitVariableDeclaration(node) as VariableDeclarationSyntax;
+            if (rewritten is null)
+            {
+                return null;
+            }
+
             if (node.Type.IsVar && node.Variables.Count == 1)
             {
                 var type = node.Variables[0].Initializer is { } initializer
@@ -757,15 +763,15 @@ internal static class GraphicsShaderBodyTranslator
                     : null;
                 if (type is INamedTypeSymbol namedType && _structNames.TryGetValue(namedType, out var structName))
                 {
-                    return node.WithType(SyntaxFactory.ParseTypeName(structName));
+                    return rewritten.WithType(SyntaxFactory.ParseTypeName(structName));
                 }
 
                 if (type is not null && TryMap(type, out var glslType))
                 {
-                    return node.WithType(SyntaxFactory.ParseTypeName(glslType));
+                    return rewritten.WithType(SyntaxFactory.ParseTypeName(glslType));
                 }
             }
-            return base.VisitVariableDeclaration(node);
+            return rewritten;
         }
 
         private bool TryMap(ITypeSymbol type, out string glslType)

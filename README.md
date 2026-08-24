@@ -84,6 +84,26 @@ must use the manifest for descriptor and push-constant layout rather than
 duplicating these values. The factories are shader artifacts only and do not
 own Vulkan, texture or atlas resources.
 
+### Preparing distributable text artifacts
+
+The producer preparation step emits the generated GLSL, SPIR-V and manifests
+with stable entry-point names. It requires `glslangValidator`, `spirv-val` and
+`jq`; missing tools fail with an explicit diagnostic. The command does not run
+Roslyn or shader compilation at runtime and does not check in generated files:
+
+```bash
+out_dir="$(mktemp -d)"
+./eng/prepare-text-artifacts.sh "$out_dir"
+```
+
+The SDF files are `SdfTextVertex.vert.{glsl,spv,shader.json}` and
+`SdfTextFragment.frag.{glsl,spv,shader.json}`. The same directory also receives
+the corresponding `MsdfTextVertex` and `MsdfTextFragment` files. Consumers
+load the `.spv` bytes and matching `.shader.json` manifest, then pass them to
+the generated `SdfTextGraphicsShaderProgram.CreateProgram` or
+`MsdfTextGraphicsShaderProgram.CreateProgram` factory; no ABI values are
+duplicated in the consumer.
+
 Compute shaders may declare a `[SampledTexture2D(set, binding, ShaderStageMask.Compute)]`
 resource and sample it through `ShaderIntrinsics.SampleCompute<TCoordinate, TColor>`.
 Generic storage buffers expose indexed access (`buffer[index]`) as the canonical

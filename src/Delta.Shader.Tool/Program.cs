@@ -77,7 +77,9 @@ static async Task<int> ExecuteEmitAsync(ProgramOptions options)
             return 1;
         }
 
-        var entryName = string.IsNullOrWhiteSpace(result.EntryPointName) ? result.Module.Stage.ToString() : result.EntryPointName;
+        var entryName = string.IsNullOrWhiteSpace(result.SourceMethodName)
+            ? result.Module.Stage.ToString()
+            : result.SourceMethodName;
         var stageSuffix = result.Module.Stage switch
         {
             ShaderStage.Vertex => "vert",

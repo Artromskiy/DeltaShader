@@ -1286,8 +1286,9 @@ public class IntrinsicCatalogTests
                     [Position] out float4 position)
                 {
                     var payload = payloads[index];
+                    var copiedColor = payload.Color;
                     var Color = new float4(0.25f, 0.5f, 0.75f, 1f);
-                    position = payload.Color + Color;
+                    position = copiedColor + Color;
                 }
             }";
 
@@ -1297,6 +1298,7 @@ public class IntrinsicCatalogTests
         Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
         Assert.Contains("member_Color", result.Module!.Body, StringComparison.Ordinal);
         Assert.Contains("+ Color", result.Module.Body, StringComparison.Ordinal);
+        Assert.Contains("copiedColor = payload.member_Color", result.Module.Body, StringComparison.Ordinal);
         Assert.DoesNotContain("member_member_Color", result.Module.Body, StringComparison.Ordinal);
     }
 
