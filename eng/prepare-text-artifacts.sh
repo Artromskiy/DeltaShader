@@ -28,6 +28,16 @@ fi
 
 mkdir -p "$output_directory"
 
+build_args=(
+    -c Release
+    --disable-build-servers
+    -m:1
+    /p:UseSharedCompilation=false
+    -v:minimal
+)
+dotnet build "$project_root/src/Delta.Shader.Tool/Delta.Shader.Tool.csproj" "${build_args[@]}"
+dotnet build "$project_root/src/Delta.Shader.Text/Delta.Shader.Text.csproj" "${build_args[@]}"
+
 artifact_stems=(
     SdfTextVertex.vert
     SdfTextFragment.frag

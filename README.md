@@ -64,8 +64,13 @@ Reference `src/Delta.Shader.Text/Delta.Shader.Text.csproj` together with
 authoring source and the generator publishes two factories:
 
 ```csharp
-var sdf = SdfTextGraphicsShaderProgram.CreateProgram(vertexSpirv, fragmentSpirv);
-var msdf = MsdfTextGraphicsShaderProgram.CreateProgram(vertexSpirv, fragmentSpirv);
+var sdfVertexSpirv = File.ReadAllBytes("SdfTextVertex.vert.spv");
+var sdfFragmentSpirv = File.ReadAllBytes("SdfTextFragment.frag.spv");
+var msdfVertexSpirv = File.ReadAllBytes("MsdfTextVertex.vert.spv");
+var msdfFragmentSpirv = File.ReadAllBytes("MsdfTextFragment.frag.spv");
+
+var sdf = SdfTextGraphicsShaderProgram.CreateProgram(sdfVertexSpirv, sdfFragmentSpirv);
+var msdf = MsdfTextGraphicsShaderProgram.CreateProgram(msdfVertexSpirv, msdfFragmentSpirv);
 ```
 
 Each factory also exposes generated `VertexGlsl`, `FragmentGlsl`,
@@ -81,15 +86,19 @@ coordinates use the canonical top-left UI convention: `clip.y = 1 -
 pixel.y / resolution.y * 2`; renderer viewport state remains separate.
 Consumers
 must use the manifest for descriptor and push-constant layout rather than
-duplicating these values. The factories are shader artifacts only and do not
-own Vulkan, texture or atlas resources.
+duplicating these values. The generated factories use their embedded manifests
+and accept only the two stage SPIR-V byte arrays; the distributed JSON files
+remain available for ABI inspection and packaging validation, but are not
+deserialized again by this factory path. The factories are shader artifacts
+only and do not own Vulkan, texture or atlas resources.
 
 ### Preparing distributable text artifacts
 
-The producer preparation step emits the generated GLSL, SPIR-V and manifests
-with stable entry-point names. It requires `glslangValidator`, `spirv-val` and
-`jq`; missing tools fail with an explicit diagnostic. The command does not run
-Roslyn or shader compilation at runtime and does not check in generated files:
+The producer preparation step builds the tool and text authoring project, then
+emits the generated GLSL, SPIR-V and manifests with stable entry-point names.
+It requires `glslangValidator`, `spirv-val` and `jq`; missing tools fail with
+an explicit diagnostic. The command performs compilation only during this
+preparation step, never at runtime, and does not check in generated files:
 
 ```bash
 out_dir="$(mktemp -d)"
@@ -99,10 +108,10 @@ out_dir="$(mktemp -d)"
 The SDF files are `SdfTextVertex.vert.{glsl,spv,shader.json}` and
 `SdfTextFragment.frag.{glsl,spv,shader.json}`. The same directory also receives
 the corresponding `MsdfTextVertex` and `MsdfTextFragment` files. Consumers
-load the `.spv` bytes and matching `.shader.json` manifest, then pass them to
-the generated `SdfTextGraphicsShaderProgram.CreateProgram` or
-`MsdfTextGraphicsShaderProgram.CreateProgram` factory; no ABI values are
-duplicated in the consumer.
+load the two `.spv` files for the selected pair and pass only those bytes to
+the generated factory. The matching `.shader.json` remains the distributive
+ABI artifact for descriptor/push-constant setup and validation; no ABI values
+are duplicated in the consumer.
 
 Compute shaders may declare a `[SampledTexture2D(set, binding, ShaderStageMask.Compute)]`
 resource and sample it through `ShaderIntrinsics.SampleCompute<TCoordinate, TColor>`.
