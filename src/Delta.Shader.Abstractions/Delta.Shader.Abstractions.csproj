@@ -4,4 +4,7 @@
     <RootNamespace>Delta.Shader.Abstractions</RootNamespace>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Include="System.Memory" />
+  </ItemGroup>
 </Project>

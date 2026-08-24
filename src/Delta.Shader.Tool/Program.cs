@@ -112,7 +112,7 @@ static async Task<int> ExecuteEmitAsync(ProgramOptions options)
             var artifact = new ShaderArtifact(
                 await File.ReadAllBytesAsync(spirvFile).ConfigureAwait(false),
                 result.AbiManifest);
-            await File.WriteAllBytesAsync(spirvFile, artifact.Spirv).ConfigureAwait(false);
+            await File.WriteAllBytesAsync(spirvFile, artifact.GetSpirvForUpload()).ConfigureAwait(false);
             Console.WriteLine($"Wrote {spirvFile}");
         }
         Console.WriteLine($"Wrote {glslFile}");
