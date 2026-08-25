@@ -9,11 +9,18 @@ C# project -> Roslyn symbols/IOperation -> typed IR -> GLSL 460
   -> glslangValidator -> SPIR-V -> spirv-val -> ShaderArtifact
 ```
 
-`Delta.Shader.Abstractions` owns shader attributes, resource wrappers,
-`ShaderArtifact`, graphics-program composition, ABI metadata and neutral
-compute-dispatch contracts. It depends on neither Roslyn nor Vulkan.
-DeltaRender consumes this contract and must not define another manifest or
-graphics-program type.
+`Delta.Shader.Contract` owns the final `ShaderArtifact`, graphics-program
+composition and binary ABI. It depends on neither Roslyn, GLSL nor Vulkan.
+`Delta.Shader.Abstractions` continues to own authoring attributes and resource
+wrappers; its older artifact/dispatch surface is a compatibility layer until
+the compiler and DeltaRender migrate to the contract project. DeltaRender must
+not define another manifest or graphics-program type.
+
+The renderer handoff is specifically the immutable final artifact: validated
+SPIR-V plus its serialized binary ABI. It contains no content hash, live CLR
+generic values, Roslyn state, typed IR or GLSL. See the
+[final artifact contract](docs/final-artifact-contract.md). GLSL and generated
+typed helpers are build/authoring outputs, not renderer inputs.
 
 Closed resource categories use `ShaderResourceKind` inside the compiler and
 IR. The serialized `ShaderAbiResource.Category` field keeps its legacy
