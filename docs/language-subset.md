@@ -1,7 +1,9 @@
 # DeltaShader language subset
 
 The supported language is intentionally smaller than C# and validated through
-Roslyn symbols/`IOperation` before lowering.
+Roslyn symbols/`IOperation` before lowering. Roslyn is an authoring/compiler
+frontend only; no symbol, syntax tree, operation or compiler IR is retained in
+the final renderer artifact.
 
 Supported constructs include:
 
@@ -23,3 +25,8 @@ The production authoring form is `[DeltaCompute]`, `[VertexShader]` or
 explicit resources or constants, not captured variables. See
 `../src/Delta.Shader.Analyzers/AnalyzerReleases.Unshipped.md` and
 `diagnostics.md` for diagnostic IDs.
+
+The resource wrappers and generic types mentioned by this authoring subset are
+also compile-time concepts. Publication erases them into validated SPIR-V and
+the concrete binary layouts and bindings in `ShaderAbi`; DeltaRender does not
+receive live generic values or CLR type metadata.

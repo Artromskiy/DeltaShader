@@ -1,29 +1,45 @@
-# CPU/GPU transform contract
+# CPU/GPU transform conformance
+
+This document covers authoring/lowering conventions and the concrete binary
+layout they produce. It does not add fields or source-language types to the
+final artifact contract.
+
+## Authoring and GLSL lowering
 
 The first indexed-mesh path uses a left-handed world convention with column
-vectors. CPU and GLSL evaluate:
+vectors. CPU authoring code and generated GLSL evaluate:
 
 ```text
 clip = Projection * View * Model * float4(position, 1)
 ```
 
-`Delta.Maths.float4x4` is stored as four sequential `float4` columns and maps
-directly to GLSL `mat4`. Each matrix column has 16-byte alignment and a
-16-byte std430 matrix stride.
+At compile time, `Delta.Maths.float4x4` maps by Roslyn symbol identity to GLSL
+`mat4`. It is represented as four sequential `float4` columns. Each column has
+16-byte alignment and the std430 matrix stride is 16 bytes.
 
-For a transform push-constant block:
+For the current transform push-constant block, lowering resolves this layout:
 
-| member | GLSL type | offset | size | matrix stride |
+| member | authoring/GLSL type | offset | size | matrix stride |
 | --- | --- | ---: | ---: | ---: |
-| `Model` | `mat4` | 0 | 64 | 16 |
-| `View` | `mat4` | 64 | 64 | 16 |
-| `Projection` | `mat4` | 128 | 64 | 16 |
+| `Model` | `float4x4` / `mat4` | 0 | 64 | 16 |
+| `View` | `float4x4` / `mat4` | 64 | 64 | 16 |
+| `Projection` | `float4x4` / `mat4` | 128 | 64 | 16 |
 
-The complete block is 192 bytes, aligned to 16 bytes. Render must upload the
-four columns in order and must not transpose the data. Vulkan projection depth
-is `0..1`, supplied by the left-handed projection helper. Screen Y is handled
-by the Vulkan viewport policy (negative viewport height where supported), not
-by an extra matrix transpose or global Y-flip.
+The complete block is 192 bytes and aligned to 16 bytes.
 
-Camera code supplies Model, View, and Projection. Mesh code owns vertex/index
-buffers; Render owns descriptor/push-constant binding and draw recording.
+## Final runtime handoff
+
+Before the shader reaches DeltaRender, the compiler must erase the Roslyn
+symbol, `Delta.Maths.float4x4` and GLSL `mat4` identities. The canonical
+`Delta.Shader.Contract.ShaderAbi` carries only the resolved push-constant range
+and concrete member offsets, sizes, alignments and matrix strides.
+
+Application-side code packs the four columns in order into bytes; it must not
+transpose them. DeltaRender binds those packed bytes according to the artifact
+ABI. It does not infer layout from the CLR type or GLSL text.
+
+Vulkan projection depth is `0..1`, supplied by the left-handed projection
+helper. Screen Y is renderer viewport policy (negative viewport height where
+supported), not an extra matrix transpose or a field in the shader artifact.
+Camera code supplies Model, View and Projection values; mesh code owns
+vertex/index data; DeltaRender owns Vulkan binding and draw recording.
