@@ -1,4 +1,4 @@
-namespace Delta.Shader.Abstractions;
+namespace Delta.Shader;
 
 internal static class ArgumentGuard
 {

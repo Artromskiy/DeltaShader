@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Delta.Shader.Abstractions;
+using Delta.Shader;
 using Microsoft.CodeAnalysis;
 
 namespace Delta.Shader.Compiler.Intrinsics;

@@ -1,4 +1,4 @@
-using Delta.Shader.Abstractions;
+using Delta.Shader;
 using Delta.Maths;
 
 namespace Delta.Shader.TestShaders;

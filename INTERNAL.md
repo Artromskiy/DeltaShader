@@ -14,16 +14,16 @@ static C# method
 ```
 
 The compiler targets `netstandard2.0` and therefore does not reference the
-net10 runtime contract assembly. It produces an intermediate compiler
-manifest. The net10 CLI resolves that manifest into `DeltaShader.Contract`
+net10 runtime contract assembly. It produces a build-time
+`ShaderCompilationManifest`. The net10 CLI resolves that manifest into `DeltaShader.Contract`
 objects before writing the SPIR-V output. Source generators use the same
 resolved fields to emit constructors for the final contract directly; JSON is
 never deserialized by generated runtime factories.
 
 The final contract project is intentionally free of Roslyn, MSBuild, Vulkan,
-renderer and ECS dependencies. `DeltaShader.Abstractions` remains the
-authoring/compatibility layer needed by the current compiler and existing
-consumers until the recorded producer-consumer migration is complete.
+renderer and ECS dependencies. `DeltaShader` contains authoring-only
+attributes, builtins and resource declarations; it has no artifact, manifest
+or dispatch API.
 
 ## ABI conversion rules
 

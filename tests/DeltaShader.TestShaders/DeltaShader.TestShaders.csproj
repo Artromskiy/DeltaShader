@@ -9,7 +9,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\DeltaShader.Contract\DeltaShader.Contract.csproj" />
-    <ProjectReference Include="..\\..\\src\\DeltaShader.Abstractions\\DeltaShader.Abstractions.csproj" />
+    <ProjectReference Include="..\\..\\src\\DeltaShader\\DeltaShader.csproj" />
     <ProjectReference Include="..\\..\\src\\DeltaShader.Text\\DeltaShader.Text.csproj" />
     <ProjectReference Include="..\\..\\..\\DeltaMaths\\DeltaMaths.csproj">
       <SetTargetFramework>TargetFramework=netstandard2.1</SetTargetFramework>

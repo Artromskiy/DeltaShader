@@ -56,15 +56,15 @@ public static class ShaderVisibleTypeValidation
         if (parameter.Type is INamedTypeSymbol namedType)
         {
             var readOnlyBuffer = compilation.GetTypeByMetadataName(
-                "Delta.Shader.Abstractions.ReadOnlyStorageBuffer`1");
+                "Delta.Shader.ReadOnlyStorageBuffer`1");
             var readWriteBuffer = compilation.GetTypeByMetadataName(
-                "Delta.Shader.Abstractions.ReadWriteStorageBuffer`1");
+                "Delta.Shader.ReadWriteStorageBuffer`1");
             var readOnlyValueBuffer = compilation.GetTypeByMetadataName(
-                "Delta.Shader.Abstractions.ReadOnlyStorageBuffer");
+                "Delta.Shader.ReadOnlyStorageBuffer");
             var readWriteValueBuffer = compilation.GetTypeByMetadataName(
-                "Delta.Shader.Abstractions.ReadWriteStorageBuffer");
+                "Delta.Shader.ReadWriteStorageBuffer");
             var sampledTexture2D = compilation.GetTypeByMetadataName(
-                "Delta.Shader.Abstractions.SampledTexture2D");
+                "Delta.Shader.SampledTexture2D");
 
             if (namedType.TypeArguments.Length == 1 &&
                 (SymbolEqualityComparer.Default.Equals(namedType.OriginalDefinition, readOnlyBuffer) ||

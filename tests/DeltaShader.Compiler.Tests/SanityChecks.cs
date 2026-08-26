@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Delta.Maths;
-using Delta.Shader.Abstractions;
+using Delta.Shader;
 using Delta.Shader.Analyzers;
 using Delta.Shader.Compiler.Intrinsics;
 using Delta.Shader.Compiler.IR;
@@ -37,11 +37,11 @@ public class IntrinsicCatalogTests
     [Fact]
     public void ClosedMetadata_UsesTypedKinds_AndPreservesWireNames()
     {
-        var manifest = new ShaderAbiManifest
+        var manifest = new ShaderCompilationManifest
         {
             Resources =
             [
-                new ShaderAbiResource
+                new ShaderCompilationResource
                 {
                     Name = "values",
                     Category = "storage-buffer"
@@ -52,12 +52,12 @@ public class IntrinsicCatalogTests
         var json = JsonSerializer.Serialize(manifest);
         Assert.Contains("\"Category\":\"storage-buffer\"", json, StringComparison.Ordinal);
 
-        var roundTrip = JsonSerializer.Deserialize<ShaderAbiManifest>(json);
+        var roundTrip = JsonSerializer.Deserialize<ShaderCompilationManifest>(json);
         Assert.NotNull(roundTrip);
         Assert.Equal(ShaderResourceKind.StorageBuffer, ShaderResourceKindExtensions.ParseMetadataName(Assert.Single(roundTrip.Resources).Category));
 
         var unknownResourceJson = json.Replace("storage-buffer", "future-resource", StringComparison.Ordinal);
-        var unknownResourceManifest = JsonSerializer.Deserialize<ShaderAbiManifest>(unknownResourceJson);
+        var unknownResourceManifest = JsonSerializer.Deserialize<ShaderCompilationManifest>(unknownResourceJson);
         Assert.NotNull(unknownResourceManifest);
         Assert.Equal(ShaderResourceKind.Unknown, ShaderResourceKindExtensions.ParseMetadataName(Assert.Single(unknownResourceManifest.Resources).Category));
 
@@ -310,7 +310,7 @@ public class IntrinsicCatalogTests
     {
         var source = @"
             using Delta.Maths;
-            using Delta.Shader.Abstractions;
+            using Delta.Shader;
 
             namespace Delta.Shader.Compiler.Tests.Fixtures
             {
@@ -353,7 +353,7 @@ public class IntrinsicCatalogTests
     {
         var source = @"
             using Delta.Maths;
-            using Delta.Shader.Abstractions;
+            using Delta.Shader;
 
             namespace Delta.Shader.Compiler.Tests.Fixtures
             {
@@ -375,7 +375,7 @@ public class IntrinsicCatalogTests
     {
         var source = @"
             using Delta.Maths;
-            using Delta.Shader.Abstractions;
+            using Delta.Shader;
 
             namespace Delta.Shader.Compiler.Tests.Fixtures
             {
@@ -401,7 +401,7 @@ public class IntrinsicCatalogTests
     {
         var source = @"
             using Delta.Maths;
-            using Delta.Shader.Abstractions;
+            using Delta.Shader;
 
             namespace Delta.Shader.Compiler.Tests.Fixtures
             {
@@ -429,7 +429,7 @@ public class IntrinsicCatalogTests
     {
         var source = @"
             using Delta.Maths;
-            using Delta.Shader.Abstractions;
+            using Delta.Shader;
 
             namespace Delta.Shader.Compiler.Tests.Fixtures
             {
@@ -454,7 +454,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Maths;
-            using Delta.Shader.Abstractions;
+            using Delta.Shader;
 
             namespace Delta.Shader.Compiler.Tests.Fixtures
             {
@@ -508,7 +508,7 @@ public class IntrinsicCatalogTests
         (string Source, string ExpectedId)[] cases = new[]
         {
             (Source: @"
-                using Delta.Shader.Abstractions;
+                using Delta.Shader;
                 using System.Runtime.InteropServices;
                 namespace Delta.Shader.Compiler.Tests.Fixtures
                 {
@@ -525,7 +525,7 @@ public class IntrinsicCatalogTests
                 }
             ", ExpectedId: ShaderDiagnosticId.DSH006),
             (Source: @"
-                using Delta.Shader.Abstractions;
+                using Delta.Shader;
                 namespace Delta.Shader.Compiler.Tests.Fixtures
                 {
                     public struct ManagedRecord { public string Name; }
@@ -537,7 +537,7 @@ public class IntrinsicCatalogTests
                 }
             ", ExpectedId: ShaderDiagnosticId.DSH010),
             (Source: @"
-                using Delta.Shader.Abstractions;
+                using Delta.Shader;
                 namespace Delta.Shader.Compiler.Tests.Fixtures
                 {
                     public struct RecursiveRecord { public RecursiveRecord[] Children; }
@@ -549,7 +549,7 @@ public class IntrinsicCatalogTests
                 }
             ", ExpectedId: ShaderDiagnosticId.DSH010),
             (Source: @"
-                using Delta.Shader.Abstractions;
+                using Delta.Shader;
                 namespace Delta.Shader.Compiler.Tests.Fixtures
                 {
                     public struct ArrayFieldRecord { public float[] Values; }
@@ -576,14 +576,14 @@ public class IntrinsicCatalogTests
         var cases = new[]
         {
             @"
-                using Delta.Shader.Abstractions;
+                using Delta.Shader;
                 public static class EntryParameter
                 {
                     [ComputeShader] public static void Compute(string value) { }
                 }
             ",
             @"
-                using Delta.Shader.Abstractions;
+                using Delta.Shader;
                 public class CpuOnlyHelper { public string Name; }
                 public struct StorageRecord { public CpuOnlyHelper Helper; }
                 public static class StorageEntry
@@ -593,7 +593,7 @@ public class IntrinsicCatalogTests
                 }
             ",
             @"
-                using Delta.Shader.Abstractions;
+                using Delta.Shader;
                 public struct RecursiveRecord { public RecursiveRecord[] Children; }
                 public static class RecursiveEntry
                 {
@@ -616,7 +616,7 @@ public class IntrinsicCatalogTests
     {
         const string invalidSource = @"
             using Delta.Maths;
-            using Delta.Shader.Abstractions;
+            using Delta.Shader;
             public class CpuOnlyHelper { public string Name; }
             public struct Constants { public CpuOnlyHelper Helper; }
             public static class InvalidFragment
@@ -633,7 +633,7 @@ public class IntrinsicCatalogTests
         Assert.Contains(invalidResult.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH010);
 
         const string validSource = @"
-            using Delta.Shader.Abstractions;
+            using Delta.Shader;
             public class CpuOnlyHelper { public string Name; }
             public static class ValidCompute
             {
@@ -649,7 +649,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Maths;
-            using Delta.Shader.Abstractions;
+            using Delta.Shader;
             public class CpuOnlyHelper { public string Name; }
             public struct Constants { public CpuOnlyHelper Helper; }
             public static class InvalidGraphics
@@ -669,120 +669,11 @@ public class IntrinsicCatalogTests
     }
 
     [Fact]
-    public void ShaderStd430Packer_PacksTransformRecordWithExplicitPaddingAndColumnMajorMatrix()
-    {
-        var record = new HostTransformRecord
-        {
-            Base = new HostTransformBase { Position = new float3(1.25f, -2.5f, 3.75f) },
-            Rotation = new quaternion(4.5f, 5.5f, 6.5f, 7.5f),
-            Transform = new float4x4(
-                new float4(10f, 11f, 12f, 13f),
-                new float4(20f, 21f, 22f, 23f),
-                new float4(30f, 31f, 32f, 33f),
-                new float4(40f, 41f, 42f, 43f))
-        };
-
-        var resource = new ShaderAbiResource
-        {
-            Name = "records",
-            GlslType = "DeltaStruct_HostTransformRecord",
-            ArrayStride = 96,
-            Size = 96,
-            Alignment = 16,
-            Packing = new ShaderAbiPackingPlan { Stride = 96 },
-            Members = new[]
-            {
-                new ShaderAbiMember
-                {
-                    Name = "Base",
-                    GlslName = "member_Base",
-                    GlslType = "DeltaStruct_HostTransformBase",
-                    Offset = 0,
-                    Alignment = 16,
-                    Size = 16,
-                    ArrayStride = 16,
-                    Members = new[]
-                    {
-                        new ShaderAbiMember
-                        {
-                            Name = "Position",
-                            GlslName = "member_Position",
-                            GlslType = "vec3",
-                            Offset = 0,
-                            Alignment = 16,
-                            Size = 12,
-                            ArrayStride = 16
-                        }
-                    }
-                },
-                new ShaderAbiMember
-                {
-                    Name = "Rotation",
-                    GlslName = "member_Rotation",
-                    GlslType = "vec4",
-                    Offset = 16,
-                    Alignment = 16,
-                    Size = 16,
-                    ArrayStride = 16
-                },
-                new ShaderAbiMember
-                {
-                    Name = "Transform",
-                    GlslName = "member_Transform",
-                    GlslType = "mat4",
-                    Offset = 32,
-                    Alignment = 16,
-                    Size = 64,
-                    ArrayStride = 64,
-                    MatrixStride = 16
-                }
-            }
-        };
-
-        var bytes = ShaderStd430Packer.Pack(new[] { record }, resource);
-
-        Assert.Equal(96, bytes.Length);
-        Assert.Equal("uint32", resource.Packing.BoolRepresentation);
-        Assert.Equal(1.25f, ReadFloat(bytes, 0));
-        Assert.Equal(-2.5f, ReadFloat(bytes, 4));
-        Assert.Equal(3.75f, ReadFloat(bytes, 8));
-        Assert.Equal(0u, ReadUInt32(bytes, 12));
-        Assert.Equal(4.5f, ReadFloat(bytes, 16));
-        Assert.Equal(7.5f, ReadFloat(bytes, 28));
-        for (var column = 0; column < 4; column++)
-        {
-            for (var row = 0; row < 4; row++)
-            {
-                Assert.Equal((column + 1) * 10f + row, ReadFloat(bytes, 32 + column * 16 + row * 4));
-            }
-        }
-
-        Assert.Equal(0x4f48bf5cu, Fnv1a(bytes));
-    }
-
-    private static float ReadFloat(byte[] bytes, int offset)
-        => BitConverter.ToSingle(bytes, offset);
-
-    private static uint ReadUInt32(byte[] bytes, int offset)
-        => BitConverter.ToUInt32(bytes, offset);
-
-    private static uint Fnv1a(byte[] bytes)
-    {
-        var hash = 2166136261u;
-        foreach (var value in bytes)
-        {
-            hash = (hash ^ value) * 16777619u;
-        }
-
-        return hash;
-    }
-
-    [Fact]
     public async Task GraphicsEntryPoints_BuildVertexAndFragmentModulesWithStageAbi()
     {
         const string source = @"
             using Delta.Maths;
-            using Delta.Shader.Abstractions;
+            using Delta.Shader;
             namespace Delta.Shader.Compiler.Tests.Fixtures
             {
                 public struct Constants { public float2 Resolution; public float Time; }
@@ -803,8 +694,8 @@ public class IntrinsicCatalogTests
         Assert.Equal("FullscreenVertex", vertex.Module!.SourceEntryPointName);
         ShaderCompilationResult fragment = Assert.Single(results, result => result.Module!.Stage == ShaderStage.Fragment);
         Assert.Equal("FullscreenFragment", fragment.Module!.SourceEntryPointName);
-        Assert.Equal("main", fragment.AbiManifest!.EntryPointName);
-        Assert.Single(fragment.AbiManifest.PushConstants);
+        Assert.Equal("main", fragment.BuildManifest!.EntryPointName);
+        Assert.Single(fragment.BuildManifest.PushConstants);
     }
 
     [Fact]
@@ -812,7 +703,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Maths;
-            using Delta.Shader.Abstractions;
+            using Delta.Shader;
             public struct TransformConstants
             {
                 public float4x4 Model;
@@ -836,7 +727,7 @@ public class IntrinsicCatalogTests
 
         Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
         ShaderIrModule module = result.Module!;
-        ShaderAbiPushConstant push = Assert.Single(result.AbiManifest!.PushConstants);
+        ShaderCompilationPushConstant push = Assert.Single(result.BuildManifest!.PushConstants);
         Assert.Equal("mat4", Assert.Single(push.Members, member => member.Name == "Model").GlslType);
         Assert.Equal(0u, Assert.Single(push.Members, member => member.Name == "Model").Offset);
         Assert.Equal(64u, Assert.Single(push.Members, member => member.Name == "View").Offset);
@@ -881,7 +772,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Maths;
-            using Delta.Shader.Abstractions;
+            using Delta.Shader;
 
             public struct SceneParameters
             {
@@ -960,7 +851,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Maths;
-            using Delta.Shader.Abstractions;
+            using Delta.Shader;
 
             public sealed class ManagedData
             {
@@ -1005,7 +896,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Maths;
-            using Delta.Shader.Abstractions;
+            using Delta.Shader;
             public static class InvalidGraphics
             {
                 [VertexShader] public static void Vertex([FragmentCoord] float2 coord, [Position] out float4 position)
@@ -1023,7 +914,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Maths;
-            using Delta.Shader.Abstractions;
+            using Delta.Shader;
             public static class FullscreenUi
             {
                 [VertexShader] public static void Vertex(
@@ -1046,7 +937,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Maths;
-            using Delta.Shader.Abstractions;
+            using Delta.Shader;
             public static class TextureStages
             {
                 public struct TextParameters
@@ -1090,7 +981,7 @@ public class IntrinsicCatalogTests
         Assert.All(results, result => Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message))));
 
         ShaderCompilationResult vertex = Assert.Single(results, result => result.Module!.Stage == ShaderStage.Vertex);
-        ShaderAbiResource vertexResource = Assert.Single(vertex.AbiManifest!.Resources);
+        ShaderCompilationResource vertexResource = Assert.Single(vertex.BuildManifest!.Resources);
         Assert.Equal("sdf-text", vertex.EntryPointName);
         Assert.Equal("sampled-texture", vertexResource.Category);
         Assert.Equal(ShaderStage.Vertex, vertexResource.Stage);
@@ -1105,13 +996,13 @@ public class IntrinsicCatalogTests
         Assert.DoesNotContain("std430) readonly buffer", vertexGlsl, StringComparison.Ordinal);
 
         ShaderCompilationResult fragment = Assert.Single(results, result => result.Module!.Stage == ShaderStage.Fragment);
-        ShaderAbiResource fragmentResource = Assert.Single(fragment.AbiManifest!.Resources);
+        ShaderCompilationResource fragmentResource = Assert.Single(fragment.BuildManifest!.Resources);
         Assert.Equal("sdf-text", fragment.EntryPointName);
         Assert.Equal(ShaderStage.Fragment, fragmentResource.Stage);
         Assert.Equal(2u, fragmentResource.Binding);
         Assert.Equal(0u, fragmentResource.Offset);
         Assert.Equal(0u, fragmentResource.ArrayStride);
-        Assert.Equal("main", fragment.AbiManifest.EntryPointName);
+        Assert.Equal("main", fragment.BuildManifest.EntryPointName);
         var fragmentGlsl = Delta.Shader.Backend.Glsl.GlslEmitter.EmitFromModule(fragment.Module!).Source;
         Assert.Contains("layout(set = 0, binding = 2) uniform sampler2D", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("fwidth", fragmentGlsl, StringComparison.Ordinal);
@@ -1123,7 +1014,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Maths;
-            using Delta.Shader.Abstractions;
+            using Delta.Shader;
             public static class InvalidTextureStage
             {
                 [FragmentShader]
@@ -1148,7 +1039,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Maths;
-            using Delta.Shader.Abstractions;
+            using Delta.Shader;
             public static class TextScene
             {
                 public struct GlyphInstance
@@ -1240,7 +1131,7 @@ public class IntrinsicCatalogTests
         Assert.All(results, result => Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message))));
 
         ShaderCompilationResult vertex = Assert.Single(results, result => result.Module!.Stage == ShaderStage.Vertex);
-        ShaderAbiResource glyphResource = Assert.Single(vertex.AbiManifest!.Resources);
+        ShaderCompilationResource glyphResource = Assert.Single(vertex.BuildManifest!.Resources);
         Assert.Equal("storage-buffer", glyphResource.Category);
         Assert.Equal(ShaderStage.Vertex, glyphResource.Stage);
         Assert.Equal(ShaderResourceAccess.ReadOnly, glyphResource.Access);
@@ -1253,14 +1144,14 @@ public class IntrinsicCatalogTests
         Assert.Equal(16u, glyphResource.Members[2].Offset);
         Assert.Equal(32u, glyphResource.Members[3].Offset);
         Assert.Equal(48u, glyphResource.Size);
-        Assert.Equal("InstanceIndex", Assert.Single(vertex.AbiManifest.Inputs, input => input.Builtin == "InstanceIndex").Builtin);
+        Assert.Equal("InstanceIndex", Assert.Single(vertex.BuildManifest.Inputs, input => input.Builtin == "InstanceIndex").Builtin);
         var vertexGlsl = Delta.Shader.Backend.Glsl.GlslEmitter.EmitFromModule(vertex.Module!).Source;
         Assert.Contains("gl_InstanceIndex", vertexGlsl, StringComparison.Ordinal);
         Assert.Contains("buffer", vertexGlsl, StringComparison.Ordinal);
         Assert.Contains(".data[", vertexGlsl, StringComparison.Ordinal);
 
         ShaderCompilationResult fragment = Assert.Single(results, result => result.Module!.Stage == ShaderStage.Fragment);
-        Assert.Equal("sampled-texture", Assert.Single(fragment.AbiManifest!.Resources).Category);
+        Assert.Equal("sampled-texture", Assert.Single(fragment.BuildManifest!.Resources).Category);
         var fragmentGlsl = Delta.Shader.Backend.Glsl.GlslEmitter.EmitFromModule(fragment.Module!).Source;
         Assert.Contains("layout(set = 0, binding = 3) uniform sampler2D", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("fwidth", fragmentGlsl, StringComparison.Ordinal);
@@ -1271,7 +1162,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Maths;
-            using Delta.Shader.Abstractions;
+            using Delta.Shader;
             public static class StructFieldSymbols
             {
                 public struct Payload
@@ -1307,7 +1198,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Maths;
-            using Delta.Shader.Abstractions;
+            using Delta.Shader;
             public static class InvalidInstanceIndex
             {
                 [FragmentShader]
@@ -1340,7 +1231,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Maths;
-            using Delta.Shader.Abstractions;
+            using Delta.Shader;
 
             public static class CompileTimeValid
             {
@@ -1366,7 +1257,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Maths;
-            using Delta.Shader.Abstractions;
+            using Delta.Shader;
 
             public static class SimpleCompute
             {
@@ -1399,7 +1290,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Maths;
-            using Delta.Shader.Abstractions;
+            using Delta.Shader;
 
             public static class ComputeTexture
             {
@@ -1428,7 +1319,7 @@ public class IntrinsicCatalogTests
     public async Task ComputeSampledTexture_RejectsMissingComputeStageMask()
     {
         const string source = @"
-            using Delta.Shader.Abstractions;
+            using Delta.Shader;
 
             public static class InvalidComputeTexture
             {
@@ -1446,7 +1337,7 @@ public class IntrinsicCatalogTests
     public async Task ComputeStorageBufferIndexer_LowersTypedPayload()
     {
         const string source = @"
-            using Delta.Shader.Abstractions;
+            using Delta.Shader;
 
             public static class IndexedPayloadCompute
             {
@@ -1471,7 +1362,7 @@ public class IntrinsicCatalogTests
     public async Task ComputeStorageBuffer_RejectsManagedReferencePayload()
     {
         const string source = @"
-            using Delta.Shader.Abstractions;
+            using Delta.Shader;
 
             public struct ManagedPayload
             {
@@ -1501,7 +1392,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Maths;
-            using Delta.Shader.Abstractions;
+            using Delta.Shader;
 
             public static class GeneratedKernel
             {
@@ -1524,9 +1415,7 @@ public class IntrinsicCatalogTests
 
         Assert.DoesNotContain(generatorDiagnostics, diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
         GeneratedSourceResult generated = Assert.Single(driver.GetRunResult().Results.SelectMany(result => result.GeneratedSources));
-        Assert.Contains("public const string Glsl", generated.SourceText.ToString(), StringComparison.Ordinal);
-        Assert.Contains("#version 460", generated.SourceText.ToString(), StringComparison.Ordinal);
-        Assert.Contains("ManifestJson", generated.SourceText.ToString(), StringComparison.Ordinal);
+        Assert.Contains("CreateAbi", generated.SourceText.ToString(), StringComparison.Ordinal);
         Assert.Contains("CreateArtifact", generated.SourceText.ToString(), StringComparison.Ordinal);
         Assert.Contains("Delta.Shader.Contract", generated.SourceText.ToString(), StringComparison.Ordinal);
         Assert.DoesNotContain("JsonSerializer.Deserialize", generated.SourceText.ToString(), StringComparison.Ordinal);
@@ -1537,7 +1426,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Maths;
-            using Delta.Shader.Abstractions;
+            using Delta.Shader;
 
             public static class GeneratedGraphics
             {
@@ -1565,8 +1454,6 @@ public class IntrinsicCatalogTests
         GeneratedSourceResult generated = Assert.Single(driver.GetRunResult().Results.SelectMany(result => result.GeneratedSources));
         var generatedText = generated.SourceText.ToString();
         Assert.Contains("GraphicsShaderProgram", generatedText, StringComparison.Ordinal);
-        Assert.Contains("FragmentGlsl", generatedText, StringComparison.Ordinal);
-        Assert.Contains("FragmentManifestJson", generatedText, StringComparison.Ordinal);
         Assert.Contains("CreateProgram", generatedText, StringComparison.Ordinal);
         Assert.Contains("#version 460", generatedText, StringComparison.Ordinal);
         Assert.Contains("Delta.Shader.Contract", generatedText, StringComparison.Ordinal);
@@ -1578,7 +1465,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using System.Reflection;
-            using Delta.Shader.Abstractions;
+            using Delta.Shader;
 
             public sealed class VirtualWorker
             {

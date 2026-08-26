@@ -5,7 +5,7 @@
       "deltamaths": {
         "type": "Project"
       },
-      "deltashader.abstractions": {
+      "deltashader": {
         "type": "Project"
       },
       "deltashader.contract": {
@@ -15,7 +15,7 @@
         "type": "Project",
         "dependencies": {
           "DeltaMaths": "[1.0.0, )",
-          "DeltaShader.Abstractions": "[1.0.0, )",
+          "DeltaShader": "[1.0.0, )",
           "DeltaShader.Contract": "[1.0.0, )"
         }
       }

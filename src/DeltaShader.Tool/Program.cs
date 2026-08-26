@@ -3,7 +3,7 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
-using Delta.Shader.Abstractions;
+using Delta.Shader;
 using Delta.Shader.Backend.Glsl;
 using Delta.Shader.Compiler;
 using Delta.Shader.Tool;
@@ -73,7 +73,7 @@ static async Task<int> ExecuteEmitAsync(ProgramOptions options)
     Directory.CreateDirectory(outputDirectory);
     foreach (var result in results)
     {
-        var manifest = result.AbiManifest;
+        var manifest = result.BuildManifest;
         if (result.Module is null || manifest is null)
         {
             return 1;
@@ -98,7 +98,7 @@ static async Task<int> ExecuteEmitAsync(ProgramOptions options)
         }
 
         await File.WriteAllTextAsync(glslFile, emitResult.Source, new UTF8Encoding(false)).ConfigureAwait(false);
-        await File.WriteAllTextAsync(manifestFile, JsonSerializer.Serialize(result.AbiManifest, new JsonSerializerOptions { WriteIndented = true }), new UTF8Encoding(false)).ConfigureAwait(false);
+        await File.WriteAllTextAsync(manifestFile, JsonSerializer.Serialize(result.BuildManifest, new JsonSerializerOptions { WriteIndented = true }), new UTF8Encoding(false)).ConfigureAwait(false);
         if (string.Equals(options.Backend, "spirv", StringComparison.OrdinalIgnoreCase))
         {
             var glslang = ToolPath("glslangValidator");

@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Delta.Shader.Abstractions;
+using Delta.Shader;
 
 namespace Delta.Shader.Compiler.IR;
 
@@ -188,17 +188,17 @@ public sealed class ShaderManifest
         };
     }
 
-    public ShaderAbiManifest ToAbiManifest(ShaderCompilationOptions options)
+    public ShaderCompilationManifest ToBuildManifest(ShaderCompilationOptions options)
     {
         if (options is null)
         {
             throw new ArgumentNullException(nameof(options));
         }
 
-        var resources = new List<ShaderAbiResource>(Resources.Count);
+        var resources = new List<ShaderCompilationResource>(Resources.Count);
         foreach (var resource in Resources)
         {
-            resources.Add(new ShaderAbiResource
+            resources.Add(new ShaderCompilationResource
             {
                 Name = resource.Name,
                 ParameterName = resource.ParameterName,
@@ -216,9 +216,9 @@ public sealed class ShaderManifest
                 ArrayStride = resource.ArrayStride,
                 MatrixStride = resource.MatrixStride,
                 Packing = resource.Category == ShaderResourceKind.SampledTexture2D
-                    ? new ShaderAbiPackingPlan { Scheme = "none", Strategy = "opaque-resource", Stride = 0 }
-                    : new ShaderAbiPackingPlan { Stride = resource.ArrayStride },
-                Members = resource.Members.Select(member => new ShaderAbiMember
+                    ? new ShaderCompilationPackingPlan { Scheme = "none", Strategy = "opaque-resource", Stride = 0 }
+                    : new ShaderCompilationPackingPlan { Stride = resource.ArrayStride },
+                Members = resource.Members.Select(member => new ShaderCompilationMember
                 {
                     Name = member.Name,
                     GlslName = member.GlslName,
@@ -231,7 +231,7 @@ public sealed class ShaderManifest
                     HostRepresentation = member.GlslType.StartsWith("bvec", StringComparison.Ordinal) || member.GlslType == "bool"
                         ? "bool32"
                         : "std430",
-                    Members = member.Members.Select(nested => new ShaderAbiMember
+                    Members = member.Members.Select(nested => new ShaderCompilationMember
                     {
                         Name = nested.Name,
                         GlslName = nested.GlslName,
@@ -249,9 +249,8 @@ public sealed class ShaderManifest
             });
         }
 
-        return new ShaderAbiManifest
+        return new ShaderCompilationManifest
         {
-            Version = ShaderAbiManifest.CurrentVersion,
             Stage = Stage,
             SourceEntryPointName = SourceEntryPointName,
             EntryPointName = "main",
@@ -263,7 +262,7 @@ public sealed class ShaderManifest
             LocalSizeY = LocalSizeY,
             LocalSizeZ = LocalSizeZ,
             Resources = resources,
-            Inputs = Inputs.Select(variable => new ShaderAbiInterfaceVariable
+            Inputs = Inputs.Select(variable => new ShaderCompilationInterfaceVariable
             {
                 Name = variable.Name,
                 ParameterName = variable.ParameterName,
@@ -272,7 +271,7 @@ public sealed class ShaderManifest
                 Location = variable.Location,
                 Builtin = variable.Builtin
             }).ToArray(),
-            VertexInputs = VertexInputs.Select(variable => new ShaderAbiVertexInput
+            VertexInputs = VertexInputs.Select(variable => new ShaderCompilationVertexInput
             {
                 Name = variable.Name,
                 ParameterName = variable.ParameterName,
@@ -286,12 +285,12 @@ public sealed class ShaderManifest
                 Alignment = variable.Alignment,
                 FormatHint = variable.FormatHint
             }).ToArray(),
-            VertexBufferBindings = VertexBufferBindings.Select(binding => new ShaderAbiVertexBufferBinding
+            VertexBufferBindings = VertexBufferBindings.Select(binding => new ShaderCompilationVertexBufferBinding
             {
                 Binding = binding.Binding,
                 Stride = binding.Stride,
                 InputRate = binding.InputRate,
-                Attributes = binding.Attributes.Select(attribute => new ShaderAbiVertexInput
+                Attributes = binding.Attributes.Select(attribute => new ShaderCompilationVertexInput
                 {
                     Name = attribute.Name,
                     ParameterName = attribute.ParameterName,
@@ -306,7 +305,7 @@ public sealed class ShaderManifest
                     FormatHint = attribute.FormatHint
                 }).ToArray()
             }).ToArray(),
-            Outputs = Outputs.Select(variable => new ShaderAbiInterfaceVariable
+            Outputs = Outputs.Select(variable => new ShaderCompilationInterfaceVariable
             {
                 Name = variable.Name,
                 ParameterName = variable.ParameterName,
@@ -315,7 +314,7 @@ public sealed class ShaderManifest
                 Location = variable.Location,
                 Builtin = variable.Builtin
             }).ToArray(),
-            PushConstants = PushConstants.Select(push => new ShaderAbiPushConstant
+            PushConstants = PushConstants.Select(push => new ShaderCompilationPushConstant
             {
                 Name = push.Name,
                 ParameterName = push.ParameterName,
@@ -323,7 +322,7 @@ public sealed class ShaderManifest
                 Alignment = push.Alignment,
                 Size = push.Size,
                 ArrayStride = push.ArrayStride,
-                Members = push.Members.Select(ToAbiMember).ToArray()
+                Members = push.Members.Select(ToBuildMember).ToArray()
             }).ToArray()
         };
     }
@@ -342,7 +341,7 @@ public sealed class ShaderManifest
             Members = member.Members.Select(ToManifestMember).ToArray()
         };
 
-    private static ShaderAbiMember ToAbiMember(ShaderIrStructMember member)
+    private static ShaderCompilationMember ToBuildMember(ShaderIrStructMember member)
         => new()
         {
             Name = member.Name,
@@ -354,10 +353,10 @@ public sealed class ShaderManifest
             ArrayStride = member.ArrayStride,
             MatrixStride = member.MatrixStride,
             HostRepresentation = member.GlslType.StartsWith("bvec", StringComparison.Ordinal) || member.GlslType == "bool" ? "bool32" : "std430",
-            Members = member.Members.Select(ToAbiMember).ToArray()
+            Members = member.Members.Select(ToBuildMember).ToArray()
         };
 
-    private static ShaderAbiMember ToAbiMember(ShaderResourceMemberManifest member)
+    private static ShaderCompilationMember ToBuildMember(ShaderResourceMemberManifest member)
         => new()
         {
             Name = member.Name,
@@ -369,7 +368,7 @@ public sealed class ShaderManifest
             ArrayStride = member.ArrayStride,
             MatrixStride = member.MatrixStride,
             HostRepresentation = member.GlslType.StartsWith("bvec", StringComparison.Ordinal) || member.GlslType == "bool" ? "bool32" : "std430",
-            Members = member.Members.Select(ToAbiMember).ToArray()
+            Members = member.Members.Select(ToBuildMember).ToArray()
         };
 }
 

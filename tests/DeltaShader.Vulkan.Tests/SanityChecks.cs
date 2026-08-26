@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
-using Delta.Shader.Abstractions;
+using Delta.Shader;
 using Delta.Shader.Backend.Glsl;
 using Delta.Shader.Compiler;
 using Delta.Shader.Compiler.IR;

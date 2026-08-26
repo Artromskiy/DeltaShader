@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using Delta.Shader.Abstractions;
+using Delta.Shader;
 
 namespace Delta.Shader.Compiler.IR;
 

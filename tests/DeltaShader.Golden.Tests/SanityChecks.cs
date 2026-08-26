@@ -1,4 +1,4 @@
-using Delta.Shader.Abstractions;
+using Delta.Shader;
 using Delta.Shader.Compiler;
 using Delta.Shader.Compiler.IR;
 using Delta.Shader.Backend.Glsl;
@@ -31,7 +31,7 @@ public class SanityChecks
         Assert.Contains("layout(location = 0) out vec2 varying_0;", emitted.Source, StringComparison.Ordinal);
         Assert.Contains("gl_Position = vec4", emitted.Source, StringComparison.Ordinal);
         Assert.Contains("void main()", emitted.Source, StringComparison.Ordinal);
-        var abi = ShaderManifest.FromModule(module).ToAbiManifest(ShaderCompilationOptions.Default);
+        var abi = ShaderManifest.FromModule(module).ToBuildManifest(ShaderCompilationOptions.Default);
         Assert.Equal(ShaderStage.Vertex, abi.Stage);
         Assert.Equal("Vertex", abi.SourceEntryPointName);
         Assert.Equal("main", abi.EntryPointName);
@@ -69,7 +69,7 @@ public class SanityChecks
         Assert.Contains("layout(location = 0) in vec2 varying_0;", emitted.Source, StringComparison.Ordinal);
         Assert.Contains("layout(location = 0) out vec4 fragColor;", emitted.Source, StringComparison.Ordinal);
         Assert.Contains("fwidth", emitted.Source, StringComparison.Ordinal);
-        var abi = ShaderManifest.FromModule(module).ToAbiManifest(ShaderCompilationOptions.Default);
+        var abi = ShaderManifest.FromModule(module).ToBuildManifest(ShaderCompilationOptions.Default);
         Assert.Equal(ShaderStage.Fragment, abi.Stage);
         Assert.Single(abi.PushConstants);
         Assert.Equal(16u, abi.PushConstants[0].Size);
@@ -149,7 +149,7 @@ public class SanityChecks
         Assert.Contains("layout(set = 0, binding = 0, std430) readonly buffer", emitted.Source, StringComparison.Ordinal);
         Assert.Contains("layout(set = 0, binding = 1) uniform sampler2D", emitted.Source, StringComparison.Ordinal);
 
-        var abi = ShaderManifest.FromModule(module).ToAbiManifest(ShaderCompilationOptions.Default);
+        var abi = ShaderManifest.FromModule(module).ToBuildManifest(ShaderCompilationOptions.Default);
         Assert.Equal(3, abi.VertexInputs.Count);
         Assert.Single(abi.VertexBufferBindings);
         Assert.Equal(32u, abi.VertexBufferBindings[0].Stride);
@@ -290,178 +290,6 @@ public class SanityChecks
     }
 
     [Fact]
-    public void RuntimeArtifactContract_PreservesVersionStageAndKnownAbiMetadata()
-    {
-        var module = new ShaderIrModule
-        {
-            EntryPointName = "ComputeMain",
-            LocalSizeX = 8,
-            LocalSizeY = 1,
-            LocalSizeZ = 1,
-            Resources =
-            [
-                new ShaderIrResource
-                {
-                    Name = "values",
-                    ParameterName = "values",
-                    Category = ShaderResourceKind.StorageBuffer,
-                    Set = 2,
-                    Binding = 3,
-                    GlslType = "vec3",
-                    ReadOnly = false,
-                    Layout = ShaderStd430Layout.Standard,
-                    Std430Layout = ShaderStd430Layout.ForStruct(16, 16)
-                }
-            ]
-        };
-
-        var abi = ShaderManifest.FromModule(module).ToAbiManifest(ShaderCompilationOptions.Default);
-        var artifact = new ShaderArtifact(new byte[] { 3, 2, 35, 7 }, abi);
-
-        Assert.Equal(ShaderArtifact.CurrentFormatVersion, artifact.FormatVersion);
-        Assert.Equal(ShaderStage.Compute, artifact.Stage);
-        Assert.Equal("ComputeMain", artifact.Manifest.SourceEntryPointName);
-        Assert.Equal("main", artifact.EntryPoint);
-        Assert.Equal(ShaderAbiManifest.CurrentVersion, artifact.Manifest.Version);
-        Assert.Equal("vulkan1.2", artifact.Manifest.TargetProfile);
-        Assert.Equal("460", artifact.Manifest.GlslVersion);
-        Assert.Equal("std430", artifact.Manifest.StorageLayout);
-        Assert.Equal(2u, artifact.Manifest.Resources[0].Set);
-        Assert.Equal(3u, artifact.Manifest.Resources[0].Binding);
-        Assert.Equal(ShaderResourceAccess.ReadWrite, artifact.Manifest.Resources[0].Access);
-        Assert.Equal(16u, artifact.Manifest.Resources[0].Alignment);
-        Assert.Equal(16u, artifact.Manifest.Resources[0].ArrayStride);
-        Assert.Equal(16u, artifact.Manifest.Resources[0].Size);
-    }
-
-    [Fact]
-    public void RuntimeArtifactContract_RoundTripsReadOnlyAndVertexInputAbiMetadata()
-    {
-        var module = new ShaderIrModule
-        {
-            Stage = ShaderStage.Vertex,
-            SourceEntryPointName = "EditorViewportCubeVertex",
-            EntryPointName = "EditorViewportCubeVertex",
-            VertexInputs =
-            [
-                new ShaderIrVertexInput
-                {
-                    Name = "position",
-                    ParameterName = "position",
-                    GlslName = "position",
-                    GlslType = "vec3",
-                    Location = 0,
-                    Binding = 0,
-                    ByteOffset = 0,
-                    InputRate = VertexInputRate.Vertex,
-                    ByteSize = 12,
-                    Alignment = 4,
-                    FormatHint = "VK_FORMAT_R32G32B32_SFLOAT"
-                }
-            ],
-            VertexBuffers =
-            [
-                new ShaderIrVertexBufferBinding
-                {
-                    Binding = 0,
-                    Stride = 12,
-                    InputRate = VertexInputRate.Vertex,
-                    Attributes = [
-                        new ShaderIrVertexInput
-                        {
-                            Name = "position",
-                            ParameterName = "position",
-                            GlslName = "position",
-                            GlslType = "vec3",
-                            Location = 0,
-                            Binding = 0,
-                            ByteOffset = 0,
-                            InputRate = VertexInputRate.Vertex,
-                            ByteSize = 12,
-                            Alignment = 4,
-                            FormatHint = "VK_FORMAT_R32G32B32_SFLOAT"
-                        }
-                    ]
-                }
-            ],
-            Resources =
-            [
-                new ShaderIrResource
-                {
-                    Name = "scene",
-                    ParameterName = "scene",
-                    Category = ShaderResourceKind.StorageBuffer,
-                    Stage = ShaderStage.Vertex,
-                    Set = 0,
-                    Binding = 0,
-                    GlslType = "DeltaStruct_SceneParameters",
-                    ReadOnly = true,
-                    Access = ShaderResourceAccess.ReadOnly,
-                    Layout = ShaderStd430Layout.Standard,
-                    Std430Layout = ShaderStd430Layout.ForStruct(16, 224)
-                }
-            ]
-        };
-
-        var manifest = ShaderManifest.FromModule(module);
-        var abi = manifest.ToAbiManifest(ShaderCompilationOptions.Default);
-        var artifact = new ShaderArtifact(new byte[] { 1, 2, 3, 4 }, abi);
-
-        Assert.Single(manifest.VertexInputs);
-        Assert.Equal((0u, "vec3", 12u, 4u, "VK_FORMAT_R32G32B32_SFLOAT"),
-            (manifest.VertexInputs[0].Location, manifest.VertexInputs[0].GlslType, manifest.VertexInputs[0].ByteSize, manifest.VertexInputs[0].Alignment, manifest.VertexInputs[0].FormatHint));
-        Assert.Single(manifest.VertexBufferBindings);
-        Assert.Equal(12u, manifest.VertexBufferBindings[0].Stride);
-        Assert.Equal(ShaderResourceAccess.ReadOnly, artifact.Manifest.Resources[0].Access);
-        Assert.True(artifact.Manifest.Resources[0].ReadOnly);
-        Assert.Single(artifact.Manifest.VertexInputs);
-        Assert.Equal("VK_FORMAT_R32G32B32_SFLOAT", artifact.Manifest.VertexInputs[0].FormatHint);
-        Assert.Equal(224u, artifact.Manifest.Resources[0].Size);
-        Assert.Single(artifact.Manifest.VertexBufferBindings);
-        Assert.Equal(12u, artifact.Manifest.VertexBufferBindings[0].Stride);
-    }
-
-    [Fact]
-    public void RuntimeArtifactContract_RejectsLegacyAbiVersions()
-    {
-        var manifest = new ShaderAbiManifest { Version = ShaderAbiManifest.CurrentVersion - 1 };
-        Assert.Throws<ArgumentException>(() => new ShaderArtifact(new byte[] { 1, 2, 3, 4 }, manifest));
-    }
-
-    [Fact]
-    public void ComputeDispatchRequest_ValidatesArtifactBindingsAndCalculatesGroups()
-    {
-        var manifest = new ShaderAbiManifest
-        {
-            Stage = ShaderStage.Compute,
-            LocalSizeX = 8,
-            LocalSizeY = 1,
-            LocalSizeZ = 1,
-            Resources =
-            [new ShaderAbiResource
-            {
-                Set = 0,
-                Binding = 1,
-                Access = ShaderResourceAccess.ReadWrite
-            }]
-        };
-        var artifact = new ShaderArtifact(new byte[] { 3, 2, 35, 7 }, manifest);
-
-        var dimensions = ComputeDispatchDimensions.ForElements(artifact, 9);
-        var request = new ComputeDispatchRequest<int>(
-            artifact,
-            dimensions,
-            [new ComputeDispatchBinding<int>(0, 1, 42)]);
-
-        Assert.Equal(new ComputeDispatchDimensions(2, 1, 1), request.Dimensions);
-        Assert.Equal(42, request.Bindings[0].Resource);
-        Assert.Throws<ArgumentException>(() => new ComputeDispatchRequest<int>(
-            artifact,
-            dimensions,
-            [new ComputeDispatchBinding<int>(0, 0, 42)]));
-    }
-
-    [Fact]
     public void EmitFromModule_EmitsStructuredStd430RecordAndMemberMetadata()
     {
         var module = new ShaderIrModule
@@ -567,7 +395,7 @@ public class SanityChecks
         };
 
         var emitted = GlslEmitter.EmitFromModule(module);
-        var abi = ShaderManifest.FromModule(module).ToAbiManifest(ShaderCompilationOptions.Default);
+        var abi = ShaderManifest.FromModule(module).ToBuildManifest(ShaderCompilationOptions.Default);
         var resource = abi.Resources.Single();
 
         Assert.Contains("struct DeltaStruct_TransformRecord", emitted.Source, StringComparison.Ordinal);

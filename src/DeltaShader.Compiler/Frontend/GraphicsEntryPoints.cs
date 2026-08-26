@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
-using Delta.Shader.Abstractions;
+using Delta.Shader;
 using Delta.Shader.Compiler.IR;
 using Delta.Shader.Compiler.Syntax;
 using Microsoft.CodeAnalysis;

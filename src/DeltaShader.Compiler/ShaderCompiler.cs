@@ -1,6 +1,6 @@
 using System;
 using Delta.Shader.Compiler.IR;
-using Delta.Shader.Abstractions;
+using Delta.Shader;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.CodeAnalysis;

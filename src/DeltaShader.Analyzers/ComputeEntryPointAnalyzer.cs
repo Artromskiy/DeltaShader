@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Immutable;
 using System.Linq;
-using Delta.Shader.Abstractions;
+using Delta.Shader;
 using Delta.Shader.Compiler;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -177,7 +177,7 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
                     "Reflection calls are not allowed in compile-time shaders.");
             }
             else if ((called.IsVirtual || called.IsAbstract || called.IsOverride) &&
-                     !namespaceName.StartsWith("Delta.Shader.Abstractions", StringComparison.Ordinal) &&
+                     namespaceName != "Delta.Shader" &&
                      !namespaceName.StartsWith("DeltaMaths", StringComparison.Ordinal))
             {
                 Report(context.ReportDiagnostic, invocation.GetLocation(),
@@ -194,7 +194,7 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
 
             var namespaceName = field.ContainingNamespace?.ToDisplayString() ?? string.Empty;
             if (!field.IsConst &&
-                !namespaceName.StartsWith("Delta.Shader.Abstractions", StringComparison.Ordinal) &&
+                namespaceName != "Delta.Shader" &&
                 !namespaceName.StartsWith("DeltaMaths", StringComparison.Ordinal))
             {
                 Report(context.ReportDiagnostic, identifier.GetLocation(),

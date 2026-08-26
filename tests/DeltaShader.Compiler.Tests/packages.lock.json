@@ -384,7 +384,7 @@
       "deltamaths": {
         "type": "Project"
       },
-      "deltashader.abstractions": {
+      "deltashader": {
         "type": "Project"
       },
       "deltashader.analyzers": {
@@ -405,7 +405,7 @@
       "deltashader.compiler": {
         "type": "Project",
         "dependencies": {
-          "DeltaShader.Abstractions": "[1.0.0, )",
+          "DeltaShader": "[1.0.0, )",
           "Microsoft.CodeAnalysis.Analyzers": "[3.11.0, )",
           "Microsoft.CodeAnalysis.CSharp": "[4.13.0, )"
         }
@@ -414,7 +414,7 @@
         "type": "Project",
         "dependencies": {
           "DeltaMaths": "[1.0.0, )",
-          "DeltaShader.Abstractions": "[1.0.0, )"
+          "DeltaShader": "[1.0.0, )"
         }
       },
       "Microsoft.CodeAnalysis.Analyzers": {

@@ -7,7 +7,7 @@ Symbol-based lowering decisions must be validated not only against inline syntax
 Create a dedicated reference fixture project under `tests/DeltaShader.Compiler.ReferenceFixtures` that depends on:
 
 - `DeltaMaths`
-- `DeltaShader.Abstractions`
+- `DeltaShader`
 
 Compiler tests open this project through `MSBuildWorkspace` and validate that:
 

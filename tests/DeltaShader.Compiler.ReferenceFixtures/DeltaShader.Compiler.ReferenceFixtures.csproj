@@ -9,6 +9,6 @@
 
   <ItemGroup>
     <ProjectReference Include="../../../DeltaMaths/DeltaMaths.csproj" />
-    <ProjectReference Include="../../src/DeltaShader.Abstractions/DeltaShader.Abstractions.csproj" />
+    <ProjectReference Include="../../src/DeltaShader/DeltaShader.csproj" />
   </ItemGroup>
 </Project>

@@ -3,13 +3,14 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text;
-using Delta.Shader.Abstractions;
+using Delta.Shader;
+using Delta.Shader.Compiler;
 
 namespace Delta.Shader.Analyzers;
 
 internal static class ArtifactSourceEmitter
 {
-    public static string EmitAbiFactory(ShaderAbiManifest manifest)
+    public static string EmitAbiFactory(ShaderCompilationManifest manifest)
     {
         var source = new StringBuilder();
         source.AppendLine("    private static Delta.Shader.Contract.ShaderAbi CreateAbi()");
@@ -29,25 +30,25 @@ internal static class ArtifactSourceEmitter
         return source.ToString();
     }
 
-    private static string Resources(IReadOnlyList<ShaderAbiResource> resources)
+    private static string Resources(IReadOnlyList<ShaderCompilationResource> resources)
         => ArrayExpression(resources, "Delta.Shader.Contract.ShaderResourceBinding", RenderResource);
 
-    private static string PushConstants(ShaderStage stage, IReadOnlyList<ShaderAbiPushConstant> pushConstants)
+    private static string PushConstants(ShaderStage stage, IReadOnlyList<ShaderCompilationPushConstant> pushConstants)
         => ArrayExpression(pushConstants, "Delta.Shader.Contract.ShaderPushConstantRange", push => RenderPushConstant(stage, push));
 
-    private static string Interfaces(IReadOnlyList<ShaderAbiInterfaceVariable> variables)
+    private static string Interfaces(IReadOnlyList<ShaderCompilationInterfaceVariable> variables)
         => ArrayExpression(variables, "Delta.Shader.Contract.ShaderInterfaceVariable", RenderInterface);
 
-    private static string VertexInputs(IReadOnlyList<ShaderAbiVertexInput> inputs)
+    private static string VertexInputs(IReadOnlyList<ShaderCompilationVertexInput> inputs)
         => ArrayExpression(inputs, "Delta.Shader.Contract.ShaderVertexInput", RenderVertexInput);
 
-    private static string VertexBuffers(IReadOnlyList<ShaderAbiVertexBufferBinding> buffers)
+    private static string VertexBuffers(IReadOnlyList<ShaderCompilationVertexBufferBinding> buffers)
         => ArrayExpression(buffers, "Delta.Shader.Contract.ShaderVertexBufferLayout", RenderVertexBuffer);
 
-    private static string Workgroup(ShaderAbiManifest manifest)
+    private static string Workgroup(ShaderCompilationManifest manifest)
         => $"new Delta.Shader.Contract.ShaderWorkgroupSize({manifest.LocalSizeX}u, {manifest.LocalSizeY}u, {manifest.LocalSizeZ}u)";
 
-    private static string RenderResource(ShaderAbiResource resource)
+    private static string RenderResource(ShaderCompilationResource resource)
     {
         var kind = resource.Category switch
         {
@@ -65,25 +66,25 @@ internal static class ArtifactSourceEmitter
         return $"new Delta.Shader.Contract.ShaderResourceBinding(new Delta.Shader.Contract.ShaderBinding({resource.Set}u, {resource.Binding}u), Delta.Shader.Contract.ShaderResourceKind.{kind}, Delta.Shader.Contract.ShaderResourceAccess.{access}, {StageMask(resource.Stage)}, layout: {layout}, descriptorCount: 1u)";
     }
 
-    private static string RenderPushConstant(ShaderStage stage, ShaderAbiPushConstant pushConstant)
+    private static string RenderPushConstant(ShaderStage stage, ShaderCompilationPushConstant pushConstant)
         => $"new Delta.Shader.Contract.ShaderPushConstantRange(0u, {pushConstant.Size}u, {StageMask(stage)}, {RenderLayout(pushConstant.Size, pushConstant.Alignment, pushConstant.ArrayStride, 0u, pushConstant.Members)})";
 
-    private static string RenderInterface(ShaderAbiInterfaceVariable variable)
+    private static string RenderInterface(ShaderCompilationInterfaceVariable variable)
     {
         var location = IsBuiltin(variable.Builtin) ? "null" : variable.Location.ToString(CultureInfo.InvariantCulture) + "u";
         return $"new Delta.Shader.Contract.ShaderInterfaceVariable({ValueType(variable.GlslType)}, Location: {location}, Builtin: {Builtin(variable.Builtin)})";
     }
 
-    private static string RenderVertexInput(ShaderAbiVertexInput input)
+    private static string RenderVertexInput(ShaderCompilationVertexInput input)
         => $"new Delta.Shader.Contract.ShaderVertexInput({input.Location}u, {input.Binding}u, {input.ByteOffset}u, {ValueType(input.GlslType)}, Delta.Shader.Contract.ShaderVertexInputRate.{input.InputRate})";
 
-    private static string RenderVertexBuffer(ShaderAbiVertexBufferBinding buffer)
+    private static string RenderVertexBuffer(ShaderCompilationVertexBufferBinding buffer)
         => $"new Delta.Shader.Contract.ShaderVertexBufferLayout({buffer.Binding}u, {buffer.Stride}u, Delta.Shader.Contract.ShaderVertexInputRate.{buffer.InputRate})";
 
-    private static string RenderLayout(uint size, uint alignment, uint arrayStride, uint matrixStride, IReadOnlyList<ShaderAbiMember> members)
+    private static string RenderLayout(uint size, uint alignment, uint arrayStride, uint matrixStride, IReadOnlyList<ShaderCompilationMember> members)
         => $"new Delta.Shader.Contract.ShaderAbiLayout({size}u, {alignment}u, arrayStride: {arrayStride}u, matrixStride: {matrixStride}u, members: {ArrayExpression(members, "Delta.Shader.Contract.ShaderAbiMember", RenderMember)})";
 
-    private static string RenderMember(ShaderAbiMember member)
+    private static string RenderMember(ShaderCompilationMember member)
     {
         var nested = IsStructure(member.GlslType)
             ? RenderLayout(member.Size, member.Alignment, member.ArrayStride, member.MatrixStride ?? 0u, member.Members)

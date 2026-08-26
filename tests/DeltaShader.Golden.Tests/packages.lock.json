@@ -101,7 +101,7 @@
           "xunit.extensibility.core": "[2.9.2]"
         }
       },
-      "deltashader.abstractions": {
+      "deltashader": {
         "type": "Project"
       },
       "deltashader.backend.glsl": {
@@ -113,7 +113,7 @@
       "deltashader.compiler": {
         "type": "Project",
         "dependencies": {
-          "DeltaShader.Abstractions": "[1.0.0, )",
+          "DeltaShader": "[1.0.0, )",
           "Microsoft.CodeAnalysis.Analyzers": "[3.11.0, )",
           "Microsoft.CodeAnalysis.CSharp": "[4.13.0, )"
         }

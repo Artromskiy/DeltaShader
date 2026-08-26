@@ -4,8 +4,6 @@ namespace Delta.Shader.Contract;
 
 public interface IShaderArtifact
 {
-    int FormatVersion { get; }
-
     ShaderStage Stage { get; }
 
     string EntryPoint { get; }
@@ -17,7 +15,6 @@ public interface IShaderArtifact
 
 public sealed class ShaderArtifact : IShaderArtifact
 {
-    public const int CurrentFormatVersion = 1;
     private const uint SpirvMagic = 0x07230203;
 
     private readonly byte[] _spirv;
@@ -43,8 +40,6 @@ public sealed class ShaderArtifact : IShaderArtifact
         EntryPoint = entryPoint;
         Abi = abi;
     }
-
-    public int FormatVersion => CurrentFormatVersion;
 
     public ShaderStage Stage => Abi.Stage;
 

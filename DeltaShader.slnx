@@ -8,7 +8,7 @@
     <Project Path="tests/DeltaShader.TestShaders/DeltaShader.TestShaders.csproj" />
   </Folder>
   <Project Path="../DeltaMaths/DeltaMaths.csproj" />
-  <Project Path="src/DeltaShader.Abstractions/DeltaShader.Abstractions.csproj" />
+  <Project Path="src/DeltaShader/DeltaShader.csproj" />
   <Project Path="src/DeltaShader.Analyzers/DeltaShader.Analyzers.csproj" />
   <Project Path="src/DeltaShader.Backend.Glsl/DeltaShader.Backend.Glsl.csproj" />
   <Project Path="src/DeltaShader.Compiler/DeltaShader.Compiler.csproj" />

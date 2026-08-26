@@ -400,7 +400,7 @@
           "Silk.NET.Vulkan.Extensions.KHR": "[2.23.0, )"
         }
       },
-      "deltashader.abstractions": {
+      "deltashader": {
         "type": "Project"
       },
       "deltashader.backend.glsl": {
@@ -412,7 +412,7 @@
       "deltashader.compiler": {
         "type": "Project",
         "dependencies": {
-          "DeltaShader.Abstractions": "[1.0.0, )",
+          "DeltaShader": "[1.0.0, )",
           "Microsoft.CodeAnalysis.Analyzers": "[3.11.0, )",
           "Microsoft.CodeAnalysis.CSharp": "[4.13.0, )"
         }
@@ -424,7 +424,7 @@
         "type": "Project",
         "dependencies": {
           "DeltaMaths": "[1.0.0, )",
-          "DeltaShader.Abstractions": "[1.0.0, )",
+          "DeltaShader": "[1.0.0, )",
           "DeltaShader.Contract": "[1.0.0, )"
         }
       },

@@ -131,8 +131,6 @@ public sealed class ShaderSpecializationConstant
 
 public sealed class ShaderAbi
 {
-    public const int CurrentVersion = 1;
-
     private readonly ReadOnlyCollection<ShaderResourceBinding> _resources;
     private readonly ReadOnlyCollection<ShaderPushConstantRange> _pushConstants;
     private readonly ReadOnlyCollection<ShaderInterfaceVariable> _inputs;
@@ -174,8 +172,6 @@ public sealed class ShaderAbi
         _vertexBuffers = Copy(vertexBuffers);
         _specializationConstants = Copy(specializationConstants);
     }
-
-    public int Version => CurrentVersion;
 
     public ShaderStage Stage { get; }
 

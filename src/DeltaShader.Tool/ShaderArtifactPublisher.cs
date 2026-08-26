@@ -1,17 +1,17 @@
-using Legacy = Delta.Shader.Abstractions;
+using Compiler = Delta.Shader.Compiler;
 using Final = Delta.Shader.Contract;
 
 namespace Delta.Shader.Tool;
 
 internal static class ShaderArtifactPublisher
 {
-    public static Final.ShaderArtifact Create(ReadOnlySpan<byte> spirv, Legacy.ShaderAbiManifest manifest)
+    public static Final.ShaderArtifact Create(ReadOnlySpan<byte> spirv, Compiler.ShaderCompilationManifest manifest)
     {
         ArgumentNullException.ThrowIfNull(manifest);
         return new Final.ShaderArtifact(spirv, manifest.EntryPointName, ToAbi(manifest));
     }
 
-    private static Final.ShaderAbi ToAbi(Legacy.ShaderAbiManifest manifest)
+    private static Final.ShaderAbi ToAbi(Compiler.ShaderCompilationManifest manifest)
         => new(
             ToStage(manifest.Stage),
             manifest.Resources.Select(ToResource).ToArray(),
@@ -23,7 +23,7 @@ internal static class ShaderArtifactPublisher
             workgroupSize: ToWorkgroup(manifest),
             requiredCapabilities: Final.ShaderCapabilities.None);
 
-    private static Final.ShaderResourceBinding ToResource(Legacy.ShaderAbiResource resource)
+    private static Final.ShaderResourceBinding ToResource(Compiler.ShaderCompilationResource resource)
     {
         var kind = resource.Category switch
         {
@@ -46,22 +46,22 @@ internal static class ShaderArtifactPublisher
             layout);
     }
 
-    private static Final.ShaderPushConstantRange ToPushConstant(Legacy.ShaderAbiPushConstant pushConstant)
-        => new(0u, pushConstant.Size, ToStageMask(Legacy.ShaderStage.Vertex), ToLayout(pushConstant.Size, pushConstant.Alignment, pushConstant.ArrayStride, 0u, pushConstant.Members));
+    private static Final.ShaderPushConstantRange ToPushConstant(Compiler.ShaderCompilationPushConstant pushConstant)
+        => new(0u, pushConstant.Size, ToStageMask(Delta.Shader.ShaderStage.Vertex), ToLayout(pushConstant.Size, pushConstant.Alignment, pushConstant.ArrayStride, 0u, pushConstant.Members));
 
-    private static Final.ShaderInterfaceVariable ToInterface(Legacy.ShaderAbiInterfaceVariable variable)
+    private static Final.ShaderInterfaceVariable ToInterface(Compiler.ShaderCompilationInterfaceVariable variable)
         => new(ToValueType(variable.GlslType), string.IsNullOrWhiteSpace(variable.Builtin) ? variable.Location : null, ToBuiltin(variable.Builtin));
 
-    private static Final.ShaderVertexInput ToVertexInput(Legacy.ShaderAbiVertexInput input)
+    private static Final.ShaderVertexInput ToVertexInput(Compiler.ShaderCompilationVertexInput input)
         => new(input.Location, input.Binding, input.ByteOffset, ToValueType(input.GlslType), (Final.ShaderVertexInputRate)input.InputRate);
 
-    private static Final.ShaderVertexBufferLayout ToVertexBuffer(Legacy.ShaderAbiVertexBufferBinding buffer)
+    private static Final.ShaderVertexBufferLayout ToVertexBuffer(Compiler.ShaderCompilationVertexBufferBinding buffer)
         => new(buffer.Binding, buffer.Stride, (Final.ShaderVertexInputRate)buffer.InputRate);
 
-    private static Final.ShaderAbiLayout ToLayout(uint size, uint alignment, uint arrayStride, uint matrixStride, IEnumerable<Legacy.ShaderAbiMember> members)
+    private static Final.ShaderAbiLayout ToLayout(uint size, uint alignment, uint arrayStride, uint matrixStride, IEnumerable<Compiler.ShaderCompilationMember> members)
         => new(size, alignment, arrayStride, matrixStride, members.Select(ToMember));
 
-    private static Final.ShaderAbiMember ToMember(Legacy.ShaderAbiMember member)
+    private static Final.ShaderAbiMember ToMember(Compiler.ShaderCompilationMember member)
     {
         var nested = IsStructure(member.GlslType)
             ? ToLayout(member.Size, member.Alignment, member.ArrayStride, member.MatrixStride ?? 0u, member.Members)
@@ -96,24 +96,24 @@ internal static class ShaderArtifactPublisher
 
     private static uint VectorSize(string type) => (uint)(type[type.Length - 1] - '0');
 
-    private static Final.ShaderWorkgroupSize ToWorkgroup(Legacy.ShaderAbiManifest manifest)
-        => manifest.Stage == Legacy.ShaderStage.Compute
+    private static Final.ShaderWorkgroupSize ToWorkgroup(Compiler.ShaderCompilationManifest manifest)
+        => manifest.Stage == Delta.Shader.ShaderStage.Compute
             ? new Final.ShaderWorkgroupSize(manifest.LocalSizeX, manifest.LocalSizeY, manifest.LocalSizeZ)
             : default;
 
-    private static Final.ShaderStage ToStage(Legacy.ShaderStage stage) => stage switch
+    private static Final.ShaderStage ToStage(Delta.Shader.ShaderStage stage) => stage switch
     {
-        Legacy.ShaderStage.Compute => Final.ShaderStage.Compute,
-        Legacy.ShaderStage.Vertex => Final.ShaderStage.Vertex,
-        Legacy.ShaderStage.Fragment => Final.ShaderStage.Fragment,
+        Delta.Shader.ShaderStage.Compute => Final.ShaderStage.Compute,
+        Delta.Shader.ShaderStage.Vertex => Final.ShaderStage.Vertex,
+        Delta.Shader.ShaderStage.Fragment => Final.ShaderStage.Fragment,
         _ => Final.ShaderStage.Unknown
     };
 
-    private static Final.ShaderStageMask ToStageMask(Legacy.ShaderStage stage) => stage switch
+    private static Final.ShaderStageMask ToStageMask(Delta.Shader.ShaderStage stage) => stage switch
     {
-        Legacy.ShaderStage.Compute => Final.ShaderStageMask.Compute,
-        Legacy.ShaderStage.Vertex => Final.ShaderStageMask.Vertex,
-        Legacy.ShaderStage.Fragment => Final.ShaderStageMask.Fragment,
+        Delta.Shader.ShaderStage.Compute => Final.ShaderStageMask.Compute,
+        Delta.Shader.ShaderStage.Vertex => Final.ShaderStageMask.Vertex,
+        Delta.Shader.ShaderStage.Fragment => Final.ShaderStageMask.Fragment,
         _ => Final.ShaderStageMask.None
     };
 

@@ -1,4 +1,4 @@
-namespace Delta.Shader.Abstractions;
+namespace Delta.Shader;
 
 [AttributeUsage(AttributeTargets.Method, Inherited = false, AllowMultiple = false)]
 public sealed class VertexShaderAttribute : Attribute

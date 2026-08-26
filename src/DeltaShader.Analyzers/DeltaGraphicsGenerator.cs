@@ -2,8 +2,7 @@ using System;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
-using System.Text.Json;
-using Delta.Shader.Abstractions;
+using Delta.Shader;
 using Delta.Shader.Backend.Glsl;
 using Delta.Shader.Compiler;
 using Microsoft.CodeAnalysis;
@@ -45,7 +44,7 @@ public sealed class DeltaGraphicsGenerator : IIncrementalGenerator
             ? ["__single_graphics_pair"]
             : vertices.Select(GetShaderName).Concat(fragments.Select(GetShaderName)).Distinct(StringComparer.Ordinal).ToArray();
         var results = ShaderCompiler.CompileAll(compilation).Where(r => r.Module?.Stage is ShaderStage.Vertex or ShaderStage.Fragment).ToArray();
-        if (results.Any(r => !r.Success || r.AbiManifest is null || r.Module is null))
+        if (results.Any(r => !r.Success || r.BuildManifest is null || r.Module is null))
         {
             foreach (var d in results.SelectMany(r => r.Diagnostics))
             {
@@ -70,7 +69,7 @@ public sealed class DeltaGraphicsGenerator : IIncrementalGenerator
             var fragmentIdentity = pairFragments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             var vertexResult = resultsByIdentity.TryGetValue(vertexIdentity, out var vertexMatches) && vertexMatches.Length == 1 ? vertexMatches[0] : null;
             var fragmentResult = resultsByIdentity.TryGetValue(fragmentIdentity, out var fragmentMatches) && fragmentMatches.Length == 1 ? fragmentMatches[0] : null;
-            if (vertexResult?.Module is null || vertexResult.AbiManifest is null || fragmentResult?.Module is null || fragmentResult.AbiManifest is null)
+            if (vertexResult?.Module is null || vertexResult.BuildManifest is null || fragmentResult?.Module is null || fragmentResult.BuildManifest is null)
             {
                 context.ReportDiagnostic(Diagnostic.Create(Descriptor, pairVertices[0].Locations.FirstOrDefault(), $"DSH017: graphics pair '{pairName}' did not produce both shader modules."));
                 continue;
@@ -88,9 +87,8 @@ public sealed class DeltaGraphicsGenerator : IIncrementalGenerator
             var name = pairNames.Length == 1 ? Sanitize(type.Name) + "GraphicsShaderProgram" : Pascalize(pairName) + "GraphicsShaderProgram";
             var ns = type.ContainingNamespace.IsGlobalNamespace ? string.Empty : $"namespace {type.ContainingNamespace.ToDisplayString()};";
             var source = "using System;\nusing System.Text.Json;\nusing Delta.Shader.Contract;\n\n" + ns + "\n\npublic static class " + name + "\n{\n" +
-                "    public const string VertexGlsl = " + Literal(vertexEmit.Source) + ";\n    public const string FragmentGlsl = " + Literal(fragmentEmit.Source) + ";\n    public const string VertexManifestJson = " + Literal(JsonSerializer.Serialize(vertexResult.AbiManifest)) + ";\n    public const string FragmentManifestJson = " + Literal(JsonSerializer.Serialize(fragmentResult.AbiManifest)) + ";\n\n" +
-                ArtifactSourceEmitter.EmitAbiFactory(vertexResult.AbiManifest) +
-                ArtifactSourceEmitter.EmitAbiFactory(fragmentResult.AbiManifest).Replace("CreateAbi", "CreateFragmentAbi") +
+                ArtifactSourceEmitter.EmitAbiFactory(vertexResult.BuildManifest) +
+                ArtifactSourceEmitter.EmitAbiFactory(fragmentResult.BuildManifest).Replace("CreateAbi", "CreateFragmentAbi") +
                 "\n    public static IGraphicsShaderProgram CreateProgram(ReadOnlySpan<byte> vertexSpirv, ReadOnlySpan<byte> fragmentSpirv)\n        => new GraphicsShaderProgram(new ShaderArtifact(vertexSpirv, \"main\", CreateAbi()), new ShaderArtifact(fragmentSpirv, \"main\", CreateFragmentAbi()));\n}\n";
             context.AddSource(name + ".g.cs", SourceText.From(source, Encoding.UTF8));
         }

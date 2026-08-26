@@ -12,7 +12,7 @@
   `DeltaShader.Contract.IShaderArtifact` and
   `DeltaShader.Contract.GraphicsShaderProgram`.
 - After producer and consumer migration, remove the duplicate artifact,
-  manifest and graphics-program types from `DeltaShader.Abstractions`.
+  manifest and graphics-program types from `DeltaShader`.
 - Keep static analyzer-driven authoring as the production API. Runtime
   Roslyn/lambda transpilation remains deferred tooling research and must not be
   presented as an implemented runtime path.

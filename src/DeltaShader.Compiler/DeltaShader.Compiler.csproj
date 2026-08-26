@@ -6,7 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\\DeltaShader.Abstractions\\DeltaShader.Abstractions.csproj" />
+    <ProjectReference Include="..\\DeltaShader\\DeltaShader.csproj" />
     <EmbeddedResource Include="../../../DeltaMaths/Vectors/shader-contract.json" Link="Contracts/shader-contract.json" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" />

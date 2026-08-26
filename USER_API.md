@@ -7,7 +7,7 @@ typed IR, GLSL text and JSON sidecars are not runtime API.
 
 An authoring project references:
 
-- `src/DeltaShader.Abstractions/DeltaShader.Abstractions.csproj` for shader
+- `src/DeltaShader/DeltaShader.csproj` for shader
   attributes, builtins and resource declarations;
 - `src/DeltaShader.Analyzers/DeltaShader.Analyzers.csproj` as an analyzer;
 - `src/DeltaShader.Contract/DeltaShader.Contract.csproj` when consuming a
@@ -41,7 +41,6 @@ The only runtime handoff is `DeltaShader.Contract.IShaderArtifact`:
 ```csharp
 public interface IShaderArtifact
 {
-    int FormatVersion { get; }
     ShaderStage Stage { get; }
     string EntryPoint { get; }
     ReadOnlySpan<byte> Spirv { get; }

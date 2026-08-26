@@ -1,4 +1,4 @@
-namespace Delta.Shader.Abstractions;
+namespace Delta.Shader;
 
 [Flags]
 public enum ShaderStageMask

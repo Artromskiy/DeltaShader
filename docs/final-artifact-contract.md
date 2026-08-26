@@ -9,7 +9,7 @@ C# authoring source
   -> Roslyn validation and typed IR
   -> optional GLSL 460 inspection output
   -> SPIR-V compilation and validation
-  -> ShaderArtifact { SPIR-V + serialized binary ABI }
+  -> ShaderArtifact { SPIR-V + resolved binary ABI }
   -> DeltaRender
 ```
 
@@ -21,7 +21,6 @@ sidecar for inspection and validation; DeltaRender never consumes it.
 ```csharp
 public interface IShaderArtifact
 {
-    int FormatVersion { get; }
     ShaderStage Stage { get; }
     string EntryPoint { get; }
     ReadOnlySpan<byte> Spirv { get; }
@@ -30,8 +29,7 @@ public interface IShaderArtifact
 ```
 
 The canonical definitions live in `src/DeltaShader.Contract`. That project is
-the source of truth; older artifact types in `DeltaShader.Abstractions` are a
-temporary compatibility surface while producers and consumers migrate.
+the only consumer-facing artifact surface.
 
 The artifact does not carry a content hash. An immutable consumer such as
 DeltaRender can compute and cache its own key from the SPIR-V and the ABI when
