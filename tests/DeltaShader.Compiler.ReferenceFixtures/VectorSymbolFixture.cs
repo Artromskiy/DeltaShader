@@ -1,7 +1,7 @@
-using DeltaMaths;
-using DeltaShader.Abstractions;
+using Delta.Maths;
+using Delta.Shader.Abstractions;
 
-namespace DeltaShader.Compiler.ReferenceFixtures;
+namespace Delta.Shader.Compiler.ReferenceFixtures;
 
 internal static class VectorSymbolFixture
 {

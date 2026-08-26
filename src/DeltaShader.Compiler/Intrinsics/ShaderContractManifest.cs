@@ -6,7 +6,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace DeltaShader.Compiler.Intrinsics;
+namespace Delta.Shader.Compiler.Intrinsics;
 
 public sealed class ShaderContractManifest
 {
@@ -30,7 +30,7 @@ public sealed class ShaderContractManifest
 
         if (resourceName is null)
         {
-            throw new InvalidOperationException("The DeltaMaths shader contract was not embedded in DeltaShader.Compiler.");
+            throw new InvalidOperationException("The DeltaMaths shader contract was not embedded in Delta.Shader.Compiler.");
         }
 
         using var stream = assembly.GetManifestResourceStream(resourceName)

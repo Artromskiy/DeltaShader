@@ -1,7 +1,7 @@
-using DeltaShader.Abstractions;
-using DeltaMaths;
+using Delta.Shader.Abstractions;
+using Delta.Maths;
 
-namespace DeltaShader.TestShaders;
+namespace Delta.Shader.TestShaders;
 
 internal static class VectorAdd
 {

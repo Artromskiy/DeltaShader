@@ -1,7 +1,7 @@
-using DeltaShader.Contract;
+using Delta.Shader.Contract;
 using Xunit;
 
-namespace DeltaShader.Golden.Tests;
+namespace Delta.Shader.Golden.Tests;
 
 public sealed class ArtifactContractTests
 {

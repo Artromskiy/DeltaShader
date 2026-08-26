@@ -1,6 +1,6 @@
 using System.Collections.ObjectModel;
 
-namespace DeltaShader.Contract;
+namespace Delta.Shader.Contract;
 
 public readonly record struct ShaderInterfaceVariable(
     ShaderValueType Type,

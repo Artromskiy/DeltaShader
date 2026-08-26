@@ -1,7 +1,7 @@
-using DeltaMaths;
-using DeltaShader.Abstractions;
+using Delta.Maths;
+using Delta.Shader.Abstractions;
 
-namespace DeltaShader.TestShaders;
+namespace Delta.Shader.TestShaders;
 
 internal static class FullscreenUi
 {

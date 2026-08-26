@@ -1,8 +1,8 @@
-using DeltaMaths;
-using DeltaShader.Abstractions;
+using Delta.Maths;
+using Delta.Shader.Abstractions;
 using System.Diagnostics.CodeAnalysis;
 
-namespace DeltaShader.Text;
+namespace Delta.Shader.Text;
 
 [SuppressMessage("Design", "CA1051", Justification = "Public fields are the declared shader-visible std430 payload.")]
 [SuppressMessage("Design", "CA1815", Justification = "Field-only shader ABI record; equality is not part of the serialized layout contract.")]

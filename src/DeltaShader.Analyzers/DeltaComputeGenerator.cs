@@ -3,14 +3,14 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
-using DeltaShader.Abstractions;
-using DeltaShader.Backend.Glsl;
-using DeltaShader.Compiler;
+using Delta.Shader.Abstractions;
+using Delta.Shader.Backend.Glsl;
+using Delta.Shader.Compiler;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
-namespace DeltaShader.Analyzers;
+namespace Delta.Shader.Analyzers;
 
 [Generator]
 public sealed class DeltaComputeGenerator : IIncrementalGenerator
@@ -50,7 +50,7 @@ public sealed class DeltaComputeGenerator : IIncrementalGenerator
         if (!emitted.Success) { context.ReportDiagnostic(Diagnostic.Create(Descriptor, method.Locations.FirstOrDefault(), "GLSL generation failed for the [DeltaCompute] method.")); return; }
         var className = Sanitize(method.ContainingType.Name) + Sanitize(method.Name) + "ShaderArtifact";
         var ns = method.ContainingNamespace.IsGlobalNamespace ? string.Empty : $"namespace {method.ContainingNamespace.ToDisplayString()};";
-        var source = "using System;\nusing System.Text.Json;\nusing DeltaShader.Contract;\n\n" + ns + "\n\npublic static class " + className + "\n{\n" +
+        var source = "using System;\nusing System.Text.Json;\nusing Delta.Shader.Contract;\n\n" + ns + "\n\npublic static class " + className + "\n{\n" +
             "    public const string SourceEntryPointName = " + Literal(result.AbiManifest.SourceEntryPointName) + ";\n    public const string EntryPointName = " + Literal(result.AbiManifest.EntryPointName) + ";\n    public const string Glsl = " + Literal(emitted.Source) + ";\n    public const string ManifestJson = " + Literal(JsonSerializer.Serialize(result.AbiManifest)) + ";\n\n" +
             ArtifactSourceEmitter.EmitAbiFactory(result.AbiManifest) +
             "\n    public static ShaderArtifact CreateArtifact(ReadOnlySpan<byte> spirv)\n        => new(spirv, EntryPointName, CreateAbi());\n}\n";

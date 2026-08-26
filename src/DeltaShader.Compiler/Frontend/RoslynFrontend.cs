@@ -1,12 +1,12 @@
 using System.Collections.Generic;
 using System.Linq;
-using DeltaShader.Abstractions;
-using DeltaShader.Compiler.Syntax;
+using Delta.Shader.Abstractions;
+using Delta.Shader.Compiler.Syntax;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace DeltaShader.Compiler;
+namespace Delta.Shader.Compiler;
 
 public sealed class RoslynFrontend
 {

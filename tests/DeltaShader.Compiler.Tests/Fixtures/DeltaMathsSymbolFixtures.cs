@@ -1,7 +1,7 @@
-using DeltaMaths;
-using DeltaShader.Abstractions;
+using Delta.Maths;
+using Delta.Shader.Abstractions;
 
-namespace DeltaShader.Compiler.Tests.Fixtures;
+namespace Delta.Shader.Compiler.Tests.Fixtures;
 
 internal static class DeltaMathsSymbolFixtures
 {

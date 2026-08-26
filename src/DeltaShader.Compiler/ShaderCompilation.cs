@@ -1,8 +1,8 @@
 using System.Collections.Generic;
-using DeltaShader.Abstractions;
-using DeltaShader.Compiler.IR;
+using Delta.Shader.Abstractions;
+using Delta.Shader.Compiler.IR;
 
-namespace DeltaShader.Compiler;
+namespace Delta.Shader.Compiler;
 
 public sealed class ShaderCompilationResult
 {

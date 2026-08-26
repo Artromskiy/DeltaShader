@@ -1,13 +1,13 @@
 using System;
 using System.Collections.Immutable;
 using System.Linq;
-using DeltaShader.Abstractions;
-using DeltaShader.Compiler;
+using Delta.Shader.Abstractions;
+using Delta.Shader.Compiler;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
-namespace DeltaShader.Analyzers;
+namespace Delta.Shader.Analyzers;
 
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
@@ -177,7 +177,7 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
                     "Reflection calls are not allowed in compile-time shaders.");
             }
             else if ((called.IsVirtual || called.IsAbstract || called.IsOverride) &&
-                     !namespaceName.StartsWith("DeltaShader.Abstractions", StringComparison.Ordinal) &&
+                     !namespaceName.StartsWith("Delta.Shader.Abstractions", StringComparison.Ordinal) &&
                      !namespaceName.StartsWith("DeltaMaths", StringComparison.Ordinal))
             {
                 Report(context.ReportDiagnostic, invocation.GetLocation(),
@@ -194,7 +194,7 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
 
             var namespaceName = field.ContainingNamespace?.ToDisplayString() ?? string.Empty;
             if (!field.IsConst &&
-                !namespaceName.StartsWith("DeltaShader.Abstractions", StringComparison.Ordinal) &&
+                !namespaceName.StartsWith("Delta.Shader.Abstractions", StringComparison.Ordinal) &&
                 !namespaceName.StartsWith("DeltaMaths", StringComparison.Ordinal))
             {
                 Report(context.ReportDiagnostic, identifier.GetLocation(),

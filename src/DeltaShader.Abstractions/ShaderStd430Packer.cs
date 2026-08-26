@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Reflection;
 
-namespace DeltaShader.Abstractions;
+namespace Delta.Shader.Abstractions;
 
 public static class ShaderStd430Packer
 {

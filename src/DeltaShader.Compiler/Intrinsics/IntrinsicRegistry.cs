@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using DeltaShader.Abstractions;
+using Delta.Shader.Abstractions;
 using Microsoft.CodeAnalysis;
 
-namespace DeltaShader.Compiler.Intrinsics;
+namespace Delta.Shader.Compiler.Intrinsics;
 
 public enum IntrinsicCategory
 {

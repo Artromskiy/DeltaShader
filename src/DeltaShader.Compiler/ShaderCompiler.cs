@@ -1,11 +1,11 @@
 using System;
-using DeltaShader.Compiler.IR;
-using DeltaShader.Abstractions;
+using Delta.Shader.Compiler.IR;
+using Delta.Shader.Abstractions;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 
-namespace DeltaShader.Compiler;
+namespace Delta.Shader.Compiler;
 
 public static class ShaderCompiler
 {

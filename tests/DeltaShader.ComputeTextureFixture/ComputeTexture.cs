@@ -1,7 +1,7 @@
-using DeltaMaths;
-using DeltaShader.Abstractions;
+using Delta.Maths;
+using Delta.Shader.Abstractions;
 
-namespace DeltaShader.ComputeTextureFixture;
+namespace Delta.Shader.ComputeTextureFixture;
 
 public static class ComputeTexture
 {

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace DeltaShader.Backend.Glsl;
+namespace Delta.Shader.Backend.Glsl;
 
 /// <summary>
 /// Produces deterministic identifiers accepted by Vulkan GLSL 4.60.

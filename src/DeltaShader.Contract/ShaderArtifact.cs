@@ -1,6 +1,6 @@
 using System.Buffers.Binary;
 
-namespace DeltaShader.Contract;
+namespace Delta.Shader.Contract;
 
 public interface IShaderArtifact
 {

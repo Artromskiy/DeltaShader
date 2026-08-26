@@ -1,4 +1,4 @@
-namespace DeltaShader.Abstractions;
+namespace Delta.Shader.Abstractions;
 
 /// <summary>
 /// Marks a static method as a compile-time DeltaShader compute kernel.

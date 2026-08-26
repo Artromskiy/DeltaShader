@@ -2,19 +2,19 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
-using DeltaRender;
-using DeltaRender.Vulkan;
-using DeltaShader.Abstractions;
-using DeltaShader.Backend.Glsl;
-using DeltaShader.Compiler;
-using DeltaShader.Compiler.IR;
+using Delta.Render.Core;
+using Delta.Render.Vulkan;
+using Delta.Shader.Abstractions;
+using Delta.Shader.Backend.Glsl;
+using Delta.Shader.Compiler;
+using Delta.Shader.Compiler.IR;
 using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.MSBuild;
 using Xunit;
 using Xunit.Sdk;
 
-namespace DeltaShader.Vulkan.Tests;
+namespace Delta.Shader.Vulkan.Tests;
 
 public sealed class ComputeDispatchSmoke
 {
@@ -76,7 +76,7 @@ public sealed class ComputeDispatchSmoke
         }
 
         var root = FindRepositoryRoot();
-        var projectPath = Path.Combine(root, "tests", "DeltaShader.TestShaders", "DeltaShader.TestShaders.csproj");
+        var projectPath = Path.Combine(root, "tests", "Delta.Shader.TestShaders", "Delta.Shader.TestShaders.csproj");
 
         using var workspace = MSBuildWorkspace.Create();
         var project = await workspace.OpenProjectAsync(projectPath).ConfigureAwait(false);
@@ -91,7 +91,7 @@ public sealed class ComputeDispatchSmoke
         var current = new DirectoryInfo(AppContext.BaseDirectory);
         while (current is not null)
         {
-            if (File.Exists(Path.Combine(current.FullName, "DeltaShader.slnx")))
+            if (File.Exists(Path.Combine(current.FullName, "Delta.Shader.slnx")))
             {
                 return current.FullName;
             }

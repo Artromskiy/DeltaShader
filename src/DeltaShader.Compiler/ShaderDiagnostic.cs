@@ -1,6 +1,6 @@
 using System;
 
-namespace DeltaShader.Compiler;
+namespace Delta.Shader.Compiler;
 
 public sealed record ShaderDiagnostic(
     string Id,

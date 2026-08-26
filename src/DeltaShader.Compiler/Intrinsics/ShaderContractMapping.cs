@@ -2,7 +2,7 @@ using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace DeltaShader.Compiler.Intrinsics;
+namespace Delta.Shader.Compiler.Intrinsics;
 
 public enum ShaderContractMapping
 {

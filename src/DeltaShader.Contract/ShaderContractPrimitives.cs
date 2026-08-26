@@ -1,4 +1,4 @@
-namespace DeltaShader.Contract;
+namespace Delta.Shader.Contract;
 
 public enum ShaderStage
 {

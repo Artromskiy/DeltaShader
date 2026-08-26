@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <RootNamespace>DeltaShader.Text</RootNamespace>
+    <RootNamespace>Delta.Shader.Text</RootNamespace>
     <AssemblyName>DeltaShader.Text</AssemblyName>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>

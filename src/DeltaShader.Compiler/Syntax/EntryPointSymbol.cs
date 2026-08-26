@@ -1,8 +1,8 @@
 using System.Collections.Generic;
-using DeltaShader.Abstractions;
+using Delta.Shader.Abstractions;
 using Microsoft.CodeAnalysis;
 
-namespace DeltaShader.Compiler.Syntax;
+namespace Delta.Shader.Compiler.Syntax;
 
 public sealed class ShaderEntryPointSymbol
 {

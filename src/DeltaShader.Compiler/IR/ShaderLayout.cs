@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using DeltaShader.Abstractions;
+using Delta.Shader.Abstractions;
 
-namespace DeltaShader.Compiler.IR;
+namespace Delta.Shader.Compiler.IR;
 
 public sealed class ShaderStd430Layout
 {

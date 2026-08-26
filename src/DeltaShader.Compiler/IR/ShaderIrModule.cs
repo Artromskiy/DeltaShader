@@ -1,7 +1,7 @@
 using System.Collections.Generic;
-using DeltaShader.Abstractions;
+using Delta.Shader.Abstractions;
 
-namespace DeltaShader.Compiler.IR;
+namespace Delta.Shader.Compiler.IR;
 
 public sealed class ShaderIrModule
 {

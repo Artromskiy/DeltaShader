@@ -3,14 +3,14 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
-using DeltaShader.Abstractions;
-using DeltaShader.Backend.Glsl;
-using DeltaShader.Compiler;
+using Delta.Shader.Abstractions;
+using Delta.Shader.Backend.Glsl;
+using Delta.Shader.Compiler;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
-namespace DeltaShader.Analyzers;
+namespace Delta.Shader.Analyzers;
 
 [Generator]
 public sealed class DeltaGraphicsGenerator : IIncrementalGenerator
@@ -87,7 +87,7 @@ public sealed class DeltaGraphicsGenerator : IIncrementalGenerator
             var type = pairVertices[0].ContainingType;
             var name = pairNames.Length == 1 ? Sanitize(type.Name) + "GraphicsShaderProgram" : Pascalize(pairName) + "GraphicsShaderProgram";
             var ns = type.ContainingNamespace.IsGlobalNamespace ? string.Empty : $"namespace {type.ContainingNamespace.ToDisplayString()};";
-            var source = "using System;\nusing System.Text.Json;\nusing DeltaShader.Contract;\n\n" + ns + "\n\npublic static class " + name + "\n{\n" +
+            var source = "using System;\nusing System.Text.Json;\nusing Delta.Shader.Contract;\n\n" + ns + "\n\npublic static class " + name + "\n{\n" +
                 "    public const string VertexGlsl = " + Literal(vertexEmit.Source) + ";\n    public const string FragmentGlsl = " + Literal(fragmentEmit.Source) + ";\n    public const string VertexManifestJson = " + Literal(JsonSerializer.Serialize(vertexResult.AbiManifest)) + ";\n    public const string FragmentManifestJson = " + Literal(JsonSerializer.Serialize(fragmentResult.AbiManifest)) + ";\n\n" +
                 ArtifactSourceEmitter.EmitAbiFactory(vertexResult.AbiManifest) +
                 ArtifactSourceEmitter.EmitAbiFactory(fragmentResult.AbiManifest).Replace("CreateAbi", "CreateFragmentAbi") +

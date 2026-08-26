@@ -1,14 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using DeltaShader.Abstractions;
-using DeltaShader.Compiler.Intrinsics;
-using DeltaShader.Compiler.IR;
-using DeltaShader.Compiler.Syntax;
+using Delta.Shader.Abstractions;
+using Delta.Shader.Compiler.Intrinsics;
+using Delta.Shader.Compiler.IR;
+using Delta.Shader.Compiler.Syntax;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace DeltaShader.Compiler;
+namespace Delta.Shader.Compiler;
 
 public static class ComputeEntryPoints
 {
@@ -786,23 +786,23 @@ public sealed class ModuleCompilationContext
     {
         Compilation = compilation;
         Intrinsics = intrinsics;
-        ReadOnlyStorageBufferType = compilation.GetTypeByMetadataName("DeltaShader.Abstractions.ReadOnlyStorageBuffer`1");
-        ReadWriteStorageBufferType = compilation.GetTypeByMetadataName("DeltaShader.Abstractions.ReadWriteStorageBuffer`1");
-        ReadOnlyStorageBufferValueType = compilation.GetTypeByMetadataName("DeltaShader.Abstractions.ReadOnlyStorageBuffer");
-        ReadWriteStorageBufferValueType = compilation.GetTypeByMetadataName("DeltaShader.Abstractions.ReadWriteStorageBuffer");
-        SampledTexture2DType = compilation.GetTypeByMetadataName("DeltaShader.Abstractions.SampledTexture2D");
-        ReadOnlyStorageBufferAttributeType = compilation.GetTypeByMetadataName("DeltaShader.Abstractions.ReadOnlyStorageBufferAttribute");
-        ReadWriteStorageBufferAttributeType = compilation.GetTypeByMetadataName("DeltaShader.Abstractions.ReadWriteStorageBufferAttribute");
-        GlobalInvocationIdAttributeType = compilation.GetTypeByMetadataName("DeltaShader.Abstractions.GlobalInvocationIdAttribute");
-        VertexIndexAttributeType = compilation.GetTypeByMetadataName("DeltaShader.Abstractions.VertexIndexAttribute");
-        VertexInputAttributeType = compilation.GetTypeByMetadataName("DeltaShader.Abstractions.VertexInputAttribute");
-        InstanceIndexAttributeType = compilation.GetTypeByMetadataName("DeltaShader.Abstractions.InstanceIndexAttribute");
-        FragmentCoordAttributeType = compilation.GetTypeByMetadataName("DeltaShader.Abstractions.FragmentCoordAttribute");
-        PositionAttributeType = compilation.GetTypeByMetadataName("DeltaShader.Abstractions.PositionAttribute");
-        FragmentColorAttributeType = compilation.GetTypeByMetadataName("DeltaShader.Abstractions.FragmentColorAttribute");
-        ShaderVaryingAttributeType = compilation.GetTypeByMetadataName("DeltaShader.Abstractions.ShaderVaryingAttribute");
-        PushConstantAttributeType = compilation.GetTypeByMetadataName("DeltaShader.Abstractions.PushConstantAttribute");
-        SampledTexture2DAttributeType = compilation.GetTypeByMetadataName("DeltaShader.Abstractions.SampledTexture2DAttribute");
+        ReadOnlyStorageBufferType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.ReadOnlyStorageBuffer`1");
+        ReadWriteStorageBufferType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.ReadWriteStorageBuffer`1");
+        ReadOnlyStorageBufferValueType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.ReadOnlyStorageBuffer");
+        ReadWriteStorageBufferValueType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.ReadWriteStorageBuffer");
+        SampledTexture2DType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.SampledTexture2D");
+        ReadOnlyStorageBufferAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.ReadOnlyStorageBufferAttribute");
+        ReadWriteStorageBufferAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.ReadWriteStorageBufferAttribute");
+        GlobalInvocationIdAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.GlobalInvocationIdAttribute");
+        VertexIndexAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.VertexIndexAttribute");
+        VertexInputAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.VertexInputAttribute");
+        InstanceIndexAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.InstanceIndexAttribute");
+        FragmentCoordAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.FragmentCoordAttribute");
+        PositionAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.PositionAttribute");
+        FragmentColorAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.FragmentColorAttribute");
+        ShaderVaryingAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.ShaderVaryingAttribute");
+        PushConstantAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.PushConstantAttribute");
+        SampledTexture2DAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.Abstractions.SampledTexture2DAttribute");
     }
 
     public Compilation Compilation { get; }

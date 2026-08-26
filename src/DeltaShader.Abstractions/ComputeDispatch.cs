@@ -1,4 +1,4 @@
-namespace DeltaShader.Abstractions;
+namespace Delta.Shader.Abstractions;
 
 public readonly struct ComputeDispatchDimensions : IEquatable<ComputeDispatchDimensions>
 {

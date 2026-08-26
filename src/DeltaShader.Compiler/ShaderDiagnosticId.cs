@@ -1,4 +1,4 @@
-namespace DeltaShader.Compiler;
+namespace Delta.Shader.Compiler;
 
 public static class ShaderDiagnosticId
 {

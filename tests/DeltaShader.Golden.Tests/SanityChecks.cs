@@ -1,10 +1,10 @@
-using DeltaShader.Abstractions;
-using DeltaShader.Compiler;
-using DeltaShader.Compiler.IR;
-using DeltaShader.Backend.Glsl;
+using Delta.Shader.Abstractions;
+using Delta.Shader.Compiler;
+using Delta.Shader.Compiler.IR;
+using Delta.Shader.Backend.Glsl;
 using Xunit;
 
-namespace DeltaShader.Golden.Tests;
+namespace Delta.Shader.Golden.Tests;
 
 public class SanityChecks
 {

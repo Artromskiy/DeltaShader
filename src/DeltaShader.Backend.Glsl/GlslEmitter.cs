@@ -3,11 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
-using DeltaShader.Abstractions;
-using DeltaShader.Compiler;
-using DeltaShader.Compiler.IR;
+using Delta.Shader.Abstractions;
+using Delta.Shader.Compiler;
+using Delta.Shader.Compiler.IR;
 
-namespace DeltaShader.Backend.Glsl;
+namespace Delta.Shader.Backend.Glsl;
 
 public sealed class GlslEmitResult
 {

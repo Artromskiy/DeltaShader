@@ -1,7 +1,7 @@
-using Legacy = DeltaShader.Abstractions;
-using Final = DeltaShader.Contract;
+using Legacy = Delta.Shader.Abstractions;
+using Final = Delta.Shader.Contract;
 
-namespace DeltaShader.Tool;
+namespace Delta.Shader.Tool;
 
 internal static class ShaderArtifactPublisher
 {

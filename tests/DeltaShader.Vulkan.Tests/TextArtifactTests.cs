@@ -1,9 +1,9 @@
 using System.Diagnostics;
-using DeltaShader.Contract;
+using Delta.Shader.Contract;
 using Xunit;
 using Xunit.Sdk;
 
-namespace DeltaShader.Vulkan.Tests;
+namespace Delta.Shader.Vulkan.Tests;
 
 public sealed class TextArtifactTests
 {
@@ -19,8 +19,8 @@ public sealed class TextArtifactTests
             throw SkipException.ForSkip("Skip: glslangValidator and/or spirv-val is not installed in PATH.");
         }
 
-        var vertexGlsl = mode == "sdf" ? DeltaShader.Text.SdfTextGraphicsShaderProgram.VertexGlsl : DeltaShader.Text.MsdfTextGraphicsShaderProgram.VertexGlsl;
-        var fragmentGlsl = mode == "sdf" ? DeltaShader.Text.SdfTextGraphicsShaderProgram.FragmentGlsl : DeltaShader.Text.MsdfTextGraphicsShaderProgram.FragmentGlsl;
+        var vertexGlsl = mode == "sdf" ? Delta.Shader.Text.SdfTextGraphicsShaderProgram.VertexGlsl : Delta.Shader.Text.MsdfTextGraphicsShaderProgram.VertexGlsl;
+        var fragmentGlsl = mode == "sdf" ? Delta.Shader.Text.SdfTextGraphicsShaderProgram.FragmentGlsl : Delta.Shader.Text.MsdfTextGraphicsShaderProgram.FragmentGlsl;
         Assert.Contains("fwidth", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("1 -", vertexGlsl, StringComparison.Ordinal);
         Assert.DoesNotContain("min.y / pushConstants.member_Resolution.y) * 2 - 1", vertexGlsl, StringComparison.Ordinal);
@@ -46,8 +46,8 @@ public sealed class TextArtifactTests
         var vertexSpirv = Compile(glslang, spirvVal, vertexGlsl, "vert", workspace.Path);
         var fragmentSpirv = Compile(glslang, spirvVal, fragmentGlsl, "frag", workspace.Path);
         var program = mode == "sdf"
-            ? DeltaShader.Text.SdfTextGraphicsShaderProgram.CreateProgram(vertexSpirv, fragmentSpirv)
-            : DeltaShader.Text.MsdfTextGraphicsShaderProgram.CreateProgram(vertexSpirv, fragmentSpirv);
+            ? Delta.Shader.Text.SdfTextGraphicsShaderProgram.CreateProgram(vertexSpirv, fragmentSpirv)
+            : Delta.Shader.Text.MsdfTextGraphicsShaderProgram.CreateProgram(vertexSpirv, fragmentSpirv);
         var glyphs = Assert.Single(program.Vertex.Abi.Resources);
         Assert.Equal(new ShaderBinding(0, 0), glyphs.Binding);
         Assert.Equal(ShaderResourceKind.StorageBuffer, glyphs.Kind);

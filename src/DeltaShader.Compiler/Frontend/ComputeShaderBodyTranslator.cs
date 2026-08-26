@@ -1,11 +1,11 @@
 using System.Globalization;
-using DeltaShader.Abstractions;
-using DeltaShader.Compiler.Intrinsics;
+using Delta.Shader.Abstractions;
+using Delta.Shader.Compiler.Intrinsics;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace DeltaShader.Compiler;
+namespace Delta.Shader.Compiler;
 
 internal sealed class ComputeShaderBodyTranslationResult
 {
@@ -364,7 +364,7 @@ internal sealed class ComputeShaderBodyTranslator
                         property.Parameters.Length == 0 &&
                         property.Type.SpecialType == SpecialType.System_UInt32 &&
                         property.ContainingType.MetadataName == "ShaderStorageBuffer" &&
-                        property.ContainingType.ContainingNamespace.ToDisplayString() == "DeltaShader.Abstractions" &&
+                        property.ContainingType.ContainingNamespace.ToDisplayString() == "Delta.Shader.Abstractions" &&
                         TryTranslateResourceTarget(memberAccess.Expression, semanticModel, resourceBindings, out var resourceName, out reason))
                     {
                         translated = $"{resourceName}.data.length()";

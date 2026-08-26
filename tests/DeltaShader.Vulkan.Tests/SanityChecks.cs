@@ -1,14 +1,14 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
-using DeltaShader.Abstractions;
-using DeltaShader.Backend.Glsl;
-using DeltaShader.Compiler;
-using DeltaShader.Compiler.IR;
+using Delta.Shader.Abstractions;
+using Delta.Shader.Backend.Glsl;
+using Delta.Shader.Compiler;
+using Delta.Shader.Compiler.IR;
 using Xunit;
 using Xunit.Sdk;
 
-namespace DeltaShader.Vulkan.Tests;
+namespace Delta.Shader.Vulkan.Tests;
 
 public class SanityChecks
 {
