@@ -6,6 +6,7 @@ using System.Text.Json;
 using Delta.Shader.Abstractions;
 using Delta.Shader.Backend.Glsl;
 using Delta.Shader.Compiler;
+using Delta.Shader.Tool;
 using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.MSBuild;
@@ -72,7 +73,8 @@ static async Task<int> ExecuteEmitAsync(ProgramOptions options)
     Directory.CreateDirectory(outputDirectory);
     foreach (var result in results)
     {
-        if (result.Module is null || result.AbiManifest is null)
+        var manifest = result.AbiManifest;
+        if (result.Module is null || manifest is null)
         {
             return 1;
         }
@@ -111,10 +113,10 @@ static async Task<int> ExecuteEmitAsync(ProgramOptions options)
             if (compile.ExitCode != 0) { Console.WriteLine($"glslangValidator failed:{Environment.NewLine}{compile.Output}"); return 1; }
             var validation = RunTool(spirvValidator, $"--target-env {EscapeArgument(options.CompilationOptions.Profile)} {EscapeArgument(spirvFile)}");
             if (validation.ExitCode != 0) { Console.WriteLine($"spirv-val failed:{Environment.NewLine}{validation.Output}"); return 1; }
-            var artifact = new ShaderArtifact(
+            var artifact = ShaderArtifactPublisher.Create(
                 await File.ReadAllBytesAsync(spirvFile).ConfigureAwait(false),
-                result.AbiManifest);
-            await File.WriteAllBytesAsync(spirvFile, artifact.GetSpirvForUpload()).ConfigureAwait(false);
+                manifest);
+            await File.WriteAllBytesAsync(spirvFile, artifact.CopySpirv()).ConfigureAwait(false);
             Console.WriteLine($"Wrote {spirvFile}");
         }
         Console.WriteLine($"Wrote {glslFile}");
@@ -168,7 +170,7 @@ static ProgramOptions ParseOptions(string[] args)
     };
 
     string? outputDir = null;
-    var backend = command == "build" ? "spirv" : "glsl";
+    var backend = command == "BUILD" ? "spirv" : "glsl";
     var commandArgs = args.Skip(1).ToArray();
     var projectPath = string.Empty;
 

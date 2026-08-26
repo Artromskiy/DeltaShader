@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Delta.Shader.Contract\Delta.Shader.Contract.csproj" />
     <ProjectReference Include="..\\..\\src\\Delta.Shader.Backend.Glsl\\Delta.Shader.Backend.Glsl.csproj" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />

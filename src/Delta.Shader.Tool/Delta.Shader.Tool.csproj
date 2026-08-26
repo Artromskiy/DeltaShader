@@ -9,6 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Delta.Shader.Contract\Delta.Shader.Contract.csproj" />
     <ProjectReference Include="..\\Delta.Shader.Compiler\\Delta.Shader.Compiler.csproj" />
     <ProjectReference Include="..\\Delta.Shader.Backend.Glsl\\Delta.Shader.Backend.Glsl.csproj" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />

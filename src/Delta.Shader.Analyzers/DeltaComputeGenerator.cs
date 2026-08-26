@@ -50,9 +50,10 @@ public sealed class DeltaComputeGenerator : IIncrementalGenerator
         if (!emitted.Success) { context.ReportDiagnostic(Diagnostic.Create(Descriptor, method.Locations.FirstOrDefault(), "GLSL generation failed for the [DeltaCompute] method.")); return; }
         var className = Sanitize(method.ContainingType.Name) + Sanitize(method.Name) + "ShaderArtifact";
         var ns = method.ContainingNamespace.IsGlobalNamespace ? string.Empty : $"namespace {method.ContainingNamespace.ToDisplayString()};";
-        var source = "using System;\nusing System.Text.Json;\nusing Delta.Shader.Abstractions;\n\n" + ns + "\n\npublic static class " + className + "\n{\n" +
+        var source = "using System;\nusing System.Text.Json;\nusing Delta.Shader.Contract;\n\n" + ns + "\n\npublic static class " + className + "\n{\n" +
             "    public const string SourceEntryPointName = " + Literal(result.AbiManifest.SourceEntryPointName) + ";\n    public const string EntryPointName = " + Literal(result.AbiManifest.EntryPointName) + ";\n    public const string Glsl = " + Literal(emitted.Source) + ";\n    public const string ManifestJson = " + Literal(JsonSerializer.Serialize(result.AbiManifest)) + ";\n\n" +
-            "    public static ShaderArtifact CreateArtifact(byte[] spirv)\n    {\n        var manifest = JsonSerializer.Deserialize<ShaderAbiManifest>(ManifestJson);\n        if (manifest is null) throw new InvalidOperationException(\"Generated DeltaCompute manifest could not be deserialized.\");\n        return new ShaderArtifact(spirv, manifest);\n    }\n}\n";
+            ArtifactSourceEmitter.EmitAbiFactory(result.AbiManifest) +
+            "\n    public static ShaderArtifact CreateArtifact(ReadOnlySpan<byte> spirv)\n        => new(spirv, EntryPointName, CreateAbi());\n}\n";
         context.AddSource(className + ".g.cs", SourceText.From(source, Encoding.UTF8));
     }
     private static string Sanitize(string name) => string.Concat(name.Select(c => char.IsLetterOrDigit(c) || c == '_' ? c : '_')) is { Length: > 0 } value ? value : "Compute";

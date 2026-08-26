@@ -1528,6 +1528,8 @@ public class IntrinsicCatalogTests
         Assert.Contains("#version 460", generated.SourceText.ToString(), StringComparison.Ordinal);
         Assert.Contains("ManifestJson", generated.SourceText.ToString(), StringComparison.Ordinal);
         Assert.Contains("CreateArtifact", generated.SourceText.ToString(), StringComparison.Ordinal);
+        Assert.Contains("Delta.Shader.Contract", generated.SourceText.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("JsonSerializer.Deserialize", generated.SourceText.ToString(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1567,6 +1569,8 @@ public class IntrinsicCatalogTests
         Assert.Contains("FragmentManifestJson", generatedText, StringComparison.Ordinal);
         Assert.Contains("CreateProgram", generatedText, StringComparison.Ordinal);
         Assert.Contains("#version 460", generatedText, StringComparison.Ordinal);
+        Assert.Contains("Delta.Shader.Contract", generatedText, StringComparison.Ordinal);
+        Assert.DoesNotContain("JsonSerializer.Deserialize", generatedText, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -1,4 +1,4 @@
-using Delta.Shader.Abstractions;
+using Delta.Shader.Contract;
 using Xunit;
 
 namespace Delta.Shader.Golden.Tests;
@@ -8,40 +8,27 @@ public sealed class ArtifactContractTests
     [Fact]
     public void ArtifactOwnsReadOnlySpirvAndManifestState()
     {
-        var spirv = new byte[] { 1, 2, 3, 4 };
-        var resources = new[] { new ShaderAbiResource { Set = 0, Binding = 2, Category = "storage-buffer", GlslType = "uint" } };
-        var manifest = Manifest(ShaderStage.Compute, resources);
-        var artifact = new ShaderArtifact(spirv, manifest);
+        var spirv = ValidSpirv();
+        var abi = new ShaderAbi(
+            ShaderStage.Compute,
+            resources: new[] { new ShaderResourceBinding(new ShaderBinding(0, 2), ShaderResourceKind.StorageBuffer, ShaderResourceAccess.Read, ShaderStageMask.Compute, new ShaderAbiLayout(4, 4, arrayStride: 4)) },
+            workgroupSize: new ShaderWorkgroupSize(1, 1, 1));
+        var artifact = new ShaderArtifact(spirv, "main", abi);
 
         spirv[0] = 9;
-        resources[0] = new ShaderAbiResource { Set = 0, Binding = 2, Category = "sampled-texture-2d", GlslType = "sampler2D" };
-        var upload = artifact.GetSpirvForUpload();
+        var upload = artifact.CopySpirv();
         upload[1] = 8;
 
-        Assert.Equal(new byte[] { 1, 2, 3, 4 }, artifact.Spirv.ToArray());
-        Assert.Equal("storage-buffer", artifact.Manifest.Resources[0].Category);
-        Assert.Equal(new byte[] { 1, 2, 3, 4 }, artifact.GetSpirvForUpload());
+        Assert.Equal(new byte[] { 3, 2, 35, 7 }, artifact.Spirv.ToArray());
+        Assert.Equal(ShaderResourceKind.StorageBuffer, artifact.Abi.Resources[0].Kind);
+        Assert.Equal(new byte[] { 3, 2, 35, 7 }, artifact.CopySpirv());
     }
 
     [Fact]
     public void GraphicsProgramRejectsMismatchedSharedResourceLayout()
     {
-        var vertex = Artifact(ShaderStage.Vertex, new ShaderAbiResource
-        {
-            Set = 0,
-            Binding = 1,
-            Category = "storage-buffer",
-            GlslType = "VertexData",
-            Size = 16,
-            Alignment = 16
-        });
-        var fragment = Artifact(ShaderStage.Fragment, new ShaderAbiResource
-        {
-            Set = 0,
-            Binding = 1,
-            Category = "sampled-texture-2d",
-            GlslType = "sampler2D"
-        });
+        var vertex = Artifact(ShaderStage.Vertex, new ShaderResourceBinding(new ShaderBinding(0, 1), ShaderResourceKind.StorageBuffer, ShaderResourceAccess.Read, ShaderStageMask.Vertex, new ShaderAbiLayout(16, 16)));
+        var fragment = Artifact(ShaderStage.Fragment, new ShaderResourceBinding(new ShaderBinding(0, 1), ShaderResourceKind.SampledTexture, ShaderResourceAccess.Read, ShaderStageMask.Fragment));
 
         Assert.Throws<ArgumentException>(() => new GraphicsShaderProgram(vertex, fragment));
     }
@@ -64,21 +51,14 @@ public sealed class ArtifactContractTests
         Assert.Throws<ArgumentException>(() => new GraphicsShaderProgram(compute, fragment));
     }
 
-    private static ShaderArtifact Artifact(ShaderStage stage, ShaderAbiResource? resource = null, uint pushSize = 0)
+    private static ShaderArtifact Artifact(ShaderStage stage, ShaderResourceBinding? resource = null, uint pushSize = 0)
     {
         var pushConstants = pushSize == 0
-            ? Array.Empty<ShaderAbiPushConstant>()
-            : new[] { new ShaderAbiPushConstant { Name = "Constants", GlslType = "Constants", Alignment = 16, Size = pushSize } };
-        return new ShaderArtifact(new byte[] { 1, 2, 3, 4 }, Manifest(stage, resource is null ? Array.Empty<ShaderAbiResource>() : new[] { resource }, pushConstants));
+            ? Array.Empty<ShaderPushConstantRange>()
+            : new[] { new ShaderPushConstantRange(0, pushSize, ShaderStageMask.AllGraphics, new ShaderAbiLayout(pushSize, 16)) };
+        var abi = new ShaderAbi(stage, resource is null ? Array.Empty<ShaderResourceBinding>() : new[] { resource }, pushConstants, workgroupSize: stage == ShaderStage.Compute ? new ShaderWorkgroupSize(1, 1, 1) : default);
+        return new ShaderArtifact(ValidSpirv(), "main", abi);
     }
 
-    private static ShaderAbiManifest Manifest(ShaderStage stage, IReadOnlyList<ShaderAbiResource> resources, IReadOnlyList<ShaderAbiPushConstant>? pushConstants = null)
-        => new()
-        {
-            Stage = stage,
-            SourceEntryPointName = stage.ToString(),
-            EntryPointName = "main",
-            Resources = resources,
-            PushConstants = pushConstants ?? Array.Empty<ShaderAbiPushConstant>()
-        };
+    private static byte[] ValidSpirv() => new byte[] { 3, 2, 35, 7 };
 }

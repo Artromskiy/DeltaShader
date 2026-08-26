@@ -87,9 +87,11 @@ public sealed class DeltaGraphicsGenerator : IIncrementalGenerator
             var type = pairVertices[0].ContainingType;
             var name = pairNames.Length == 1 ? Sanitize(type.Name) + "GraphicsShaderProgram" : Pascalize(pairName) + "GraphicsShaderProgram";
             var ns = type.ContainingNamespace.IsGlobalNamespace ? string.Empty : $"namespace {type.ContainingNamespace.ToDisplayString()};";
-            var source = "using System;\nusing System.Text.Json;\nusing Delta.Shader.Abstractions;\n\n" + ns + "\n\npublic static class " + name + "\n{\n" +
+            var source = "using System;\nusing System.Text.Json;\nusing Delta.Shader.Contract;\n\n" + ns + "\n\npublic static class " + name + "\n{\n" +
                 "    public const string VertexGlsl = " + Literal(vertexEmit.Source) + ";\n    public const string FragmentGlsl = " + Literal(fragmentEmit.Source) + ";\n    public const string VertexManifestJson = " + Literal(JsonSerializer.Serialize(vertexResult.AbiManifest)) + ";\n    public const string FragmentManifestJson = " + Literal(JsonSerializer.Serialize(fragmentResult.AbiManifest)) + ";\n\n" +
-                "    public static GraphicsShaderProgram CreateProgram(byte[] vertexSpirv, byte[] fragmentSpirv)\n    {\n        var v = JsonSerializer.Deserialize<ShaderAbiManifest>(VertexManifestJson);\n        var f = JsonSerializer.Deserialize<ShaderAbiManifest>(FragmentManifestJson);\n        if (v is null || f is null) throw new InvalidOperationException(\"Generated graphics manifests could not be deserialized.\");\n        return new GraphicsShaderProgram(new ShaderArtifact(vertexSpirv, v), new ShaderArtifact(fragmentSpirv, f));\n    }\n}\n";
+                ArtifactSourceEmitter.EmitAbiFactory(vertexResult.AbiManifest) +
+                ArtifactSourceEmitter.EmitAbiFactory(fragmentResult.AbiManifest).Replace("CreateAbi", "CreateFragmentAbi") +
+                "\n    public static IGraphicsShaderProgram CreateProgram(ReadOnlySpan<byte> vertexSpirv, ReadOnlySpan<byte> fragmentSpirv)\n        => new GraphicsShaderProgram(new ShaderArtifact(vertexSpirv, \"main\", CreateAbi()), new ShaderArtifact(fragmentSpirv, \"main\", CreateFragmentAbi()));\n}\n";
             context.AddSource(name + ".g.cs", SourceText.From(source, Encoding.UTF8));
         }
     }

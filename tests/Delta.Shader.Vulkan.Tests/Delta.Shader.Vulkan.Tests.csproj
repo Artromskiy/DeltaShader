@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Delta.Shader.Contract\Delta.Shader.Contract.csproj" />
     <ProjectReference Include="..\\..\\src\\Delta.Shader.Backend.Glsl\\Delta.Shader.Backend.Glsl.csproj" />
     <ProjectReference Include="..\\..\\src\\Delta.Shader.Compiler\\Delta.Shader.Compiler.csproj" />
     <ProjectReference Include="..\\..\\src\\Delta.Shader.Tool\\Delta.Shader.Tool.csproj" />

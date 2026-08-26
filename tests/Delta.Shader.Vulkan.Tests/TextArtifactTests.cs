@@ -1,6 +1,5 @@
 using System.Diagnostics;
-using System.Text.Json;
-using Delta.Shader.Abstractions;
+using Delta.Shader.Contract;
 using Xunit;
 using Xunit.Sdk;
 
@@ -22,22 +21,6 @@ public sealed class TextArtifactTests
 
         var vertexGlsl = mode == "sdf" ? Delta.Shader.Text.SdfTextGraphicsShaderProgram.VertexGlsl : Delta.Shader.Text.MsdfTextGraphicsShaderProgram.VertexGlsl;
         var fragmentGlsl = mode == "sdf" ? Delta.Shader.Text.SdfTextGraphicsShaderProgram.FragmentGlsl : Delta.Shader.Text.MsdfTextGraphicsShaderProgram.FragmentGlsl;
-        var vertexManifestJson = mode == "sdf" ? Delta.Shader.Text.SdfTextGraphicsShaderProgram.VertexManifestJson : Delta.Shader.Text.MsdfTextGraphicsShaderProgram.VertexManifestJson;
-        var fragmentManifestJson = mode == "sdf" ? Delta.Shader.Text.SdfTextGraphicsShaderProgram.FragmentManifestJson : Delta.Shader.Text.MsdfTextGraphicsShaderProgram.FragmentManifestJson;
-        var vertexManifest = JsonSerializer.Deserialize<ShaderAbiManifest>(vertexManifestJson);
-        var fragmentManifest = JsonSerializer.Deserialize<ShaderAbiManifest>(fragmentManifestJson);
-        Assert.NotNull(vertexManifest);
-        Assert.NotNull(fragmentManifest);
-
-        var glyphs = Assert.Single(vertexManifest!.Resources);
-        Assert.Equal((0u, 0u, "storage-buffer", "std430", 48u),
-            (glyphs.Set, glyphs.Binding, glyphs.Category, glyphs.Layout, glyphs.ArrayStride));
-        Assert.Equal(new uint[] { 0, 8, 16, 32 }, glyphs.Members.Select(member => member.Offset).ToArray());
-        var atlas = Assert.Single(fragmentManifest!.Resources);
-        Assert.Equal(atlasBinding, atlas.Binding);
-        Assert.Equal("sampled-texture", atlas.Category);
-        Assert.Equal(64u, Assert.Single(vertexManifest.PushConstants).Size);
-        Assert.Equal(64u, Assert.Single(fragmentManifest.PushConstants).Size);
         Assert.Contains("fwidth", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("1 -", vertexGlsl, StringComparison.Ordinal);
         Assert.DoesNotContain("min.y / pushConstants.member_Resolution.y) * 2 - 1", vertexGlsl, StringComparison.Ordinal);
@@ -65,6 +48,17 @@ public sealed class TextArtifactTests
         var program = mode == "sdf"
             ? Delta.Shader.Text.SdfTextGraphicsShaderProgram.CreateProgram(vertexSpirv, fragmentSpirv)
             : Delta.Shader.Text.MsdfTextGraphicsShaderProgram.CreateProgram(vertexSpirv, fragmentSpirv);
+        var glyphs = Assert.Single(program.Vertex.Abi.Resources);
+        Assert.Equal(new ShaderBinding(0, 0), glyphs.Binding);
+        Assert.Equal(ShaderResourceKind.StorageBuffer, glyphs.Kind);
+        Assert.Equal(ShaderResourceAccess.Read, glyphs.Access);
+        Assert.Equal(48u, glyphs.Layout.ArrayStride);
+        Assert.Equal(new uint[] { 0, 8, 16, 32 }, glyphs.Layout.Members.Select(member => member.Offset).ToArray());
+        var atlas = Assert.Single(program.Fragment.Abi.Resources);
+        Assert.Equal(atlasBinding, atlas.Binding.Binding);
+        Assert.Equal(ShaderResourceKind.SampledTexture, atlas.Kind);
+        Assert.Equal(64u, Assert.Single(program.Vertex.Abi.PushConstants).Size);
+        Assert.Equal(64u, Assert.Single(program.Fragment.Abi.PushConstants).Size);
         Assert.Equal(ShaderStage.Vertex, program.Vertex.Stage);
         Assert.Equal(ShaderStage.Fragment, program.Fragment.Stage);
         Assert.Equal("main", program.Vertex.EntryPoint);
