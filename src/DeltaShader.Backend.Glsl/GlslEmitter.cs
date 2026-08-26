@@ -37,6 +37,7 @@ public static class GlslEmitter
         var identifierMap = EmitResources(sb, module, identifiers);
         EmitVertexInputs(sb, module, identifiers, identifierMap);
         EmitInterfaces(sb, module);
+        EmitHelpers(sb, module);
         sb.AppendLine();
         sb.AppendLine("void main()");
         sb.AppendLine("{");
@@ -78,6 +79,15 @@ public static class GlslEmitter
                 sb.AppendLine($"    {member.GlslType} {member.GlslName};");
             }
             sb.AppendLine("};");
+            sb.AppendLine();
+        }
+    }
+
+    private static void EmitHelpers(StringBuilder sb, ShaderIrModule module)
+    {
+        foreach (var helper in module.HelperFunctions)
+        {
+            sb.AppendLine(helper);
             sb.AppendLine();
         }
     }

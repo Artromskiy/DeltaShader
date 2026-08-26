@@ -152,7 +152,7 @@ public sealed class IntrinsicRegistry
     private static bool Matches(IMethodSymbol method, ShaderContractFunction contract)
     {
         if (!string.Equals(method.Name, contract.ClrName, StringComparison.Ordinal) ||
-            !string.Equals(method.ReturnType.Name, contract.ReturnClrName, StringComparison.Ordinal) ||
+            !string.Equals(GetContractTypeName(method.ReturnType), contract.ReturnClrName, StringComparison.Ordinal) ||
             method.Parameters.Length != contract.ParameterClrNames.Count)
         {
             return false;
@@ -160,7 +160,7 @@ public sealed class IntrinsicRegistry
 
         for (var index = 0; index < method.Parameters.Length; index++)
         {
-            if (!string.Equals(method.Parameters[index].Type.Name, contract.ParameterClrNames[index], StringComparison.Ordinal))
+            if (!string.Equals(GetContractTypeName(method.Parameters[index].Type), contract.ParameterClrNames[index], StringComparison.Ordinal))
             {
                 return false;
             }
@@ -168,6 +168,25 @@ public sealed class IntrinsicRegistry
 
         return true;
     }
+
+    private static string GetContractTypeName(ITypeSymbol type)
+        => type.SpecialType switch
+        {
+            SpecialType.System_Boolean => "bool",
+            SpecialType.System_Byte => "byte",
+            SpecialType.System_SByte => "sbyte",
+            SpecialType.System_Int16 => "short",
+            SpecialType.System_UInt16 => "ushort",
+            SpecialType.System_Int32 => "int",
+            SpecialType.System_UInt32 => "uint",
+            SpecialType.System_Int64 => "long",
+            SpecialType.System_UInt64 => "ulong",
+            SpecialType.System_Single => "float",
+            SpecialType.System_Double => "double",
+            SpecialType.System_Decimal => "decimal",
+            SpecialType.System_String => "string",
+            _ => type.Name
+        };
 
     private static void RegisterOwnedShaderIntrinsics(
         Dictionary<ISymbol, IntrinsicBinding> methods,

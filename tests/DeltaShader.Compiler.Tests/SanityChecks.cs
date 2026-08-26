@@ -1254,6 +1254,103 @@ public class IntrinsicCatalogTests
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Message.Contains("vertex shader", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task GraphicsEntryPoint_LowersStaticHelperCallGraphInDependencyOrder()
+    {
+        const string source = @"
+            using Delta.Maths;
+            using Delta.Shader;
+            public static class HelperShader
+            {
+                [FragmentShader]
+                public static void Fragment([FragmentColor] out float4 color)
+                {
+                    var value = Wave(0.5f);
+                    color = new float4(value, value, value, 1f);
+                }
+
+                private static float Wave(float value)
+                {
+                    return maths.sin(value);
+                }
+            }";
+
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        var module = result.Module ?? throw new InvalidOperationException("Successful helper compilation did not produce an IR module.");
+        Assert.Single(module.HelperFunctions);
+        var glsl = Delta.Shader.Backend.Glsl.GlslEmitter.EmitFromModule(module).Source;
+        var helperIndex = glsl.IndexOf("delta_helper_", StringComparison.Ordinal);
+        Assert.True(helperIndex >= 0);
+        Assert.True(helperIndex < glsl.IndexOf("void main()", StringComparison.Ordinal));
+        Assert.Contains("return sin(arg_value)", glsl, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GraphicsEntryPoint_RejectsRecursiveStaticHelperCallGraph()
+    {
+        const string source = @"
+            using Delta.Maths;
+            using Delta.Shader;
+            public static class RecursiveHelperShader
+            {
+                [FragmentShader]
+                public static void Fragment([FragmentColor] out float4 color)
+                {
+                    var value = First(0.5f);
+                    color = new float4(value, value, value, 1f);
+                }
+
+                private static float First(float value)
+                {
+                    return Second(value);
+                }
+
+                private static float Second(float value)
+                {
+                    return First(value);
+                }
+            }";
+
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Message.Contains("Recursive shader helper call graph", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task GraphicsEntryPoint_RejectsManagedStaticHelperCapture()
+    {
+        const string source = @"
+            using Delta.Maths;
+            using Delta.Shader;
+            public static class CapturedHelperShader
+            {
+                private static readonly float Scale = 2f;
+
+                [FragmentShader]
+                public static void Fragment([FragmentColor] out float4 color)
+                {
+                    var value = ScaleValue(0.5f);
+                    color = new float4(value, value, value, 1f);
+                }
+
+                private static float ScaleValue(float value)
+                {
+                    return value * Scale;
+                }
+            }";
+
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Message.Contains("captures managed field 'Scale'", StringComparison.Ordinal));
+    }
+
     private static async Task<ShaderCompilationResult> CompileAndValidateEntryPointAsync(
         string source,
         ShaderCompilationOptions? options = null)

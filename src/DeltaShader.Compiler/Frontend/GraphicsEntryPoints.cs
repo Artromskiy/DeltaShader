@@ -403,6 +403,8 @@ internal static class GraphicsEntryPoints
         }
 
         string body = string.Empty;
+        IReadOnlyList<string> helperFunctions = [];
+        IReadOnlyDictionary<IMethodSymbol, string> helperNames = new Dictionary<IMethodSymbol, string>(SymbolEqualityComparer.Default);
         if (diagnostics.Count == 0)
         {
             var structNames = new Dictionary<INamedTypeSymbol, string>(SymbolEqualityComparer.Default);
@@ -431,7 +433,11 @@ internal static class GraphicsEntryPoints
             else
             {
                 var semanticModel = context.Compilation.GetSemanticModel(syntax.SyntaxTree);
-                if (!GraphicsShaderBodyTranslator.TryTranslate(syntax.Body, semanticModel, context, stage, parameterMap, pushFieldMap, structNames, structFields, storageBufferTargets, out body, out var reason))
+                if (!TryBuildHelpers(syntax, semanticModel, context, stage, pushFieldMap, structNames, structFields, storageBufferTargets, out helperFunctions, out helperNames, out var helperReason))
+                {
+                    diagnostics.Add(new ShaderDiagnostic(ShaderDiagnosticId.DSH008, helperReason ?? "Unable to lower shader helper call graph.", Severity: ShaderDiagnosticSeverity.Error));
+                }
+                else if (!GraphicsShaderBodyTranslator.TryTranslate(syntax.Body, semanticModel, context, stage, parameterMap, pushFieldMap, structNames, structFields, storageBufferTargets, helperNames, out body, out var reason))
                 {
                     diagnostics.Add(new ShaderDiagnostic(ShaderDiagnosticId.DSH008, reason ?? "Unable to translate graphics shader body.", Severity: ShaderDiagnosticSeverity.Error));
                 }
@@ -448,6 +454,7 @@ internal static class GraphicsEntryPoints
             Requirements = [$"Vulkan {resultOptions.Profile}", $"GLSL {resultOptions.Glsl}", $"SPIRV {resultOptions.Spirv}"],
             Instructions = new[] { "entrypoint " + entry.Name },
             Body = body,
+            HelperFunctions = helperFunctions,
             Inputs = inputs,
             VertexInputs = vertexInputs,
             VertexBuffers = vertexBuffers.OrderBy(binding => binding.Binding).ToArray(),
@@ -455,6 +462,216 @@ internal static class GraphicsEntryPoints
             PushConstants = pushConstants
         };
         return new ShaderCompilationResult(entry.Name, diagnostics.Count == 0, diagnostics, module, resultOptions, entry.Method.Name, entry.Method.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+    }
+
+    private static bool TryBuildHelpers(
+        MethodDeclarationSyntax entrySyntax,
+        SemanticModel entryModel,
+        ModuleCompilationContext context,
+        ShaderStage stage,
+        IReadOnlyDictionary<IFieldSymbol, string> pushFieldMap,
+        IReadOnlyDictionary<INamedTypeSymbol, string> structNames,
+        IReadOnlyDictionary<IFieldSymbol, string> structFields,
+        IReadOnlyCollection<string> storageBufferTargets,
+        out IReadOnlyList<string> functions,
+        out IReadOnlyDictionary<IMethodSymbol, string> names,
+        out string? reason)
+    {
+        var ordered = new List<IMethodSymbol>();
+        var states = new Dictionary<IMethodSymbol, int>(SymbolEqualityComparer.Default);
+        var helperNames = new Dictionary<IMethodSymbol, string>(SymbolEqualityComparer.Default);
+        var usedNames = new HashSet<string>(StringComparer.Ordinal);
+        reason = null;
+        string? failureReason = null;
+
+        bool Visit(IMethodSymbol method)
+        {
+            var definition = method.OriginalDefinition;
+            if (states.TryGetValue(definition, out var state))
+            {
+                if (state == 1)
+                {
+                    failureReason = $"Recursive shader helper call graph at '{definition.Name}'.";
+                    return false;
+                }
+                return true;
+            }
+
+            if (!method.IsStatic || method.Arity != 0 || method.ReturnsVoid || method.Parameters.Any(parameter => parameter.RefKind != RefKind.None))
+            {
+                failureReason = $"Shader helper '{definition.Name}' must be a static, non-generic value method with a non-void return type.";
+                return false;
+            }
+            if (!TryGetHelperSyntax(definition, out var syntax) || syntax is null)
+            {
+                failureReason = $"Shader helper '{definition.Name}' must be declared in the shader source project.";
+                return false;
+            }
+            if (syntax.Body is null)
+            {
+                failureReason = $"Shader helper '{definition.Name}' must use a block body; expression-bodied helpers are not supported yet.";
+                return false;
+            }
+            if (!TryGetGlslType(definition.ReturnType, context, structNames, out _)
+                || definition.Parameters.Any(parameter => !TryGetGlslType(parameter.Type, context, structNames, out _)))
+            {
+                failureReason = $"Shader helper '{definition.Name}' has an unsupported parameter or return type.";
+                return false;
+            }
+
+            states[definition] = 1;
+            helperNames[definition] = CreateHelperName(definition, usedNames);
+            var model = context.Compilation.GetSemanticModel(syntax.SyntaxTree);
+            if (syntax.Body.DescendantNodes().OfType<ThisExpressionSyntax>().Any())
+            {
+                failureReason = $"Shader helper '{definition.Name}' captures managed instance state.";
+                return false;
+            }
+            foreach (var identifier in syntax.Body.DescendantNodes().OfType<IdentifierNameSyntax>())
+            {
+                var symbol = model.GetSymbolInfo(identifier).Symbol;
+                if (symbol is IFieldSymbol field && !field.HasConstantValue && !pushFieldMap.ContainsKey(field) && !structFields.ContainsKey(field))
+                {
+                    failureReason = $"Shader helper '{definition.Name}' captures managed field '{field.Name}'.";
+                    return false;
+                }
+                if (symbol is IPropertySymbol)
+                {
+                    failureReason = $"Shader helper '{definition.Name}' uses unsupported property state.";
+                    return false;
+                }
+            }
+
+            foreach (var invocation in syntax.Body.DescendantNodes().OfType<InvocationExpressionSyntax>())
+            {
+                if (model.GetSymbolInfo(invocation).Symbol is not IMethodSymbol called)
+                {
+                    failureReason = $"Shader helper '{definition.Name}' contains an unresolved method call.";
+                    return false;
+                }
+                if (context.Intrinsics.TryGetIntrinsic(called, out var intrinsic))
+                {
+                    if (!intrinsic.SupportsStage(stage))
+                    {
+                        failureReason = $"Intrinsic '{called.Name}' is not valid in {stage} stage.";
+                        return false;
+                    }
+                    continue;
+                }
+                if (!Visit(called))
+                {
+                    return false;
+                }
+            }
+
+            states[definition] = 2;
+            ordered.Add(definition);
+            return true;
+        }
+
+        if (entrySyntax.Body is not null)
+        {
+            foreach (var invocation in entrySyntax.Body.DescendantNodes().OfType<InvocationExpressionSyntax>())
+            {
+                if (entryModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol called)
+                {
+                    continue;
+                }
+                if (context.Intrinsics.TryGetIntrinsic(called, out var intrinsic))
+                {
+                    if (!intrinsic.SupportsStage(stage))
+                    {
+                        reason = $"Intrinsic '{called.Name}' is not valid in {stage} stage.";
+                        functions = [];
+                        names = helperNames;
+                        return false;
+                    }
+                    continue;
+                }
+                if (!Visit(called))
+                {
+                    reason = failureReason;
+                    functions = [];
+                    names = helperNames;
+                    return false;
+                }
+            }
+        }
+
+        var emitted = new List<string>(ordered.Count);
+        foreach (var helper in ordered)
+        {
+            if (!TryGetHelperSyntax(helper, out var syntax) || syntax is null || syntax.Body is null)
+            {
+                reason = $"Shader helper '{helper.Name}' has no translatable body.";
+                functions = [];
+                names = helperNames;
+                return false;
+            }
+
+            var model = context.Compilation.GetSemanticModel(syntax.SyntaxTree);
+            var parameterMap = new Dictionary<IParameterSymbol, string>(SymbolEqualityComparer.Default);
+            var signature = new List<string>(helper.Parameters.Length);
+            foreach (var parameter in helper.Parameters)
+            {
+                if (!TryGetGlslType(parameter.Type, context, structNames, out var glslType))
+                {
+                    reason = $"Shader helper '{helper.Name}' has an unsupported parameter type.";
+                    functions = [];
+                    names = helperNames;
+                    return false;
+                }
+                var parameterName = "arg_" + Sanitize(parameter.Name);
+                parameterMap[parameter] = parameterName;
+                signature.Add(glslType + " " + parameterName);
+            }
+            if (!TryGetGlslType(helper.ReturnType, context, structNames, out var returnType))
+            {
+                reason = $"Shader helper '{helper.Name}' has an unsupported return type.";
+                functions = [];
+                names = helperNames;
+                return false;
+            }
+            if (!GraphicsShaderBodyTranslator.TryTranslate(syntax.Body, model, context, stage, parameterMap, pushFieldMap, structNames, structFields, storageBufferTargets, helperNames, out var body, out var bodyReason))
+            {
+                reason = bodyReason ?? $"Unable to translate shader helper '{helper.Name}'.";
+                functions = [];
+                names = helperNames;
+                return false;
+            }
+            emitted.Add(returnType + " " + helperNames[helper] + "(" + string.Join(", ", signature) + ") " + body);
+        }
+
+        functions = emitted;
+        names = helperNames;
+        return true;
+    }
+
+    private static bool TryGetHelperSyntax(IMethodSymbol method, out MethodDeclarationSyntax? syntax)
+    {
+        syntax = method.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() as MethodDeclarationSyntax;
+        return syntax is not null;
+    }
+
+    private static bool TryGetGlslType(ITypeSymbol type, ModuleCompilationContext context, IReadOnlyDictionary<INamedTypeSymbol, string> structNames, out string glslType)
+    {
+        if (type is INamedTypeSymbol namedType && structNames.TryGetValue(namedType, out glslType))
+        {
+            return true;
+        }
+        return TryMapType(type, context, out glslType);
+    }
+
+    private static string CreateHelperName(IMethodSymbol method, ISet<string> usedNames)
+    {
+        var baseName = "delta_helper_" + Sanitize(method.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+        var candidate = baseName;
+        var suffix = 2;
+        while (!usedNames.Add(candidate))
+        {
+            candidate = baseName + "_" + suffix++;
+        }
+        return candidate;
     }
 
     private static void AddDiagnostic(List<ShaderDiagnostic> diagnostics, string id, string message, FileLinePositionSpan? location)
@@ -588,9 +805,9 @@ internal static class GraphicsEntryPoints
 
 internal static class GraphicsShaderBodyTranslator
 {
-    public static bool TryTranslate(BlockSyntax body, SemanticModel model, ModuleCompilationContext context, ShaderStage stage, IReadOnlyDictionary<IParameterSymbol, string> parameterMap, IReadOnlyDictionary<IFieldSymbol, string> pushFieldMap, IReadOnlyDictionary<INamedTypeSymbol, string> structNames, IReadOnlyDictionary<IFieldSymbol, string> structFields, IReadOnlyCollection<string> storageBufferTargets, out string translated, out string? reason)
+    public static bool TryTranslate(SyntaxNode body, SemanticModel model, ModuleCompilationContext context, ShaderStage stage, IReadOnlyDictionary<IParameterSymbol, string> parameterMap, IReadOnlyDictionary<IFieldSymbol, string> pushFieldMap, IReadOnlyDictionary<INamedTypeSymbol, string> structNames, IReadOnlyDictionary<IFieldSymbol, string> structFields, IReadOnlyCollection<string> storageBufferTargets, IReadOnlyDictionary<IMethodSymbol, string> helperNames, out string translated, out string? reason)
     {
-        var rewriter = new Rewriter(model, context, stage, parameterMap, pushFieldMap, structNames, structFields);
+        var rewriter = new Rewriter(model, context, stage, parameterMap, pushFieldMap, structNames, structFields, helperNames);
         var rewritten = rewriter.Visit(body);
         translated = rewritten?.ToFullString().Trim() ?? string.Empty;
         foreach (var field in pushFieldMap)
@@ -672,10 +889,11 @@ internal static class GraphicsShaderBodyTranslator
         private readonly IReadOnlyDictionary<IFieldSymbol, string> _pushFields;
         private readonly IReadOnlyDictionary<INamedTypeSymbol, string> _structNames;
         private readonly IReadOnlyDictionary<IFieldSymbol, string> _structFields;
+        private readonly IReadOnlyDictionary<IMethodSymbol, string> _helperNames;
         public string? Reason { get; private set; }
 
-        public Rewriter(SemanticModel model, ModuleCompilationContext context, ShaderStage stage, IReadOnlyDictionary<IParameterSymbol, string> parameters, IReadOnlyDictionary<IFieldSymbol, string> pushFields, IReadOnlyDictionary<INamedTypeSymbol, string> structNames, IReadOnlyDictionary<IFieldSymbol, string> structFields)
-        { _model = model; _context = context; _stage = stage; _parameters = parameters; _pushFields = pushFields; _structNames = structNames; _structFields = structFields; }
+        public Rewriter(SemanticModel model, ModuleCompilationContext context, ShaderStage stage, IReadOnlyDictionary<IParameterSymbol, string> parameters, IReadOnlyDictionary<IFieldSymbol, string> pushFields, IReadOnlyDictionary<INamedTypeSymbol, string> structNames, IReadOnlyDictionary<IFieldSymbol, string> structFields, IReadOnlyDictionary<IMethodSymbol, string> helperNames)
+        { _model = model; _context = context; _stage = stage; _parameters = parameters; _pushFields = pushFields; _structNames = structNames; _structFields = structFields; _helperNames = helperNames; }
 
         public override SyntaxNode? VisitIdentifierName(IdentifierNameSyntax node)
         {
@@ -733,6 +951,10 @@ internal static class GraphicsShaderBodyTranslator
                     return base.VisitInvocationExpression(node);
                 }
                 return SyntaxFactory.ParseExpression(binding.GlslName + "(" + string.Join(", ", args.Select(argument => argument.ToFullString())) + ")");
+            }
+            if (symbol is not null && _helperNames.TryGetValue(symbol.OriginalDefinition, out var helperName))
+            {
+                return SyntaxFactory.ParseExpression(helperName + "(" + string.Join(", ", args.Select(argument => argument.ToFullString())) + ")");
             }
             return base.VisitInvocationExpression(node);
         }

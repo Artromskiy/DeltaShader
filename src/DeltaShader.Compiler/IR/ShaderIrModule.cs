@@ -16,6 +16,7 @@ public sealed class ShaderIrModule
     public IReadOnlyList<string> Requirements { get; init; } = [];
     public IReadOnlyList<string> Instructions { get; init; } = [];
     public string? Body { get; init; }
+    public IReadOnlyList<string> HelperFunctions { get; init; } = [];
     public bool UsesBuiltinInvocationId { get; init; }
     public string? InvocationParameterName { get; init; }
     public IReadOnlyList<ShaderIrInterfaceVariable> Inputs { get; init; } = [];
