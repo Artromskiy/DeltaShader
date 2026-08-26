@@ -4,12 +4,19 @@ DeltaShader is the first-party C# shader compiler for Vulkan GLSL 460 and
 SPIR-V. Static attributed C# methods are validated with Roslyn and lowered
 through a typed IR.
 
+## Boundaries
+
+- `DeltaShader` / `Delta.Shader` is the user-facing C# shader authoring API.
+- `DeltaShader.Contract` / `Delta.Shader.Contract` is the frozen runtime
+  contract consumed by other first-party projects.
+- Compiler, GLSL backend, analyzers, tool, and text projects are implementation
+  or tooling; they are not runtime contract assemblies.
+
 Public documentation:
 
-- [USER_API.md](USER_API.md) describes shader authoring and the final consumer
+- [USER_API.md](USER_API.md) describes C# shader authoring.
+- [CONTRACT.md](CONTRACT.md) indexes the frozen DeltaShader-to-consumer
   artifact contract.
-- [docs/final-artifact-contract.md](docs/final-artifact-contract.md) is the
-  frozen DeltaShader to DeltaRender handoff.
 - [docs/diagnostics.md](docs/diagnostics.md) lists compiler and analyzer
   diagnostics.
 

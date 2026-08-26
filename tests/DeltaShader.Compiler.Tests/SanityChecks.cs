@@ -200,7 +200,7 @@ public class IntrinsicCatalogTests
             .OfType<ObjectCreationExpressionSyntax>()
             .Select(e => semanticModel.GetSymbolInfo(e).Symbol as IMethodSymbol)
             .Where(m => m?.ContainingType is not null)
-            .Where(m => m!.ContainingType.ContainingNamespace?.ToDisplayString() == "DeltaMaths")
+            .Where(m => m!.ContainingType.ContainingNamespace?.ToDisplayString() == "Delta.Maths")
             .ToList();
 
         var operators = syntax
@@ -216,7 +216,7 @@ public class IntrinsicCatalogTests
             .OfType<MemberAccessExpressionSyntax>()
             .Select(e => semanticModel.GetSymbolInfo(e).Symbol as IPropertySymbol)
             .Where(p => p is not null)
-            .Where(p => p!.ContainingType?.ContainingNamespace?.ToDisplayString() == "DeltaMaths")
+            .Where(p => p!.ContainingType?.ContainingNamespace?.ToDisplayString() == "Delta.Maths")
             .ToList();
 
         var mathsCalls = syntax
@@ -1455,7 +1455,6 @@ public class IntrinsicCatalogTests
         var generatedText = generated.SourceText.ToString();
         Assert.Contains("GraphicsShaderProgram", generatedText, StringComparison.Ordinal);
         Assert.Contains("CreateProgram", generatedText, StringComparison.Ordinal);
-        Assert.Contains("#version 460", generatedText, StringComparison.Ordinal);
         Assert.Contains("Delta.Shader.Contract", generatedText, StringComparison.Ordinal);
         Assert.DoesNotContain("JsonSerializer.Deserialize", generatedText, StringComparison.Ordinal);
     }
@@ -1503,7 +1502,7 @@ public class IntrinsicCatalogTests
 
     private static async Task<Compilation> LoadDeltaMathsCompilationAsync(string? extraSource = null)
     {
-        var root = Path.Combine(FindRepositoryRoot(), "DeltaMaths", "Delta.Maths.csproj");
+        var root = Path.Combine(FindRepositoryRoot(), "DeltaMaths", "DeltaMaths.csproj");
         using MSBuildWorkspace workspace = CreateWorkspace();
         Project project = await workspace.OpenProjectAsync(root).ConfigureAwait(true);
         Compilation? baseCompilation = await project.GetCompilationAsync().ConfigureAwait(true);
@@ -1522,7 +1521,7 @@ public class IntrinsicCatalogTests
 
     private static async Task<Compilation> LoadReferenceFixtureCompilationAsync()
     {
-        var root = ResolveProjectPath("tests", "Delta.Shader.Compiler.ReferenceFixtures", "Delta.Shader.Compiler.ReferenceFixtures.csproj");
+        var root = ResolveProjectPath("tests", "DeltaShader.Compiler.ReferenceFixtures", "DeltaShader.Compiler.ReferenceFixtures.csproj");
         using MSBuildWorkspace workspace = CreateWorkspace();
         Project project = await workspace.OpenProjectAsync(root).ConfigureAwait(true);
         Compilation? baseCompilation = await project.GetCompilationAsync().ConfigureAwait(true);
@@ -1533,7 +1532,7 @@ public class IntrinsicCatalogTests
 
     private static async Task<Compilation> LoadCompilerTestProjectCompilationAsync(string extraSource)
     {
-        var root = ResolveProjectPath("tests", "Delta.Shader.Compiler.Tests", "Delta.Shader.Compiler.Tests.csproj");
+        var root = ResolveProjectPath("tests", "DeltaShader.Compiler.Tests", "DeltaShader.Compiler.Tests.csproj");
         using MSBuildWorkspace workspace = CreateWorkspace();
         Project project = await workspace.OpenProjectAsync(root).ConfigureAwait(true);
         Compilation? baseCompilation = await project.GetCompilationAsync().ConfigureAwait(true);

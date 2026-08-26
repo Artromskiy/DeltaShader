@@ -10,6 +10,9 @@ namespace Delta.Shader.Compiler.Intrinsics;
 
 public sealed class ShaderContractManifest
 {
+    private const string LegacyDeltaMathsNamespace = "DeltaMaths";
+    private const string CanonicalDeltaMathsNamespace = "Delta.Maths";
+
     [JsonPropertyName("schemaVersion")]
     public string SchemaVersion { get; set; } = string.Empty;
 
@@ -21,6 +24,19 @@ public sealed class ShaderContractManifest
 
     [JsonPropertyName("functions")]
     public IReadOnlyList<ShaderContractFunction> Functions { get; set; } = Array.Empty<ShaderContractFunction>();
+
+    public string GetClrMetadataName(string typeName)
+    {
+        if (string.IsNullOrWhiteSpace(typeName))
+        {
+            throw new ArgumentException("A shader-contract CLR type name is required.", nameof(typeName));
+        }
+
+        var clrNamespace = string.Equals(Namespace, LegacyDeltaMathsNamespace, StringComparison.Ordinal)
+            ? CanonicalDeltaMathsNamespace
+            : Namespace;
+        return clrNamespace + "." + typeName;
+    }
 
     public static ShaderContractManifest LoadEmbedded()
     {

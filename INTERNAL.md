@@ -3,6 +3,9 @@
 This document is internal. It is not a consumer contract and must not be used
 to add a second runtime artifact model.
 
+The frozen consumer boundary is indexed by [CONTRACT.md](CONTRACT.md). This
+document describes only how implementation projects publish that boundary.
+
 ## Publication pipeline
 
 ```text

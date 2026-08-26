@@ -51,7 +51,7 @@ public sealed class DeltaComputeGenerator : IIncrementalGenerator
         var ns = method.ContainingNamespace.IsGlobalNamespace ? string.Empty : $"namespace {method.ContainingNamespace.ToDisplayString()};";
         var source = "using System;\nusing System.Text.Json;\nusing Delta.Shader.Contract;\n\n" + ns + "\n\npublic static class " + className + "\n{\n" +
             ArtifactSourceEmitter.EmitAbiFactory(result.BuildManifest) +
-            "\n    public static ShaderArtifact CreateArtifact(ReadOnlySpan<byte> spirv)\n        => new(spirv, EntryPointName, CreateAbi());\n}\n";
+            "\n    public static ShaderArtifact CreateArtifact(ReadOnlySpan<byte> spirv)\n        => new(spirv, \"main\", CreateAbi());\n}\n";
         context.AddSource(className + ".g.cs", SourceText.From(source, Encoding.UTF8));
     }
     private static string Sanitize(string name) => string.Concat(name.Select(c => char.IsLetterOrDigit(c) || c == '_' ? c : '_')) is { Length: > 0 } value ? value : "Compute";

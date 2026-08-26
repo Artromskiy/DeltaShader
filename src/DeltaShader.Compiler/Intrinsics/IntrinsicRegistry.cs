@@ -62,7 +62,7 @@ public sealed class IntrinsicRegistry
 
         foreach (var typeContract in contractTypes.Values)
         {
-            var type = compilation.GetTypeByMetadataName(FullName(contract, typeContract.ClrName));
+            var type = compilation.GetTypeByMetadataName(contract.GetClrMetadataName(typeContract.ClrName));
             if (type is null)
             {
                 continue;
@@ -80,7 +80,7 @@ public sealed class IntrinsicRegistry
         foreach (var functionContract in contract.Functions.Where(function =>
                      IsSupportedMapping(function.Mapping) && !string.IsNullOrWhiteSpace(function.GlslName)))
         {
-            var owner = compilation.GetTypeByMetadataName(FullName(contract, functionContract.TypeClrName));
+            var owner = compilation.GetTypeByMetadataName(contract.GetClrMetadataName(functionContract.TypeClrName));
             if (owner is null)
             {
                 continue;
@@ -113,9 +113,6 @@ public sealed class IntrinsicRegistry
         RegisterDeltaMathsFacadeBuiltins(methods, types, compilation, contract);
         return new IntrinsicRegistry(methods, types);
     }
-
-    private static string FullName(ShaderContractManifest contract, string typeName)
-        => contract.Namespace + "." + typeName;
 
     private static bool IsSupportedMapping(ShaderContractMapping mapping)
         => mapping is ShaderContractMapping.Builtin or ShaderContractMapping.Helper;
@@ -212,7 +209,7 @@ public sealed class IntrinsicRegistry
         Compilation compilation,
         ShaderContractManifest contract)
     {
-        var mathsType = compilation.GetTypeByMetadataName(contract.Namespace + ".maths");
+        var mathsType = compilation.GetTypeByMetadataName(contract.GetClrMetadataName("maths"));
         if (mathsType is null)
         {
             return;
