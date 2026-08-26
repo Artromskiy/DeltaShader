@@ -5,13 +5,13 @@ Review date: 2026-08-25.
 This is a contract-boundary review, not a claim that the producer/consumer
 migration is complete. The normative final handoff is
 [docs/final-artifact-contract.md](docs/final-artifact-contract.md) together
-with `src/Delta.Shader.Contract`.
+with `src/DeltaShader.Contract`.
 
 ## Current findings
 
 ### Canonical final contract exists
 
-`Delta.Shader.Contract` defines the immutable final `ShaderArtifact`, concrete
+`DeltaShader.Contract` defines the immutable final `ShaderArtifact`, concrete
 binary `ShaderAbi` and validated vertex/fragment `GraphicsShaderProgram`. This
 assembly has no Roslyn, compiler, GLSL or Vulkan dependency. Only this artifact
 is intended to cross from DeltaShader to DeltaRender.
@@ -19,7 +19,7 @@ is intended to cross from DeltaShader to DeltaRender.
 ### Producers still use compatibility artifact types
 
 The compiler model, source generators, CLI, text factories and current tests
-still reference artifact and manifest types in `Delta.Shader.Abstractions`.
+still reference artifact and manifest types in `DeltaShader.Abstractions`.
 Generated manifest JSON and GLSL constants therefore describe the current
 authoring/compiler compatibility path. They are not the canonical renderer
 handoff and must not be documented as one.
@@ -45,7 +45,7 @@ IR.
 
 The final ABI carries resolved resource/stage/access data and concrete offset,
 alignment, size, array-stride and matrix-stride values. DeltaRender consumes
-those values. Names such as `Delta.Maths.float4x4`, GLSL `mat4` and compiler
+those values. Names such as `DeltaMaths.float4x4`, GLSL `mat4` and compiler
 manifest strings belong to authoring/lowering and are erased before the final
 runtime boundary.
 

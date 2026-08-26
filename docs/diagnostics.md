@@ -24,6 +24,6 @@ Canonical diagnostic families:
 - `DSH018` — duplicate graphics source entry name;
 - `DSH019` — compile-time graphics artifact generation failure.
 
-`src/Delta.Shader.Compiler/ShaderDiagnosticId.cs` owns identifiers and
-`src/Delta.Shader.Analyzers/AnalyzerReleases.Unshipped.md` owns release
+`src/DeltaShader.Compiler/ShaderDiagnosticId.cs` owns identifiers and
+`src/DeltaShader.Analyzers/AnalyzerReleases.Unshipped.md` owns release
 tracking. New diagnostics update both files and add a source-location test.

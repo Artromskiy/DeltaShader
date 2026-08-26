@@ -35,8 +35,8 @@ build_args=(
     /p:UseSharedCompilation=false
     -v:minimal
 )
-dotnet build "$project_root/src/Delta.Shader.Tool/Delta.Shader.Tool.csproj" "${build_args[@]}"
-dotnet build "$project_root/src/Delta.Shader.Text/Delta.Shader.Text.csproj" "${build_args[@]}"
+dotnet build "$project_root/src/DeltaShader.Tool/DeltaShader.Tool.csproj" "${build_args[@]}"
+dotnet build "$project_root/src/DeltaShader.Text/DeltaShader.Text.csproj" "${build_args[@]}"
 
 artifact_stems=(
     SdfTextVertex.vert
@@ -49,9 +49,9 @@ for stem in "${artifact_stems[@]}"; do
 done
 
 dotnet run \
-    --project "$project_root/src/Delta.Shader.Tool/Delta.Shader.Tool.csproj" \
+    --project "$project_root/src/DeltaShader.Tool/DeltaShader.Tool.csproj" \
     -c Release --no-build -- \
-    build "$project_root/src/Delta.Shader.Text/Delta.Shader.Text.csproj" \
+    build "$project_root/src/DeltaShader.Text/DeltaShader.Text.csproj" \
     --backend spirv \
     --profile vulkan1.2 \
     --spirv 1.5 \

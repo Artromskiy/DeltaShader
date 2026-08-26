@@ -18,10 +18,10 @@ runtime-neutral `ShaderArtifact` ABI.
 - [../HIGH_PRIORITY_TODO.md](../HIGH_PRIORITY_TODO.md) is authoritative for
   graphics-artifact ownership and consumer migration.
 
-Compiler/abstractions must not depend on Vulkan or DeltaRender. Map Maths by
+Compiler/abstractions must not depend on Vulkan or DeltaRender. Map DeltaMaths by
 Roslyn symbol identity and generated manifest, never by CLR name guesses.
 During documentation cleanup and producer/consumer migration, treat
-`docs/final-artifact-contract.md` and `src/Delta.Shader.Contract/**` as
+`docs/final-artifact-contract.md` and `src/DeltaShader.Contract/**` as
 read-only sources of truth. Change them only when the user explicitly requests
 a contract revision; adapt every other document and compatibility layer to
 them, never the reverse.

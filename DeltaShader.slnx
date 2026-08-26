@@ -5,18 +5,18 @@
     <Platform Name="x86" />
   </Configurations>
   <Folder Name="/tests/">
-    <Project Path="tests/Delta.Shader.TestShaders/Delta.Shader.TestShaders.csproj" />
+    <Project Path="tests/DeltaShader.TestShaders/DeltaShader.TestShaders.csproj" />
   </Folder>
-  <Project Path="../Maths/Delta.Maths.csproj" />
-  <Project Path="src/Delta.Shader.Abstractions/Delta.Shader.Abstractions.csproj" />
-  <Project Path="src/Delta.Shader.Analyzers/Delta.Shader.Analyzers.csproj" />
-  <Project Path="src/Delta.Shader.Backend.Glsl/Delta.Shader.Backend.Glsl.csproj" />
-  <Project Path="src/Delta.Shader.Compiler/Delta.Shader.Compiler.csproj" />
-  <Project Path="src/Delta.Shader.Contract/Delta.Shader.Contract.csproj" />
-  <Project Path="src/Delta.Shader.Tool/Delta.Shader.Tool.csproj" />
-  <Project Path="src/Delta.Shader.Text/Delta.Shader.Text.csproj" />
-  <Project Path="tests/Delta.Shader.Compiler.ReferenceFixtures/Delta.Shader.Compiler.ReferenceFixtures.csproj" />
-  <Project Path="tests/Delta.Shader.Compiler.Tests/Delta.Shader.Compiler.Tests.csproj" />
-  <Project Path="tests/Delta.Shader.Golden.Tests/Delta.Shader.Golden.Tests.csproj" />
-  <Project Path="tests/Delta.Shader.Vulkan.Tests/Delta.Shader.Vulkan.Tests.csproj" />
+  <Project Path="../DeltaMaths/DeltaMaths.csproj" />
+  <Project Path="src/DeltaShader.Abstractions/DeltaShader.Abstractions.csproj" />
+  <Project Path="src/DeltaShader.Analyzers/DeltaShader.Analyzers.csproj" />
+  <Project Path="src/DeltaShader.Backend.Glsl/DeltaShader.Backend.Glsl.csproj" />
+  <Project Path="src/DeltaShader.Compiler/DeltaShader.Compiler.csproj" />
+  <Project Path="src/DeltaShader.Contract/DeltaShader.Contract.csproj" />
+  <Project Path="src/DeltaShader.Tool/DeltaShader.Tool.csproj" />
+  <Project Path="src/DeltaShader.Text/DeltaShader.Text.csproj" />
+  <Project Path="tests/DeltaShader.Compiler.ReferenceFixtures/DeltaShader.Compiler.ReferenceFixtures.csproj" />
+  <Project Path="tests/DeltaShader.Compiler.Tests/DeltaShader.Compiler.Tests.csproj" />
+  <Project Path="tests/DeltaShader.Golden.Tests/DeltaShader.Golden.Tests.csproj" />
+  <Project Path="tests/DeltaShader.Vulkan.Tests/DeltaShader.Vulkan.Tests.csproj" />
 </Solution>

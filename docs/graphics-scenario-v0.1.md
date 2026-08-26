@@ -9,7 +9,7 @@ The first graphics slice is intentionally small:
 - `[FragmentShader]` supports `[FragmentCoord] float2`, one
   `[FragmentColor] out float4`, matching varying inputs, and one sequential
   `[PushConstant]` struct.
-- `ShaderIntrinsics.fwidth` and `Delta.Maths.maths.smoothstep` lower to
+- `ShaderIntrinsics.fwidth` and `DeltaMaths.maths.smoothstep` lower to
   fragment-stage GLSL operations. Using `fwidth` from a vertex shader produces
   a compiler diagnostic.
 - C# source names are retained in compiler metadata as
@@ -17,7 +17,7 @@ The first graphics slice is intentionally small:
   resolved entry point is copied to the final `ShaderArtifact.EntryPoint`;
   source names are not part of the renderer contract.
 
-The canonical fixture is `tests/Delta.Shader.TestShaders/FullscreenUi.cs`. It
+The canonical fixture is `tests/DeltaShader.TestShaders/FullscreenUi.cs`. It
 builds a fullscreen triangle from `gl_VertexIndex` and renders an animated,
 anti-aliased rounded rectangle from `Resolution`, `Time`, and `gl_FragCoord.xy`.
 No vertex buffer is required.
@@ -36,7 +36,7 @@ The `.glsl` and `.shader.json` files are compiler/build sidecars, not renderer
 artifacts. The GLSL is compiled with
 `glslangValidator -V --target-env vulkan1.2`, and the resulting SPIR-V is
 validated with `spirv-val --target-env vulkan1.2`. Publication converts the
-resolved compiler metadata into `Delta.Shader.Contract.ShaderAbi` and creates
+resolved compiler metadata into `DeltaShader.Contract.ShaderAbi` and creates
 one immutable `ShaderArtifact` per stage. `GraphicsShaderProgram` then validates
 and pairs the final vertex and fragment artifacts.
 

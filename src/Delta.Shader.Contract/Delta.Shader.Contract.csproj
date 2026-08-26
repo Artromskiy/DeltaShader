@@ -1,8 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <RootNamespace>Delta.Shader.Contract</RootNamespace>
-    <AssemblyName>Delta.Shader.Contract</AssemblyName>
-    <PackageId>Delta.Shader.Contract</PackageId>
-  </PropertyGroup>
-</Project>

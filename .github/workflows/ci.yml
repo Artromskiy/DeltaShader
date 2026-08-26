@@ -50,11 +50,11 @@ jobs:
         uses: actions/checkout@v7
         with:
           path: DeltaShader
-      - name: Checkout Delta.Maths
+      - name: Checkout DeltaMaths
         uses: actions/checkout@v7
         with:
           repository: Artromskiy/DeltaMaths
-          path: Maths
+          path: DeltaMaths
       - name: Checkout DeltaRender
         uses: actions/checkout@v7
         with:
@@ -68,7 +68,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ${{ env.NUGET_PACKAGES }}
-          key: delta-shader-nuget-${{ runner.os }}-${{ hashFiles('DeltaShader/**/*.csproj', 'Maths/**/*.csproj', 'DeltaRender/**/*.csproj') }}
+          key: delta-shader-nuget-${{ runner.os }}-${{ hashFiles('DeltaShader/**/*.csproj', 'DeltaMaths/**/*.csproj', 'DeltaRender/**/*.csproj') }}
           restore-keys: delta-shader-nuget-${{ runner.os }}-
       - name: Install Vulkan and SPIR-V tools
         run: sudo apt-get update && sudo apt-get install -y glslang-tools spirv-tools mesa-vulkan-drivers
@@ -98,11 +98,11 @@ jobs:
         uses: actions/checkout@v7
         with:
           path: DeltaShader
-      - name: Checkout Delta.Maths
+      - name: Checkout DeltaMaths
         uses: actions/checkout@v7
         with:
           repository: Artromskiy/DeltaMaths
-          path: Maths
+          path: DeltaMaths
       - name: Checkout DeltaRender
         uses: actions/checkout@v7
         with:

@@ -15,13 +15,13 @@ static C# method
 
 The compiler targets `netstandard2.0` and therefore does not reference the
 net10 runtime contract assembly. It produces an intermediate compiler
-manifest. The net10 CLI resolves that manifest into `Delta.Shader.Contract`
+manifest. The net10 CLI resolves that manifest into `DeltaShader.Contract`
 objects before writing the SPIR-V output. Source generators use the same
 resolved fields to emit constructors for the final contract directly; JSON is
 never deserialized by generated runtime factories.
 
 The final contract project is intentionally free of Roslyn, MSBuild, Vulkan,
-renderer and ECS dependencies. `Delta.Shader.Abstractions` remains the
+renderer and ECS dependencies. `DeltaShader.Abstractions` remains the
 authoring/compatibility layer needed by the current compiler and existing
 consumers until the recorded producer-consumer migration is complete.
 
@@ -47,7 +47,7 @@ types fail publication rather than producing a partially described artifact.
 DeltaShader owns compiler validation, lowering, final artifact construction
 and ABI publication. DeltaRender consumes `IShaderArtifact` and
 `IGraphicsShaderProgram`, creates Vulkan objects and owns resource lifetime.
-MathsGen/Maths own the generated Maths declarations and shader contract used
+DeltaMathsGen/DeltaMaths own the generated DeltaMaths declarations and shader contract used
 by Roslyn symbol mapping. No renderer-specific types or copied ABI models are
 added here.
 

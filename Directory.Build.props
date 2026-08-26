@@ -13,9 +13,9 @@
     <AnalysisMode>Recommended</AnalysisMode>
   </PropertyGroup>
 
-  <PropertyGroup Condition="$(MSBuildProjectName.StartsWith('Delta.Shader'))">
+  <PropertyGroup Condition="$(MSBuildProjectName.StartsWith('DeltaShader'))">
     <RepositoryUrl>https://example.invalid/delta-shader</RepositoryUrl>
-    <Authors>Delta.Shader contributors</Authors>
+    <Authors>DeltaShader contributors</Authors>
   </PropertyGroup>
   <ItemGroup>
     <AdditionalFiles Include="$(MSBuildThisFileDirectory)CodeMetricsConfig.txt" />

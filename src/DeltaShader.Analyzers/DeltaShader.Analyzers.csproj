@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <RootNamespace>DeltaShader.Analyzers</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <IncludeSymbols>false</IncludeSymbols>
+    <EnableNETAnalyzers>false</EnableNETAnalyzers>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\\DeltaShader.Backend.Glsl\\DeltaShader.Backend.Glsl.csproj" />
+    <ProjectReference Include="..\\DeltaShader.Compiler\\DeltaShader.Compiler.csproj" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" />
+    <PackageReference Include="System.Text.Json" />
+  </ItemGroup>
+
+  <Target Name="CopyDeltaShaderAnalyzerDependencies" AfterTargets="Build">
+    <Copy SourceFiles="@(ReferenceCopyLocalPaths)" DestinationFolder="$(TargetDir)" SkipUnchangedFiles="true" />
+  </Target>
+</Project>

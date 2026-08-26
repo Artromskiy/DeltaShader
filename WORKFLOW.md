@@ -14,9 +14,9 @@ Real compiler output must also pass the CLI and external validators:
 
 ```bash
 out_dir="$(mktemp -d)"
-dotnet run --project src/Delta.Shader.Tool/Delta.Shader.Tool.csproj \
+dotnet run --project src/DeltaShader.Tool/DeltaShader.Tool.csproj \
   -c Release --no-build -- build \
-  tests/Delta.Shader.TestShaders/Delta.Shader.TestShaders.csproj \
+  tests/DeltaShader.TestShaders/DeltaShader.TestShaders.csproj \
   --profile vulkan1.2 --spirv 1.5 --glsl 460 --out "$out_dir"
 for shader in "$out_dir"/*.spv; do
   spirv-val --target-env vulkan1.2 "$shader"

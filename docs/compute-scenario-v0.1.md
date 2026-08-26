@@ -8,7 +8,7 @@
 >
 > The GLSL and manifest expectations below describe compiler/build
 > intermediates. A publisher compiles and validates the SPIR-V, resolves the
-> concrete ABI, and constructs `Delta.Shader.Contract.ShaderArtifact`.
+> concrete ABI, and constructs `DeltaShader.Contract.ShaderArtifact`.
 > DeltaRender receives that final artifact, not the GLSL text or compiler
 > manifest.
 

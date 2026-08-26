@@ -29,8 +29,8 @@ public interface IShaderArtifact
 }
 ```
 
-The canonical definitions live in `src/Delta.Shader.Contract`. That project is
-the source of truth; older artifact types in `Delta.Shader.Abstractions` are a
+The canonical definitions live in `src/DeltaShader.Contract`. That project is
+the source of truth; older artifact types in `DeltaShader.Abstractions` are a
 temporary compatibility surface while producers and consumers migrate.
 
 The artifact does not carry a content hash. An immutable consumer such as

@@ -12,7 +12,7 @@ Supported constructs include:
 - locals, assignments, conditionals and structured bounded loops;
 - static non-recursive helpers;
 - explicit buffers, constants, textures, stage builtins and stage interfaces;
-- supported `Delta.Maths` constructors, operators, swizzles and functions
+- supported `DeltaMaths` constructors, operators, swizzles and functions
   resolved by symbol identity.
 
 Rejected constructs include reference types in shader-visible state, managed
@@ -23,7 +23,7 @@ a target profile and lowering are explicitly implemented.
 The production authoring form is `[DeltaCompute]`, `[VertexShader]` or
 `[FragmentShader]` on a compile-time static method. Runtime values enter through
 explicit resources or constants, not captured variables. See
-`../src/Delta.Shader.Analyzers/AnalyzerReleases.Unshipped.md` and
+`../src/DeltaShader.Analyzers/AnalyzerReleases.Unshipped.md` and
 `diagnostics.md` for diagnostic IDs.
 
 The resource wrappers and generic types mentioned by this authoring subset are

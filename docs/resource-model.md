@@ -1,7 +1,7 @@
 # Shader resource model
 
-`Delta.Shader.Contract` is the final binary artifact contract.
-`Delta.Shader.Abstractions` owns authoring resources, expressed as explicit
+`DeltaShader.Contract` is the final binary artifact contract.
+`DeltaShader.Abstractions` owns authoring resources, expressed as explicit
 entry-point parameters with stage-aware attributes:
 
 - read-only/read-write storage buffers use std430 and explicit set/binding;

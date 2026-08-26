@@ -7,12 +7,12 @@ typed IR, GLSL text and JSON sidecars are not runtime API.
 
 An authoring project references:
 
-- `src/Delta.Shader.Abstractions/Delta.Shader.Abstractions.csproj` for shader
+- `src/DeltaShader.Abstractions/DeltaShader.Abstractions.csproj` for shader
   attributes, builtins and resource declarations;
-- `src/Delta.Shader.Analyzers/Delta.Shader.Analyzers.csproj` as an analyzer;
-- `src/Delta.Shader.Contract/Delta.Shader.Contract.csproj` when consuming a
+- `src/DeltaShader.Analyzers/DeltaShader.Analyzers.csproj` as an analyzer;
+- `src/DeltaShader.Contract/DeltaShader.Contract.csproj` when consuming a
   generated final artifact from C# code;
-- `Delta.Maths` when using supported Maths shader symbols.
+- `DeltaMaths` when using supported DeltaMaths shader symbols.
 
 Production authoring is a static attributed method:
 
@@ -36,7 +36,7 @@ the GPU.
 
 ## Final runtime artifact
 
-The only runtime handoff is `Delta.Shader.Contract.IShaderArtifact`:
+The only runtime handoff is `DeltaShader.Contract.IShaderArtifact`:
 
 ```csharp
 public interface IShaderArtifact
@@ -79,8 +79,8 @@ are inspection and packaging sidecars. Consumers bind resources from
 The CLI emits GLSL and validates SPIR-V through the pinned target profile:
 
 ```bash
-dotnet run --project src/Delta.Shader.Tool/Delta.Shader.Tool.csproj \
-  -c Release -- build tests/Delta.Shader.TestShaders/Delta.Shader.TestShaders.csproj \
+dotnet run --project src/DeltaShader.Tool/DeltaShader.Tool.csproj \
+  -c Release -- build tests/DeltaShader.TestShaders/DeltaShader.TestShaders.csproj \
   --profile vulkan1.2 --spirv 1.5 --glsl 460 --out ./artifacts/shaders
 ```
 
