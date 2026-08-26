@@ -1035,6 +1035,44 @@ public class IntrinsicCatalogTests
     }
 
     [Fact]
+    public async Task ShaderIntrinsics_DerivativesLowerForFragmentAndRejectOtherStages()
+    {
+        const string source = @"
+            using Delta.Maths;
+            using Delta.Shader;
+            public static class DerivativeStages
+            {
+                [FragmentShader]
+                public static void Fragment([FragmentCoord] float2 coord, [FragmentColor] out float4 color)
+                {
+                    var dx = ShaderIntrinsics.dFdx(coord.x);
+                    var dy = ShaderIntrinsics.dFdy(coord.y);
+                    color = new float4(dx, dy, 0f, 1f);
+                }
+
+                [VertexShader]
+                public static void Vertex([Position] out float4 position)
+                {
+                    position = new float4(ShaderIntrinsics.dFdx(1f), 0f, 0f, 1f);
+                }
+            }";
+
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
+        IReadOnlyList<ShaderCompilationResult> results = ShaderCompiler.CompileAll(compilation);
+
+        ShaderCompilationResult fragment = Assert.Single(results, result => result.Module!.Stage == ShaderStage.Fragment);
+        Assert.True(fragment.Success, string.Join(Environment.NewLine, fragment.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        var fragmentGlsl = Delta.Shader.Backend.Glsl.GlslEmitter.EmitFromModule(fragment.Module!).Source;
+        Assert.Contains("dFdx", fragmentGlsl, StringComparison.Ordinal);
+        Assert.Contains("dFdy", fragmentGlsl, StringComparison.Ordinal);
+
+        ShaderCompilationResult vertex = Assert.Single(results, result => result.Module!.Stage == ShaderStage.Vertex);
+        Assert.False(vertex.Success);
+        Assert.Contains(vertex.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH008);
+        Assert.Contains(vertex.Diagnostics, diagnostic => diagnostic.Message.Contains("dFdx", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task GraphicsText_GlyphInstances_AreReflected_AsStd430Ssbo_WithInstanceIndex()
     {
         const string source = @"

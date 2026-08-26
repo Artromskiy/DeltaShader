@@ -96,6 +96,12 @@ public static class ShaderIntrinsics
     [ShaderIntrinsic("fwidth", ShaderStage.Fragment)]
     public static float fwidth(float value) => throw new NotSupportedException();
 
+    [ShaderIntrinsic("dFdx", ShaderStage.Fragment)]
+    public static T dFdx<T>(T value) => throw new NotSupportedException();
+
+    [ShaderIntrinsic("dFdy", ShaderStage.Fragment)]
+    public static T dFdy<T>(T value) => throw new NotSupportedException();
+
     [ShaderIntrinsic("texture", ShaderStage.Vertex)]
     public static TColor SampleVertex<TCoordinate, TColor>(SampledTexture2D texture, TCoordinate coordinate)
         => throw new NotSupportedException();

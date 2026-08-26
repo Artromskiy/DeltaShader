@@ -5,6 +5,7 @@
     <Platform Name="x86" />
   </Configurations>
   <Folder Name="/tests/">
+    <Project Path="tests/DeltaShader.ShadertoyGallery/DeltaShader.ShadertoyGallery.csproj" />
     <Project Path="tests/DeltaShader.TestShaders/DeltaShader.TestShaders.csproj" />
   </Folder>
   <Project Path="../DeltaMaths/DeltaMaths.csproj" />
