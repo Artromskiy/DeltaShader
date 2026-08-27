@@ -7,11 +7,9 @@ namespace Delta.Shader.ShadertoyGallery;
 internal static class Example19_ApollianFold
 {
     [FragmentShader]
-    public static void ApollianFold(
-        [PushConstant] GalleryConstants constants,
-        [FragmentColor] out float4 color)
+    public static float4 ApollianFold(in GalleryFragmentContext context)
     {
-        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution) * 2f - new float2(1f, 1f);
         var q = p * 1.6f;
         var scale = 1f;
         for (var fold = 0f; fold < 5f; fold += 1f)
@@ -23,7 +21,7 @@ internal static class Example19_ApollianFold
         }
         var distance = maths.length(q) / scale;
         var glow = maths.exp(-distance * 80f);
-        var colorPhase = 0.5f + 0.5f * maths.sin(distance * 90f - constants.Time);
-        color = new float4(glow * (0.5f + colorPhase), glow * 0.35f, glow * (1f - colorPhase) + 0.04f, 1f);
+        var colorPhase = 0.5f + 0.5f * maths.sin(distance * 90f - context.Constants.Time);
+        return new float4(glow * (0.5f + colorPhase), glow * 0.35f, glow * (1f - colorPhase) + 0.04f, 1f);
     }
 }

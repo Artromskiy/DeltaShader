@@ -7,12 +7,10 @@ namespace Delta.Shader.ShadertoyGallery;
 internal static class Example27_Legofied
 {
     [FragmentShader]
-    public static void Legofied(
-        [PushConstant] GalleryConstants constants,
-        [FragmentColor] out float4 color)
+    public static float4 Legofied(in GalleryFragmentContext context)
     {
-        var uv = new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / constants.Resolution;
-        var grid = uv * 9f + new float2(constants.Time * 0.08f, -constants.Time * 0.05f);
+        var uv = new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution;
+        var grid = uv * 9f + new float2(context.Constants.Time * 0.08f, -context.Constants.Time * 0.05f);
         var cell = new float2(grid.x - maths.floor(grid.x) - 0.5f, grid.y - maths.floor(grid.y) - 0.5f);
         var seam = 1f - maths.smoothStep(0.38f, 0.49f, maths.max(maths.abs(cell.x), maths.abs(cell.y)));
         var tile = new float2(maths.floor(grid.x), maths.floor(grid.y));
@@ -21,6 +19,6 @@ internal static class Example27_Legofied
         var green = 0.5f + 0.5f * maths.sin(phase * 7f + 2.2f);
         var blue = 0.5f + 0.5f * maths.sin(phase * 9f + 4.1f);
         var bevel = 0.7f + 0.3f * (1f - maths.length(cell) * 1.5f);
-        color = new float4(red, green, blue, 1f) * seam * bevel + new float4(0.015f, 0.02f, 0.035f, 1f) * (1f - seam);
+        return new float4(red, green, blue, 1f) * seam * bevel + new float4(0.015f, 0.02f, 0.035f, 1f) * (1f - seam);
     }
 }

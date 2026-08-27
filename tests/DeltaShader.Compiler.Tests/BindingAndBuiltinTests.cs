@@ -33,7 +33,7 @@ public sealed class BindingAndBuiltinTests
 
             public static class ComputeEntry
             {
-                [Compute(64)]
+                [ComputeShader(64)]
                 public static void Execute(in ComputeContext ctx)
                 {
                     if (ShaderBuiltins.GlobalInvocationId.X < ctx.Count)
@@ -102,7 +102,7 @@ public sealed class BindingAndBuiltinTests
 
             public static class InvalidCompute
             {
-                [Compute]
+                [ComputeShader]
                 public static void Execute(in InvalidContext ctx)
                 {
                 }

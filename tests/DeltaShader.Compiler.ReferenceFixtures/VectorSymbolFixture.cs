@@ -14,7 +14,7 @@ internal static class VectorSymbolFixture
         public readonly ReadWriteStorageBuffer<float2> Output;
     }
 
-    [Compute(localSizeX: 4, localSizeY: 2, localSizeZ: 1)]
+    [ComputeShader(localSizeX: 4, localSizeY: 2, localSizeZ: 1)]
     public static void SymbolMapKernel(in ComputeContext context)
     {
         uint invocationIndex = ShaderBuiltins.GlobalInvocationId.X;

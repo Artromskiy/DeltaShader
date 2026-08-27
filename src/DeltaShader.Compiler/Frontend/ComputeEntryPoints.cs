@@ -30,7 +30,7 @@ public static class ComputeEntryPoints
         {
             diagnostics.Add(new ShaderDiagnostic(
                 ShaderDiagnosticId.DSH004,
-                "No valid [Compute] entry point found.",
+                "No valid [ComputeShader] entry point found.",
                 Severity: ShaderDiagnosticSeverity.Error));
             return new ShaderCompilationResult(string.Empty, false, diagnostics);
         }
@@ -39,7 +39,7 @@ public static class ComputeEntryPoints
         {
             diagnostics.Add(new ShaderDiagnostic(
                 ShaderDiagnosticId.DSH004,
-                "MVP supports one [Compute] entry point per module.",
+                "MVP supports one [ComputeShader] entry point per module.",
                 Severity: ShaderDiagnosticSeverity.Error));
         }
 
@@ -63,7 +63,7 @@ public static class ComputeEntryPoints
             var loc = entry.Method.Locations.FirstOrDefault()?.GetLineSpan();
             diagnostics.Add(new ShaderDiagnostic(
                 ShaderDiagnosticId.DSH004,
-                "[Compute] entry point must be static void.",
+                "[ComputeShader] entry point must be static void.",
                 loc?.Path,
                 loc is null ? 0 : loc.Value.StartLinePosition.Line + 1,
                 loc is null ? 0 : loc.Value.StartLinePosition.Character + 1));
@@ -88,7 +88,7 @@ public static class ComputeEntryPoints
         if (contextParameter is null)
         {
             diagnostics.Add(CreateDiagnostic(entry.Method, ShaderDiagnosticId.DSH002,
-                "[Compute] entry point must have exactly one 'in' shader context parameter."));
+                "[ComputeShader] entry point must have exactly one 'in' shader context parameter."));
         }
         else
         {
@@ -198,7 +198,7 @@ public static class ComputeEntryPoints
             }
 
             var attribute = attributes[0];
-            if (IsBindingAttribute(attribute.AttributeClass, context))
+            if (IsLayoutAttribute(attribute.AttributeClass, context))
             {
                 if (attribute.ConstructorArguments.Length == 1)
                 {
@@ -325,7 +325,7 @@ public static class ComputeEntryPoints
         }
 
         var attribute = field.GetAttributes().FirstOrDefault(candidate =>
-            IsBindingAttribute(candidate.AttributeClass, context));
+            IsLayoutAttribute(candidate.AttributeClass, context));
         if (attribute is null)
         {
             reason = $"Storage-buffer field '{field.Name}' requires an explicit binding and access contract.";
@@ -384,7 +384,7 @@ public static class ComputeEntryPoints
         resource = null;
         reason = null;
         var attribute = field.GetAttributes().FirstOrDefault(candidate =>
-            IsBindingAttribute(candidate.AttributeClass, context));
+            IsLayoutAttribute(candidate.AttributeClass, context));
         if (attribute is null || attribute.ConstructorArguments.Length != 2)
         {
             reason = $"SampledTexture2D field '{field.Name}' requires [Layout(set, binding)].";
@@ -423,7 +423,7 @@ public static class ComputeEntryPoints
     }
 
     private static bool IsContextFieldAttribute(ITypeSymbol? attributeType, ModuleCompilationContext context)
-        => IsBindingAttribute(attributeType, context) ||
+        => IsLayoutAttribute(attributeType, context) ||
            SymbolEqualityComparer.Default.Equals(attributeType, context.PushConstantAttributeType);
 
     private static bool TryMapShaderType(
@@ -485,10 +485,10 @@ public static class ComputeEntryPoints
         return true;
     }
 
-    private static bool IsBindingAttribute(
+    private static bool IsLayoutAttribute(
         ITypeSymbol? attributeType,
         ModuleCompilationContext context)
-        => SymbolEqualityComparer.Default.Equals(attributeType, context.BindingAttributeType);
+        => SymbolEqualityComparer.Default.Equals(attributeType, context.LayoutAttributeType);
 
     private static bool TryTranslateExecutableBody(
         IMethodSymbol method,
@@ -832,10 +832,9 @@ public sealed class ModuleCompilationContext
         ReadOnlyStorageBufferType = compilation.GetTypeByMetadataName("Delta.Shader.ReadOnlyStorageBuffer`1");
         ReadWriteStorageBufferType = compilation.GetTypeByMetadataName("Delta.Shader.ReadWriteStorageBuffer`1");
         SampledTexture2DType = compilation.GetTypeByMetadataName("Delta.Shader.SampledTexture2D");
-        BindingAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.LayoutAttribute");
+        LayoutAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.LayoutAttribute");
         PositionAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.PositionAttribute");
-        FragmentColorAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.FragmentColorAttribute");
-        ShaderVaryingAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.ShaderVaryingAttribute");
+        VaryingAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.VaryingAttribute");
         PushConstantAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.PushConstantAttribute");
     }
 
@@ -844,9 +843,8 @@ public sealed class ModuleCompilationContext
     public ITypeSymbol? ReadOnlyStorageBufferType { get; }
     public ITypeSymbol? ReadWriteStorageBufferType { get; }
     public ITypeSymbol? SampledTexture2DType { get; }
-    public ITypeSymbol? BindingAttributeType { get; }
+    public ITypeSymbol? LayoutAttributeType { get; }
     public ITypeSymbol? PositionAttributeType { get; }
-    public ITypeSymbol? FragmentColorAttributeType { get; }
-    public ITypeSymbol? ShaderVaryingAttributeType { get; }
+    public ITypeSymbol? VaryingAttributeType { get; }
     public ITypeSymbol? PushConstantAttributeType { get; }
 }

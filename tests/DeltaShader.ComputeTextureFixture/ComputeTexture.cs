@@ -14,7 +14,7 @@ public static class ComputeTexture
         public readonly ReadWriteStorageBuffer<float4> Output;
     }
 
-    [Compute(localSizeX: 8)]
+    [ComputeShader(localSizeX: 8)]
     public static void Compute(in ComputeContext context)
     {
         uint id = ShaderBuiltins.GlobalInvocationId.X;

@@ -12,3 +12,19 @@ public struct GalleryConstants
     public float Time;
 }
 #pragma warning restore CA1051, CA1815
+
+[Varying]
+public struct GalleryVarying
+{
+    [Position]
+    public float4 Position;
+}
+
+public readonly struct GalleryFragmentContext
+{
+    [Varying]
+    public readonly GalleryVarying Varying;
+
+    [PushConstant]
+    public readonly GalleryConstants Constants;
+}

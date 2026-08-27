@@ -26,7 +26,7 @@ public sealed class DeltaComputeGenerator : IIncrementalGenerator
     {
         var methods = context.SyntaxProvider
             .ForAttributeWithMetadataName(
-                typeof(ComputeAttribute).FullName,
+                typeof(ComputeShaderAttribute).FullName,
                 static (node, _) => node is MethodDeclarationSyntax,
                 static (attributeContext, _) => attributeContext.TargetSymbol as IMethodSymbol)
             .Where(static method => method is not null).Collect();
@@ -59,7 +59,7 @@ public sealed class DeltaComputeGenerator : IIncrementalGenerator
         var emitted = GlslEmitter.EmitFromModule(result.Module);
         if (!emitted.Success)
         {
-            ReportDiagnostic(context, method, "GLSL generation failed for the [Compute] method.");
+            ReportDiagnostic(context, method, "GLSL generation failed for the [ComputeShader] method.");
             return;
         }
 

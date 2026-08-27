@@ -34,7 +34,7 @@ internal static class VectorAdd
         public readonly ReadWriteStorageBuffer<TransformRecord> Output;
     }
 
-    [Compute(localSizeX: 8)]
+    [ComputeShader(localSizeX: 8)]
     public static void Compute(in ComputeContext context)
     {
         uint invocation = ShaderBuiltins.GlobalInvocationId.X;

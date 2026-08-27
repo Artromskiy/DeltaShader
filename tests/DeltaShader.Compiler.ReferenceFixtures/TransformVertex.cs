@@ -16,12 +16,29 @@ internal struct TransformConstants
 
 internal static class TransformVertex
 {
+    [Varying]
+    public struct VertexOutput
+    {
+        [Position]
+        public float4 Position;
+    }
+
+    public readonly struct VertexContext
+    {
+        [Varying]
+        public readonly VertexOutput Vertex;
+
+        [PushConstant]
+        public readonly TransformConstants Constants;
+    }
+
     [VertexShader("CubeVertex")]
-    public static void Vertex(
-        [PushConstant] TransformConstants constants,
-        [Position] out float4 position)
+    public static VertexOutput Vertex(in VertexContext context)
     {
         var vertex = new float3(1f, 2f, 3f);
-        position = constants.Projection * constants.View * constants.Model * new float4(vertex, 1f);
+        return new VertexOutput
+        {
+            Position = context.Constants.Projection * context.Constants.View * context.Constants.Model * new float4(vertex, 1f)
+        };
     }
 }

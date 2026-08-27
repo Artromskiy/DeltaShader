@@ -84,8 +84,8 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
     {
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         context.EnableConcurrentExecution();
-        var deltaComputeAttributeName = typeof(ComputeAttribute).FullName ??
-            throw new InvalidOperationException("ComputeAttribute must have a metadata name.");
+        var deltaComputeAttributeName = typeof(ComputeShaderAttribute).FullName ??
+            throw new InvalidOperationException("ComputeShaderAttribute must have a metadata name.");
         var deltaComputeAttribute = context.Compilation.GetTypeByMetadataName(deltaComputeAttributeName);
         context.RegisterSymbolAction(context =>
         {
@@ -115,7 +115,7 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
                 context.ReportDiagnostic(Diagnostic.Create(
                     _contextDescriptor,
                     methodSymbol.Locations[0],
-                    "[Compute] entry point must have exactly one 'in' shader context parameter."));
+                    "[ComputeShader] entry point must have exactly one 'in' shader context parameter."));
             }
 
             if (graphicsAttribute is not null)
@@ -175,7 +175,7 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
         if (context.Node is not MethodDeclarationSyntax syntax ||
             context.SemanticModel.GetDeclaredSymbol(syntax) is not IMethodSymbol method ||
             !method.GetAttributes().Any(attribute =>
-                attribute.AttributeClass?.ToDisplayString() == typeof(ComputeAttribute).FullName))
+                attribute.AttributeClass?.ToDisplayString() == typeof(ComputeShaderAttribute).FullName))
         {
             return;
         }

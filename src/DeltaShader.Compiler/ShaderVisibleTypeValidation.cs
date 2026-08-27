@@ -23,7 +23,8 @@ public sealed class ShaderVisibleTypeIssue
 public static class ShaderVisibleTypeValidation
 {
     private const string PushConstantAttributeName = "Delta.Shader.PushConstantAttribute";
-    private const string BindingAttributeName = "Delta.Shader.LayoutAttribute";
+    private const string LayoutAttributeName = "Delta.Shader.LayoutAttribute";
+    private const string VaryingAttributeName = "Delta.Shader.VaryingAttribute";
 
     public static bool IsContextParameter(IParameterSymbol parameter, Compilation compilation)
     {
@@ -66,7 +67,7 @@ public static class ShaderVisibleTypeValidation
                 .ToArray();
             if (attributes.Length == 0)
             {
-                AddIssue(field, $"Shader context field '{field.Name}' must declare a storage buffer, push constant, texture, or builtin role.", issues);
+                AddIssue(field, $"Shader context field '{field.Name}' must declare a varying payload, storage buffer, push constant, texture, or builtin role.", issues);
                 continue;
             }
 
@@ -78,7 +79,7 @@ public static class ShaderVisibleTypeValidation
 
             var attributeName = attributes[0].AttributeClass?.ToDisplayString();
             var visibleType = field.Type;
-            if (attributeName == BindingAttributeName)
+            if (attributeName == LayoutAttributeName)
             {
                 var bindingAttribute = attributes[0];
                 if (bindingAttribute.ConstructorArguments.Length == 1)
@@ -238,7 +239,7 @@ public static class ShaderVisibleTypeValidation
     private static bool IsContextAttribute(ITypeSymbol? attributeType)
     {
         var name = attributeType?.ToDisplayString();
-        return name == PushConstantAttributeName || name == BindingAttributeName;
+        return name == PushConstantAttributeName || name == LayoutAttributeName || name == VaryingAttributeName;
     }
 
     private static ITypeSymbol? GetBufferElementType(ITypeSymbol type, Compilation compilation)

@@ -7,13 +7,11 @@ namespace Delta.Shader.ShadertoyGallery;
 internal static class Example34_ProceduralWalkAnimation
 {
     [FragmentShader]
-    public static void ProceduralWalkAnimation(
-        [PushConstant] GalleryConstants constants,
-        [FragmentColor] out float4 color)
+    public static float4 ProceduralWalkAnimation(in GalleryFragmentContext context)
     {
-        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / constants.Resolution) * 2f - new float2(1f, 1f);
-        p.x = p.x * constants.Resolution.x / constants.Resolution.y;
-        var cycle = constants.Time * 2.2f;
+        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution) * 2f - new float2(1f, 1f);
+        p.x = p.x * context.Constants.Resolution.x / context.Constants.Resolution.y;
+        var cycle = context.Constants.Time * 2.2f;
         var stride = maths.sin(cycle);
         var torso = maths.exp(-maths.abs(p.x + 0.03f * stride) * 70f) * (1f - maths.smoothStep(0.35f, 0.72f, maths.abs(p.y)));
         var head = maths.exp(-maths.dot(p - new float2(0.03f + 0.03f * stride, 0.48f), p - new float2(0.03f + 0.03f * stride, 0.48f)) * 85f);
@@ -27,6 +25,6 @@ internal static class Example34_ProceduralWalkAnimation
             legs += maths.exp(-line * 95f) * reach;
         }
         var ground = maths.exp(-maths.abs(p.y + 0.62f) * 65f) * (0.35f + 0.65f * (0.5f + 0.5f * maths.sin(p.x * 9f)));
-        color = new float4(0.03f + legs * 0.2f + head * 0.14f, 0.08f + torso * 0.5f + legs * 0.12f, 0.15f + torso * 0.7f + ground * 0.18f, 1f);
+        return new float4(0.03f + legs * 0.2f + head * 0.14f, 0.08f + torso * 0.5f + legs * 0.12f, 0.15f + torso * 0.7f + ground * 0.18f, 1f);
     }
 }

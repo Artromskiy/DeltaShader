@@ -1,6 +1,6 @@
 # Compute scenario for 0.1 MVP
 
-> Historical 0.1 sketch. The current contract is `[Compute]` with indexed
+> Historical 0.1 sketch. The current contract is `[ComputeShader]` with indexed
 > resource views; see `../README.md` and `../WORKFLOW.md`.
 >
 > Runtime compilation of arbitrary lambdas is intentionally outside this

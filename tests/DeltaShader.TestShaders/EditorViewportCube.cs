@@ -30,33 +30,57 @@ internal static class EditorViewportCube
         }
     }
 
-    [VertexShader("EditorViewportCubeVertex")]
-    public static void Vertex(
-        [Layout(0)] float3 position,
-        [Layout(1)] float3 normal,
-        [Layout(2)] float2 uv,
-        [Layout(0, 0)] ReadOnlyStorageBuffer<SceneParameters> scene,
-        [Position] out float4 clipPosition,
-        [ShaderVarying(0)] out float3 worldNormal,
-        [ShaderVarying(1)] out float2 texCoord)
+    [Varying]
+    public struct CubeVarying
     {
-        var modelPosition = scene[0].Model * new float4(position, 1f);
-        clipPosition = scene[0].Projection * scene[0].View * modelPosition;
-        worldNormal = maths.normalize((scene[0].Model * new float4(normal, 0f)).xyz);
-        texCoord = uv;
+        [Position]
+        [Layout(0)]
+        public float4 Position;
+        [Layout(1)]
+        public float3 Normal;
+        [Layout(2)]
+        public float2 Uv;
+    }
+
+    public readonly struct VertexContext
+    {
+        [Varying]
+        public readonly CubeVarying Vertex;
+
+        [Layout(0, 0)]
+        public readonly ReadOnlyStorageBuffer<SceneParameters> Scene;
+    }
+
+    public readonly struct FragmentContext
+    {
+        [Varying]
+        public readonly CubeVarying Fragment;
+
+        [Layout(0, 0)]
+        public readonly ReadOnlyStorageBuffer<SceneParameters> Scene;
+
+        [Layout(0, 1)]
+        public readonly SampledTexture2D Albedo;
+    }
+
+    [VertexShader("EditorViewportCubeVertex")]
+    public static CubeVarying Vertex(in VertexContext context)
+    {
+        var modelPosition = context.Scene[0].Model * context.Vertex.Position;
+        return new CubeVarying
+        {
+            Position = context.Scene[0].Projection * context.Scene[0].View * modelPosition,
+            Normal = maths.normalize((context.Scene[0].Model * new float4(context.Vertex.Normal, 0f)).xyz),
+            Uv = context.Vertex.Uv
+        };
     }
 
     [FragmentShader("EditorViewportCubeFragment")]
-    public static void Fragment(
-        [Layout(0, 0)] ReadOnlyStorageBuffer<SceneParameters> scene,
-        [Layout(0, 1)] SampledTexture2D albedo,
-        [ShaderVarying(0)] float3 worldNormal,
-        [ShaderVarying(1)] float2 texCoord,
-        [FragmentColor] out float4 color)
+    public static float4 Fragment(in FragmentContext context)
     {
-        var baseColor = ShaderIntrinsics.SampleFragment<float2, float4>(albedo, texCoord);
-        var lightDirection = maths.normalize(-scene[0].LightDirection);
-        var diffuse = maths.max(0f, maths.dot(worldNormal, lightDirection));
-        color = baseColor * scene[0].LightColor * diffuse;
+        var baseColor = ShaderIntrinsics.SampleFragment<float2, float4>(context.Albedo, context.Fragment.Uv);
+        var lightDirection = maths.normalize(-context.Scene[0].LightDirection);
+        var diffuse = maths.max(0f, maths.dot(context.Fragment.Normal, lightDirection));
+        return baseColor * context.Scene[0].LightColor * diffuse;
     }
 }

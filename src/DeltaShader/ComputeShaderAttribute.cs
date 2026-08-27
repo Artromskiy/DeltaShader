@@ -4,14 +4,14 @@ namespace Delta.Shader;
 /// Marks a static method as a compile-time DeltaShader compute kernel.
 /// </summary>
 [AttributeUsage(AttributeTargets.Method, Inherited = false, AllowMultiple = false)]
-public sealed class ComputeAttribute : Attribute
+public sealed class ComputeShaderAttribute : Attribute
 {
     public uint LocalSizeX { get; }
     public uint LocalSizeY { get; }
     public uint LocalSizeZ { get; }
     public string? EntryPointName { get; }
 
-    public ComputeAttribute(
+    public ComputeShaderAttribute(
         uint localSizeX = 1,
         uint localSizeY = 1,
         uint localSizeZ = 1,

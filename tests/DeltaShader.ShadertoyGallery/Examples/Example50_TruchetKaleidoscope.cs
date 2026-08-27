@@ -7,11 +7,9 @@ namespace Delta.Shader.ShadertoyGallery;
 internal static class Example50_TruchetKaleidoscope
 {
     [FragmentShader]
-    public static void TruchetKaleidoscope(
-        [PushConstant] GalleryConstants constants,
-        [FragmentColor] out float4 color)
+    public static float4 TruchetKaleidoscope(in GalleryFragmentContext context)
     {
-        var uv = new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / constants.Resolution;
+        var uv = new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution;
         var p = uv * 6f - new float2(3f, 3f);
         p.x = maths.abs(p.x);
         p.y = maths.abs(p.y);
@@ -23,7 +21,7 @@ internal static class Example50_TruchetKaleidoscope
         var arc = maths.abs(maths.length(cell - arcCenter) - 0.5f);
         var line = maths.exp(-arc * 70f);
         var center = maths.exp(-maths.dot(cell, cell) * 8f);
-        var pulse = 0.7f + 0.3f * maths.sin(constants.Time + tile.x * 0.7f + tile.y * 1.1f);
-        color = new float4(0.025f + line * 0.13f + center * 0.08f, 0.04f + line * 0.27f, 0.12f + line * 0.58f + center * 0.18f, 1f) * pulse;
+        var pulse = 0.7f + 0.3f * maths.sin(context.Constants.Time + tile.x * 0.7f + tile.y * 1.1f);
+        return new float4(0.025f + line * 0.13f + center * 0.08f, 0.04f + line * 0.27f, 0.12f + line * 0.58f + center * 0.18f, 1f) * pulse;
     }
 }

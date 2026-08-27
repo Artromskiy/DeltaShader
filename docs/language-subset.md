@@ -20,7 +20,7 @@ captures/closures, allocation, exceptions, async, reflection, dynamic,
 recursion and virtual/interface dispatch. `double` and `fix` are CPU-only until
 a target profile and lowering are explicitly implemented.
 
-The production authoring form is `[Compute]`, `[VertexShader]` or
+The production authoring form is `[ComputeShader]`, `[VertexShader]` or
 `[FragmentShader]` on a compile-time static method. Runtime values enter through
 explicit resources or constants, not captured variables. See
 `../src/DeltaShader.Analyzers/AnalyzerReleases.Unshipped.md` and

@@ -42,10 +42,62 @@ internal static class GraphicsEntryPoints
         }
 
         var entry = entries[0];
-        if (!entry.Method.IsStatic || !entry.Method.ReturnsVoid)
+        if (!IsContextGraphicsEntryPoint(entry, context))
         {
-            diagnostics.Add(new ShaderDiagnostic(ShaderDiagnosticId.DSH004,
-                $"[{stage}Shader] entry point must be static void.", Severity: ShaderDiagnosticSeverity.Error));
+            diagnostics.Add(new ShaderDiagnostic(ShaderDiagnosticId.DSH002,
+                "Graphics shader entry point must use one static in-context parameter with a [Varying] payload.",
+                Severity: ShaderDiagnosticSeverity.Error));
+            return new ShaderCompilationResult(entry.Name, false, diagnostics,
+                sourceMethodName: entry.Method.Name,
+                sourceMethodIdentity: entry.Method.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+        }
+
+        return ValidateAndBuildContextEntryPoint(
+        ModuleCompilationContext context,
+        ShaderEntryPointSymbol entry,
+        ShaderCompilationOptions options)
+    {
+        var diagnostics = new List<ShaderDiagnostic>();
+        var parameter = entry.Method.Parameters[0];
+        var location = parameter.Locations.FirstOrDefault()?.GetLineSpan();
+        if (!entry.Method.IsStatic || parameter.RefKind != RefKind.In || parameter.Type is not INamedTypeSymbol { TypeKind: TypeKind.Struct } contextType)
+        {
+            AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH002,
+                "A graphics shader context must be a single static 'in' struct parameter.", location);
+            return new ShaderCompilationResult(entry.Name, false, diagnostics, sourceMethodName: entry.Method.Name,
+                sourceMethodIdentity: entry.Method.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+        }
+
+        var varyingFields = contextType.GetMembers().OfType<IFieldSymbol>()
+            .Where(field => !field.IsStatic && field.GetAttributes().Any(attribute => Same(attribute.AttributeClass, context.VaryingAttributeType)))
+            .ToArray();
+        if (varyingFields.Length != 1)
+        {
+            AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH012,
+                "A graphics context must contain exactly one [Varying] payload field.", location);
+            return new ShaderCompilationResult(entry.Name, false, diagnostics, sourceMethodName: entry.Method.Name,
+                sourceMethodIdentity: entry.Method.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+        }
+
+        if (varyingFields[0].Type is not INamedTypeSymbol varyingType || varyingType.TypeKind != TypeKind.Struct ||
+            !varyingType.GetAttributes().Any(attribute => Same(attribute.AttributeClass, context.VaryingAttributeType)))
+        {
+            AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH012,
+                "The [Varying] context field must contain a struct marked [Varying].", varyingFields[0].Locations.FirstOrDefault()?.GetLineSpan());
+            return new ShaderCompilationResult(entry.Name, false, diagnostics, sourceMethodName: entry.Method.Name,
+                sourceMethodIdentity: entry.Method.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+        }
+
+        var varyingMembers = varyingType.GetMembers().OfType<IFieldSymbol>()
+            .Where(field => !field.IsStatic)
+            .ToArray();
+        var positionMembers = varyingMembers
+            .Where(field => field.GetAttributes().Any(attribute => Same(attribute.AttributeClass, context.PositionAttributeType)))
+            .ToArray();
+        if (positionMembers.Length != 1 || !TryMapType(positionMembers[0].Type, context, out var positionType) || positionType != "vec4")
+        {
+            AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH012,
+                "A [Varying] payload must contain exactly one [Position] float4 field.", varyingType.Locations.FirstOrDefault()?.GetLineSpan());
         }
 
         var inputs = new List<ShaderIrInterfaceVariable>();
@@ -57,303 +109,303 @@ internal static class GraphicsEntryPoints
         var storageBufferTargets = new HashSet<string>(StringComparer.Ordinal);
         var seenBindings = new HashSet<(uint Set, uint Binding)>();
         var structures = new Dictionary<INamedTypeSymbol, ShaderIrStruct>(SymbolEqualityComparer.Default);
-        var parameterMap = new Dictionary<IParameterSymbol, string>(SymbolEqualityComparer.Default);
+        var directFields = new Dictionary<IFieldSymbol, string>(SymbolEqualityComparer.Default);
         var pushFieldMap = new Dictionary<IFieldSymbol, string>(SymbolEqualityComparer.Default);
+        var outputFields = new Dictionary<IFieldSymbol, string>(SymbolEqualityComparer.Default);
+        var parameterMap = new Dictionary<IParameterSymbol, string>(SymbolEqualityComparer.Default);
 
-        foreach (var parameter in entry.Method.Parameters)
+        if (entry.Stage == ShaderStage.Vertex)
         {
-            var visibleType = ShaderVisibleTypeValidation.GetVisibleRootType(parameter, context.Compilation);
-            var visibleTypeIssues = ShaderVisibleTypeValidation.Validate(visibleType, parameter);
-            foreach (var issue in visibleTypeIssues)
+            var offset = 0u;
+            foreach (var field in varyingMembers)
             {
-                AddDiagnostic(diagnostics, issue.Id, issue.Message, issue.Symbol.Locations.FirstOrDefault()?.GetLineSpan());
-            }
-
-            if (visibleTypeIssues.Count > 0)
-            {
-                continue;
-            }
-
-            var attribute = parameter.GetAttributes().FirstOrDefault();
-            var attributeType = attribute?.AttributeClass;
-            var locationSpan = parameter.Locations.FirstOrDefault()?.GetLineSpan();
-
-            if (Same(attributeType, context.BindingAttributeType) && attribute is not null &&
-                attribute.ConstructorArguments.Length == 1)
-            {
-                var vertexLocation = GetUIntArg(attribute, 0);
-                const uint vertexBinding = 0;
-                var byteOffset = vertexInputs
-                    .Where(input => input.Binding == vertexBinding)
-                    .Select(input => input.ByteOffset + input.ByteSize)
-                    .DefaultIfEmpty(0)
-                    .Max();
-                if (stage != ShaderStage.Vertex || parameter.RefKind != RefKind.None ||
-                    !TryMapType(parameter.Type, context, out var vertexType) ||
-                    !TryGetVertexInputLayout(vertexType, out var byteSize, out var alignment, out var formatHint))
+                var fieldLocation = field.GetAttributes().FirstOrDefault(attribute =>
+                    Same(attribute.AttributeClass, context.LayoutAttributeType) && attribute.ConstructorArguments.Length == 1);
+                if (!TryMapType(field.Type, context, out var glslType))
                 {
                     AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH013,
-                        "[Layout(location)] is only valid on a value vertex-stage parameter with a supported scalar or vector type.", locationSpan);
-                }
-                else if (vertexInputs.Any(input => input.Location == vertexLocation))
-                {
-                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH013,
-                        $"Vertex input location {vertexLocation} is declared more than once.", locationSpan);
-                }
-                else
-                {
-                    var glslName = Sanitize(parameter.Name);
-                    parameterMap[parameter] = glslName;
-                    vertexInputs.Add(new ShaderIrVertexInput
-                    {
-                        Name = parameter.Name,
-                        ParameterName = parameter.Name,
-                        GlslName = glslName,
-                        GlslType = vertexType,
-                        Location = vertexLocation,
-                        Binding = vertexBinding,
-                        ByteOffset = byteOffset,
-                        InputRate = VertexInputRate.Vertex,
-                        ByteSize = byteSize,
-                        Alignment = alignment,
-                        FormatHint = formatHint
-                    });
-                }
-
-                continue;
-            }
-
-            var isReadOnlyStorageBuffer = context.ReadOnlyStorageBufferType is not null &&
-                SymbolEqualityComparer.Default.Equals((parameter.Type as INamedTypeSymbol)?.OriginalDefinition, context.ReadOnlyStorageBufferType);
-            var isReadWriteStorageBuffer = context.ReadWriteStorageBufferType is not null &&
-                SymbolEqualityComparer.Default.Equals((parameter.Type as INamedTypeSymbol)?.OriginalDefinition, context.ReadWriteStorageBufferType);
-            if (Same(attributeType, context.BindingAttributeType) && attribute is not null &&
-                attribute.ConstructorArguments.Length == 2 && (isReadOnlyStorageBuffer || isReadWriteStorageBuffer))
-            {
-                if (stage != ShaderStage.Vertex && stage != ShaderStage.Fragment)
-                {
-                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH011,
-                        $"Storage-buffer parameter '{parameter.Name}' is only supported in vertex and fragment stages.", locationSpan);
-                }
-                else
-                {
-                    var set = GetUIntArg(attribute, 0);
-                    var binding = GetUIntArg(attribute, 1);
-                    if (!seenBindings.Add((set, binding)))
-                    {
-                        AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH005,
-                            $"Graphics resources cannot share set {set}, binding {binding}.", locationSpan);
-                    }
-                    else if (parameter.Type is INamedTypeSymbol namedType &&
-                        namedType.TypeArguments.Length == 1 &&
-                        namedType.TypeArguments[0] is INamedTypeSymbol elementType &&
-                        TryBuildStruct(elementType, context, structures, new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default), out var elementStruct, out _) &&
-                        elementStruct is not null)
-                    {
-                        resources.Add(new ShaderIrResource
-                        {
-                            Name = parameter.Name,
-                            ParameterName = parameter.Name,
-                            Category = ShaderResourceKind.StorageBuffer,
-                            Stage = stage,
-                            Set = set,
-                            Binding = binding,
-                            GlslType = elementStruct.GlslName,
-                            ReadOnly = isReadOnlyStorageBuffer,
-                            Access = isReadOnlyStorageBuffer ? ShaderResourceAccess.ReadOnly : ShaderResourceAccess.ReadWrite,
-                            Layout = ShaderStd430Layout.Standard,
-                            Std430Layout = ShaderStd430Layout.ForStruct(elementStruct.Alignment, elementStruct.Size),
-                            Members = elementStruct.Members
-                        });
-                        storageBufferTargets.Add(parameter.Name);
-                        parameterMap[parameter] = parameter.Name;
-                    }
-                    else
-                    {
-                        AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH006,
-                            $"Storage-buffer parameter '{parameter.Name}' must wrap a sequential shader struct value.", locationSpan);
-                    }
-                }
-
-                continue;
-            }
-
-            if (Same(attributeType, context.PositionAttributeType))
-            {
-                if (stage != ShaderStage.Vertex || parameter.RefKind != RefKind.Out || !TryMapType(parameter.Type, context, out var positionType) || positionType != "vec4")
-                {
-                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH012, "[Position] is only valid on an out float4 vertex parameter.", locationSpan);
-                }
-                else
-                {
-                    parameterMap[parameter] = "gl_Position";
-                    outputs.Add(new ShaderIrInterfaceVariable { Name = parameter.Name, ParameterName = parameter.Name, GlslType = "vec4", GlslName = "gl_Position", Builtin = "Position" });
-                }
-                continue;
-            }
-
-            if (Same(attributeType, context.FragmentColorAttributeType))
-            {
-                if (stage != ShaderStage.Fragment || parameter.RefKind != RefKind.Out || !TryMapType(parameter.Type, context, out var colorType) || colorType != "vec4")
-                {
-                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH012, "[FragmentColor] is only valid on an out float4 fragment parameter.", locationSpan);
-                }
-                else
-                {
-                    parameterMap[parameter] = "fragColor";
-                    outputs.Add(new ShaderIrInterfaceVariable { Name = parameter.Name, ParameterName = parameter.Name, GlslType = "vec4", GlslName = "fragColor", Location = 0, Builtin = "FragmentColor" });
-                }
-                continue;
-            }
-
-            if (Same(attributeType, context.ShaderVaryingAttributeType))
-            {
-                if (attribute is null)
-                {
-                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH012, "[ShaderVarying] requires a valid location argument.", locationSpan);
+                        $"Vertex payload field '{field.Name}' has an unsupported shader type.", field.Locations.FirstOrDefault()?.GetLineSpan());
                     continue;
                 }
 
-                var varyingLocation = GetUIntArg(attribute, 0);
-                if (!TryMapType(parameter.Type, context, out var varyingType) || varyingType is not ("vec2" or "vec3" or "vec4") ||
-                    (stage == ShaderStage.Vertex && parameter.RefKind != RefKind.Out) ||
-                    (stage == ShaderStage.Fragment && parameter.RefKind != RefKind.None))
+                if (fieldLocation is null)
                 {
-                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH012, "Shader varyings must be vertex out or fragment value vector parameters.", locationSpan);
+                    if (positionMembers.Any(position => SymbolEqualityComparer.Default.Equals(position, field)))
+                    {
+                        directFields[field] = "gl_Position";
+                        outputFields[field] = "gl_Position";
+                        outputs.Add(new ShaderIrInterfaceVariable
+                        {
+                            Name = field.Name,
+                            ParameterName = field.Name,
+                            GlslType = "vec4",
+                            GlslName = "gl_Position",
+                            Builtin = "Position"
+                        });
+                    }
+                    else
+                    {
+                        var outputName = Sanitize(field.Name);
+                        directFields[field] = outputName;
+                        outputFields[field] = outputName;
+                        outputs.Add(new ShaderIrInterfaceVariable
+                        {
+                            Name = field.Name,
+                            ParameterName = field.Name,
+                            GlslType = glslType,
+                            GlslName = outputName,
+                            Location = (uint)outputs.Count(output => output.Builtin is null)
+                        });
+                    }
+
+                    continue;
+                }
+
+                if (!TryGetVertexInputLayout(glslType, out var byteSize, out var alignment, out var formatHint))
+                {
+                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH013,
+                        $"Vertex payload field '{field.Name}' has an unsupported vertex input type.", field.Locations.FirstOrDefault()?.GetLineSpan());
+                    continue;
+                }
+
+                var fieldName = "vertex_" + Sanitize(field.Name);
+                var fieldLocationValue = GetUIntArg(fieldLocation, 0);
+                if (vertexInputs.Any(input => input.Location == fieldLocationValue))
+                {
+                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH013,
+                        $"Vertex input location {fieldLocationValue} is declared more than once.", field.Locations.FirstOrDefault()?.GetLineSpan());
+                    continue;
+                }
+
+                directFields[field] = fieldName;
+                vertexInputs.Add(new ShaderIrVertexInput
+                {
+                    Name = fieldName,
+                    ParameterName = field.Name,
+                    GlslName = fieldName,
+                    GlslType = glslType,
+                    Location = fieldLocationValue,
+                    Binding = 0,
+                    ByteOffset = offset,
+                    InputRate = VertexInputRate.Vertex,
+                    ByteSize = byteSize,
+                    Alignment = alignment,
+                    FormatHint = formatHint
+                });
+                offset += byteSize;
+                if (positionMembers.Any(position => SymbolEqualityComparer.Default.Equals(position, field)))
+                {
+                    outputFields[field] = "gl_Position";
+                    outputs.Add(new ShaderIrInterfaceVariable
+                    {
+                        Name = field.Name,
+                        ParameterName = field.Name,
+                        GlslType = "vec4",
+                        GlslName = "gl_Position",
+                        Builtin = "Position"
+                    });
                 }
                 else
                 {
-                    var glslName = "varying_" + varyingLocation;
-                    parameterMap[parameter] = glslName;
-                    var variable = new ShaderIrInterfaceVariable { Name = parameter.Name, ParameterName = parameter.Name, GlslType = varyingType, GlslName = glslName, Location = varyingLocation };
-                    (stage == ShaderStage.Vertex ? outputs : inputs).Add(variable);
+                    var outputName = Sanitize(field.Name);
+                    outputFields[field] = outputName;
+                    outputs.Add(new ShaderIrInterfaceVariable
+                    {
+                        Name = field.Name,
+                        ParameterName = field.Name,
+                        GlslType = glslType,
+                        GlslName = outputName,
+                        Location = (uint)outputs.Count(output => output.Builtin is null)
+                    });
                 }
+            }
+
+            if (vertexInputs.Count > 0)
+            {
+                vertexBuffers.Add(new ShaderIrVertexBufferBinding
+                {
+                    Binding = 0,
+                    Stride = AlignUp(offset, 4),
+                    InputRate = VertexInputRate.Vertex,
+                    Attributes = vertexInputs
+                });
+            }
+        }
+        else
+        {
+            var varyingLocation = 0u;
+            foreach (var field in varyingMembers)
+            {
+                if (positionMembers.Any(position => SymbolEqualityComparer.Default.Equals(position, field)))
+                {
+                    directFields[field] = "gl_FragCoord";
+                    inputs.Add(new ShaderIrInterfaceVariable
+                    {
+                        Name = field.Name,
+                        ParameterName = field.Name,
+                        GlslType = "vec4",
+                        GlslName = "gl_FragCoord",
+                        Builtin = "FragmentPosition"
+                    });
+                    continue;
+                }
+
+                if (!TryMapType(field.Type, context, out var glslType))
+                {
+                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH012,
+                        $"Varying field '{field.Name}' has an unsupported shader type.", field.Locations.FirstOrDefault()?.GetLineSpan());
+                    continue;
+                }
+
+                var varyingName = Sanitize(field.Name);
+                directFields[field] = varyingName;
+                inputs.Add(new ShaderIrInterfaceVariable
+                {
+                    Name = field.Name,
+                    ParameterName = field.Name,
+                    GlslType = glslType,
+                    GlslName = varyingName,
+                    Location = varyingLocation++
+                });
+            }
+
+            outputs.Add(new ShaderIrInterfaceVariable
+            {
+                Name = "FragmentColor",
+                ParameterName = "return",
+                GlslType = "vec4",
+                GlslName = "fragColor",
+                Location = 0,
+                Builtin = "FragmentColor"
+            });
+        }
+
+        foreach (var field in contextType.GetMembers().OfType<IFieldSymbol>().Where(field => !field.IsStatic))
+        {
+            var attributes = field.GetAttributes();
+            if (attributes.Any(attribute => Same(attribute.AttributeClass, context.VaryingAttributeType)))
+            {
                 continue;
             }
 
-            if (Same(attributeType, context.PushConstantAttributeType))
+            var layout = attributes.FirstOrDefault(attribute => Same(attribute.AttributeClass, context.LayoutAttributeType));
+            if (layout is not null)
             {
-                var namedType = parameter.Type as INamedTypeSymbol;
-                if (parameter.RefKind != RefKind.None || namedType is null)
+                if (layout.ConstructorArguments.Length != 2)
                 {
-                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH006, "Push constant parameters must be sequential shader structs.", locationSpan);
+                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH002,
+                        $"Context resource '{field.Name}' requires [Layout(set, binding)].", field.Locations.FirstOrDefault()?.GetLineSpan());
+                    continue;
                 }
-                else if (!TryBuildStruct(namedType, context, structures, new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default), out var pushStruct, out var pushReason) || pushStruct is null)
+
+                var set = GetUIntArg(layout, 0);
+                var binding = GetUIntArg(layout, 1);
+                if (!seenBindings.Add((set, binding)))
                 {
-                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH006, pushReason ?? "Push constant parameters must be sequential shader structs.", locationSpan);
+                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH005,
+                        $"Graphics resources cannot share set {set}, binding {binding}.", field.Locations.FirstOrDefault()?.GetLineSpan());
+                    continue;
+                }
+
+                var fieldType = field.Type as INamedTypeSymbol;
+                var readOnly = context.ReadOnlyStorageBufferType is not null && fieldType is not null &&
+                    SymbolEqualityComparer.Default.Equals(fieldType.OriginalDefinition, context.ReadOnlyStorageBufferType);
+                var readWrite = context.ReadWriteStorageBufferType is not null && fieldType is not null &&
+                    SymbolEqualityComparer.Default.Equals(fieldType.OriginalDefinition, context.ReadWriteStorageBufferType);
+                if (context.SampledTexture2DType is not null && SymbolEqualityComparer.Default.Equals(field.Type, context.SampledTexture2DType))
+                {
+                    resources.Add(new ShaderIrResource
+                    {
+                        Name = field.Name,
+                        ParameterName = field.Name,
+                        Category = ShaderResourceKind.SampledTexture2D,
+                        Stage = entry.Stage,
+                        Set = set,
+                        Binding = binding,
+                        GlslType = "sampler2D",
+                        ReadOnly = true,
+                        Access = ShaderResourceAccess.ReadOnly,
+                        Layout = "opaque"
+                    });
+                    directFields[field] = field.Name;
+                    continue;
+                }
+
+                if ((readOnly || readWrite) && fieldType is not null && fieldType.TypeArguments.Length == 1)
+                {
+                    var elementType = fieldType.TypeArguments[0];
+                    string? glslType = null;
+                    ShaderIrStruct? elementStruct = null;
+                    if (!TryMapType(elementType, context, out glslType) && elementType is INamedTypeSymbol namedElement &&
+                        TryBuildStruct(namedElement, context, structures, new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default), out elementStruct, out _))
+                    {
+                        glslType = elementStruct?.GlslName;
+                    }
+
+                    if (glslType is not null)
+                    {
+                        resources.Add(new ShaderIrResource
+                        {
+                            Name = field.Name,
+                            ParameterName = field.Name,
+                            Category = ShaderResourceKind.StorageBuffer,
+                            Stage = entry.Stage,
+                            Set = set,
+                            Binding = binding,
+                            GlslType = glslType,
+                            ReadOnly = readOnly,
+                            Access = readOnly ? ShaderResourceAccess.ReadOnly : ShaderResourceAccess.ReadWrite,
+                            Layout = ShaderStd430Layout.Standard,
+                            Std430Layout = elementStruct is null ? ShaderStd430Layout.ForGlslType(glslType) : ShaderStd430Layout.ForStruct(elementStruct.Alignment, elementStruct.Size),
+                            Members = elementStruct?.Members ?? []
+                        });
+                        storageBufferTargets.Add(field.Name);
+                        directFields[field] = field.Name;
+                        continue;
+                    }
+                }
+
+                AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH006,
+                    $"Context resource '{field.Name}' has an unsupported shader type.", field.Locations.FirstOrDefault()?.GetLineSpan());
+                continue;
+            }
+
+            var push = attributes.FirstOrDefault(attribute => Same(attribute.AttributeClass, context.PushConstantAttributeType));
+            if (push is not null)
+            {
+                if (field.Type is not INamedTypeSymbol pushType ||
+                    !TryBuildStruct(pushType, context, structures, new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default), out var pushStruct, out var pushReason) || pushStruct is null)
+                {
+                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH006,
+                        pushReason ?? $"Push constant field '{field.Name}' must be a sequential shader struct.", field.Locations.FirstOrDefault()?.GetLineSpan());
                 }
                 else
                 {
-                    var push = new ShaderIrPushConstant
+                    pushConstants.Add(new ShaderIrPushConstant
                     {
                         Name = "DeltaPushConstants",
-                        ParameterName = parameter.Name,
+                        ParameterName = field.Name,
                         GlslType = pushStruct.GlslName,
                         Alignment = pushStruct.Alignment,
                         Size = pushStruct.Size,
                         ArrayStride = pushStruct.ArrayStride,
                         Members = pushStruct.Members
-                    };
-                    pushConstants.Add(push);
-                    parameterMap[parameter] = "pushConstants";
-                    foreach (var field in namedType.GetMembers().OfType<IFieldSymbol>().Where(field => !field.IsStatic))
+                    });
+                    foreach (var pushField in pushType.GetMembers().OfType<IFieldSymbol>().Where(pushField => !pushField.IsStatic))
                     {
-                        var member = pushStruct.Members.FirstOrDefault(candidate => candidate.Name == field.Name);
+                        var member = pushStruct.Members.FirstOrDefault(candidate => candidate.Name == pushField.Name);
                         if (member is not null)
                         {
-                            pushFieldMap[field] = "pushConstants." + member.GlslName;
+                            pushFieldMap[pushField] = "pushConstants." + member.GlslName;
                         }
                     }
-                    structures.Remove(namedType);
-                }
-                continue;
-            }
-
-            if (context.SampledTexture2DType is not null &&
-                SymbolEqualityComparer.Default.Equals(parameter.Type, context.SampledTexture2DType))
-            {
-                if (!Same(attributeType, context.BindingAttributeType) || attribute is null ||
-                    attribute.ConstructorArguments.Length != 2)
-                {
-                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH002,
-                        $"SampledTexture2D parameter '{parameter.Name}' requires [Layout(set, binding)].", locationSpan);
-                }
-                else
-                {
-                    var set = GetUIntArg(attribute, 0);
-                    var binding = GetUIntArg(attribute, 1);
-                    if (!seenBindings.Add((set, binding)))
-                    {
-                        AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH005,
-                            $"Graphics resources cannot share set {set}, binding {binding}.", locationSpan);
-                    }
-                    else
-                    {
-                        parameterMap[parameter] = parameter.Name;
-                        resources.Add(new ShaderIrResource
-                        {
-                            Name = parameter.Name,
-                            ParameterName = parameter.Name,
-                            Category = ShaderResourceKind.SampledTexture2D,
-                            Stage = stage,
-                            Set = set,
-                            Binding = binding,
-                            GlslType = "sampler2D",
-                            ReadOnly = true,
-                            Access = ShaderResourceAccess.ReadOnly,
-                            Layout = "opaque"
-                        });
-                    }
+                    structures.Remove(pushType);
                 }
                 continue;
             }
 
             AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH002,
-                $"Graphics entry point parameter '{parameter.Name}' is not a supported stage builtin, varying, or push constant.", locationSpan);
-        }
-
-        if (stage == ShaderStage.Vertex && outputs.All(output => output.Builtin != "Position"))
-        {
-            diagnostics.Add(new ShaderDiagnostic(ShaderDiagnosticId.DSH012, "Vertex shader must declare one [Position] output.", Severity: ShaderDiagnosticSeverity.Error));
-        }
-        if (stage == ShaderStage.Fragment && outputs.All(output => output.Builtin != "FragmentColor"))
-        {
-            diagnostics.Add(new ShaderDiagnostic(ShaderDiagnosticId.DSH012, "Fragment shader must declare one [FragmentColor] output.", Severity: ShaderDiagnosticSeverity.Error));
-        }
-
-        if (stage == ShaderStage.Vertex && vertexInputs.Count > 0)
-        {
-            foreach (var group in vertexInputs.GroupBy(input => input.Binding))
-            {
-                var ordered = group.OrderBy(input => input.ByteOffset).ToArray();
-                var stride = 0u;
-                var rate = ordered[0].InputRate;
-                foreach (var input in ordered)
-                {
-                    if (input.InputRate != rate)
-                    {
-                        diagnostics.Add(new ShaderDiagnostic(ShaderDiagnosticId.DSH013,
-                            $"Vertex buffer binding {group.Key} mixes input rates.", Severity: ShaderDiagnosticSeverity.Error));
-                        break;
-                    }
-
-                    stride = Math.Max(stride, input.ByteOffset + input.ByteSize);
-                }
-
-                if (group.Any(input => input.ByteSize == 0))
-                {
-                    diagnostics.Add(new ShaderDiagnostic(ShaderDiagnosticId.DSH013,
-                        $"Vertex buffer binding {group.Key} has an input with missing size.", Severity: ShaderDiagnosticSeverity.Error));
-                }
-
-                vertexBuffers.Add(new ShaderIrVertexBufferBinding
-                {
-                    Binding = group.Key,
-                    Stride = AlignUp(stride, 4),
-                    InputRate = rate,
-                    Attributes = ordered
-                });
-            }
+                $"Graphics context field '{field.Name}' must use [Varying], [Layout(set, binding)], or [PushConstant].", field.Locations.FirstOrDefault()?.GetLineSpan());
         }
 
         string body = string.Empty;
@@ -361,11 +413,7 @@ internal static class GraphicsEntryPoints
         IReadOnlyDictionary<IMethodSymbol, string> helperNames = new Dictionary<IMethodSymbol, string>(SymbolEqualityComparer.Default);
         if (diagnostics.Count == 0)
         {
-            var structNames = new Dictionary<INamedTypeSymbol, string>(SymbolEqualityComparer.Default);
-            foreach (var definition in structures)
-            {
-                structNames[definition.Key] = definition.Value.GlslName;
-            }
+            var structNames = structures.ToDictionary(pair => pair.Key, pair => pair.Value.GlslName, SymbolEqualityComparer.Default);
             var structFields = new Dictionary<IFieldSymbol, string>(SymbolEqualityComparer.Default);
             foreach (var definition in structures)
             {
@@ -387,11 +435,27 @@ internal static class GraphicsEntryPoints
             else
             {
                 var semanticModel = context.Compilation.GetSemanticModel(syntax.SyntaxTree);
-                if (!TryBuildHelpers(syntax, semanticModel, context, stage, pushFieldMap, structNames, structFields, storageBufferTargets, out helperFunctions, out helperNames, out var helperReason))
+                if (!TryBuildHelpers(syntax, semanticModel, context, entry.Stage, pushFieldMap, structNames, structFields, storageBufferTargets, out helperFunctions, out helperNames, out var helperReason))
                 {
                     diagnostics.Add(new ShaderDiagnostic(ShaderDiagnosticId.DSH008, helperReason ?? "Unable to lower shader helper call graph.", Severity: ShaderDiagnosticSeverity.Error));
                 }
-                else if (!GraphicsShaderBodyTranslator.TryTranslate(syntax.Body, semanticModel, context, stage, parameterMap, pushFieldMap, structNames, structFields, storageBufferTargets, helperNames, out body, out var reason))
+                else if (!GraphicsShaderBodyTranslator.TryTranslate(
+                    syntax.Body,
+                    semanticModel,
+                    context,
+                    entry.Stage,
+                    parameterMap,
+                    pushFieldMap,
+                    structNames,
+                    structFields,
+                    storageBufferTargets,
+                    helperNames,
+                    out body,
+                    out var reason,
+                    directFields,
+                    outputFields,
+                    entry.Stage == ShaderStage.Vertex ? varyingType : null,
+                    lowerReturns: true))
                 {
                     diagnostics.Add(new ShaderDiagnostic(ShaderDiagnosticId.DSH008, reason ?? "Unable to translate graphics shader body.", Severity: ShaderDiagnosticSeverity.Error));
                 }
@@ -400,22 +464,22 @@ internal static class GraphicsEntryPoints
 
         var module = new ShaderIrModule
         {
-            Stage = stage,
+            Stage = entry.Stage,
             SourceEntryPointName = entry.Name,
             EntryPointName = entry.Name,
             Resources = resources,
             Structs = structures.Values.OrderBy(structure => structure.GlslName, StringComparer.Ordinal).ToArray(),
-            Requirements = [$"Vulkan {resultOptions.Profile}", $"GLSL {resultOptions.Glsl}", $"SPIRV {resultOptions.Spirv}"],
+            Requirements = [$"Vulkan {options.Profile}", $"GLSL {options.Glsl}", $"SPIRV {options.Spirv}"],
             Instructions = new[] { "entrypoint " + entry.Name },
             Body = body,
             HelperFunctions = helperFunctions,
             Inputs = inputs,
             VertexInputs = vertexInputs,
-            VertexBuffers = vertexBuffers.OrderBy(binding => binding.Binding).ToArray(),
+            VertexBuffers = vertexBuffers,
             Outputs = outputs,
             PushConstants = pushConstants
         };
-        return new ShaderCompilationResult(entry.Name, diagnostics.Count == 0, diagnostics, module, resultOptions, entry.Method.Name, entry.Method.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+        return new ShaderCompilationResult(entry.Name, diagnostics.Count == 0, diagnostics, module, options, entry.Method.Name, entry.Method.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
     }
 
     private static bool TryBuildHelpers(
@@ -758,9 +822,37 @@ internal static class GraphicsEntryPoints
 
 internal static class GraphicsShaderBodyTranslator
 {
-    public static bool TryTranslate(SyntaxNode body, SemanticModel model, ModuleCompilationContext context, ShaderStage stage, IReadOnlyDictionary<IParameterSymbol, string> parameterMap, IReadOnlyDictionary<IFieldSymbol, string> pushFieldMap, IReadOnlyDictionary<INamedTypeSymbol, string> structNames, IReadOnlyDictionary<IFieldSymbol, string> structFields, IReadOnlyCollection<string> storageBufferTargets, IReadOnlyDictionary<IMethodSymbol, string> helperNames, out string translated, out string? reason)
+    public static bool TryTranslate(
+        SyntaxNode body,
+        SemanticModel model,
+        ModuleCompilationContext context,
+        ShaderStage stage,
+        IReadOnlyDictionary<IParameterSymbol, string> parameterMap,
+        IReadOnlyDictionary<IFieldSymbol, string> pushFieldMap,
+        IReadOnlyDictionary<INamedTypeSymbol, string> structNames,
+        IReadOnlyDictionary<IFieldSymbol, string> structFields,
+        IReadOnlyCollection<string> storageBufferTargets,
+        IReadOnlyDictionary<IMethodSymbol, string> helperNames,
+        out string translated,
+        out string? reason,
+        IReadOnlyDictionary<IFieldSymbol, string>? directFields = null,
+        IReadOnlyDictionary<IFieldSymbol, string>? outputFields = null,
+        INamedTypeSymbol? returnType = null,
+        bool lowerReturns = false)
     {
-        var rewriter = new Rewriter(model, context, stage, parameterMap, pushFieldMap, structNames, structFields, helperNames);
+        var rewriter = new Rewriter(
+            model,
+            context,
+            stage,
+            parameterMap,
+            pushFieldMap,
+            structNames,
+            structFields,
+            helperNames,
+            directFields ?? new Dictionary<IFieldSymbol, string>(SymbolEqualityComparer.Default),
+            outputFields ?? new Dictionary<IFieldSymbol, string>(SymbolEqualityComparer.Default),
+            returnType,
+            lowerReturns);
         var rewritten = rewriter.Visit(body);
         translated = rewritten?.ToFullString().Trim() ?? string.Empty;
         foreach (var field in pushFieldMap)
@@ -843,10 +935,39 @@ internal static class GraphicsShaderBodyTranslator
         private readonly IReadOnlyDictionary<INamedTypeSymbol, string> _structNames;
         private readonly IReadOnlyDictionary<IFieldSymbol, string> _structFields;
         private readonly IReadOnlyDictionary<IMethodSymbol, string> _helperNames;
+        private readonly IReadOnlyDictionary<IFieldSymbol, string> _directFields;
+        private readonly IReadOnlyDictionary<IFieldSymbol, string> _outputFields;
+        private readonly INamedTypeSymbol? _returnType;
+        private readonly bool _lowerReturns;
         public string? Reason { get; private set; }
 
-        public Rewriter(SemanticModel model, ModuleCompilationContext context, ShaderStage stage, IReadOnlyDictionary<IParameterSymbol, string> parameters, IReadOnlyDictionary<IFieldSymbol, string> pushFields, IReadOnlyDictionary<INamedTypeSymbol, string> structNames, IReadOnlyDictionary<IFieldSymbol, string> structFields, IReadOnlyDictionary<IMethodSymbol, string> helperNames)
-        { _model = model; _context = context; _stage = stage; _parameters = parameters; _pushFields = pushFields; _structNames = structNames; _structFields = structFields; _helperNames = helperNames; }
+        public Rewriter(
+            SemanticModel model,
+            ModuleCompilationContext context,
+            ShaderStage stage,
+            IReadOnlyDictionary<IParameterSymbol, string> parameters,
+            IReadOnlyDictionary<IFieldSymbol, string> pushFields,
+            IReadOnlyDictionary<INamedTypeSymbol, string> structNames,
+            IReadOnlyDictionary<IFieldSymbol, string> structFields,
+            IReadOnlyDictionary<IMethodSymbol, string> helperNames,
+            IReadOnlyDictionary<IFieldSymbol, string> directFields,
+            IReadOnlyDictionary<IFieldSymbol, string> outputFields,
+            INamedTypeSymbol? returnType,
+            bool lowerReturns)
+        {
+            _model = model;
+            _context = context;
+            _stage = stage;
+            _parameters = parameters;
+            _pushFields = pushFields;
+            _structNames = structNames;
+            _structFields = structFields;
+            _helperNames = helperNames;
+            _directFields = directFields;
+            _outputFields = outputFields;
+            _returnType = returnType;
+            _lowerReturns = lowerReturns;
+        }
 
         public override SyntaxNode? VisitIdentifierName(IdentifierNameSyntax node)
         {
@@ -886,12 +1007,88 @@ internal static class GraphicsShaderBodyTranslator
             {
                 return SyntaxFactory.ParseExpression(fieldName);
             }
+            if (symbol is IFieldSymbol directField && _directFields.TryGetValue(directField, out var directFieldName))
+            {
+                return SyntaxFactory.ParseExpression(directFieldName);
+            }
             if (symbol is IFieldSymbol structField && _structFields.TryGetValue(structField, out var structFieldName))
             {
                 var receiver = Visit(node.Expression)?.ToFullString() ?? node.Expression.ToFullString();
                 return SyntaxFactory.ParseExpression(receiver + "." + structFieldName);
             }
             return base.VisitMemberAccessExpression(node);
+        }
+
+        public override SyntaxNode? VisitReturnStatement(ReturnStatementSyntax node)
+        {
+            if (!_lowerReturns)
+            {
+                return base.VisitReturnStatement(node);
+            }
+
+            if (node.Expression is null)
+            {
+                Reason ??= "Graphics shader entry point must return its declared stage value.";
+                return SyntaxFactory.EmptyStatement();
+            }
+
+            if (_stage == ShaderStage.Fragment)
+            {
+                var fragmentExpression = Visit(node.Expression)?.ToFullString().Trim();
+                if (string.IsNullOrWhiteSpace(fragmentExpression))
+                {
+                    Reason ??= "Fragment shader return expression could not be translated.";
+                    return SyntaxFactory.EmptyStatement();
+                }
+
+                return SyntaxFactory.ParseStatement("fragColor = " + fragmentExpression + ";");
+            }
+
+            if (_returnType is null)
+            {
+                Reason ??= "Vertex shader return type must be a varying payload struct.";
+                return SyntaxFactory.EmptyStatement();
+            }
+
+            var assignments = new List<StatementSyntax>();
+            foreach (var field in _returnType.GetMembers().OfType<IFieldSymbol>().Where(field => !field.IsStatic))
+            {
+                if (!_outputFields.TryGetValue(field, out var outputName))
+                {
+                    Reason ??= $"Vertex output field '{field.Name}' has no stage mapping.";
+                    continue;
+                }
+
+                var value = FindReturnedFieldValue(node.Expression, field);
+                var expression = value is not null
+                    ? Visit(value)?.ToFullString().Trim()
+                    : _model.GetTypeInfo(node.Expression).Type is INamedTypeSymbol expressionType &&
+                        SymbolEqualityComparer.Default.Equals(expressionType, _returnType) &&
+                        _directFields.TryGetValue(field, out var directFieldName)
+                        ? directFieldName
+                        : null;
+                if (string.IsNullOrWhiteSpace(expression))
+                {
+                    Reason ??= $"Vertex return value does not initialize field '{field.Name}'.";
+                    continue;
+                }
+
+                assignments.Add(SyntaxFactory.ParseStatement(outputName + " = " + expression + ";"));
+            }
+
+            return SyntaxFactory.Block(assignments);
+        }
+
+        private ExpressionSyntax? FindReturnedFieldValue(ExpressionSyntax expression, IFieldSymbol field)
+        {
+            if (expression is ObjectCreationExpressionSyntax creation && creation.Initializer is { } initializer)
+            {
+                return initializer.Expressions
+                    .OfType<AssignmentExpressionSyntax>()
+                    .FirstOrDefault(assignment => string.Equals(assignment.Left.ToString(), field.Name, StringComparison.Ordinal))?.Right;
+            }
+
+            return null;
         }
 
         private bool TryTranslateShaderBuiltinMember(

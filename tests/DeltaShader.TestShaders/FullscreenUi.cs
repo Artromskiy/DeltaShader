@@ -15,46 +15,73 @@ internal static class FullscreenUi
         }
     }
 
+    [Varying]
+    public struct UiVarying
+    {
+        [Position]
+        public float4 Position;
+        public float2 Uv;
+    }
+
+    public readonly struct VertexContext
+    {
+        [Varying]
+        public readonly UiVarying Vertex;
+
+        [PushConstant]
+        public readonly UiPushConstants Constants;
+    }
+
+    public readonly struct FragmentContext
+    {
+        [Varying]
+        public readonly UiVarying Fragment;
+
+        [PushConstant]
+        public readonly UiPushConstants Constants;
+    }
+
     [VertexShader]
-    public static void Vertex(
-        [Position] out float4 position,
-        [ShaderVarying(0)] out float2 uv)
+    public static UiVarying Vertex(in VertexContext context)
     {
         uint vertexIndex = ShaderBuiltins.VertexIndex;
-        position = default;
-        uv = default;
 
         if (vertexIndex == 0u)
         {
-            position = new float4(-1f, -1f, 0f, 1f);
-            uv = new float2(0f, 0f);
+            return new UiVarying
+            {
+                Position = new float4(-1f, -1f, 0f, 1f),
+                Uv = new float2(0f, 0f)
+            };
         }
+
         if (vertexIndex == 1u)
         {
-            position = new float4(3f, -1f, 0f, 1f);
-            uv = new float2(2f, 0f);
+            return new UiVarying
+            {
+                Position = new float4(3f, -1f, 0f, 1f),
+                Uv = new float2(2f, 0f)
+            };
         }
-        if (vertexIndex == 2u)
+
+        return new UiVarying
         {
-            position = new float4(-1f, 3f, 0f, 1f);
-            uv = new float2(0f, 2f);
-        }
+            Position = new float4(-1f, 3f, 0f, 1f),
+            Uv = new float2(0f, 2f)
+        };
     }
 
     [FragmentShader]
-    public static void Fragment(
-        [PushConstant] UiPushConstants constants,
-        [ShaderVarying(0)] float2 uv,
-        [FragmentColor] out float4 color)
+    public static float4 Fragment(in FragmentContext context)
     {
         float2 fragmentCoord = new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y);
-        var p = (fragmentCoord / constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = (fragmentCoord / context.Constants.Resolution) * 2f - new float2(1f, 1f);
         var halfSize = new float2(0.55f, 0.32f);
         var q = maths.abs(p) - halfSize + 0.12f;
         var distance = maths.length(maths.max(q, new float2(0f, 0f))) + maths.min(maths.max(q.x, q.y), 0f) - 0.12f;
         var edge = ShaderIntrinsics.fwidth(distance);
         var mask = 1f - maths.smoothStep(-edge, edge, distance);
-        var tint = 0.5f + 0.5f * maths.sin(constants.Time);
-        color = new float4(0.08f + 0.2f * mask, 0.12f + 0.4f * mask, 0.2f + 0.5f * tint * mask, 1f);
+        var tint = 0.5f + 0.5f * maths.sin(context.Constants.Time);
+        return new float4(0.08f + 0.2f * mask, 0.12f + 0.4f * mask, 0.2f + 0.5f * tint * mask, 1f);
     }
 }

@@ -338,7 +338,7 @@ public class IntrinsicCatalogTests
             {
                 public static class StorageBufferEntry
                 {
-                    [Compute(localSizeX: 8, localSizeY: 2, localSizeZ: 4)]
+                    [ComputeShader(localSizeX: 8, localSizeY: 2, localSizeZ: 4)]
                     public readonly struct ComputeContext
                     {
                         [Layout(0, 0)] public readonly ReadOnlyStorageBuffer<float3> input;
@@ -391,7 +391,7 @@ public class IntrinsicCatalogTests
                         [PushConstant] public readonly fix FixValue;
                     }
 
-                    [Compute]
+                    [ComputeShader]
                     public static void Compute(in ComputeContext context) { }
                 }
             }
@@ -413,7 +413,7 @@ public class IntrinsicCatalogTests
             {
                 public static class InvalidParamEntry
                 {
-                    [Compute]
+                    [ComputeShader]
                     public static void Compute(
                         [Layout(0, 0)] ReadOnlyStorageBuffer<uint> input,
                         uint invocationIndex)
@@ -439,7 +439,7 @@ public class IntrinsicCatalogTests
             {
                 public static class ProfileMismatch
                 {
-                    [Compute(localSizeX: 1)]
+                    [ComputeShader(localSizeX: 1)]
                     public static void Compute(
                         [Layout(0, 0)] ReadOnlyStorageBuffer<float> input)
                     {
@@ -473,7 +473,7 @@ public class IntrinsicCatalogTests
                         [Layout(1, 0)] public readonly ReadWriteStorageBuffer<float> Second;
                     }
 
-                    [Compute]
+                    [ComputeShader]
                     public static void Compute(in ComputeContext context)
                     { }
                 }
@@ -514,7 +514,7 @@ public class IntrinsicCatalogTests
                         [Layout(0, 1)] public readonly ReadWriteStorageBuffer<TransformRecord> output;
                     }
 
-                    [Compute(localSizeX: 8)]
+                    [ComputeShader(localSizeX: 8)]
                     public static void Compute(in ComputeContext context)
                     {
                         uint invocation = ShaderBuiltins.GlobalInvocationId.X;
@@ -560,7 +560,7 @@ public class IntrinsicCatalogTests
                     public static class ExplicitEntry
                     {
                         public struct Context { [Layout(0, 0)] public ReadOnlyStorageBuffer<ExplicitRecord> Input; }
-                        [Compute] public static void Compute(in Context context) { }
+                        [ComputeShader] public static void Compute(in Context context) { }
                     }
                 }
             ", ExpectedId: ShaderDiagnosticId.DSH006),
@@ -572,7 +572,7 @@ public class IntrinsicCatalogTests
                     public static class ManagedEntry
                     {
                         public struct Context { [Layout(0, 0)] public ReadOnlyStorageBuffer<ManagedRecord> Input; }
-                        [Compute] public static void Compute(in Context context) { }
+                        [ComputeShader] public static void Compute(in Context context) { }
                     }
                 }
             ", ExpectedId: ShaderDiagnosticId.DSH010),
@@ -584,7 +584,7 @@ public class IntrinsicCatalogTests
                     public static class RecursiveEntry
                     {
                         public struct Context { [Layout(0, 0)] public ReadOnlyStorageBuffer<RecursiveRecord> Input; }
-                        [Compute] public static void Compute(in Context context) { }
+                        [ComputeShader] public static void Compute(in Context context) { }
                     }
                 }
             ", ExpectedId: ShaderDiagnosticId.DSH010),
@@ -596,7 +596,7 @@ public class IntrinsicCatalogTests
                     public static class ArrayFieldEntry
                     {
                         public struct Context { [Layout(0, 0)] public ReadOnlyStorageBuffer<ArrayFieldRecord> Input; }
-                        [Compute] public static void Compute(in Context context) { }
+                        [ComputeShader] public static void Compute(in Context context) { }
                     }
                 }
             ", ExpectedId: ShaderDiagnosticId.DSH010)
@@ -620,7 +620,7 @@ public class IntrinsicCatalogTests
                 public static class EntryParameter
                 {
                     public struct Context { [PushConstant] public string Value; }
-                    [Compute] public static void Compute(in Context context) { }
+                    [ComputeShader] public static void Compute(in Context context) { }
                 }
             ",
             @"
@@ -630,7 +630,7 @@ public class IntrinsicCatalogTests
                 public static class StorageEntry
                 {
                     public struct Context { [Layout(0, 0)] public ReadOnlyStorageBuffer<StorageRecord> Values; }
-                    [Compute] public static void Compute(in Context context) { }
+                    [ComputeShader] public static void Compute(in Context context) { }
                 }
             ",
             @"
@@ -639,7 +639,7 @@ public class IntrinsicCatalogTests
                 public static class RecursiveEntry
                 {
                     public struct Context { [Layout(0, 0)] public ReadOnlyStorageBuffer<RecursiveRecord> Values; }
-                    [Compute] public static void Compute(in Context context) { }
+                    [ComputeShader] public static void Compute(in Context context) { }
                 }
             "
         };
@@ -683,7 +683,7 @@ public class IntrinsicCatalogTests
                     [PushConstant] public readonly uint Count;
                 }
 
-                [Compute] public static void Compute(in Context context) { }
+                [ComputeShader] public static void Compute(in Context context) { }
             }";
 
         ShaderCompilationResult validResult = await CompileAndValidateEntryPointAsync(validSource).ConfigureAwait(true);
@@ -1445,7 +1445,7 @@ public class IntrinsicCatalogTests
 
             public static class ContextCompute
             {
-                [Compute(localSizeX: 64)]
+                [ComputeShader(localSizeX: 64)]
                 public static void Compute(in UserDefinedComputeContext ctx)
                 {
                     if (ShaderBuiltins.GlobalInvocationId.X < ctx.Count)
@@ -1481,7 +1481,7 @@ public class IntrinsicCatalogTests
 
             public static class ParametersCompute
             {
-                [Compute]
+                [ComputeShader]
                 public static void Compute(in ParametersContext ctx)
                 {
                 }
@@ -1510,7 +1510,7 @@ public class IntrinsicCatalogTests
 
             public static class InvalidContextCompute
             {
-                [Compute]
+                [ComputeShader]
                 public static void Compute(in InvalidContext ctx)
                 {
                 }
@@ -1541,10 +1541,10 @@ public class IntrinsicCatalogTests
 
             public static class MigrationDiagnostics
             {
-                [Compute]
+                [ComputeShader]
                 public static void Context(in ValidContext ctx) { }
 
-                [Compute]
+                [ComputeShader]
                 public static void Legacy() { }
             }";
 
@@ -1578,7 +1578,7 @@ public class IntrinsicCatalogTests
 
             public static class ContextCompute
             {
-                [Compute(localSizeX: 64)]
+                [ComputeShader(localSizeX: 64)]
                 public static void Compute(in UserDefinedComputeContext ctx)
                 {
                     if (ShaderBuiltins.GlobalInvocationId.X < ctx.Count)
@@ -1616,7 +1616,7 @@ public class IntrinsicCatalogTests
 
             public static class ParametersCompute
             {
-                [Compute]
+                [ComputeShader]
                 public static void Compute(in ParametersContext ctx)
                 {
                 }
@@ -1646,7 +1646,7 @@ public class IntrinsicCatalogTests
 
             public static class InvalidContextCompute
             {
-                [Compute]
+                [ComputeShader]
                 public static void Compute(in InvalidContext ctx)
                 {
                 }
@@ -1677,10 +1677,10 @@ public class IntrinsicCatalogTests
 
             public static class MigrationDiagnostics
             {
-                [Compute]
+                [ComputeShader]
                 public static void Context(in ValidContext ctx) { }
 
-                [Compute]
+                [ComputeShader]
                 public static void Legacy() { }
             }";
 
@@ -1718,7 +1718,7 @@ public class IntrinsicCatalogTests
                     [Layout(0, 1)] public readonly ReadWriteStorageBuffer<float> Output;
                 }
 
-                [Compute(localSizeX: 64)]
+                [ComputeShader(localSizeX: 64)]
                 public static void Compute(in ComputeContext context)
                 {
                     uint invocation = ShaderBuiltins.GlobalInvocationId.X;
@@ -1748,7 +1748,7 @@ public class IntrinsicCatalogTests
                     [Layout(0, 1)] public readonly ReadWriteStorageBuffer<uint> Output;
                 }
 
-                [Compute(localSizeX: 64)]
+                [ComputeShader(localSizeX: 64)]
                 public static void Compute(in ComputeContext context)
                 {
                     uint id = ShaderBuiltins.GlobalInvocationId.X;
@@ -1785,7 +1785,7 @@ public class IntrinsicCatalogTests
                     [Layout(0, 1)] public readonly ReadWriteStorageBuffer<float4> Output;
                 }
 
-                [Compute(localSizeX: 8)]
+                [ComputeShader(localSizeX: 8)]
                 public static void Compute(in ComputeContext context)
                 {
                     uint id = ShaderBuiltins.GlobalInvocationId.X;
@@ -1812,7 +1812,7 @@ public class IntrinsicCatalogTests
 
             public static class InvalidComputeTexture
             {
-                [Compute]
+                [ComputeShader]
                 public static void Compute([Layout(0, 0)] SampledTexture2D atlas)
                 {
                 }
@@ -1836,7 +1836,7 @@ public class IntrinsicCatalogTests
                     [Layout(0, 1)] public readonly ReadWriteStorageBuffer<uint> Output;
                 }
 
-                [Compute(localSizeX: 8)]
+                [ComputeShader(localSizeX: 8)]
                 public static void Compute(in ComputeContext context)
                 {
                     uint id = ShaderBuiltins.GlobalInvocationId.X;
@@ -1870,7 +1870,7 @@ public class IntrinsicCatalogTests
                     [Layout(0, 0)] public ReadOnlyStorageBuffer<ManagedPayload> Input;
                 }
 
-                [Compute]
+                [ComputeShader]
                 public static void Compute(in Context context)
                 {
                 }
@@ -1899,7 +1899,7 @@ public class IntrinsicCatalogTests
                     [Layout(0, 1)] public readonly ReadWriteStorageBuffer<float> Output;
                 }
 
-                [Compute(localSizeX: 64)]
+                [ComputeShader(localSizeX: 64)]
                 public static void Compute(in ComputeContext context)
                 {
                     uint invocation = ShaderBuiltins.GlobalInvocationId.X;
@@ -1982,7 +1982,7 @@ public class IntrinsicCatalogTests
                     [Layout(0, 1)] public readonly ReadWriteStorageBuffer<uint> Output;
                 }
 
-                [Compute(localSizeX: 64)]
+                [ComputeShader(localSizeX: 64)]
                 public static void Compute(in ComputeContext context)
                 {
                     string managed = ""not a shader value"";

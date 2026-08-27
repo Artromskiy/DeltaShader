@@ -7,18 +7,16 @@ namespace Delta.Shader.ShadertoyGallery;
 internal static class Example09_RainbowSectors
 {
     [FragmentShader]
-    public static void RainbowSectors(
-        [PushConstant] GalleryConstants constants,
-        [FragmentColor] out float4 color)
+    public static float4 RainbowSectors(in GalleryFragmentContext context)
     {
-        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / constants.Resolution) * 2f - new float2(1f, 1f);
-        var angle = maths.atan(p.y / (maths.abs(p.x) + 0.001f)) + constants.Time * 0.4f;
+        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution) * 2f - new float2(1f, 1f);
+        var angle = maths.atan(p.y / (maths.abs(p.x) + 0.001f)) + context.Constants.Time * 0.4f;
         var radius = maths.length(p);
         var sector = 0.5f + 0.5f * maths.cos(angle * 8f);
         var red = 0.5f + 0.5f * maths.cos(angle + 0.0f);
         var green = 0.5f + 0.5f * maths.cos(angle + 2.094f);
         var blue = 0.5f + 0.5f * maths.cos(angle + 4.188f);
         var fade = maths.max(0f, 1f - radius);
-        color = new float4(fade * red * (0.35f + 0.65f * sector), fade * green, fade * blue * (1.1f - sector * 0.4f), 1f);
+        return new float4(fade * red * (0.35f + 0.65f * sector), fade * green, fade * blue * (1.1f - sector * 0.4f), 1f);
     }
 }

@@ -7,11 +7,9 @@ namespace Delta.Shader.ShadertoyGallery;
 internal static class Example05_VoronoiCells
 {
     [FragmentShader]
-    public static void VoronoiCells(
-        [PushConstant] GalleryConstants constants,
-        [FragmentColor] out float4 color)
+    public static float4 VoronoiCells(in GalleryFragmentContext context)
     {
-        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution) * 2f - new float2(1f, 1f);
         var grid = p * 4f;
         var cell = new float2(grid.x - maths.floor(grid.x), grid.y - maths.floor(grid.y));
         var nearest = 1.5f;
@@ -29,6 +27,6 @@ internal static class Example05_VoronoiCells
                 ring += maths.exp(-distance * distance * 28f);
             }
         }
-        color = new float4(0.03f + 0.5f * ring, 0.1f + 0.65f * nearest, 0.35f + 0.5f * (1f - nearest), 1f);
+        return new float4(0.03f + 0.5f * ring, 0.1f + 0.65f * nearest, 0.35f + 0.5f * (1f - nearest), 1f);
     }
 }

@@ -19,11 +19,11 @@ public sealed class RoslynFrontend
         _compilation = compilation;
         _stageAttributes = new Dictionary<ShaderStage, ITypeSymbol?>
         {
-            [ShaderStage.Compute] = compilation.GetTypeByMetadataName(GetMetadataName(typeof(ComputeAttribute))),
+            [ShaderStage.Compute] = compilation.GetTypeByMetadataName(GetMetadataName(typeof(ComputeShaderAttribute))),
             [ShaderStage.Vertex] = compilation.GetTypeByMetadataName(GetMetadataName(typeof(VertexShaderAttribute))),
             [ShaderStage.Fragment] = compilation.GetTypeByMetadataName(GetMetadataName(typeof(FragmentShaderAttribute)))
         };
-        _deltaComputeAttribute = compilation.GetTypeByMetadataName(GetMetadataName(typeof(ComputeAttribute)));
+        _deltaComputeAttribute = compilation.GetTypeByMetadataName(GetMetadataName(typeof(ComputeShaderAttribute)));
     }
 
     public IReadOnlyList<ShaderEntryPointSymbol> FindComputeEntryPoints()

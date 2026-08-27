@@ -32,20 +32,60 @@ public struct TextParameters
     }
 }
 
+[Varying]
+public struct TextVarying
+{
+    [Position]
+    public float4 Position;
+    public float2 Uv;
+    public float4 GlyphColor;
+}
+
+public readonly struct TextVertexContext
+{
+    [Varying]
+    public readonly TextVarying Vertex;
+
+    [Layout(0, 0)]
+    public readonly ReadOnlyStorageBuffer<GlyphInstance> Glyphs;
+
+    [PushConstant]
+    public readonly TextParameters Parameters;
+}
+
+public readonly struct SdfTextFragmentContext
+{
+    [Varying]
+    public readonly TextVarying Fragment;
+
+    [Layout(0, 3)]
+    public readonly SampledTexture2D Atlas;
+
+    [PushConstant]
+    public readonly TextParameters Parameters;
+}
+
+public readonly struct MsdfTextFragmentContext
+{
+    [Varying]
+    public readonly TextVarying Fragment;
+
+    [Layout(0, 4)]
+    public readonly SampledTexture2D Atlas;
+
+    [PushConstant]
+    public readonly TextParameters Parameters;
+}
+
 public static class TextShaders
 {
     [VertexShader("sdf-text")]
     [SuppressMessage("Design", "CA1062", Justification = "Shader entry points are compile-time authoring methods; the analyzer lowers resource parameters instead of executing them on the CLR.")]
-    public static void SdfTextVertex(
-        [Layout(0, 0)] ReadOnlyStorageBuffer<GlyphInstance> glyphs,
-        [Position] out float4 position,
-        [ShaderVarying(0)] out float2 uv,
-        [ShaderVarying(1)] out float4 glyphColor,
-        [PushConstant] TextParameters parameters)
+    public static TextVarying SdfTextVertex(in TextVertexContext context)
     {
         uint instanceIndex = ShaderBuiltins.InstanceIndex;
         uint vertexIndex = ShaderBuiltins.VertexIndex;
-        var glyph = glyphs[instanceIndex];
+        var glyph = context.Glyphs[instanceIndex];
         var min = glyph.PixelMin;
         var max = glyph.PixelMax;
         var uvMin = new float2(glyph.UvRect.x, glyph.UvRect.y);
@@ -53,65 +93,75 @@ public static class TextShaders
 
         if (vertexIndex == 0u)
         {
-            position = new float4((min.x / parameters.Resolution.x) * 2f - 1f, 1f - (min.y / parameters.Resolution.y) * 2f, 0f, 1f);
-            uv = uvMin;
+            return new TextVarying
+            {
+                Position = new float4((min.x / context.Parameters.Resolution.x) * 2f - 1f, 1f - (min.y / context.Parameters.Resolution.y) * 2f, 0f, 1f),
+                Uv = uvMin,
+                GlyphColor = glyph.Color
+            };
         }
         else if (vertexIndex == 1u)
         {
-            position = new float4((max.x / parameters.Resolution.x) * 2f - 1f, 1f - (min.y / parameters.Resolution.y) * 2f, 0f, 1f);
-            uv = new float2(uvMax.x, uvMin.y);
+            return new TextVarying
+            {
+                Position = new float4((max.x / context.Parameters.Resolution.x) * 2f - 1f, 1f - (min.y / context.Parameters.Resolution.y) * 2f, 0f, 1f),
+                Uv = new float2(uvMax.x, uvMin.y),
+                GlyphColor = glyph.Color
+            };
         }
         else if (vertexIndex == 2u)
         {
-            position = new float4((min.x / parameters.Resolution.x) * 2f - 1f, 1f - (max.y / parameters.Resolution.y) * 2f, 0f, 1f);
-            uv = new float2(uvMin.x, uvMax.y);
+            return new TextVarying
+            {
+                Position = new float4((min.x / context.Parameters.Resolution.x) * 2f - 1f, 1f - (max.y / context.Parameters.Resolution.y) * 2f, 0f, 1f),
+                Uv = new float2(uvMin.x, uvMax.y),
+                GlyphColor = glyph.Color
+            };
         }
         else if (vertexIndex == 3u)
         {
-            position = new float4((min.x / parameters.Resolution.x) * 2f - 1f, 1f - (max.y / parameters.Resolution.y) * 2f, 0f, 1f);
-            uv = new float2(uvMin.x, uvMax.y);
+            return new TextVarying
+            {
+                Position = new float4((min.x / context.Parameters.Resolution.x) * 2f - 1f, 1f - (max.y / context.Parameters.Resolution.y) * 2f, 0f, 1f),
+                Uv = new float2(uvMin.x, uvMax.y),
+                GlyphColor = glyph.Color
+            };
         }
         else if (vertexIndex == 4u)
         {
-            position = new float4((max.x / parameters.Resolution.x) * 2f - 1f, 1f - (min.y / parameters.Resolution.y) * 2f, 0f, 1f);
-            uv = new float2(uvMax.x, uvMin.y);
-        }
-        else
-        {
-            position = new float4((max.x / parameters.Resolution.x) * 2f - 1f, 1f - (max.y / parameters.Resolution.y) * 2f, 0f, 1f);
-            uv = uvMax;
+            return new TextVarying
+            {
+                Position = new float4((max.x / context.Parameters.Resolution.x) * 2f - 1f, 1f - (min.y / context.Parameters.Resolution.y) * 2f, 0f, 1f),
+                Uv = new float2(uvMax.x, uvMin.y),
+                GlyphColor = glyph.Color
+            };
         }
 
-        glyphColor = glyph.Color;
+        return new TextVarying
+        {
+            Position = new float4((max.x / context.Parameters.Resolution.x) * 2f - 1f, 1f - (max.y / context.Parameters.Resolution.y) * 2f, 0f, 1f),
+            Uv = uvMax,
+            GlyphColor = glyph.Color
+        };
     }
 
     [FragmentShader("sdf-text")]
-    public static void SdfTextFragment(
-        [Layout(0, 3)] SampledTexture2D atlas,
-        [ShaderVarying(0)] float2 uv,
-        [ShaderVarying(1)] float4 glyphColor,
-        [PushConstant] TextParameters parameters,
-        [FragmentColor] out float4 color)
+    public static float4 SdfTextFragment(in SdfTextFragmentContext context)
     {
-        var texel = ShaderIntrinsics.SampleFragment<float2, float4>(atlas, uv);
+        var texel = ShaderIntrinsics.SampleFragment<float2, float4>(context.Atlas, context.Fragment.Uv);
         var distance = texel.x - 0.5f;
         var edge = ShaderIntrinsics.fwidth(distance);
         var coverage = maths.smoothStep(-edge, edge, distance);
-        color = parameters.TextColor * glyphColor * coverage;
+        return context.Parameters.TextColor * context.Fragment.GlyphColor * coverage;
     }
 
     [VertexShader("msdf-text")]
     [SuppressMessage("Design", "CA1062", Justification = "Shader entry points are compile-time authoring methods; the analyzer lowers resource parameters instead of executing them on the CLR.")]
-    public static void MsdfTextVertex(
-        [Layout(0, 0)] ReadOnlyStorageBuffer<GlyphInstance> glyphs,
-        [Position] out float4 position,
-        [ShaderVarying(0)] out float2 uv,
-        [ShaderVarying(1)] out float4 glyphColor,
-        [PushConstant] TextParameters parameters)
+    public static TextVarying MsdfTextVertex(in TextVertexContext context)
     {
         uint instanceIndex = ShaderBuiltins.InstanceIndex;
         uint vertexIndex = ShaderBuiltins.VertexIndex;
-        var glyph = glyphs[instanceIndex];
+        var glyph = context.Glyphs[instanceIndex];
         var min = glyph.PixelMin;
         var max = glyph.PixelMax;
         var uvMin = new float2(glyph.UvRect.x, glyph.UvRect.y);
@@ -119,55 +169,71 @@ public static class TextShaders
 
         if (vertexIndex == 0u)
         {
-            position = new float4((min.x / parameters.Resolution.x) * 2f - 1f, 1f - (min.y / parameters.Resolution.y) * 2f, 0f, 1f);
-            uv = uvMin;
+            return new TextVarying
+            {
+                Position = new float4((min.x / context.Parameters.Resolution.x) * 2f - 1f, 1f - (min.y / context.Parameters.Resolution.y) * 2f, 0f, 1f),
+                Uv = uvMin,
+                GlyphColor = glyph.Color
+            };
         }
         else if (vertexIndex == 1u)
         {
-            position = new float4((max.x / parameters.Resolution.x) * 2f - 1f, 1f - (min.y / parameters.Resolution.y) * 2f, 0f, 1f);
-            uv = new float2(uvMax.x, uvMin.y);
+            return new TextVarying
+            {
+                Position = new float4((max.x / context.Parameters.Resolution.x) * 2f - 1f, 1f - (min.y / context.Parameters.Resolution.y) * 2f, 0f, 1f),
+                Uv = new float2(uvMax.x, uvMin.y),
+                GlyphColor = glyph.Color
+            };
         }
         else if (vertexIndex == 2u)
         {
-            position = new float4((min.x / parameters.Resolution.x) * 2f - 1f, 1f - (max.y / parameters.Resolution.y) * 2f, 0f, 1f);
-            uv = new float2(uvMin.x, uvMax.y);
+            return new TextVarying
+            {
+                Position = new float4((min.x / context.Parameters.Resolution.x) * 2f - 1f, 1f - (max.y / context.Parameters.Resolution.y) * 2f, 0f, 1f),
+                Uv = new float2(uvMin.x, uvMax.y),
+                GlyphColor = glyph.Color
+            };
         }
         else if (vertexIndex == 3u)
         {
-            position = new float4((min.x / parameters.Resolution.x) * 2f - 1f, 1f - (max.y / parameters.Resolution.y) * 2f, 0f, 1f);
-            uv = new float2(uvMin.x, uvMax.y);
+            return new TextVarying
+            {
+                Position = new float4((min.x / context.Parameters.Resolution.x) * 2f - 1f, 1f - (max.y / context.Parameters.Resolution.y) * 2f, 0f, 1f),
+                Uv = new float2(uvMin.x, uvMax.y),
+                GlyphColor = glyph.Color
+            };
         }
         else if (vertexIndex == 4u)
         {
-            position = new float4((max.x / parameters.Resolution.x) * 2f - 1f, 1f - (min.y / parameters.Resolution.y) * 2f, 0f, 1f);
-            uv = new float2(uvMax.x, uvMin.y);
-        }
-        else
-        {
-            position = new float4((max.x / parameters.Resolution.x) * 2f - 1f, 1f - (max.y / parameters.Resolution.y) * 2f, 0f, 1f);
-            uv = uvMax;
+            return new TextVarying
+            {
+                Position = new float4((max.x / context.Parameters.Resolution.x) * 2f - 1f, 1f - (min.y / context.Parameters.Resolution.y) * 2f, 0f, 1f),
+                Uv = new float2(uvMax.x, uvMin.y),
+                GlyphColor = glyph.Color
+            };
         }
 
-        glyphColor = glyph.Color;
+        return new TextVarying
+        {
+            Position = new float4((max.x / context.Parameters.Resolution.x) * 2f - 1f, 1f - (max.y / context.Parameters.Resolution.y) * 2f, 0f, 1f),
+            Uv = uvMax,
+            GlyphColor = glyph.Color
+        };
     }
 
     [FragmentShader("msdf-text")]
-    public static void MsdfTextFragment(
-        [Layout(0, 4)] SampledTexture2D atlas,
-        [ShaderVarying(0)] float2 uv,
-        [ShaderVarying(1)] float4 glyphColor,
-        [PushConstant] TextParameters parameters,
-        [FragmentColor] out float4 color)
+    public static float4 MsdfTextFragment(in MsdfTextFragmentContext context)
     {
-        var texel = ShaderIntrinsics.SampleFragment<float2, float4>(atlas, uv);
+        var texel = ShaderIntrinsics.SampleFragment<float2, float4>(context.Atlas, context.Fragment.Uv);
         var median = maths.max(
             maths.min(texel.x, texel.y),
             maths.min(maths.max(texel.x, texel.y), texel.z));
         var signedDistance = median - 0.5f;
         var edge = ShaderIntrinsics.fwidth(signedDistance);
         var fillCoverage = maths.smoothStep(-edge, edge, signedDistance);
-        var outerCoverage = maths.smoothStep(-edge, edge, signedDistance + parameters.OutlineWidth);
+        var outerCoverage = maths.smoothStep(-edge, edge, signedDistance + context.Parameters.OutlineWidth);
         var outlineContribution = maths.max(outerCoverage - fillCoverage, 0f);
-        color = parameters.TextColor * glyphColor * fillCoverage + parameters.OutlineColor * glyphColor * outlineContribution;
+        return context.Parameters.TextColor * context.Fragment.GlyphColor * fillCoverage +
+            context.Parameters.OutlineColor * context.Fragment.GlyphColor * outlineContribution;
     }
 }

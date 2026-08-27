@@ -28,25 +28,14 @@ public enum VertexInputRate
     Instance = 1
 }
 
-[AttributeUsage(AttributeTargets.Parameter, Inherited = false, AllowMultiple = false)]
+[AttributeUsage(AttributeTargets.Field, Inherited = false, AllowMultiple = false)]
 public sealed class PositionAttribute : Attribute
 {
 }
 
-[AttributeUsage(AttributeTargets.Parameter, Inherited = false, AllowMultiple = false)]
-public sealed class FragmentColorAttribute : Attribute
+[AttributeUsage(AttributeTargets.Struct | AttributeTargets.Field, Inherited = false, AllowMultiple = false)]
+public sealed class VaryingAttribute : Attribute
 {
-}
-
-[AttributeUsage(AttributeTargets.Parameter, Inherited = false, AllowMultiple = false)]
-public sealed class ShaderVaryingAttribute : Attribute
-{
-    public uint Location { get; }
-
-    public ShaderVaryingAttribute(uint location)
-    {
-        Location = location;
-    }
 }
 
 [AttributeUsage(AttributeTargets.Method, Inherited = false, AllowMultiple = false)]
