@@ -13,7 +13,7 @@ public struct GalleryConstants
 }
 #pragma warning restore CA1051, CA1815
 
-[Varying]
+[Interstage]
 public struct GalleryVarying
 {
     [Position]
@@ -22,7 +22,7 @@ public struct GalleryVarying
 
 public readonly struct GalleryFragmentContext
 {
-    [Varying]
+    [Interstage]
     public readonly GalleryVarying Varying;
 
     [PushConstant]

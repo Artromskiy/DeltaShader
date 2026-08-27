@@ -13,7 +13,7 @@ public enum ShaderBindingKind
     VertexInput,
 }
 
-[AttributeUsage(AttributeTargets.Field, Inherited = false, AllowMultiple = false)]
+[AttributeUsage(AttributeTargets.Parameter | AttributeTargets.Field, Inherited = false, AllowMultiple = false)]
 public sealed class LayoutAttribute : Attribute
 {
     public LayoutAttribute(uint location)
@@ -35,7 +35,7 @@ public sealed class LayoutAttribute : Attribute
     public uint Location { get; }
 }
 
-[AttributeUsage(AttributeTargets.Field, Inherited = false, AllowMultiple = false)]
+[AttributeUsage(AttributeTargets.Parameter | AttributeTargets.Field, Inherited = false, AllowMultiple = false)]
 public sealed class PushConstantAttribute : Attribute
 {
 }

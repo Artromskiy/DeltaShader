@@ -660,12 +660,17 @@ public class IntrinsicCatalogTests
             using Delta.Shader;
             public class CpuOnlyHelper { public string Name; }
             public struct Constants { public CpuOnlyHelper Helper; }
+            [Interstage]
+            public struct FragmentPayload { [Position] public float4 Position; }
+            public struct FragmentContext
+            {
+                [Interstage] public FragmentPayload Fragment;
+                [PushConstant] public Constants Constants;
+            }
             public static class InvalidFragment
             {
-                [FragmentShader] public static void Fragment(
-                    [PushConstant] Constants constants,
-                    [FragmentColor] out float4 color)
-                { color = new float4(1f, 0f, 0f, 1f); }
+                [FragmentShader] public static float4 Fragment(in FragmentContext context)
+                    => new float4(1f, 0f, 0f, 1f);
             }";
 
         Compilation invalidCompilation = await LoadCompilerTestProjectCompilationAsync(invalidSource).ConfigureAwait(true);
@@ -698,12 +703,17 @@ public class IntrinsicCatalogTests
             using Delta.Shader;
             public class CpuOnlyHelper { public string Name; }
             public struct Constants { public CpuOnlyHelper Helper; }
+            [Interstage]
+            public struct FragmentPayload { [Position] public float4 Position; }
+            public struct FragmentContext
+            {
+                [Interstage] public FragmentPayload Fragment;
+                [PushConstant] public Constants Constants;
+            }
             public static class InvalidGraphics
             {
-                [FragmentShader] public static void Fragment(
-                    [PushConstant] Constants constants,
-                    [FragmentColor] out float4 color)
-                { color = new float4(1f, 0f, 0f, 1f); }
+                [FragmentShader] public static float4 Fragment(in FragmentContext context)
+                    => new float4(1f, 0f, 0f, 1f);
             }";
 
         Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
@@ -723,12 +733,24 @@ public class IntrinsicCatalogTests
             namespace Delta.Shader.Compiler.Tests.Fixtures
             {
                 public struct Constants { public float2 Resolution; public float Time; }
+                [Interstage]
+                public struct GraphicsPayload
+                {
+                    [Position] public float4 Position;
+                    public float2 Uv;
+                }
+                public struct VertexContext { [Interstage] public GraphicsPayload Vertex; }
+                public struct FragmentContext
+                {
+                    [Interstage] public GraphicsPayload Fragment;
+                    [PushConstant] public Constants Constants;
+                }
                 public static class Graphics
                 {
-                    [VertexShader(""FullscreenVertex"")] public static void Vertex([Position] out float4 position, [ShaderVarying(0)] out float2 uv)
-                    { uint index = ShaderBuiltins.VertexIndex; position = new float4(-1f, -1f, 0f, 1f); uv = new float2(index, 0f); }
-                    [FragmentShader(""FullscreenFragment"")] public static void Fragment([PushConstant] Constants constants, [ShaderVarying(0)] float2 uv, [FragmentColor] out float4 color)
-                    { var coord = new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y); var normalized = float2.Normalize(uv); var edge = ShaderIntrinsics.fwidth(coord.x); color = new float4(edge, constants.Time, normalized.x, 1f); }
+                    [VertexShader(""FullscreenVertex"")] public static GraphicsPayload Vertex(in VertexContext context)
+                        => new GraphicsPayload { Position = new float4(-1f, -1f, 0f, 1f), Uv = new float2(ShaderBuiltins.VertexIndex, 0f) };
+                    [FragmentShader(""FullscreenFragment"")] public static float4 Fragment(in FragmentContext context)
+                        => new float4(ShaderIntrinsics.fwidth(ShaderBuiltins.FragmentCoord.X), context.Constants.Time, float2.Normalize(context.Fragment.Uv).x, 1f);
                 }
             }";
 
@@ -756,16 +778,20 @@ public class IntrinsicCatalogTests
                 public float4x4 View;
                 public float4x4 Projection;
             }
+            [Interstage]
+            public struct VertexPayload { [Position] public float4 Position; }
+            public struct VertexContext
+            {
+                [Interstage] public VertexPayload Vertex;
+                [PushConstant] public TransformConstants Constants;
+            }
             public static class TransformConformance
             {
                 [VertexShader(""CubeVertex"")]
-                public static void Vertex(
-                    [PushConstant] TransformConstants constants,
-                    [Position] out float4 position)
+                public static VertexPayload Vertex(in VertexContext context) => new VertexPayload
                 {
-                    var vertex = new float3(1f, 2f, 3f);
-                    position = constants.Projection * constants.View * constants.Model * new float4(vertex, 1f);
-                }
+                    Position = context.Constants.Projection * context.Constants.View * context.Constants.Model * new float4(1f, 2f, 3f, 1f)
+                };
             }";
 
         Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
@@ -830,23 +856,29 @@ public class IntrinsicCatalogTests
                 public float4 LightColor;
             }
 
+            [Interstage]
+            public struct CubePayload
+            {
+                [Position] [Layout(0)] public float4 Position;
+                [Layout(1)] public float3 Normal;
+                [Layout(2)] public float2 Uv;
+            }
+
+            public struct VertexContext
+            {
+                [Interstage] public CubePayload Vertex;
+                [Layout(0, 0)] public ReadOnlyStorageBuffer<SceneParameters> Scene;
+            }
+
             public static class EditorViewportCube
             {
                 [VertexShader(""EditorViewportCubeVertex"")]
-                public static void Vertex(
-                    [Layout(0)] float3 position,
-                    [Layout(1)] float3 normal,
-                    [Layout(2)] float2 uv,
-                    [Layout(0, 0)] ReadOnlyStorageBuffer<SceneParameters> scene,
-                    [Position] out float4 clipPosition,
-                    [ShaderVarying(0)] out float3 worldNormal,
-                    [ShaderVarying(1)] out float2 texCoord)
+                public static CubePayload Vertex(in VertexContext context) => new CubePayload
                 {
-                    var modelPosition = scene[0].Model * new float4(position, 1f);
-                    clipPosition = scene[0].Projection * scene[0].View * modelPosition;
-                    worldNormal = maths.normalize((scene[0].Model * new float4(normal, 0f)).xyz);
-                    texCoord = uv;
-                }
+                    Position = context.Scene[0].Projection * context.Scene[0].View * context.Scene[0].Model * context.Vertex.Position,
+                    Normal = maths.normalize((context.Scene[0].Model * new float4(context.Vertex.Normal, 0f)).xyz),
+                    Uv = context.Vertex.Uv
+                };
             }";
 
         Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
@@ -904,23 +936,32 @@ public class IntrinsicCatalogTests
                 public float Value;
             }
 
+            [Interstage]
+            public struct FragmentPayload { [Position] public float4 Position; }
+            [Interstage]
+            public struct VertexPayload
+            {
+                [Position] [Layout(0)] public float4 First;
+                [Layout(0)] public float2 Duplicate;
+                [Layout(1)] public ManagedData Managed;
+            }
+            public struct FragmentContext
+            {
+                [Interstage] public FragmentPayload Fragment;
+                [Layout(0)] public SampledTexture2D Texture;
+            }
+            public struct VertexContext
+            {
+                [Interstage] public VertexPayload Vertex;
+            }
             public static class InvalidViewport
             {
                 [FragmentShader(""Fragment"")]
-                public static void Fragment([Layout(0)] float3 position, [FragmentColor] out float4 color)
-                {
-                    color = new float4(position, 1f);
-                }
+                public static float4 Fragment(in FragmentContext context)
+                    => new float4(context.Fragment.Position.xyz, 1f);
 
                 [VertexShader(""Vertex"")]
-                public static void Vertex(
-                    [Layout(0)] float3 first,
-                    [Layout(0)] float2 duplicate,
-                    [Layout(1)] ManagedData managed,
-                    [Position] out float4 position)
-                {
-                    position = new float4(first, 1f);
-                }
+                public static VertexPayload Vertex(in VertexContext context) => context.Vertex;
             }";
 
         Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
@@ -943,10 +984,13 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta.Maths;
             using Delta.Shader;
+            [Interstage]
+            public struct VertexPayload { [Position] public float4 Position; }
+            public struct VertexContext { [Interstage] public VertexPayload Vertex; }
             public static class InvalidGraphics
             {
-                [VertexShader] public static void Vertex([Position] out float4 position)
-                { position = new float4(ShaderBuiltins.FragmentCoord.X, 0f, 0f, 1f); }
+                [VertexShader] public static VertexPayload Vertex(in VertexContext context)
+                    => new VertexPayload { Position = new float4(ShaderBuiltins.FragmentCoord.X, 0f, 0f, 1f) };
             }";
 
         Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
@@ -961,11 +1005,13 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta.Maths;
             using Delta.Shader;
+            [Interstage]
+            public struct VertexPayload { [Position] public float4 Position; }
+            public struct VertexContext { [Interstage] public VertexPayload Vertex; }
             public static class FullscreenUi
             {
-                [VertexShader] public static void Vertex(
-                    [Position] out float4 position)
-                { uint index = ShaderBuiltins.VertexIndex; position = default; }
+                [VertexShader] public static VertexPayload Vertex(in VertexContext context)
+                    => new VertexPayload { Position = default };
             }";
 
         Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
@@ -991,30 +1037,39 @@ public class IntrinsicCatalogTests
                     public float4 OutlineColor;
                     public float OutlineWidth;
                 }
+                [Interstage]
+                public struct TexturePayload
+                {
+                    [Position] public float4 Position;
+                    public float2 Uv;
+                }
+                public struct VertexContext
+                {
+                    [Interstage] public TexturePayload Vertex;
+                    [Layout(0, 1)] public SampledTexture2D Atlas;
+                }
+                public struct FragmentContext
+                {
+                    [Interstage] public TexturePayload Fragment;
+                    [Layout(0, 2)] public SampledTexture2D Atlas;
+                    [PushConstant] public TextParameters Parameters;
+                }
 
                 [VertexShader(""sdf-text"")]
-                public static void Vertex(
-                    [Layout(0, 1)] SampledTexture2D atlas,
-                    [Position] out float4 position,
-                    [ShaderVarying(0)] out float2 uv)
+                public static TexturePayload Vertex(in VertexContext context)
                 {
-                    var sampled = ShaderIntrinsics.SampleVertex<float2, float4>(atlas, new float2(0.5f, 0.5f));
-                    position = sampled;
-                    uv = new float2(0.5f, 0.5f);
+                    var sampled = ShaderIntrinsics.SampleVertex<float2, float4>(context.Atlas, new float2(0.5f, 0.5f));
+                    return new TexturePayload { Position = sampled, Uv = new float2(0.5f, 0.5f) };
                 }
 
                 [FragmentShader(""sdf-text"")]
-                public static void Fragment(
-                    [Layout(0, 2)] SampledTexture2D atlas,
-                    [ShaderVarying(0)] float2 uv,
-                    [PushConstant] TextParameters parameters,
-                    [FragmentColor] out float4 color)
+                public static float4 Fragment(in FragmentContext context)
                 {
-                    var texel = ShaderIntrinsics.SampleFragment<float2, float4>(atlas, uv);
+                    var texel = ShaderIntrinsics.SampleFragment<float2, float4>(context.Atlas, context.Fragment.Uv);
                     var median = maths.max(maths.min(texel.x, texel.y), maths.min(maths.max(texel.x, texel.y), texel.z));
                     var edge = ShaderIntrinsics.fwidth(median - 0.5f);
                     var coverage = 1f - maths.smoothStep(-edge, edge, median - 0.5f);
-                    color = parameters.TextColor * coverage + parameters.OutlineColor * (1f - coverage) * parameters.OutlineWidth;
+                    return context.Parameters.TextColor * coverage + context.Parameters.OutlineColor * (1f - coverage) * context.Parameters.OutlineWidth;
                 }
             }";
 
@@ -1059,15 +1114,18 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta.Maths;
             using Delta.Shader;
+            [Interstage]
+            public struct FragmentPayload { [Position] public float4 Position; }
+            public struct FragmentContext
+            {
+                [Interstage] public FragmentPayload Fragment;
+                [Layout(0)] public SampledTexture2D Atlas;
+            }
             public static class InvalidTextureStage
             {
                 [FragmentShader]
-                public static void Fragment(
-                    [Layout(0)] SampledTexture2D atlas,
-                    [FragmentColor] out float4 color)
-                {
-                    color = new float4(1f, 1f, 1f, 1f);
-                }
+                public static float4 Fragment(in FragmentContext context)
+                    => new float4(1f, 1f, 1f, 1f);
             }";
 
         Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
@@ -1083,22 +1141,26 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta.Maths;
             using Delta.Shader;
+            [Interstage]
+            public struct FragmentPayload { [Position] public float4 Position; }
+            [Interstage]
+            public struct VertexPayload { [Position] public float4 Position; }
+            public struct FragmentContext { [Interstage] public FragmentPayload Fragment; }
+            public struct VertexContext { [Interstage] public VertexPayload Vertex; }
             public static class DerivativeStages
             {
                 [FragmentShader]
-                public static void Fragment([FragmentColor] out float4 color)
+                public static float4 Fragment(in FragmentContext context)
                 {
                     var coord = new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y);
                     var dx = ShaderIntrinsics.dFdx(coord.x);
                     var dy = ShaderIntrinsics.dFdy(coord.y);
-                    color = new float4(dx, dy, 0f, 1f);
+                    return new float4(dx, dy, 0f, 1f);
                 }
 
                 [VertexShader]
-                public static void Vertex([Position] out float4 position)
-                {
-                    position = new float4(ShaderIntrinsics.dFdx(1f), 0f, 0f, 1f);
-                }
+                public static VertexPayload Vertex(in VertexContext context)
+                    => new VertexPayload { Position = new float4(ShaderIntrinsics.dFdx(1f), 0f, 0f, 1f) };
             }";
 
         Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
@@ -1140,69 +1202,44 @@ public class IntrinsicCatalogTests
                     public float OutlineWidth;
                 }
 
-                [VertexShader(""sdf-text"")]
-                public static void Vertex(
-                    [Layout(0, 0)] ReadOnlyStorageBuffer<GlyphInstance> glyphs,
-                    [Position] out float4 position,
-                    [ShaderVarying(0)] out float2 uv,
-                    [ShaderVarying(1)] out float4 glyphColor,
-                    [PushConstant] TextParameters parameters)
+                [Interstage]
+                public struct TextPayload
                 {
-                    uint instanceIndex = ShaderBuiltins.InstanceIndex;
-                    uint vertexIndex = ShaderBuiltins.VertexIndex;
-                    var glyph = glyphs[instanceIndex];
-                    var min = glyph.PixelMin;
-                    var max = glyph.PixelMax;
-                    var uvMin = new float2(glyph.UvRect.x, glyph.UvRect.y);
-                    var uvMax = new float2(glyph.UvRect.z, glyph.UvRect.w);
-                    position = new float4(0f, 0f, 0f, 1f);
-                    uv = uvMin;
-                    glyphColor = glyph.Color;
-                    if (vertexIndex == 0u)
-                    {
-                        position = new float4((min.x / parameters.Resolution.x) * 2f - 1f, (min.y / parameters.Resolution.y) * 2f - 1f, 0f, 1f);
-                        uv = uvMin;
-                    }
-                    else if (vertexIndex == 1u)
-                    {
-                        position = new float4((max.x / parameters.Resolution.x) * 2f - 1f, (min.y / parameters.Resolution.y) * 2f - 1f, 0f, 1f);
-                        uv = new float2(uvMax.x, uvMin.y);
-                    }
-                    else if (vertexIndex == 2u)
-                    {
-                        position = new float4((min.x / parameters.Resolution.x) * 2f - 1f, (max.y / parameters.Resolution.y) * 2f - 1f, 0f, 1f);
-                        uv = new float2(uvMin.x, uvMax.y);
-                    }
-                    else if (vertexIndex == 3u)
-                    {
-                        position = new float4((min.x / parameters.Resolution.x) * 2f - 1f, (max.y / parameters.Resolution.y) * 2f - 1f, 0f, 1f);
-                        uv = new float2(uvMin.x, uvMax.y);
-                    }
-                    else if (vertexIndex == 4u)
-                    {
-                        position = new float4((max.x / parameters.Resolution.x) * 2f - 1f, (min.y / parameters.Resolution.y) * 2f - 1f, 0f, 1f);
-                        uv = new float2(uvMax.x, uvMin.y);
-                    }
-                    else
-                    {
-                        position = new float4((max.x / parameters.Resolution.x) * 2f - 1f, (max.y / parameters.Resolution.y) * 2f - 1f, 0f, 1f);
-                        uv = uvMax;
-                    }
+                    [Position] public float4 Position;
+                    public float2 Uv;
+                    public float4 GlyphColor;
                 }
 
-                [FragmentShader(""sdf-text"")]
-                public static void Fragment(
-                    [Layout(0, 3)] SampledTexture2D atlas,
-                    [ShaderVarying(0)] float2 uv,
-                    [ShaderVarying(1)] float4 glyphColor,
-                    [PushConstant] TextParameters parameters,
-                    [FragmentColor] out float4 color)
+                public struct VertexContext
                 {
-                    var texel = ShaderIntrinsics.SampleFragment<float2, float4>(atlas, uv);
+                    [Interstage] public TextPayload Vertex;
+                    [Layout(0, 0)] public ReadOnlyStorageBuffer<GlyphInstance> Glyphs;
+                    [PushConstant] public TextParameters Parameters;
+                }
+
+                public struct FragmentContext
+                {
+                    [Interstage] public TextPayload Fragment;
+                    [Layout(0, 3)] public SampledTexture2D Atlas;
+                    [PushConstant] public TextParameters Parameters;
+                }
+
+                [VertexShader(""sdf-text"")]
+                public static TextPayload Vertex(in VertexContext context) => new TextPayload
+                {
+                    Position = new float4(0f, 0f, 0f, 1f),
+                    Uv = context.Glyphs[ShaderBuiltins.InstanceIndex].UvRect.xy,
+                    GlyphColor = context.Glyphs[ShaderBuiltins.InstanceIndex].Color
+                };
+
+                [FragmentShader(""sdf-text"")]
+                public static float4 Fragment(in FragmentContext context)
+                {
+                    var texel = ShaderIntrinsics.SampleFragment<float2, float4>(context.Atlas, context.Fragment.Uv);
                     var distance = texel.x - 0.5f;
                     var edge = ShaderIntrinsics.fwidth(distance);
                     var coverage = 1f - maths.smoothStep(-edge, edge, distance);
-                    color = parameters.TextColor * glyphColor * coverage;
+                    return context.Parameters.TextColor * context.Fragment.GlyphColor * coverage;
                 }
             }";
 
@@ -1252,16 +1289,26 @@ public class IntrinsicCatalogTests
                     public float4 Color;
                 }
 
+                [Interstage]
+                public struct VertexPayload
+                {
+                    [Position] public float4 Position;
+                }
+
+                public struct VertexContext
+                {
+                    [Interstage] public VertexPayload Vertex;
+                    [Layout(0, 0)] public ReadOnlyStorageBuffer<Payload> Payloads;
+                }
+
                 [VertexShader]
-                public static void Vertex(
-                    [Layout(0, 0)] ReadOnlyStorageBuffer<Payload> payloads,
-                    [Position] out float4 position)
+                public static VertexPayload Vertex(in VertexContext context)
                 {
                     uint index = ShaderBuiltins.VertexIndex;
-                    var payload = payloads[index];
+                    var payload = context.Payloads[index];
                     var copiedColor = payload.Color;
                     var Color = new float4(0.25f, 0.5f, 0.75f, 1f);
-                    position = copiedColor + Color;
+                    return new VertexPayload { Position = copiedColor + Color };
                 }
             }";
 
@@ -1281,13 +1328,14 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta.Maths;
             using Delta.Shader;
+            [Interstage]
+            public struct FragmentPayload { [Position] public float4 Position; }
+            public struct FragmentContext { [Interstage] public FragmentPayload Fragment; }
             public static class InvalidInstanceIndex
             {
                 [FragmentShader]
-                public static void Fragment([FragmentColor] out float4 color)
-                {
-                    color = new float4(ShaderBuiltins.InstanceIndex, ShaderBuiltins.InstanceIndex, ShaderBuiltins.InstanceIndex, 1f);
-                }
+                public static float4 Fragment(in FragmentContext context)
+                    => new float4(ShaderBuiltins.InstanceIndex, ShaderBuiltins.InstanceIndex, ShaderBuiltins.InstanceIndex, 1f);
             }";
 
         Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
@@ -1304,13 +1352,16 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta.Maths;
             using Delta.Shader;
+            [Interstage]
+            public struct FragmentPayload { [Position] public float4 Position; }
+            public struct FragmentContext { [Interstage] public FragmentPayload Fragment; }
             public static class HelperShader
             {
                 [FragmentShader]
-                public static void Fragment([FragmentColor] out float4 color)
+                public static float4 Fragment(in FragmentContext context)
                 {
                     var value = Wave(0.5f);
-                    color = new float4(value, value, value, 1f);
+                    return new float4(value, value, value, 1f);
                 }
 
                 private static float Wave(float value)
@@ -1338,15 +1389,18 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta.Maths;
             using Delta.Shader;
+            [Interstage]
+            public struct FragmentPayload { [Position] public float4 Position; }
+            public struct FragmentContext { [Interstage] public FragmentPayload Fragment; }
             public static class ExpressionHelperShader
             {
                 private static float Wave(float value) => maths.sin(value);
 
                 [FragmentShader]
-                public static void Fragment([FragmentColor] out float4 color)
+                public static float4 Fragment(in FragmentContext context)
                 {
                     var value = Wave(0.5f);
-                    color = new float4(value);
+                    return new float4(value);
                 }
             }";
 
@@ -1366,13 +1420,16 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta.Maths;
             using Delta.Shader;
+            [Interstage]
+            public struct FragmentPayload { [Position] public float4 Position; }
+            public struct FragmentContext { [Interstage] public FragmentPayload Fragment; }
             public static class RecursiveHelperShader
             {
                 [FragmentShader]
-                public static void Fragment([FragmentColor] out float4 color)
+                public static float4 Fragment(in FragmentContext context)
                 {
                     var value = First(0.5f);
-                    color = new float4(value, value, value, 1f);
+                    return new float4(value, value, value, 1f);
                 }
 
                 private static float First(float value)
@@ -1399,15 +1456,18 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta.Maths;
             using Delta.Shader;
+            [Interstage]
+            public struct FragmentPayload { [Position] public float4 Position; }
+            public struct FragmentContext { [Interstage] public FragmentPayload Fragment; }
             public static class CapturedHelperShader
             {
                 private static readonly float Scale = 2f;
 
                 [FragmentShader]
-                public static void Fragment([FragmentColor] out float4 color)
+                public static float4 Fragment(in FragmentContext context)
                 {
                     var value = ScaleValue(0.5f);
-                    color = new float4(value, value, value, 1f);
+                    return new float4(value, value, value, 1f);
                 }
 
                 private static float ScaleValue(float value)
@@ -1421,139 +1481,6 @@ public class IntrinsicCatalogTests
 
         Assert.False(result.Success);
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Message.Contains("captures managed field 'Scale'", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public async Task ComputeContext_LowersUserDefinedResourcesBuiltinsAndPushConstants()
-    {
-        const string source = @"
-            using Delta.Maths;
-            using Delta.Shader;
-
-            public readonly struct UserDefinedComputeContext
-            {
-                [Layout(0, 0)]
-                public readonly ReadOnlyStorageBuffer<uint> Input;
-
-                [Layout(0, 1)]
-                public readonly ReadWriteStorageBuffer<uint> Output;
-
-                [PushConstant]
-                public readonly uint Count;
-
-            }
-
-            public static class ContextCompute
-            {
-                [ComputeShader(localSizeX: 64)]
-                public static void Compute(in UserDefinedComputeContext ctx)
-                {
-                    if (ShaderBuiltins.GlobalInvocationId.X < ctx.Count)
-                        ctx.Output[ShaderBuiltins.GlobalInvocationId.X] = ctx.Input[ShaderBuiltins.GlobalInvocationId.X] * 2u + 1u;
-                }
-            }";
-
-        ShaderCompilationResult result = await CompileAndValidateEntryPointAsync(source).ConfigureAwait(true);
-
-        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
-        Assert.Equal("ctx.Input", Assert.Single(result.BuildManifest!.Resources, resource => resource.ParameterName == "ctx.Input").ParameterName);
-        Assert.Equal("ctx.Output", Assert.Single(result.BuildManifest.Resources, resource => resource.ParameterName == "ctx.Output").ParameterName);
-        ShaderCompilationPushConstant push = Assert.Single(result.BuildManifest.PushConstants);
-        Assert.Equal("Count", Assert.Single(push.Members).Name);
-
-        var glsl = Delta.Shader.Backend.Glsl.GlslEmitter.EmitFromModule(result.Module!).Source;
-        Assert.Contains("gl_GlobalInvocationID.x", glsl, StringComparison.Ordinal);
-        Assert.Contains("pushConstants.member_Count", glsl, StringComparison.Ordinal);
-        Assert.Contains("std430", glsl, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task ComputeContext_CanContainOnlyUserDefinedPushConstants()
-    {
-        const string source = @"
-            using Delta.Shader;
-
-            public readonly struct ParametersContext
-            {
-                [PushConstant]
-                public readonly uint Count;
-            }
-
-            public static class ParametersCompute
-            {
-                [ComputeShader]
-                public static void Compute(in ParametersContext ctx)
-                {
-                }
-            }";
-
-        ShaderCompilationResult result = await CompileAndValidateEntryPointAsync(source).ConfigureAwait(true);
-
-        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
-        Assert.Empty(result.BuildManifest!.Resources);
-        Assert.Single(result.BuildManifest.PushConstants);
-    }
-
-    [Fact]
-    public async Task ComputeContext_RejectsReferenceFieldsAndUnannotatedState()
-    {
-        const string source = @"
-            using Delta.Shader;
-
-            public readonly struct InvalidContext
-            {
-                [PushConstant]
-                public readonly string Label;
-
-                public readonly uint HiddenState;
-            }
-
-            public static class InvalidContextCompute
-            {
-                [ComputeShader]
-                public static void Compute(in InvalidContext ctx)
-                {
-                }
-            }";
-
-        ShaderCompilationResult result = await CompileAndValidateEntryPointAsync(source).ConfigureAwait(true);
-
-        Assert.False(result.Success);
-        Assert.Contains(result.Diagnostics, diagnostic =>
-            diagnostic.Id == ShaderDiagnosticId.DSH010 &&
-            diagnostic.Message.Contains("reference", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(result.Diagnostics, diagnostic =>
-            diagnostic.Id == ShaderDiagnosticId.DSH010 &&
-            diagnostic.Message.Contains("role", StringComparison.OrdinalIgnoreCase));
-    }
-
-    [Fact]
-    public async Task ComputeContext_ParameterFormRequiresContext()
-    {
-        const string source = @"
-            using Delta.Shader;
-
-            public readonly struct ValidContext
-            {
-                [PushConstant]
-                public readonly uint Count;
-            }
-
-            public static class MigrationDiagnostics
-            {
-                [ComputeShader]
-                public static void Context(in ValidContext ctx) { }
-
-                [ComputeShader]
-                public static void Legacy() { }
-            }";
-
-        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
-        ImmutableArray<Diagnostic> diagnostics = await compilation
-            .WithAnalyzers(ImmutableArray.Create<DiagnosticAnalyzer>(new ComputeEntryPointAnalyzer()))
-            .GetAnalyzerDiagnosticsAsync();
-
-        Assert.Contains(diagnostics, diagnostic => diagnostic.Id == "DSH002" && diagnostic.GetMessage().Contains("exactly one", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1664,7 +1591,7 @@ public class IntrinsicCatalogTests
     }
 
     [Fact]
-    public async Task ComputeContext_ParameterFormRequiresContextAgain()
+    public async Task ComputeContext_ParameterFormRequiresContext()
     {
         const string source = @"
             using Delta.Shader;
@@ -1689,8 +1616,8 @@ public class IntrinsicCatalogTests
             .WithAnalyzers(ImmutableArray.Create<DiagnosticAnalyzer>(new ComputeEntryPointAnalyzer()))
             .GetAnalyzerDiagnosticsAsync();
 
-        Assert.Contains(diagnostics, diagnostic => diagnostic.Id == "DSH002" && diagnostic.GetMessage().Contains("exactly one", StringComparison.Ordinal));
-        Assert.DoesNotContain(diagnostics, diagnostic => diagnostic.Id == "DSH002" && diagnostic.GetMessage().Contains("Context", StringComparison.Ordinal));
+        Assert.Contains(diagnostics, diagnostic => diagnostic.Id == "DSH002" && diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture).Contains("exactly one", StringComparison.Ordinal));
+        Assert.DoesNotContain(diagnostics, diagnostic => diagnostic.Id == "DSH002" && diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture).Contains("Context", StringComparison.Ordinal));
     }
 
     private static async Task<ShaderCompilationResult> CompileAndValidateEntryPointAsync(
@@ -1931,17 +1858,23 @@ public class IntrinsicCatalogTests
 
             public static class GeneratedGraphics
             {
-                [VertexShader(""CubeVertex"")]
-                public static void Vertex([Position] out float4 position)
+                [Interstage]
+                public struct Payload
                 {
-                    position = new float4((float)ShaderBuiltins.VertexIndex, 0.0f, 0.0f, 1.0f);
+                    [Position] public float4 Position;
                 }
+                public struct VertexContext { [Interstage] public Payload Vertex; }
+                public struct FragmentContext { [Interstage] public Payload Fragment; }
+
+                [VertexShader(""CubeVertex"")]
+                public static Payload Vertex(in VertexContext context) => new Payload
+                {
+                    Position = new float4((float)ShaderBuiltins.VertexIndex, 0.0f, 0.0f, 1.0f)
+                };
 
                 [FragmentShader(""CubeFragment"")]
-                public static void Fragment([FragmentColor] out float4 color)
-                {
-                    color = new float4(1.0f, 0.0f, 1.0f, 1.0f);
-                }
+                public static float4 Fragment(in FragmentContext context) =>
+                    new float4(1.0f, 0.0f, 1.0f, 1.0f);
             }";
 
         Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);

@@ -24,7 +24,7 @@ public static class ShaderVisibleTypeValidation
 {
     private const string PushConstantAttributeName = "Delta.Shader.PushConstantAttribute";
     private const string LayoutAttributeName = "Delta.Shader.LayoutAttribute";
-    private const string VaryingAttributeName = "Delta.Shader.VaryingAttribute";
+    private const string InterstageAttributeName = "Delta.Shader.InterstageAttribute";
 
     public static bool IsContextParameter(IParameterSymbol parameter, Compilation compilation)
     {
@@ -239,7 +239,7 @@ public static class ShaderVisibleTypeValidation
     private static bool IsContextAttribute(ITypeSymbol? attributeType)
     {
         var name = attributeType?.ToDisplayString();
-        return name == PushConstantAttributeName || name == LayoutAttributeName || name == VaryingAttributeName;
+        return name == PushConstantAttributeName || name == LayoutAttributeName || name == InterstageAttributeName;
     }
 
     private static ITypeSymbol? GetBufferElementType(ITypeSymbol type, Compilation compilation)

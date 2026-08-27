@@ -16,7 +16,7 @@ internal struct TransformConstants
 
 internal static class TransformVertex
 {
-    [Varying]
+    [Interstage]
     public struct VertexOutput
     {
         [Position]
@@ -25,7 +25,7 @@ internal static class TransformVertex
 
     public readonly struct VertexContext
     {
-        [Varying]
+        [Interstage]
         public readonly VertexOutput Vertex;
 
         [PushConstant]

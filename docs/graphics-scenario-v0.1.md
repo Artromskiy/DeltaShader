@@ -5,7 +5,7 @@ intermediate and uses `std430` for structured storage and push-constant data.
 The first graphics slice is intentionally small:
 
 - `[VertexShader]` supports `ShaderBuiltins.VertexIndex`, one `[Position] out float4`,
-  and location-based vector `[ShaderVarying] out` values.
+  and location-based vector `[Interstage] out` values.
 - `[FragmentShader]` supports `ShaderBuiltins.FragmentCoord`, one
   `[FragmentColor] out float4`, matching varying inputs, and one sequential
   `[PushConstant]` struct.

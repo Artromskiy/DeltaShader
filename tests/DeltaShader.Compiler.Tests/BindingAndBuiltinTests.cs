@@ -58,34 +58,89 @@ public sealed class BindingAndBuiltinTests
     }
 
     [Fact]
+    public async Task ComputeBodySupportsLocalsAndNestedBoundsCheck()
+    {
+        const string source = @"
+            using Delta.Shader;
+
+            public readonly struct ComputeContext
+            {
+                [Layout(0, 0)]
+                public readonly ReadOnlyStorageBuffer<uint> Input;
+
+                [Layout(0, 1)]
+                public readonly ReadWriteStorageBuffer<uint> Output;
+
+                [PushConstant]
+                public readonly uint Count;
+            }
+
+            public static class ComputeEntry
+            {
+                [ComputeShader(64)]
+                public static void Execute(in ComputeContext context)
+                {
+                    uint id = ShaderBuiltins.GlobalInvocationId.X;
+                    if (id < context.Count)
+                    {
+                        uint value = context.Input[id] * 2u;
+                        context.Output[id] = value + 1u;
+                    }
+                }
+            }";
+
+        Compilation compilation = await LoadCompilationAsync(source).ConfigureAwait(true);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        Assert.Contains("uint id", result.Module!.Body, StringComparison.Ordinal);
+        Assert.Contains("uint value", result.Module.Body, StringComparison.Ordinal);
+        Assert.Contains("if (id < pushConstants.member_Count)", result.Module.Body, StringComparison.Ordinal);
+        Assert.Contains("Output.data[id] = value + 1u;", result.Module.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task VertexInput_UsesSingleArgumentBindingAndComputesSequentialOffsets()
     {
         const string source = @"
             using Delta.Maths;
             using Delta.Shader;
 
+            [Interstage]
+            public struct VertexPayload
+            {
+                [Position]
+                [Layout(0)]
+                public float4 Position;
+                [Layout(1)]
+                public float2 Uv;
+            }
+
+            public readonly struct VertexContext
+            {
+                [Interstage]
+                public readonly VertexPayload Vertex;
+            }
+
             public static class VertexEntry
             {
                 [VertexShader]
-                public static void Execute(
-                    [Layout(0)] float3 position,
-                    [Layout(1)] float2 uv,
-                    [Position] out float4 clipPosition)
+                public static VertexPayload Execute(in VertexContext context)
                 {
-                    clipPosition = new float4(position, ShaderBuiltins.VertexIndex);
+                    return new VertexPayload
+                    {
+                        Position = new float4(context.Vertex.Position.xyz, 1f),
+                        Uv = context.Vertex.Uv
+                    };
                 }
             }";
 
         Compilation compilation = await LoadCompilationAsync(source).ConfigureAwait(true);
-        ShaderCompilationResult result = GraphicsEntryPoints.ValidateAndBuild(
-            new ModuleCompilationContext(compilation),
-            new RoslynFrontend(compilation),
-            ShaderStage.Vertex);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
 
         Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
         Assert.Equal((0u, 0u), (result.Module!.VertexInputs[0].Location, result.Module.VertexInputs[0].ByteOffset));
-        Assert.Equal((1u, 12u), (result.Module.VertexInputs[1].Location, result.Module.VertexInputs[1].ByteOffset));
-        Assert.Contains("gl_VertexIndex", Delta.Shader.Backend.Glsl.GlslEmitter.EmitFromModule(result.Module).Source, StringComparison.Ordinal);
+        Assert.Equal((1u, 16u), (result.Module.VertexInputs[1].Location, result.Module.VertexInputs[1].ByteOffset));
     }
 
     [Fact]
@@ -123,22 +178,31 @@ public sealed class BindingAndBuiltinTests
     public async Task VertexBuiltin_IsRejectedInFragmentBody()
     {
         const string source = @"
+            using Delta.Maths;
             using Delta.Shader;
+
+            [Interstage]
+            public struct FragmentPayload
+            {
+                [Position]
+                public float4 Position;
+            }
+
+            public readonly struct FragmentContext
+            {
+                [Interstage]
+                public readonly FragmentPayload Fragment;
+            }
 
             public static class FragmentEntry
             {
                 [FragmentShader]
-                public static void Execute([FragmentColor] out float4 color)
-                {
-                    color = new float4(ShaderBuiltins.VertexIndex);
-                }
+                public static float4 Execute(in FragmentContext context) =>
+                    new float4(ShaderBuiltins.VertexIndex);
             }";
 
         Compilation compilation = await LoadCompilationAsync(source).ConfigureAwait(true);
-        ShaderCompilationResult result = GraphicsEntryPoints.ValidateAndBuild(
-            new ModuleCompilationContext(compilation),
-            new RoslynFrontend(compilation),
-            ShaderStage.Fragment);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
 
         Assert.False(result.Success);
         Assert.Contains(result.Diagnostics, diagnostic =>

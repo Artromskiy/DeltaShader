@@ -15,7 +15,7 @@ internal static class FullscreenUi
         }
     }
 
-    [Varying]
+    [Interstage]
     public struct UiVarying
     {
         [Position]
@@ -25,7 +25,7 @@ internal static class FullscreenUi
 
     public readonly struct VertexContext
     {
-        [Varying]
+        [Interstage]
         public readonly UiVarying Vertex;
 
         [PushConstant]
@@ -34,7 +34,7 @@ internal static class FullscreenUi
 
     public readonly struct FragmentContext
     {
-        [Varying]
+        [Interstage]
         public readonly UiVarying Fragment;
 
         [PushConstant]

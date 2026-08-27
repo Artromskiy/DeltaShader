@@ -834,7 +834,7 @@ public sealed class ModuleCompilationContext
         SampledTexture2DType = compilation.GetTypeByMetadataName("Delta.Shader.SampledTexture2D");
         LayoutAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.LayoutAttribute");
         PositionAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.PositionAttribute");
-        VaryingAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.VaryingAttribute");
+        InterstageAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.InterstageAttribute");
         PushConstantAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.PushConstantAttribute");
     }
 
@@ -845,6 +845,6 @@ public sealed class ModuleCompilationContext
     public ITypeSymbol? SampledTexture2DType { get; }
     public ITypeSymbol? LayoutAttributeType { get; }
     public ITypeSymbol? PositionAttributeType { get; }
-    public ITypeSymbol? VaryingAttributeType { get; }
+    public ITypeSymbol? InterstageAttributeType { get; }
     public ITypeSymbol? PushConstantAttributeType { get; }
 }

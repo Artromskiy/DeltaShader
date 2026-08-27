@@ -16,6 +16,8 @@ internal sealed class ComputeShaderBodyTranslationResult
 internal sealed class ComputeShaderBodyTranslator
 {
     private readonly IntrinsicRegistry _intrinsics;
+    private readonly Dictionary<ILocalSymbol, string> _locals = new(SymbolEqualityComparer.Default);
+    private readonly HashSet<string> _localNames = new(StringComparer.Ordinal);
     private IParameterSymbol? _contextParameter;
 
     public ComputeShaderBodyTranslator(IntrinsicRegistry intrinsics)
@@ -38,6 +40,8 @@ internal sealed class ComputeShaderBodyTranslator
         result = null;
         diagnosticId = ShaderDiagnosticId.DSH008;
         _contextParameter = contextParameter;
+        _locals.Clear();
+        _localNames.Clear();
 
         var body = methodSyntax.Body;
         if (body is null)
@@ -57,57 +61,217 @@ internal sealed class ComputeShaderBodyTranslator
             return true;
         }
 
-        if (body.Statements.Count != 1)
+        if (!TryTranslateBlock(body, semanticModel, invocationParameter, resourceBindings,
+                out var translatedBody, out var usesBuiltin, out reason, out diagnosticId))
         {
-            reason = "Only a single top-level statement is supported in executable MVP entry points.";
             return false;
         }
 
-        var statement = body.Statements[0];
+        result = new ComputeShaderBodyTranslationResult
+        {
+            UsesBuiltinInvocationId = usesBuiltin,
+            Body = translatedBody
+        };
+
+        return true;
+    }
+
+    private bool TryTranslateBlock(
+        BlockSyntax block,
+        SemanticModel semanticModel,
+        IParameterSymbol? invocationParameter,
+        IReadOnlyDictionary<ISymbol, uint> resourceBindings,
+        out string translated,
+        out bool usesBuiltin,
+        out string? reason,
+        out string diagnosticId)
+    {
+        var statements = new List<string>(block.Statements.Count);
+        usesBuiltin = false;
+        reason = null;
+        diagnosticId = ShaderDiagnosticId.DSH008;
+
+        foreach (var statement in block.Statements)
+        {
+            if (!TryTranslateStatement(statement, semanticModel, invocationParameter, resourceBindings,
+                    out var translatedStatement, out var statementUsesBuiltin, out reason, out diagnosticId))
+            {
+                translated = string.Empty;
+                return false;
+            }
+
+            if (translatedStatement.Length != 0)
+            {
+                statements.Add(translatedStatement);
+            }
+
+            usesBuiltin |= statementUsesBuiltin;
+        }
+
+        translated = string.Join("\n", statements);
+        return true;
+    }
+
+    private bool TryTranslateStatement(
+        StatementSyntax statement,
+        SemanticModel semanticModel,
+        IParameterSymbol? invocationParameter,
+        IReadOnlyDictionary<ISymbol, uint> resourceBindings,
+        out string translated,
+        out bool usesBuiltin,
+        out string? reason,
+        out string diagnosticId)
+    {
+        translated = string.Empty;
+        usesBuiltin = false;
+        reason = null;
+        diagnosticId = ShaderDiagnosticId.DSH008;
+
+        if (statement is BlockSyntax block)
+        {
+            return TryTranslateBlock(block, semanticModel, invocationParameter, resourceBindings,
+                out translated, out usesBuiltin, out reason, out diagnosticId);
+        }
+
+        if (statement is LocalDeclarationStatementSyntax declaration)
+        {
+            if (declaration.Declaration.Variables.Count != 1 || declaration.Declaration.Variables[0].Initializer is not { } initializer)
+            {
+                reason = "Local declarations require exactly one initialized variable in a compute shader body.";
+                return false;
+            }
+
+            var variable = declaration.Declaration.Variables[0];
+            var local = semanticModel.GetDeclaredSymbol(variable) as ILocalSymbol;
+            if (local is null || !TryMapLocalType(local.Type, out var localType))
+            {
+                reason = "Local declaration has an unsupported shader type.";
+                return false;
+            }
+
+            if (!TryTranslateValueExpression(initializer.Value, semanticModel, invocationParameter, resourceBindings,
+                    out var initializerText, out usesBuiltin, out reason, out diagnosticId))
+            {
+                return false;
+            }
+
+            var localName = CreateLocalName(local.Name);
+            _locals[local] = localName;
+            translated = $"{localType} {localName} = {initializerText};";
+            return true;
+        }
+
         if (statement is IfStatementSyntax ifStatement)
         {
-            var statementDiagnosticId = ShaderDiagnosticId.DSH008;
-            if (!TryTranslateInvocationCondition(ifStatement.Condition, semanticModel, invocationParameter, resourceBindings, out var condition, out var conditionUsesBuiltin, out reason, out statementDiagnosticId))
+            if (!TryTranslateConditionExpression(ifStatement.Condition, semanticModel, invocationParameter, resourceBindings,
+                    out var condition, out var conditionUsesBuiltin, out reason, out diagnosticId))
             {
-                diagnosticId = statementDiagnosticId;
                 return false;
             }
 
-            if (!TryTranslateStoreExpression(ifStatement.Statement, semanticModel, invocationParameter, resourceBindings, out var store, out var storeUsesBuiltin, out reason, out statementDiagnosticId))
+            if (!TryTranslateStatement(ifStatement.Statement, semanticModel, invocationParameter, resourceBindings,
+                    out var whenTrue, out var trueUsesBuiltin, out reason, out diagnosticId))
             {
-                diagnosticId = statementDiagnosticId;
                 return false;
             }
 
-            result = new ComputeShaderBodyTranslationResult
+            translated = $"if ({condition})\n{{\n{Indent(whenTrue)}\n}}";
+            usesBuiltin = conditionUsesBuiltin || trueUsesBuiltin;
+
+            if (ifStatement.Else is { } elseClause)
             {
-                UsesBuiltinInvocationId = conditionUsesBuiltin || storeUsesBuiltin,
-                Body = $"if ({condition})\n    {{\n        {store}\n    }}"
-            };
+                if (!TryTranslateStatement(elseClause.Statement, semanticModel, invocationParameter, resourceBindings,
+                        out var whenFalse, out var falseUsesBuiltin, out reason, out diagnosticId))
+                {
+                    return false;
+                }
+
+                translated += $"\nelse\n{{\n{Indent(whenFalse)}\n}}";
+                usesBuiltin |= falseUsesBuiltin;
+            }
 
             return true;
         }
 
         if (statement is ExpressionStatementSyntax expressionStatement)
         {
-            if (TryTranslateStoreExpression(expressionStatement, semanticModel, invocationParameter, resourceBindings,
-                    out var storeBody, out var usesBuiltin, out reason, out diagnosticId))
-            {
-                result = new ComputeShaderBodyTranslationResult
-                {
-                    UsesBuiltinInvocationId = usesBuiltin,
-                    Body = storeBody
-                };
-
-                return true;
-            }
-
-            return false;
+            return TryTranslateExpressionStatement(expressionStatement, semanticModel, invocationParameter, resourceBindings,
+                out translated, out usesBuiltin, out reason, out diagnosticId);
         }
 
-        reason = "Unsupported compute entry point body shape.";
+        reason = "Unsupported compute statement in executable shader body.";
         return false;
     }
+
+    private bool TryTranslateExpressionStatement(
+        ExpressionStatementSyntax statement,
+        SemanticModel semanticModel,
+        IParameterSymbol? invocationParameter,
+        IReadOnlyDictionary<ISymbol, uint> resourceBindings,
+        out string translated,
+        out bool usesBuiltin,
+        out string? reason,
+        out string diagnosticId)
+    {
+        translated = string.Empty;
+        usesBuiltin = false;
+        reason = null;
+        diagnosticId = ShaderDiagnosticId.DSH008;
+
+        if (statement.Expression is AssignmentExpressionSyntax assignment &&
+            assignment.IsKind(SyntaxKind.SimpleAssignmentExpression) &&
+            assignment.Left is IdentifierNameSyntax localIdentifier &&
+            semanticModel.GetSymbolInfo(localIdentifier).Symbol is ILocalSymbol local &&
+            _locals.TryGetValue(local, out var localName))
+        {
+            if (!TryTranslateValueExpression(assignment.Right, semanticModel, invocationParameter, resourceBindings,
+                    out var value, out usesBuiltin, out reason, out diagnosticId))
+            {
+                return false;
+            }
+
+            translated = $"{localName} = {value};";
+            return true;
+        }
+
+        return TryTranslateStoreExpression(statement, semanticModel, invocationParameter, resourceBindings,
+            out translated, out usesBuiltin, out reason, out diagnosticId);
+    }
+
+    private bool TryMapLocalType(ITypeSymbol type, out string glslType)
+    {
+        if (_intrinsics.TryMapType(type, out glslType))
+        {
+            return true;
+        }
+
+        glslType = type.SpecialType switch
+        {
+            SpecialType.System_Boolean => "bool",
+            SpecialType.System_Single => "float",
+            SpecialType.System_UInt32 => "uint",
+            SpecialType.System_Int32 => "int",
+            _ => string.Empty
+        };
+
+        return glslType.Length != 0;
+    }
+
+    private string CreateLocalName(string name)
+    {
+        var baseName = SanitizeName(name);
+        var candidate = baseName;
+        var suffix = 2;
+        while (!_localNames.Add(candidate))
+        {
+            candidate = baseName + "_" + suffix++;
+        }
+
+        return candidate;
+    }
+
+    private static string Indent(string value)
+        => string.Join("\n", value.Split('\n').Select(line => "    " + line));
 
     private bool TryTranslateStoreExpression(
         StatementSyntax statement,
@@ -284,6 +448,13 @@ internal sealed class ComputeShaderBodyTranslator
 
             case IdentifierNameSyntax identifier:
                 {
+                    if (semanticModel.GetSymbolInfo(identifier).Symbol is ILocalSymbol local &&
+                        _locals.TryGetValue(local, out var localName))
+                    {
+                        translated = localName;
+                        return true;
+                    }
+
                     if (invocationParameter is not null &&
                         identifier.Identifier.Text == invocationParameter.Name)
                     {

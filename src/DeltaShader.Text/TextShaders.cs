@@ -32,7 +32,7 @@ public struct TextParameters
     }
 }
 
-[Varying]
+[Interstage]
 public struct TextVarying
 {
     [Position]
@@ -43,7 +43,7 @@ public struct TextVarying
 
 public readonly struct TextVertexContext
 {
-    [Varying]
+    [Interstage]
     public readonly TextVarying Vertex;
 
     [Layout(0, 0)]
@@ -55,7 +55,7 @@ public readonly struct TextVertexContext
 
 public readonly struct SdfTextFragmentContext
 {
-    [Varying]
+    [Interstage]
     public readonly TextVarying Fragment;
 
     [Layout(0, 3)]
@@ -67,7 +67,7 @@ public readonly struct SdfTextFragmentContext
 
 public readonly struct MsdfTextFragmentContext
 {
-    [Varying]
+    [Interstage]
     public readonly TextVarying Fragment;
 
     [Layout(0, 4)]

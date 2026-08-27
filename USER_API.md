@@ -99,12 +99,12 @@ public static void Compute(in BufferComputeContext ctx)
 ### Graphics context contract
 
 Graphics contexts use the same shape: descriptors and push constants remain
-ordinary context fields, while one `[Varying]` field contains the stage-data
+ordinary context fields, while one `[Interstage]` field contains the stage-data
 payload. The payload must contain one explicit `float4` `[Position]` field.
 
 ```csharp
-[Varying]
-public struct VaryingStruct
+[Interstage]
+public struct InterstageData
 {
     [Position]
     [Layout(0)]
@@ -119,8 +119,8 @@ public struct VaryingStruct
 
 public readonly struct VertexContext
 {
-    [Varying]
-    public readonly VaryingStruct Vertex;
+    [Interstage]
+    public readonly InterstageData Vertex;
 
     [Layout(0, 0)]
     public readonly ReadOnlyStorageBuffer<int> Values;
@@ -128,15 +128,15 @@ public readonly struct VertexContext
 
 public readonly struct FragmentContext
 {
-    [Varying]
-    public readonly VaryingStruct Vertex;
+    [Interstage]
+    public readonly InterstageData Vertex;
 
     [Layout(0, 1)]
     public readonly ReadOnlyStorageBuffer<float> OtherValues;
 }
 
 [VertexShader]
-public static VaryingStruct VertexEntry(in VertexContext context)
+public static InterstageData VertexEntry(in VertexContext context)
 {
     return context.Vertex;
 }

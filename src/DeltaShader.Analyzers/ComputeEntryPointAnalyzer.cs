@@ -31,7 +31,7 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
     private static readonly DiagnosticDescriptor _graphicsDescriptor = new(
         id: GraphicsDescriptorId,
         title: "Invalid graphics shader entry point",
-        messageFormat: "Graphics shader entry point must be static and return void",
+        messageFormat: "Graphics shader entry point must be static and use a valid shader context",
         category: "DeltaShader",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
@@ -86,86 +86,93 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
         context.EnableConcurrentExecution();
         var deltaComputeAttributeName = typeof(ComputeShaderAttribute).FullName ??
             throw new InvalidOperationException("ComputeShaderAttribute must have a metadata name.");
-        var deltaComputeAttribute = context.Compilation.GetTypeByMetadataName(deltaComputeAttributeName);
-        context.RegisterSymbolAction(context =>
+        context.RegisterCompilationStartAction(startContext =>
         {
-            if (context.Symbol is not IMethodSymbol methodSymbol)
+            var compilation = startContext.Compilation;
+            var deltaComputeAttribute = compilation.GetTypeByMetadataName(deltaComputeAttributeName);
+            startContext.RegisterSymbolAction(context =>
             {
-                return;
-            }
-
-            var attribute = methodSymbol.GetAttributes()
-                .FirstOrDefault(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, deltaComputeAttribute));
-
-            var vertexAttribute = context.Compilation.GetTypeByMetadataName(typeof(VertexShaderAttribute).FullName);
-            var fragmentAttribute = context.Compilation.GetTypeByMetadataName(typeof(FragmentShaderAttribute).FullName);
-            var graphicsAttribute = methodSymbol.GetAttributes().FirstOrDefault(a =>
-                SymbolEqualityComparer.Default.Equals(a.AttributeClass, vertexAttribute) ||
-                SymbolEqualityComparer.Default.Equals(a.AttributeClass, fragmentAttribute));
-
-            if (attribute is null && graphicsAttribute is null)
-            {
-                return;
-            }
-
-            if (attribute is not null &&
-                (methodSymbol.Parameters.Length != 1 ||
-                 !ShaderVisibleTypeValidation.IsContextParameter(methodSymbol.Parameters[0], context.Compilation)))
-            {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    _contextDescriptor,
-                    methodSymbol.Locations[0],
-                    "[ComputeShader] entry point must have exactly one 'in' shader context parameter."));
-            }
-
-            if (graphicsAttribute is not null)
-            {
-                var graphicsMethods = methodSymbol.ContainingType?.GetMembers()
-                    .OfType<IMethodSymbol>()
-                    .Where(method => method.GetAttributes().Any(candidate =>
-                        candidate.AttributeClass?.ToDisplayString() == typeof(VertexShaderAttribute).FullName ||
-                        candidate.AttributeClass?.ToDisplayString() == typeof(FragmentShaderAttribute).FullName))
-                    .ToArray() ?? Array.Empty<IMethodSymbol>();
-                var entries = graphicsMethods.SelectMany(method => method.GetAttributes()
-                    .Where(candidate => candidate.AttributeClass?.ToDisplayString() == typeof(VertexShaderAttribute).FullName ||
-                        candidate.AttributeClass?.ToDisplayString() == typeof(FragmentShaderAttribute).FullName)
-                    .Select(candidate => (Stage: candidate.AttributeClass?.ToDisplayString() == typeof(VertexShaderAttribute).FullName ? "vertex" : "fragment",
-                        Name: candidate.ConstructorArguments.FirstOrDefault().Value as string ?? method.Name)))
-                    .ToArray();
-                var singlePair = entries.Count(entry => entry.Stage == "vertex") == 1 && entries.Count(entry => entry.Stage == "fragment") == 1;
-                foreach (var pair in entries.GroupBy(entry => entry.Name, StringComparer.Ordinal)
-                    .Where(group => !singlePair && (group.Count(entry => entry.Stage == "vertex") != 1 || group.Count(entry => entry.Stage == "fragment") != 1)))
+                if (context.Symbol is not IMethodSymbol methodSymbol)
                 {
-                    context.ReportDiagnostic(Diagnostic.Create(_graphicsPairDescriptor, methodSymbol.Locations[0], pair.Key));
+                    return;
                 }
 
-                foreach (var duplicate in entries.GroupBy(entry => (entry.Stage, entry.Name))
-                    .Where(group => group.Count() > 1))
+                var attribute = methodSymbol.GetAttributes()
+                    .FirstOrDefault(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, deltaComputeAttribute));
+
+                var vertexAttribute = compilation.GetTypeByMetadataName(typeof(VertexShaderAttribute).FullName);
+                var fragmentAttribute = compilation.GetTypeByMetadataName(typeof(FragmentShaderAttribute).FullName);
+                var graphicsAttribute = methodSymbol.GetAttributes().FirstOrDefault(a =>
+                    SymbolEqualityComparer.Default.Equals(a.AttributeClass, vertexAttribute) ||
+                    SymbolEqualityComparer.Default.Equals(a.AttributeClass, fragmentAttribute));
+
+                if (attribute is null && graphicsAttribute is null)
                 {
-                    context.ReportDiagnostic(Diagnostic.Create(_duplicateGraphicsNameDescriptor, methodSymbol.Locations[0], duplicate.Key.Name));
+                    return;
                 }
-            }
 
-            var isContext = methodSymbol.Parameters.Length == 1 &&
-                ShaderVisibleTypeValidation.IsContextParameter(methodSymbol.Parameters[0], context.Compilation);
-            var visibleIssues = isContext
-                ? ShaderVisibleTypeValidation.ValidateContext(methodSymbol.Parameters[0], context.Compilation)
-                : methodSymbol.Parameters.SelectMany(parameter =>
+                if (attribute is not null &&
+                    (methodSymbol.Parameters.Length != 1 ||
+                     !ShaderVisibleTypeValidation.IsContextParameter(methodSymbol.Parameters[0], compilation)))
                 {
-                    var visibleType = ShaderVisibleTypeValidation.GetVisibleRootType(parameter, context.Compilation);
-                    return ShaderVisibleTypeValidation.Validate(visibleType, parameter);
-                }).ToArray();
-            foreach (var issue in visibleIssues)
-            {
-                var location = issue.Symbol.Locations.FirstOrDefault() ?? methodSymbol.Locations[0];
-                context.ReportDiagnostic(Diagnostic.Create(_visibleTypeDescriptor, location, issue.Message));
-            }
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        _contextDescriptor,
+                        methodSymbol.Locations[0],
+                        "[ComputeShader] entry point must have exactly one 'in' shader context parameter."));
+                }
 
-            if (!methodSymbol.IsStatic || methodSymbol.ReturnType.SpecialType != SpecialType.System_Void)
-            {
-                context.ReportDiagnostic(Diagnostic.Create(graphicsAttribute is null ? _descriptor : _graphicsDescriptor, methodSymbol.Locations[0]));
-            }
-        }, SymbolKind.Method);
+                if (graphicsAttribute is not null)
+                {
+                    var graphicsMethods = methodSymbol.ContainingType?.GetMembers()
+                        .OfType<IMethodSymbol>()
+                        .Where(method => method.GetAttributes().Any(candidate =>
+                            candidate.AttributeClass?.ToDisplayString() == typeof(VertexShaderAttribute).FullName ||
+                            candidate.AttributeClass?.ToDisplayString() == typeof(FragmentShaderAttribute).FullName))
+                        .ToArray() ?? Array.Empty<IMethodSymbol>();
+                    var entries = graphicsMethods.SelectMany(method => method.GetAttributes()
+                        .Where(candidate => candidate.AttributeClass?.ToDisplayString() == typeof(VertexShaderAttribute).FullName ||
+                            candidate.AttributeClass?.ToDisplayString() == typeof(FragmentShaderAttribute).FullName)
+                        .Select(candidate => (Stage: candidate.AttributeClass?.ToDisplayString() == typeof(VertexShaderAttribute).FullName ? "vertex" : "fragment",
+                            Name: candidate.ConstructorArguments.FirstOrDefault().Value as string ?? method.Name)))
+                        .ToArray();
+                    var singlePair = entries.Count(entry => entry.Stage == "vertex") == 1 && entries.Count(entry => entry.Stage == "fragment") == 1;
+                    foreach (var pair in entries.GroupBy(entry => entry.Name, StringComparer.Ordinal)
+                        .Where(group => !singlePair && (group.Count(entry => entry.Stage == "vertex") != 1 || group.Count(entry => entry.Stage == "fragment") != 1)))
+                    {
+                        context.ReportDiagnostic(Diagnostic.Create(_graphicsPairDescriptor, methodSymbol.Locations[0], pair.Key));
+                    }
+
+                    foreach (var duplicate in entries.GroupBy(entry => (entry.Stage, entry.Name))
+                        .Where(group => group.Count() > 1))
+                    {
+                        context.ReportDiagnostic(Diagnostic.Create(_duplicateGraphicsNameDescriptor, methodSymbol.Locations[0], duplicate.Key.Name));
+                    }
+                }
+
+                var isContext = methodSymbol.Parameters.Length == 1 &&
+                    ShaderVisibleTypeValidation.IsContextParameter(methodSymbol.Parameters[0], compilation);
+                var visibleIssues = isContext
+                    ? ShaderVisibleTypeValidation.ValidateContext(methodSymbol.Parameters[0], compilation)
+                    : methodSymbol.Parameters.SelectMany(parameter =>
+                    {
+                        var visibleType = ShaderVisibleTypeValidation.GetVisibleRootType(parameter, compilation);
+                        return ShaderVisibleTypeValidation.Validate(visibleType, parameter);
+                    }).ToArray();
+                foreach (var issue in visibleIssues)
+                {
+                    var location = issue.Symbol.Locations.FirstOrDefault() ?? methodSymbol.Locations[0];
+                    context.ReportDiagnostic(Diagnostic.Create(_visibleTypeDescriptor, location, issue.Message));
+                }
+
+                var isValidGraphicsContext = graphicsAttribute is not null && isContext;
+                if (!methodSymbol.IsStatic ||
+                    (graphicsAttribute is null && methodSymbol.ReturnType.SpecialType != SpecialType.System_Void) ||
+                    (graphicsAttribute is not null && !isValidGraphicsContext))
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(graphicsAttribute is null ? _descriptor : _graphicsDescriptor, methodSymbol.Locations[0]));
+                }
+            }, SymbolKind.Method);
+        });
 
         context.RegisterSyntaxNodeAction(AnalyzeCompileTimeBody, SyntaxKind.MethodDeclaration);
     }

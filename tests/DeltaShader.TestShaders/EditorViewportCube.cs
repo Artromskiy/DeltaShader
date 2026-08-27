@@ -30,7 +30,7 @@ internal static class EditorViewportCube
         }
     }
 
-    [Varying]
+    [Interstage]
     public struct CubeVarying
     {
         [Position]
@@ -44,7 +44,7 @@ internal static class EditorViewportCube
 
     public readonly struct VertexContext
     {
-        [Varying]
+        [Interstage]
         public readonly CubeVarying Vertex;
 
         [Layout(0, 0)]
@@ -53,7 +53,7 @@ internal static class EditorViewportCube
 
     public readonly struct FragmentContext
     {
-        [Varying]
+        [Interstage]
         public readonly CubeVarying Fragment;
 
         [Layout(0, 0)]

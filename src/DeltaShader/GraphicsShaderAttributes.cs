@@ -28,13 +28,13 @@ public enum VertexInputRate
     Instance = 1
 }
 
-[AttributeUsage(AttributeTargets.Field, Inherited = false, AllowMultiple = false)]
+[AttributeUsage(AttributeTargets.Parameter | AttributeTargets.Field, Inherited = false, AllowMultiple = false)]
 public sealed class PositionAttribute : Attribute
 {
 }
 
 [AttributeUsage(AttributeTargets.Struct | AttributeTargets.Field, Inherited = false, AllowMultiple = false)]
-public sealed class VaryingAttribute : Attribute
+public sealed class InterstageAttribute : Attribute
 {
 }
 

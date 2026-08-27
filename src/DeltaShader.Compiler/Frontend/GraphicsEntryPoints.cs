@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using Delta.Shader;
 using Delta.Shader.Compiler.IR;
+using Delta.Shader.Compiler.Intrinsics;
 using Delta.Shader.Compiler.Syntax;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -45,14 +46,31 @@ internal static class GraphicsEntryPoints
         if (!IsContextGraphicsEntryPoint(entry, context))
         {
             diagnostics.Add(new ShaderDiagnostic(ShaderDiagnosticId.DSH002,
-                "Graphics shader entry point must use one static in-context parameter with a [Varying] payload.",
+                "Graphics shader entry point must use one static in-context parameter with a [Interstage] payload.",
                 Severity: ShaderDiagnosticSeverity.Error));
             return new ShaderCompilationResult(entry.Name, false, diagnostics,
                 sourceMethodName: entry.Method.Name,
                 sourceMethodIdentity: entry.Method.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
         }
 
-        return ValidateAndBuildContextEntryPoint(
+        return ValidateAndBuildContextEntryPoint(context, entry, resultOptions);
+    }
+
+    private static bool IsContextGraphicsEntryPoint(ShaderEntryPointSymbol entry, ModuleCompilationContext context)
+    {
+        if (entry.Method.Parameters.Length != 1 ||
+            entry.Method.Parameters[0].RefKind != RefKind.In ||
+            entry.Method.Parameters[0].Type is not INamedTypeSymbol contextType)
+        {
+            return false;
+        }
+
+        return contextType.GetMembers().OfType<IFieldSymbol>()
+            .Where(field => !field.IsStatic)
+            .Any(field => field.GetAttributes().Any(attribute => Same(attribute.AttributeClass, context.InterstageAttributeType)));
+    }
+
+    private static ShaderCompilationResult ValidateAndBuildContextEntryPoint(
         ModuleCompilationContext context,
         ShaderEntryPointSymbol entry,
         ShaderCompilationOptions options)
@@ -69,21 +87,21 @@ internal static class GraphicsEntryPoints
         }
 
         var varyingFields = contextType.GetMembers().OfType<IFieldSymbol>()
-            .Where(field => !field.IsStatic && field.GetAttributes().Any(attribute => Same(attribute.AttributeClass, context.VaryingAttributeType)))
+            .Where(field => !field.IsStatic && field.GetAttributes().Any(attribute => Same(attribute.AttributeClass, context.InterstageAttributeType)))
             .ToArray();
         if (varyingFields.Length != 1)
         {
             AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH012,
-                "A graphics context must contain exactly one [Varying] payload field.", location);
+                "A graphics context must contain exactly one [Interstage] payload field.", location);
             return new ShaderCompilationResult(entry.Name, false, diagnostics, sourceMethodName: entry.Method.Name,
                 sourceMethodIdentity: entry.Method.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
         }
 
         if (varyingFields[0].Type is not INamedTypeSymbol varyingType || varyingType.TypeKind != TypeKind.Struct ||
-            !varyingType.GetAttributes().Any(attribute => Same(attribute.AttributeClass, context.VaryingAttributeType)))
+            !varyingType.GetAttributes().Any(attribute => Same(attribute.AttributeClass, context.InterstageAttributeType)))
         {
             AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH012,
-                "The [Varying] context field must contain a struct marked [Varying].", varyingFields[0].Locations.FirstOrDefault()?.GetLineSpan());
+                "The [Interstage] context field must contain a struct marked [Interstage].", varyingFields[0].Locations.FirstOrDefault()?.GetLineSpan());
             return new ShaderCompilationResult(entry.Name, false, diagnostics, sourceMethodName: entry.Method.Name,
                 sourceMethodIdentity: entry.Method.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
         }
@@ -97,7 +115,7 @@ internal static class GraphicsEntryPoints
         if (positionMembers.Length != 1 || !TryMapType(positionMembers[0].Type, context, out var positionType) || positionType != "vec4")
         {
             AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH012,
-                "A [Varying] payload must contain exactly one [Position] float4 field.", varyingType.Locations.FirstOrDefault()?.GetLineSpan());
+                "A [Interstage] payload must contain exactly one [Position] float4 field.", varyingType.Locations.FirstOrDefault()?.GetLineSpan());
         }
 
         var inputs = new List<ShaderIrInterfaceVariable>();
@@ -253,7 +271,7 @@ internal static class GraphicsEntryPoints
                 if (!TryMapType(field.Type, context, out var glslType))
                 {
                     AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH012,
-                        $"Varying field '{field.Name}' has an unsupported shader type.", field.Locations.FirstOrDefault()?.GetLineSpan());
+                        $"Interstage field '{field.Name}' has an unsupported shader type.", field.Locations.FirstOrDefault()?.GetLineSpan());
                     continue;
                 }
 
@@ -283,7 +301,7 @@ internal static class GraphicsEntryPoints
         foreach (var field in contextType.GetMembers().OfType<IFieldSymbol>().Where(field => !field.IsStatic))
         {
             var attributes = field.GetAttributes();
-            if (attributes.Any(attribute => Same(attribute.AttributeClass, context.VaryingAttributeType)))
+            if (attributes.Any(attribute => Same(attribute.AttributeClass, context.InterstageAttributeType)))
             {
                 continue;
             }
@@ -373,8 +391,12 @@ internal static class GraphicsEntryPoints
             var push = attributes.FirstOrDefault(attribute => Same(attribute.AttributeClass, context.PushConstantAttributeType));
             if (push is not null)
             {
-                if (field.Type is not INamedTypeSymbol pushType ||
-                    !TryBuildStruct(pushType, context, structures, new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default), out var pushStruct, out var pushReason) || pushStruct is null)
+                if (field.Type is not INamedTypeSymbol pushType)
+                {
+                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH006,
+                        $"Push constant field '{field.Name}' must be a sequential shader struct.", field.Locations.FirstOrDefault()?.GetLineSpan());
+                }
+                else if (!TryBuildStruct(pushType, context, structures, new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default), out var pushStruct, out var pushReason) || pushStruct is null)
                 {
                     AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH006,
                         pushReason ?? $"Push constant field '{field.Name}' must be a sequential shader struct.", field.Locations.FirstOrDefault()?.GetLineSpan());
@@ -405,7 +427,7 @@ internal static class GraphicsEntryPoints
             }
 
             AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH002,
-                $"Graphics context field '{field.Name}' must use [Varying], [Layout(set, binding)], or [PushConstant].", field.Locations.FirstOrDefault()?.GetLineSpan());
+                $"Graphics context field '{field.Name}' must use [Interstage], [Layout(set, binding)], or [PushConstant].", field.Locations.FirstOrDefault()?.GetLineSpan());
         }
 
         string body = string.Empty;
@@ -413,7 +435,11 @@ internal static class GraphicsEntryPoints
         IReadOnlyDictionary<IMethodSymbol, string> helperNames = new Dictionary<IMethodSymbol, string>(SymbolEqualityComparer.Default);
         if (diagnostics.Count == 0)
         {
-            var structNames = structures.ToDictionary(pair => pair.Key, pair => pair.Value.GlslName, SymbolEqualityComparer.Default);
+            var structNames = new Dictionary<INamedTypeSymbol, string>(SymbolEqualityComparer.Default);
+            foreach (var definition in structures)
+            {
+                structNames[definition.Key] = definition.Value.GlslName;
+            }
             var structFields = new Dictionary<IFieldSymbol, string>(SymbolEqualityComparer.Default);
             foreach (var definition in structures)
             {
@@ -428,19 +454,20 @@ internal static class GraphicsEntryPoints
             }
 
             var syntax = entry.Method.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() as MethodDeclarationSyntax;
-            if (syntax?.Body is null)
+            if (syntax is null || (syntax.Body is null && syntax.ExpressionBody?.Expression is null))
             {
                 diagnostics.Add(new ShaderDiagnostic(ShaderDiagnosticId.DSH008, "Graphics shader entry point body is required.", Severity: ShaderDiagnosticSeverity.Error));
             }
             else
             {
+                var executableBody = GetExecutableBody(syntax);
                 var semanticModel = context.Compilation.GetSemanticModel(syntax.SyntaxTree);
                 if (!TryBuildHelpers(syntax, semanticModel, context, entry.Stage, pushFieldMap, structNames, structFields, storageBufferTargets, out helperFunctions, out helperNames, out var helperReason))
                 {
                     diagnostics.Add(new ShaderDiagnostic(ShaderDiagnosticId.DSH008, helperReason ?? "Unable to lower shader helper call graph.", Severity: ShaderDiagnosticSeverity.Error));
                 }
                 else if (!GraphicsShaderBodyTranslator.TryTranslate(
-                    syntax.Body,
+                    executableBody,
                     semanticModel,
                     context,
                     entry.Stage,
@@ -480,6 +507,21 @@ internal static class GraphicsEntryPoints
             PushConstants = pushConstants
         };
         return new ShaderCompilationResult(entry.Name, diagnostics.Count == 0, diagnostics, module, options, entry.Method.Name, entry.Method.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+    }
+
+    private static SyntaxNode GetExecutableBody(MethodDeclarationSyntax syntax)
+    {
+        if (syntax.Body is { } body)
+        {
+            return body;
+        }
+
+        if (syntax.ExpressionBody is { Expression: { } expression })
+        {
+            return expression;
+        }
+
+        throw new InvalidOperationException("A graphics entry point must have a block or expression body.");
     }
 
     private static bool TryBuildHelpers(
@@ -599,9 +641,10 @@ internal static class GraphicsEntryPoints
             return true;
         }
 
-        if (entrySyntax.Body is not null)
+        var entryBody = entrySyntax.Body ?? (SyntaxNode?)entrySyntax.ExpressionBody?.Expression;
+        if (entryBody is not null)
         {
-            foreach (var invocation in entrySyntax.Body.DescendantNodes().OfType<InvocationExpressionSyntax>())
+            foreach (var invocation in entryBody.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
             {
                 if (entryModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol called)
                 {
@@ -853,7 +896,9 @@ internal static class GraphicsShaderBodyTranslator
             outputFields ?? new Dictionary<IFieldSymbol, string>(SymbolEqualityComparer.Default),
             returnType,
             lowerReturns);
-        var rewritten = rewriter.Visit(body);
+        var rewritten = body is ExpressionSyntax expression && lowerReturns
+            ? rewriter.TranslateExpressionBody(expression)
+            : rewriter.Visit(body);
         translated = rewritten?.ToFullString().Trim() ?? string.Empty;
         foreach (var field in pushFieldMap)
         {
@@ -1032,9 +1077,17 @@ internal static class GraphicsShaderBodyTranslator
                 return SyntaxFactory.EmptyStatement();
             }
 
+            return TranslateReturnedExpression(node.Expression);
+        }
+
+        public SyntaxNode TranslateExpressionBody(ExpressionSyntax expression)
+            => TranslateReturnedExpression(expression);
+
+        private SyntaxNode TranslateReturnedExpression(ExpressionSyntax expression)
+        {
             if (_stage == ShaderStage.Fragment)
             {
-                var fragmentExpression = Visit(node.Expression)?.ToFullString().Trim();
+                var fragmentExpression = Visit(expression)?.ToFullString().Trim();
                 if (string.IsNullOrWhiteSpace(fragmentExpression))
                 {
                     Reason ??= "Fragment shader return expression could not be translated.";
@@ -1059,21 +1112,21 @@ internal static class GraphicsShaderBodyTranslator
                     continue;
                 }
 
-                var value = FindReturnedFieldValue(node.Expression, field);
-                var expression = value is not null
+                var value = FindReturnedFieldValue(expression, field);
+                var translatedExpression = value is not null
                     ? Visit(value)?.ToFullString().Trim()
-                    : _model.GetTypeInfo(node.Expression).Type is INamedTypeSymbol expressionType &&
+                    : _model.GetTypeInfo(expression).Type is INamedTypeSymbol expressionType &&
                         SymbolEqualityComparer.Default.Equals(expressionType, _returnType) &&
                         _directFields.TryGetValue(field, out var directFieldName)
                         ? directFieldName
                         : null;
-                if (string.IsNullOrWhiteSpace(expression))
+                if (string.IsNullOrWhiteSpace(translatedExpression))
                 {
                     Reason ??= $"Vertex return value does not initialize field '{field.Name}'.";
                     continue;
                 }
 
-                assignments.Add(SyntaxFactory.ParseStatement(outputName + " = " + expression + ";"));
+                assignments.Add(SyntaxFactory.ParseStatement(outputName + " = " + translatedExpression + ";"));
             }
 
             return SyntaxFactory.Block(assignments);
