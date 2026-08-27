@@ -12,7 +12,7 @@ Canonical diagnostic families:
 - `DSH008` — invalid body/call graph, including recursion;
 - `DSH009` — unsafe conversion;
 - `DSH010` — reference type in the reachable shader-visible type graph;
-- `DSH011` — invalid stage builtin/resource parameter use;
+- `DSH011` — invalid stage builtin or context resource use;
 - `DSH012` — invalid graphics output or varying contract;
 - `DSH013` — mismatched vertex/fragment interface;
 - `DSH014` — analyzer-rejected managed/runtime construct such as capture,

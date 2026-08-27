@@ -20,7 +20,7 @@ public static class ComputeTexture
         uint id = ShaderBuiltins.GlobalInvocationId.X;
         if (id < context.Output.Length)
         {
-            context.Output[id] = ShaderIntrinsics.SampleCompute<float2, float4>(context.Atlas, new float2(0.5f, 0.5f));
+            context.Output[id] = context.Atlas.Sample<float2, float4>(new float2(0.5f, 0.5f));
         }
     }
 }

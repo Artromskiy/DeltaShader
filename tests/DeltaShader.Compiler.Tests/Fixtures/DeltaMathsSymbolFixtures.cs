@@ -5,22 +5,38 @@ namespace Delta.Shader.Compiler.Tests.Fixtures;
 
 internal static class DeltaMathsSymbolFixtures
 {
-    public static void FixtureOne(
-        [Layout(0, 0)] ReadOnlyStorageBuffer<float> a,
-        [Layout(0, 1)] ReadWriteStorageBuffer<float> b)
+    public readonly struct FixtureOneContext
     {
-        var left = new float3(a[0u], 1f, 2f);
-        var right = new float3(a[0u], 3f, 4f);
-        b[0u] = maths.dot(left, right);
+        [Layout(0, 0)]
+        public readonly ReadOnlyStorageBuffer<float> A;
+
+        [Layout(0, 1)]
+        public readonly ReadWriteStorageBuffer<float> B;
     }
 
-    public static void FixtureSwizzle(
-        [Layout(0, 0)] ReadOnlyStorageBuffer<float4> values,
-        [Layout(0, 1)] ReadWriteStorageBuffer<float2> result,
-        uint i)
+    public static void FixtureOne(in FixtureOneContext context)
     {
-        float4 v = values[i];
+        var left = new float3(context.A[0u], 1f, 2f);
+        var right = new float3(context.A[0u], 3f, 4f);
+        context.B[0u] = maths.dot(left, right);
+    }
+
+    public readonly struct FixtureSwizzleContext
+    {
+        [Layout(0, 0)]
+        public readonly ReadOnlyStorageBuffer<float4> Values;
+
+        [Layout(0, 1)]
+        public readonly ReadWriteStorageBuffer<float2> Result;
+
+        [PushConstant]
+        public readonly uint Index;
+    }
+
+    public static void FixtureSwizzle(in FixtureSwizzleContext context)
+    {
+        float4 v = context.Values[context.Index];
         float2 sw = v.xy;
-        result[i] = new float2(sw.x, sw.y);
+        context.Result[context.Index] = new float2(sw.x, sw.y);
     }
 }

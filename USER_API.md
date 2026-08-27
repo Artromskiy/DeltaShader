@@ -14,11 +14,11 @@ An authoring project references:
 
 ### User-defined context contract
 
-The selected authoring contract is one user-defined shader-visible value
-context instead of a long list of entry-point parameters. A context is an
-ordinary user-defined `readonly struct`; it is not an array type and does not
-inherit from a framework base class. A context contains descriptors, push
-constants, and, for graphics stages, one structured stage-data field.
+Every entry point takes one user-defined shader-visible context value as its
+`in` parameter. A context is an ordinary user-defined `readonly struct`; it is
+not an array type and does not inherit from a framework base class. A context
+contains descriptors, push constants, and, for graphics stages, one structured
+stage-data field.
 
 ```csharp
 public readonly struct ComputeParametersContext
@@ -183,8 +183,7 @@ the declared buffers and constants, while the renderer-owned adapter creates
 the actual GPU dispatch. A CPU execution helper may use the same context for
 tests, but CPU and GPU remain separate execution backends.
 
-The parameter-based resource and builtin forms are removed. A
-`[ComputeShader]` method must have exactly one `in` shader context parameter;
+The entry-point contract requires exactly one `in` shader context parameter;
 resources use `[Layout(set, binding)]`, and execution builtins are accessed
 through `ShaderBuiltins`.
 

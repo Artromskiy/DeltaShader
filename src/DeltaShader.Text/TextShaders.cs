@@ -80,7 +80,7 @@ public readonly struct MsdfTextFragmentContext
 public static class TextShaders
 {
     [VertexShader("sdf-text")]
-    [SuppressMessage("Design", "CA1062", Justification = "Shader entry points are compile-time authoring methods; the analyzer lowers resource parameters instead of executing them on the CLR.")]
+    [SuppressMessage("Design", "CA1062", Justification = "Shader entry points are compile-time authoring methods; the analyzer lowers context resource fields instead of executing them on the CLR.")]
     public static TextVarying SdfTextVertex(in TextVertexContext context)
     {
         uint instanceIndex = ShaderBuiltins.InstanceIndex;
@@ -148,7 +148,7 @@ public static class TextShaders
     [FragmentShader("sdf-text")]
     public static float4 SdfTextFragment(in SdfTextFragmentContext context)
     {
-        var texel = ShaderIntrinsics.SampleFragment<float2, float4>(context.Atlas, context.Fragment.Uv);
+        var texel = context.Atlas.Sample<float2, float4>(context.Fragment.Uv);
         var distance = texel.x - 0.5f;
         var edge = ShaderIntrinsics.fwidth(distance);
         var coverage = maths.smoothStep(-edge, edge, distance);
@@ -156,7 +156,7 @@ public static class TextShaders
     }
 
     [VertexShader("msdf-text")]
-    [SuppressMessage("Design", "CA1062", Justification = "Shader entry points are compile-time authoring methods; the analyzer lowers resource parameters instead of executing them on the CLR.")]
+    [SuppressMessage("Design", "CA1062", Justification = "Shader entry points are compile-time authoring methods; the analyzer lowers context resource fields instead of executing them on the CLR.")]
     public static TextVarying MsdfTextVertex(in TextVertexContext context)
     {
         uint instanceIndex = ShaderBuiltins.InstanceIndex;
@@ -224,7 +224,7 @@ public static class TextShaders
     [FragmentShader("msdf-text")]
     public static float4 MsdfTextFragment(in MsdfTextFragmentContext context)
     {
-        var texel = ShaderIntrinsics.SampleFragment<float2, float4>(context.Atlas, context.Fragment.Uv);
+        var texel = context.Atlas.Sample<float2, float4>(context.Fragment.Uv);
         var median = maths.max(
             maths.min(texel.x, texel.y),
             maths.min(maths.max(texel.x, texel.y), texel.z));

@@ -8,12 +8,13 @@ Vulkan validation path support it.
 
 ## Current compiler boundary
 
-The compiled fixtures use explicit Vulkan graphics inputs:
-`ShaderBuiltins.FragmentCoord`,
-a sequential `[PushConstant]` struct, and `[FragmentColor]`. ShaderToy names
-such as `iResolution`, `iTime`, `fragCoord`, `iChannel0`, and `mainImage` are
-not compiler inputs. The current gallery therefore recreates visual ideas in
-terms of explicit DeltaShader values rather than copying ShaderToy wrappers.
+The compiled fixtures use one explicit graphics context containing an
+`[Interstage]` payload and a sequential `[PushConstant]` field, plus
+`ShaderBuiltins.FragmentCoord` in the fragment body. Fragment color is the
+`float4` entry-point return value. ShaderToy names such as `iResolution`,
+`iTime`, `fragCoord`, `iChannel0`, and `mainImage` are not compiler inputs.
+The current gallery therefore recreates visual ideas in terms of explicit
+DeltaShader context values rather than copying ShaderToy wrappers.
 
 ## Missing functionality to track
 

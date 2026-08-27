@@ -109,19 +109,61 @@ public static class ComputeEntryPoints
         }
 
         string body = string.Empty;
+        IReadOnlyList<string> helperFunctions = [];
+        IReadOnlyDictionary<IMethodSymbol, string> helperNames = new Dictionary<IMethodSymbol, string>(SymbolEqualityComparer.Default);
         bool usesBuiltinInvocationId = false;
         if (diagnostics.Count == 0)
         {
             var methodSyntax = entry.Method.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() as MethodDeclarationSyntax;
-            if (!TryTranslateExecutableBody(entry.Method, context, methodSyntax, contextParameter, null, storageBuffers, out body, out usesBuiltinInvocationId, out var bodyDiagnosticReason, out var bodyDiagnosticId))
+            string? helperDiagnosticReason = null;
+            if (methodSyntax is null)
             {
-                var location = entry.Method.Locations.FirstOrDefault()?.GetLineSpan();
                 diagnostics.Add(new ShaderDiagnostic(
-                    bodyDiagnosticId,
-                    bodyDiagnosticReason ?? "Compute entry point body is not supported in MVP.",
-                    location?.Path,
-                    location is null ? 0 : location.Value.StartLinePosition.Line + 1,
-                    location is null ? 0 : location.Value.StartLinePosition.Character + 1));
+                    ShaderDiagnosticId.DSH008,
+                    "Unable to read compute shader entry-point source body.",
+                    entry.Method.Locations.FirstOrDefault()?.GetLineSpan().Path));
+            }
+            else if (!TryBuildLocalStructs(methodSyntax, context.Compilation.GetSemanticModel(methodSyntax.SyntaxTree), context,
+                    structDefinitions, out var structDiagnosticReason))
+            {
+                diagnostics.Add(new ShaderDiagnostic(
+                    ShaderDiagnosticId.DSH008,
+                    structDiagnosticReason ?? "Unable to build local compute shader structs.",
+                    entry.Method.Locations.FirstOrDefault()?.GetLineSpan().Path));
+            }
+            else if (!TryBuildHelpers(methodSyntax, context.Compilation.GetSemanticModel(methodSyntax.SyntaxTree), context,
+                    out helperFunctions, out helperNames, out helperDiagnosticReason))
+            {
+                diagnostics.Add(new ShaderDiagnostic(
+                    ShaderDiagnosticId.DSH008,
+                    helperDiagnosticReason ?? "Unable to lower compute shader helper call graph.",
+                    entry.Method.Locations.FirstOrDefault()?.GetLineSpan().Path));
+            }
+            else
+            {
+                CreateStructMaps(structDefinitions, out var structNames, out var structFields, out var structProperties);
+                if (!ShaderBodyTranslator.TryTranslateCompute(
+                        methodSyntax,
+                        context.Compilation.GetSemanticModel(methodSyntax.SyntaxTree),
+                        context,
+                        contextParameter,
+                        storageBuffers,
+                        helperNames,
+                        structNames,
+                        structFields,
+                        structProperties,
+                        out body,
+                        out usesBuiltinInvocationId,
+                        out var bodyDiagnosticReason))
+                {
+                    var location = entry.Method.Locations.FirstOrDefault()?.GetLineSpan();
+                    diagnostics.Add(new ShaderDiagnostic(
+                        ShaderDiagnosticId.DSH008,
+                        bodyDiagnosticReason ?? "Compute entry point body is not supported in MVP.",
+                        location?.Path,
+                        location is null ? 0 : location.Value.StartLinePosition.Line + 1,
+                        location is null ? 0 : location.Value.StartLinePosition.Character + 1));
+                }
             }
         }
 
@@ -138,12 +180,366 @@ public static class ComputeEntryPoints
             Requirements = [$"Vulkan {resultOptions.Profile}", $"GLSL {resultOptions.Glsl}", $"SPIRV {resultOptions.Spirv}"],
             Instructions = new[] { "entrypoint " + entry.Name },
             Body = body,
+            HelperFunctions = helperFunctions,
             UsesBuiltinInvocationId = usesBuiltinInvocationId,
             InvocationParameterName = null,
             PushConstants = pushConstants
         };
 
         return new ShaderCompilationResult(entry.Name, diagnostics.Count == 0, diagnostics, module, resultOptions, entry.Method.Name, entry.Method.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+    }
+
+    private static bool TryBuildHelpers(
+        MethodDeclarationSyntax entrySyntax,
+        SemanticModel entryModel,
+        ModuleCompilationContext context,
+        out IReadOnlyList<string> functions,
+        out IReadOnlyDictionary<IMethodSymbol, string> names,
+        out string? reason)
+    {
+        var ordered = new List<IMethodSymbol>();
+        var states = new Dictionary<IMethodSymbol, int>(SymbolEqualityComparer.Default);
+        var helperNames = new Dictionary<IMethodSymbol, string>(SymbolEqualityComparer.Default);
+        var usedNames = new HashSet<string>(StringComparer.Ordinal);
+        reason = null;
+        string? failureReason = null;
+
+        bool Visit(IMethodSymbol method)
+        {
+            var definition = method.OriginalDefinition;
+            if (states.TryGetValue(definition, out var state))
+            {
+                if (state == 1)
+                {
+                    failureReason = $"Recursive compute shader helper call graph at '{definition.Name}'.";
+                    return false;
+                }
+
+                return true;
+            }
+
+            if (!definition.IsStatic || definition.Arity != 0 || definition.ReturnsVoid ||
+                definition.Parameters.Any(parameter => parameter.RefKind != RefKind.None && parameter.RefKind != RefKind.Out))
+            {
+                failureReason = $"Compute shader helper '{definition.Name}' must be a static, non-generic value method with value or out parameters.";
+                return false;
+            }
+
+            if (definition.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is not MethodDeclarationSyntax syntax)
+            {
+                failureReason = $"Compute shader helper '{definition.Name}' must be declared in the shader source project.";
+                return false;
+            }
+
+            SyntaxNode? helperBody = syntax.ExpressionBody is { Expression: { } expressionBody }
+                ? expressionBody
+                : syntax.Body;
+            if (helperBody is null)
+            {
+                failureReason = $"Compute shader helper '{definition.Name}' must have a translatable body.";
+                return false;
+            }
+
+            if (!TryMapComputeType(definition.ReturnType, context, out _) ||
+                definition.Parameters.Any(parameter => !TryMapComputeType(parameter.Type, context, out _)))
+            {
+                failureReason = $"Compute shader helper '{definition.Name}' has an unsupported parameter or return type.";
+                return false;
+            }
+
+            if (helperBody.DescendantNodesAndSelf().OfType<ThisExpressionSyntax>().Any())
+            {
+                failureReason = $"Compute shader helper '{definition.Name}' captures managed instance state.";
+                return false;
+            }
+
+            var model = context.Compilation.GetSemanticModel(syntax.SyntaxTree);
+            foreach (var identifier in helperBody.DescendantNodesAndSelf().OfType<IdentifierNameSyntax>())
+            {
+                var symbol = model.GetSymbolInfo(identifier).Symbol;
+                if (symbol is IFieldSymbol field && !field.HasConstantValue)
+                {
+                    failureReason = $"Compute shader helper '{definition.Name}' captures managed field '{field.Name}'.";
+                    return false;
+                }
+
+                if (symbol is IPropertySymbol && !context.Intrinsics.TryGetIntrinsic(symbol, out _))
+                {
+                    failureReason = $"Compute shader helper '{definition.Name}' uses unsupported property state.";
+                    return false;
+                }
+            }
+
+            states[definition] = 1;
+            helperNames[definition] = CreateHelperName(definition, usedNames);
+            foreach (var invocation in helperBody.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
+            {
+                if (model.GetSymbolInfo(invocation).Symbol is not IMethodSymbol called)
+                {
+                    failureReason = $"Compute shader helper '{definition.Name}' contains an unresolved method call.";
+                    return false;
+                }
+
+                if (context.Intrinsics.TryGetIntrinsic(called, out var intrinsic))
+                {
+                    if (!intrinsic.SupportsStage(ShaderStage.Compute))
+                    {
+                        failureReason = $"Intrinsic '{called.Name}' is not valid in compute stage.";
+                        return false;
+                    }
+
+                    continue;
+                }
+
+                if (!Visit(called))
+                {
+                    return false;
+                }
+            }
+
+            states[definition] = 2;
+            ordered.Add(definition);
+            return true;
+        }
+
+        var entryBody = entrySyntax.Body ?? (SyntaxNode?)entrySyntax.ExpressionBody?.Expression;
+        if (entryBody is not null)
+        {
+            foreach (var invocation in entryBody.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
+            {
+                if (entryModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol called)
+                {
+                    continue;
+                }
+
+                if (context.Intrinsics.TryGetIntrinsic(called, out var intrinsic))
+                {
+                    if (!intrinsic.SupportsStage(ShaderStage.Compute))
+                    {
+                        reason = $"Intrinsic '{called.Name}' is not valid in compute stage.";
+                        functions = [];
+                        names = helperNames;
+                        return false;
+                    }
+
+                    continue;
+                }
+
+                if (!Visit(called))
+                {
+                    reason = failureReason;
+                    functions = [];
+                    names = helperNames;
+                    return false;
+                }
+            }
+        }
+
+        var emitted = new List<string>(ordered.Count);
+        foreach (var helper in ordered)
+        {
+            if (helper.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is not MethodDeclarationSyntax syntax ||
+                syntax.ExpressionBody?.Expression is null && syntax.Body is null)
+            {
+                reason = $"Compute shader helper '{helper.Name}' has no translatable body.";
+                functions = [];
+                names = helperNames;
+                return false;
+            }
+
+            var model = context.Compilation.GetSemanticModel(syntax.SyntaxTree);
+            var parameterMap = new Dictionary<IParameterSymbol, string>(SymbolEqualityComparer.Default);
+            var signature = new List<string>(helper.Parameters.Length);
+            foreach (var parameter in helper.Parameters)
+            {
+                if (!TryMapComputeType(parameter.Type, context, out var glslType))
+                {
+                    reason = $"Compute shader helper '{helper.Name}' has an unsupported parameter type.";
+                    functions = [];
+                    names = helperNames;
+                    return false;
+                }
+
+                var parameterName = "arg_" + SanitizeHelperName(parameter.Name);
+                parameterMap[parameter] = parameterName;
+                signature.Add((parameter.RefKind == RefKind.Out ? "out " : string.Empty) + glslType + " " + parameterName);
+            }
+
+            if (!TryMapComputeType(helper.ReturnType, context, out var returnType))
+            {
+                reason = $"Compute shader helper '{helper.Name}' has an unsupported return type.";
+                functions = [];
+                names = helperNames;
+                return false;
+            }
+
+            var outputParameters = helper.Parameters
+                .Where(parameter => parameter.RefKind == RefKind.Out)
+                .ToArray();
+            bool translationSucceeded;
+            string translation;
+            string? helperReason;
+            if (syntax.ExpressionBody?.Expression is { } expressionBody)
+            {
+                translationSucceeded = ShaderBodyTranslator.TryTranslateComputeExpression(
+                    expressionBody,
+                    model,
+                    context,
+                    null,
+                    new Dictionary<ISymbol, uint>(SymbolEqualityComparer.Default),
+                    new Dictionary<ILocalSymbol, string>(SymbolEqualityComparer.Default),
+                    parameterMap,
+                    helperNames,
+                    out translation,
+                    out _,
+                    out helperReason);
+            }
+            else
+            {
+                translationSucceeded = ShaderBodyTranslator.TryTranslateCompute(
+                    syntax,
+                    model,
+                    context,
+                    null,
+                    new Dictionary<ISymbol, uint>(SymbolEqualityComparer.Default),
+                    helperNames,
+                    new Dictionary<INamedTypeSymbol, string>(SymbolEqualityComparer.Default),
+                    new Dictionary<IFieldSymbol, string>(SymbolEqualityComparer.Default),
+                    new Dictionary<IPropertySymbol, string>(SymbolEqualityComparer.Default),
+                    out translation,
+                    out _,
+                    out helperReason,
+                    parameterMap,
+                    outputParameters,
+                    allowValueReturn: true);
+            }
+
+            if (!translationSucceeded)
+            {
+                reason = helperReason ?? $"Unable to translate compute shader helper '{helper.Name}'.";
+                functions = [];
+                names = helperNames;
+                return false;
+            }
+
+            emitted.Add(syntax.ExpressionBody is not null
+                ? $"{returnType} {helperNames[helper]}({string.Join(", ", signature)}) {{ return {translation}; }}"
+                : $"{returnType} {helperNames[helper]}({string.Join(", ", signature)}) {{\n{translation}\n}}");
+        }
+
+        functions = emitted;
+        names = helperNames;
+        return true;
+    }
+
+    private static bool TryBuildLocalStructs(
+        MethodDeclarationSyntax methodSyntax,
+        SemanticModel model,
+        ModuleCompilationContext context,
+        Dictionary<INamedTypeSymbol, ShaderIrStruct> structDefinitions,
+        out string? reason)
+    {
+        reason = null;
+        foreach (var creation in methodSyntax.DescendantNodes().OfType<ObjectCreationExpressionSyntax>())
+        {
+            if (model.GetTypeInfo(creation).Type is INamedTypeSymbol type &&
+                type.TypeKind == TypeKind.Struct &&
+                !context.Intrinsics.TryMapType(type, out _) &&
+                !TryBuildStructLayout(type, context, structDefinitions,
+                    new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default), out _, out reason))
+            {
+                return false;
+            }
+        }
+
+        foreach (var creation in methodSyntax.DescendantNodes().OfType<ImplicitObjectCreationExpressionSyntax>())
+        {
+            var type = model.GetTypeInfo(creation).ConvertedType ?? model.GetTypeInfo(creation).Type;
+            if (type is INamedTypeSymbol namedType &&
+                namedType.TypeKind == TypeKind.Struct &&
+                !context.Intrinsics.TryMapType(namedType, out _) &&
+                !TryBuildStructLayout(namedType, context, structDefinitions,
+                    new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default), out _, out reason))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static void CreateStructMaps(
+        Dictionary<INamedTypeSymbol, ShaderIrStruct> structDefinitions,
+        out Dictionary<INamedTypeSymbol, string> structNames,
+        out Dictionary<IFieldSymbol, string> structFields,
+        out Dictionary<IPropertySymbol, string> structProperties)
+    {
+        structNames = new Dictionary<INamedTypeSymbol, string>(SymbolEqualityComparer.Default);
+        structFields = new Dictionary<IFieldSymbol, string>(SymbolEqualityComparer.Default);
+        structProperties = new Dictionary<IPropertySymbol, string>(SymbolEqualityComparer.Default);
+        foreach (var definition in structDefinitions)
+        {
+            structNames[definition.Key] = definition.Value.GlslName;
+            foreach (var member in definition.Key.GetMembers())
+            {
+                if (member is IFieldSymbol field && !field.IsStatic && !field.IsImplicitlyDeclared)
+                {
+                    structFields[field] = definition.Value.Members.Single(item => item.Name == field.Name).GlslName;
+                }
+                else if (member is IPropertySymbol property && !property.IsStatic && !property.IsIndexer &&
+                         property.Parameters.Length == 0 && property.GetMethod is not null)
+                {
+                    structProperties[property] = definition.Value.Members.Single(item => item.Name == property.Name).GlslName;
+                }
+            }
+        }
+    }
+
+    private static bool TryMapComputeType(ITypeSymbol type, ModuleCompilationContext context, out string glslType)
+    {
+        if (context.Intrinsics.TryMapType(type, out glslType))
+        {
+            return true;
+        }
+
+        glslType = type.SpecialType switch
+        {
+            SpecialType.System_Boolean => "bool",
+            SpecialType.System_Single => "float",
+            SpecialType.System_UInt32 => "uint",
+            SpecialType.System_Int32 => "int",
+            _ => string.Empty
+        };
+        return glslType.Length != 0;
+    }
+
+    private static string CreateHelperName(IMethodSymbol method, ISet<string> usedNames)
+    {
+        var baseName = "delta_helper_" + SanitizeHelperName(method.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+        var candidate = baseName;
+        var suffix = 2;
+        while (!usedNames.Add(candidate))
+        {
+            candidate = baseName + "_" + suffix++;
+        }
+
+        return candidate;
+    }
+
+    private static string SanitizeHelperName(string name)
+    {
+        var builder = new System.Text.StringBuilder(name.Length);
+        foreach (var character in name)
+        {
+            builder.Append(char.IsLetterOrDigit(character) || character == '_' ? character : '_');
+        }
+
+        if (builder.Length == 0 || char.IsDigit(builder[0]))
+        {
+            builder.Insert(0, '_');
+        }
+
+        return builder.ToString();
     }
 
     private static ShaderDiagnostic CreateDiagnostic(ISymbol symbol, string id, string message)
@@ -490,57 +886,25 @@ public static class ComputeEntryPoints
         ModuleCompilationContext context)
         => SymbolEqualityComparer.Default.Equals(attributeType, context.LayoutAttributeType);
 
-    private static bool TryTranslateExecutableBody(
-        IMethodSymbol method,
-        ModuleCompilationContext context,
-        MethodDeclarationSyntax? methodSyntax,
-        IParameterSymbol? contextParameter,
-        IParameterSymbol? invocationParameter,
-        Dictionary<ISymbol, uint> storageParameters,
-        out string body,
-        out bool usesBuiltinInvocationId,
-        out string? reason,
-        out string diagnosticId)
-    {
-        body = string.Empty;
-        usesBuiltinInvocationId = false;
-        reason = null;
-        diagnosticId = ShaderDiagnosticId.DSH008;
-
-        if (methodSyntax is null)
-        {
-            reason = "Unable to read compute entry-point source body.";
-            return false;
-        }
-
-        if (storageParameters.Count == 0)
-        {
-            body = string.Empty;
-            return true;
-        }
-
-        var semanticModel = context.Compilation.GetSemanticModel(methodSyntax.SyntaxTree);
-        if (!new ComputeShaderBodyTranslator(context.Intrinsics).TryTranslate(method, methodSyntax, semanticModel,
-                contextParameter, invocationParameter, storageParameters,
-                out var translation, out reason, out diagnosticId))
-        {
-            return false;
-        }
-
-        if (translation is null)
-        {
-            reason ??= "Unable to translate compute shader body.";
-            return false;
-        }
-
-        body = translation.Body;
-        usesBuiltinInvocationId = translation.UsesBuiltinInvocationId;
-        return true;
-    }
-
     private static bool IsReadOnlyStorageBuffer(ITypeSymbol type, ModuleCompilationContext context)
         => context.ReadOnlyStorageBufferType is not null &&
            SymbolEqualityComparer.Default.Equals((type as INamedTypeSymbol)?.OriginalDefinition, context.ReadOnlyStorageBufferType);
+
+    private static IEnumerable<ISymbol> GetStructValueMembers(INamedTypeSymbol type)
+    {
+        foreach (var member in type.GetMembers())
+        {
+            if (member is IFieldSymbol field && !field.IsStatic && !field.IsImplicitlyDeclared)
+            {
+                yield return field;
+            }
+            else if (member is IPropertySymbol property && !property.IsStatic && !property.IsIndexer &&
+                     property.Parameters.Length == 0 && property.GetMethod is not null)
+            {
+                yield return property;
+            }
+        }
+    }
 
     private static bool TryBuildStructLayout(
         INamedTypeSymbol type,
@@ -581,29 +945,30 @@ public static class ComputeEntryPoints
         var members = new List<ShaderIrStructMember>();
         uint offset = 0;
         uint alignment = 1;
-        foreach (var field in type.GetMembers().OfType<IFieldSymbol>().Where(field => !field.IsStatic))
+        foreach (var member in GetStructValueMembers(type))
         {
-            if (field.Type is IArrayTypeSymbol arrayType && SymbolEqualityComparer.Default.Equals(arrayType.ElementType, type))
+            var memberType = member is IFieldSymbol field ? field.Type : ((IPropertySymbol)member).Type;
+            if (memberType is IArrayTypeSymbol arrayType && SymbolEqualityComparer.Default.Equals(arrayType.ElementType, type))
             {
                 visiting.Remove(type);
                 structure = null;
-                reason = $"Recursive shader struct '{type.ToDisplayString()}' through field '{field.Name}' is not supported.";
+                reason = $"Recursive shader struct '{type.ToDisplayString()}' through member '{member.Name}' is not supported.";
                 return false;
             }
 
-            if (!TryMapShaderType(field.Type, context, structDefinitions, visiting, out var fieldGlslType, out var fieldLayout, out var nestedMembers, out reason))
+            if (!TryMapShaderType(memberType, context, structDefinitions, visiting, out var fieldGlslType, out var fieldLayout, out var nestedMembers, out reason))
             {
                 visiting.Remove(type);
                 structure = null;
-                reason = $"Shader struct field '{type.ToDisplayString()}.{field.Name}' is unsupported: {reason}";
+                reason = $"Shader struct member '{type.ToDisplayString()}.{member.Name}' is unsupported: {reason}";
                 return false;
             }
 
             offset = AlignUp(offset, fieldLayout.Alignment);
             members.Add(new ShaderIrStructMember
             {
-                Name = field.Name,
-                GlslName = "member_" + SanitizeName(field.Name),
+                Name = member.Name,
+                GlslName = "member_" + SanitizeName(member.Name),
                 GlslType = fieldGlslType,
                 Offset = offset,
                 Alignment = fieldLayout.Alignment,

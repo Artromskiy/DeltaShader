@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
 using Delta.Shader.Compiler;
 using Microsoft.Build.Locator;
@@ -13,6 +14,14 @@ namespace Delta.Shader.Compiler.Tests;
 
 public sealed class BindingAndBuiltinTests
 {
+    [Fact]
+    public void ContextRoleAttributes_AreFieldOnly()
+    {
+        Assert.Equal(AttributeTargets.Field, typeof(LayoutAttribute).GetCustomAttribute<AttributeUsageAttribute>()!.ValidOn);
+        Assert.Equal(AttributeTargets.Field, typeof(PushConstantAttribute).GetCustomAttribute<AttributeUsageAttribute>()!.ValidOn);
+        Assert.Equal(AttributeTargets.Field, typeof(PositionAttribute).GetCustomAttribute<AttributeUsageAttribute>()!.ValidOn);
+    }
+
     [Fact]
     public async Task ComputeContext_UsesUnifiedDescriptorBindingAndStaticBuiltin()
     {
@@ -95,8 +104,277 @@ public sealed class BindingAndBuiltinTests
         Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
         Assert.Contains("uint id", result.Module!.Body, StringComparison.Ordinal);
         Assert.Contains("uint value", result.Module.Body, StringComparison.Ordinal);
-        Assert.Contains("if (id < pushConstants.member_Count)", result.Module.Body, StringComparison.Ordinal);
-        Assert.Contains("Output.data[id] = value + 1u;", result.Module.Body, StringComparison.Ordinal);
+        Assert.Contains("if (id< pushConstants.member_Count)", result.Module.Body, StringComparison.Ordinal);
+        Assert.Contains("Output.data[id] = value+ 1u;", result.Module.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ComputeBodySupportsStaticHelperCallGraph()
+    {
+        const string source = @"
+            using Delta.Shader;
+
+            public readonly struct ComputeContext
+            {
+                [Layout(0, 0)]
+                public readonly ReadOnlyStorageBuffer<int> Input;
+
+                [Layout(0, 1)]
+                public readonly ReadWriteStorageBuffer<int> Output;
+            }
+
+            public static class SomeClass
+            {
+                public static int GetValue() => 100 / 3;
+            }
+
+            public static class ComputeEntry
+            {
+                [ComputeShader(64)]
+                public static void Execute(in ComputeContext context)
+                {
+                    var k = SomeClass.GetValue();
+                    uint id = ShaderBuiltins.GlobalInvocationId.X;
+                    if (id < context.Input.Length)
+                    {
+                        context.Output[id] = context.Input[id] + k;
+                    }
+                }
+            }
+        ";
+
+        Compilation compilation = await LoadCompilationAsync(source).ConfigureAwait(true);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        var module = result.Module ?? throw new InvalidOperationException("Successful helper compilation did not produce an IR module.");
+        Assert.Single(module.HelperFunctions);
+        Assert.Contains("int k = delta_helper_", module.Body, StringComparison.Ordinal);
+
+        var glsl = Delta.Shader.Backend.Glsl.GlslEmitter.EmitFromModule(module).Source;
+        var helperIndex = glsl.IndexOf("delta_helper_", StringComparison.Ordinal);
+        Assert.True(helperIndex >= 0);
+        Assert.True(helperIndex < glsl.IndexOf("void main()", StringComparison.Ordinal));
+        Assert.Contains("return 100 / 3;", glsl, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ComputeBodySupportsEarlyReturn()
+    {
+        const string source = @"
+            using Delta.Shader;
+
+            public readonly struct ComputeContext
+            {
+                [Layout(0, 0)]
+                public readonly ReadWriteStorageBuffer<uint> Output;
+            }
+
+            public static class ComputeEntry
+            {
+                [ComputeShader(64)]
+                public static void Execute(in ComputeContext context)
+                {
+                    uint id = ShaderBuiltins.GlobalInvocationId.X;
+                    if (id == 0u)
+                        return;
+                    context.Output[id] = 1u;
+                }
+            }
+        ";
+
+        Compilation compilation = await LoadCompilationAsync(source).ConfigureAwait(true);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        Assert.Contains("if (id", result.Module!.Body, StringComparison.Ordinal);
+        Assert.Contains("return;", result.Module.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ComputeBodySupportsLocalValueStructInitializer()
+    {
+        const string source = @"
+            using Delta.Shader;
+
+            public readonly struct ComputeContext
+            {
+                [Layout(0, 0)]
+                public readonly ReadWriteStorageBuffer<float> Output;
+
+                [PushConstant]
+                public readonly float DeltaTime;
+            }
+
+            public struct SubContext
+            {
+                public float DeltaTime { get; init; }
+            }
+
+            public static class ComputeEntry
+            {
+                [ComputeShader(64)]
+                public static void Execute(in ComputeContext context)
+                {
+                    var sbctx = new SubContext
+                    {
+                        DeltaTime = context.DeltaTime
+                    };
+                    uint id = ShaderBuiltins.GlobalInvocationId.X;
+                    if (id < context.Output.Length)
+                        context.Output[id] = sbctx.DeltaTime;
+                }
+            }
+        ";
+
+        Compilation compilation = await LoadCompilationAsync(source).ConfigureAwait(true);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        Assert.Contains(result.Module!.Structs, structure => structure.GlslName.Contains("SubContext", StringComparison.Ordinal));
+        Assert.Contains("DeltaStruct_SubContext sbctx", result.Module.Body, StringComparison.Ordinal);
+        Assert.Contains("sbctx.member_DeltaTime", result.Module.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ComputeBodySupportsForLoopWithLocalCounter()
+    {
+        const string source = @"
+            using Delta.Shader;
+
+            public readonly struct ComputeContext
+            {
+                [PushConstant]
+                public readonly uint Seed;
+            }
+
+            public static class ComputeEntry
+            {
+                [ComputeShader(64)]
+                public static void Execute(in ComputeContext context)
+                {
+                    for (int i = 10; i < 100; i++)
+                    {
+                    }
+                }
+            }
+        ";
+
+        Compilation compilation = await LoadCompilationAsync(source).ConfigureAwait(true);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        Assert.Contains("for (int i = 10;", result.Module!.Body, StringComparison.Ordinal);
+        Assert.Contains("i< 100", result.Module.Body, StringComparison.Ordinal);
+        Assert.Contains("i++", result.Module.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ComputeBodySupportsOutHelperAndDiscardedResult()
+    {
+        const string source = @"
+            using Delta.Shader;
+
+            public readonly struct ComputeContext
+            {
+                [PushConstant]
+                public readonly uint Seed;
+            }
+
+            public static class ComputeEntry
+            {
+                [ComputeShader(64)]
+                public static void Execute(in ComputeContext context)
+                {
+                    for (int i = 10; i < 100; ++i)
+                    {
+                        _ = GetSome(out var some);
+                    }
+                }
+
+                private static bool GetSome(out int some)
+                {
+                    some = 11;
+                    return true;
+                }
+            }
+        ";
+
+        Compilation compilation = await LoadCompilationAsync(source).ConfigureAwait(true);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        Assert.Contains(result.Module!.HelperFunctions, helper => helper.Contains("out int", StringComparison.Ordinal));
+        Assert.Contains(result.Module.HelperFunctions, helper => helper.Contains("arg_some = 11;", StringComparison.Ordinal));
+        Assert.Contains("delta_helper_", result.Module.Body, StringComparison.Ordinal);
+        Assert.Contains("some", result.Module.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ComputeBodyRejectsInstanceIndex()
+    {
+        const string source = @"
+            using Delta.Shader;
+
+            public readonly struct ComputeContext
+            {
+                [Layout(0, 0)]
+                public readonly ReadWriteStorageBuffer<uint> Output;
+            }
+
+            public static class ComputeEntry
+            {
+                [ComputeShader(64)]
+                public static void Execute(in ComputeContext context)
+                {
+                    context.Output[ShaderBuiltins.InstanceIndex] = 1u;
+                }
+            }
+        ";
+
+        Compilation compilation = await LoadCompilationAsync(source).ConfigureAwait(true);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Message.Contains("Shader builtin 'InstanceIndex' is not valid in Compute stage", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ComputeBodySupportsTargetTypedMathsConstructor()
+    {
+        const string source = @"
+            using Delta.Shader;
+            using Delta.Maths;
+
+            public readonly struct ComputeContext
+            {
+                [Layout(0, 0)]
+                public readonly ReadOnlyStorageBuffer<uint> Input;
+
+                [Layout(0, 1)]
+                public readonly ReadWriteStorageBuffer<uint> Output;
+            }
+
+            public static class ComputeEntry
+            {
+                [ComputeShader(64)]
+                public static void Execute(in ComputeContext context)
+                {
+                    float4 color = new(1f, 1f, 1f, 1f);
+                    uint id = ShaderBuiltins.GlobalInvocationId.X;
+                    if (id < context.Input.Length)
+                    {
+                        context.Output[id] = context.Input[id] * 2u + 1u;
+                    }
+                }
+            }";
+
+        Compilation compilation = await LoadCompilationAsync(source).ConfigureAwait(true);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        Assert.Contains("vec4 color = vec4(1, 1, 1, 1);", result.Module!.Body, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -171,7 +449,7 @@ public sealed class BindingAndBuiltinTests
 
         Assert.False(result.Success);
         Assert.Contains(result.Diagnostics, diagnostic =>
-            diagnostic.Message.Contains("Vertex-input [Layout(location)] is not valid in compute", StringComparison.Ordinal));
+            diagnostic.Message.Contains("Vertex-input [Layout(location)] is not valid in a compute", StringComparison.Ordinal));
     }
 
     [Fact]

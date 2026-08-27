@@ -4,6 +4,11 @@ DeltaShader is the first-party C# shader compiler for Vulkan GLSL 460 and
 SPIR-V. Static attributed C# methods are validated with Roslyn and lowered
 through a typed IR.
 
+Shader authoring uses one `in` context value per entry point. User-defined
+context structs declare resources, push constants, and graphics stage data as
+explicitly annotated fields; execution builtins are accessed through
+`ShaderBuiltins`.
+
 ## Boundaries
 
 - `DeltaShader` / `Delta.Shader` is the user-facing C# shader authoring API.

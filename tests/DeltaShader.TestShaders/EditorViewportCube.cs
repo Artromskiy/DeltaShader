@@ -78,7 +78,7 @@ internal static class EditorViewportCube
     [FragmentShader("EditorViewportCubeFragment")]
     public static float4 Fragment(in FragmentContext context)
     {
-        var baseColor = ShaderIntrinsics.SampleFragment<float2, float4>(context.Albedo, context.Fragment.Uv);
+        var baseColor = context.Albedo.Sample<float2, float4>(context.Fragment.Uv);
         var lightDirection = maths.normalize(-context.Scene[0].LightDirection);
         var diffuse = maths.max(0f, maths.dot(context.Fragment.Normal, lightDirection));
         return baseColor * context.Scene[0].LightColor * diffuse;

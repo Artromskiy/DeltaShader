@@ -18,8 +18,8 @@ while diagnostics for entry points and profile constraints must be explicit and 
   - parse/analyze project with Roslyn;
   - lower entry point metadata to `ShaderIrModule`;
   - emit Vulkan-style GLSL when valid.
-- `Compute` entry lowering now emits diagnostics for unsupported ordinary parameters and missing
-  storage-buffer annotations in MVP, instead of silently dropping them.
+- `Compute` entry lowering now rejects entry points that do not satisfy the
+  one-context-field contract, instead of silently dropping undeclared data.
 - Duplicate descriptor conflicts are reported with `DSH005`.
 - Vulkan/SPIR-V profile validation now checks compatibility (`vulkan1.2` ↔ `SPIRV<=1.5`, etc.)
   and local workgroup bounds before emitting IR.

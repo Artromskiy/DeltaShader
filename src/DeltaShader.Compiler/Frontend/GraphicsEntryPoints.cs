@@ -466,7 +466,7 @@ internal static class GraphicsEntryPoints
                 {
                     diagnostics.Add(new ShaderDiagnostic(ShaderDiagnosticId.DSH008, helperReason ?? "Unable to lower shader helper call graph.", Severity: ShaderDiagnosticSeverity.Error));
                 }
-                else if (!GraphicsShaderBodyTranslator.TryTranslate(
+                else if (!ShaderBodyTranslator.TryTranslate(
                     executableBody,
                     semanticModel,
                     context,
@@ -485,6 +485,10 @@ internal static class GraphicsEntryPoints
                     lowerReturns: true))
                 {
                     diagnostics.Add(new ShaderDiagnostic(ShaderDiagnosticId.DSH008, reason ?? "Unable to translate graphics shader body.", Severity: ShaderDiagnosticSeverity.Error));
+                }
+                else if (entry.Stage == ShaderStage.Vertex)
+                {
+                    AddVertexBuiltinInputs(executableBody, semanticModel, context, inputs);
                 }
             }
         }
@@ -720,7 +724,7 @@ internal static class GraphicsEntryPoints
                 names = helperNames;
                 return false;
             }
-            if (!GraphicsShaderBodyTranslator.TryTranslate(helperBody, model, context, stage, parameterMap, pushFieldMap, structNames, structFields, storageBufferTargets, helperNames, out var body, out var bodyReason))
+            if (!ShaderBodyTranslator.TryTranslate(helperBody, model, context, stage, parameterMap, pushFieldMap, structNames, structFields, storageBufferTargets, helperNames, out var body, out var bodyReason))
             {
                 reason = bodyReason ?? $"Unable to translate shader helper '{helper.Name}'.";
                 functions = [];
@@ -806,6 +810,45 @@ internal static class GraphicsEntryPoints
         return glslType.Length != 0;
     }
 
+    private static void AddVertexBuiltinInputs(
+        SyntaxNode body,
+        SemanticModel model,
+        ModuleCompilationContext context,
+        List<ShaderIrInterfaceVariable> inputs)
+    {
+        foreach (var memberAccess in body.DescendantNodesAndSelf().OfType<MemberAccessExpressionSyntax>())
+        {
+            if (model.GetSymbolInfo(memberAccess).Symbol is not IPropertySymbol property ||
+                !context.Intrinsics.TryGetIntrinsic(property, out var binding) ||
+                binding.Category != IntrinsicCategory.Builtin ||
+                !binding.SupportsStage(ShaderStage.Vertex) ||
+                inputs.Any(input => string.Equals(input.Builtin, property.Name, StringComparison.Ordinal)))
+            {
+                continue;
+            }
+
+            var glslType = property.Name switch
+            {
+                "VertexIndex" or "InstanceIndex" => "uint",
+                _ => string.Empty
+            };
+            if (glslType.Length == 0)
+            {
+                continue;
+            }
+
+            var name = char.ToLowerInvariant(property.Name[0]) + property.Name.Substring(1);
+            inputs.Add(new ShaderIrInterfaceVariable
+            {
+                Name = name,
+                ParameterName = name,
+                GlslName = binding.GlslName,
+                GlslType = glslType,
+                Builtin = property.Name
+            });
+        }
+    }
+
     private static bool TryGetVertexInputLayout(string glslType, out uint byteSize, out uint alignment, out string formatHint)
     {
         (byteSize, alignment, formatHint) = glslType switch
@@ -861,415 +904,4 @@ internal static class GraphicsEntryPoints
 
     private static uint AlignUp(uint value, uint alignment) => alignment == 0 ? value : (value + alignment - 1) / alignment * alignment;
     private static string Sanitize(string value) => new string(value.Select(character => char.IsLetterOrDigit(character) || character == '_' ? character : '_').ToArray());
-}
-
-internal static class GraphicsShaderBodyTranslator
-{
-    public static bool TryTranslate(
-        SyntaxNode body,
-        SemanticModel model,
-        ModuleCompilationContext context,
-        ShaderStage stage,
-        IReadOnlyDictionary<IParameterSymbol, string> parameterMap,
-        IReadOnlyDictionary<IFieldSymbol, string> pushFieldMap,
-        IReadOnlyDictionary<INamedTypeSymbol, string> structNames,
-        IReadOnlyDictionary<IFieldSymbol, string> structFields,
-        IReadOnlyCollection<string> storageBufferTargets,
-        IReadOnlyDictionary<IMethodSymbol, string> helperNames,
-        out string translated,
-        out string? reason,
-        IReadOnlyDictionary<IFieldSymbol, string>? directFields = null,
-        IReadOnlyDictionary<IFieldSymbol, string>? outputFields = null,
-        INamedTypeSymbol? returnType = null,
-        bool lowerReturns = false)
-    {
-        var rewriter = new Rewriter(
-            model,
-            context,
-            stage,
-            parameterMap,
-            pushFieldMap,
-            structNames,
-            structFields,
-            helperNames,
-            directFields ?? new Dictionary<IFieldSymbol, string>(SymbolEqualityComparer.Default),
-            outputFields ?? new Dictionary<IFieldSymbol, string>(SymbolEqualityComparer.Default),
-            returnType,
-            lowerReturns);
-        var rewritten = body is ExpressionSyntax expression && lowerReturns
-            ? rewriter.TranslateExpressionBody(expression)
-            : rewriter.Visit(body);
-        translated = rewritten?.ToFullString().Trim() ?? string.Empty;
-        foreach (var field in pushFieldMap)
-        {
-            foreach (var parameter in parameterMap.Keys.Where(parameter => SymbolEqualityComparer.Default.Equals(parameter.Type, field.Key.ContainingType)))
-            {
-                translated = translated.Replace(parameter.Name + "." + field.Key.Name, field.Value);
-            }
-        }
-        foreach (var parameter in parameterMap)
-        {
-            translated = Regex.Replace(translated, $"\\b{Regex.Escape(parameter.Key.Name)}\\b", parameter.Value, RegexOptions.None);
-        }
-        foreach (var bufferName in storageBufferTargets)
-        {
-            translated = Regex.Replace(translated, $"\\b{Regex.Escape(bufferName)}\\s*\\[", bufferName + ".data[", RegexOptions.None);
-        }
-        foreach (var invocation in body.DescendantNodes().OfType<InvocationExpressionSyntax>())
-        {
-            if (_TryBinding(model, context, invocation, stage, out var glslName) && glslName is not null)
-            {
-                translated = translated.Replace(invocation.Expression.ToString(), glslName);
-            }
-        }
-        foreach (var creation in body.DescendantNodes().OfType<ObjectCreationExpressionSyntax>())
-        {
-            var type = model.GetTypeInfo(creation).Type;
-            if (type is not null && context.Intrinsics.TryMapType(type, out var glslType))
-            {
-                translated = translated.Replace("new " + creation.Type.ToString(), glslType);
-            }
-        }
-        foreach (var declaration in body.DescendantNodes().OfType<VariableDeclarationSyntax>().Where(declaration => declaration.Type.IsVar && declaration.Variables.Count == 1))
-        {
-            var type = declaration.Variables[0].Initializer is { } initializer
-                ? model.GetTypeInfo(initializer.Value).Type
-                : null;
-            if (type is not null && context.Intrinsics.TryMapType(type, out var glslType))
-            {
-                translated = Regex.Replace(translated, $"\\b{Regex.Escape(glslType)}(?=[A-Za-z_]\\w*\\s*=)", glslType + " ", RegexOptions.None);
-            }
-        }
-        translated = translated.Replace(";", ";\n").Replace("\r\n", "\n").Replace("\r", "\n");
-        translated = Regex.Replace(translated, @"\b(vec[234]|ivec[234]|uvec[234]|bvec[234]|mat[234]|float|int|uint|bool)([A-Za-z_]\w*)\s*=", "$1 $2 =", RegexOptions.None);
-        foreach (var structName in structNames.Values)
-        {
-            translated = Regex.Replace(translated, $@"\b({Regex.Escape(structName)})([A-Za-z_]\w*)\s*=", "$1 $2 =", RegexOptions.None);
-        }
-        translated = System.Text.RegularExpressions.Regex.Replace(translated, @"(?<=\d)f\b", string.Empty);
-        reason = rewriter.Reason;
-        return reason is null;
-    }
-
-    private static bool _TryBinding(SemanticModel model, ModuleCompilationContext context, InvocationExpressionSyntax invocation, ShaderStage stage, out string? glslName)
-    {
-        glslName = null;
-        if (model.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method || !context.Intrinsics.TryGetIntrinsic(method, out var binding))
-        {
-            return false;
-        }
-        if (!binding.SupportsStage(stage))
-        {
-            return false;
-        }
-        if (binding.GlslName is "*" or "/" or "+" or "-")
-        {
-            return false;
-        }
-        glslName = binding.GlslName;
-        return true;
-    }
-
-    private sealed class Rewriter : CSharpSyntaxRewriter
-    {
-        private readonly SemanticModel _model;
-        private readonly ModuleCompilationContext _context;
-        private readonly ShaderStage _stage;
-        private readonly IReadOnlyDictionary<IParameterSymbol, string> _parameters;
-        private readonly IReadOnlyDictionary<IFieldSymbol, string> _pushFields;
-        private readonly IReadOnlyDictionary<INamedTypeSymbol, string> _structNames;
-        private readonly IReadOnlyDictionary<IFieldSymbol, string> _structFields;
-        private readonly IReadOnlyDictionary<IMethodSymbol, string> _helperNames;
-        private readonly IReadOnlyDictionary<IFieldSymbol, string> _directFields;
-        private readonly IReadOnlyDictionary<IFieldSymbol, string> _outputFields;
-        private readonly INamedTypeSymbol? _returnType;
-        private readonly bool _lowerReturns;
-        public string? Reason { get; private set; }
-
-        public Rewriter(
-            SemanticModel model,
-            ModuleCompilationContext context,
-            ShaderStage stage,
-            IReadOnlyDictionary<IParameterSymbol, string> parameters,
-            IReadOnlyDictionary<IFieldSymbol, string> pushFields,
-            IReadOnlyDictionary<INamedTypeSymbol, string> structNames,
-            IReadOnlyDictionary<IFieldSymbol, string> structFields,
-            IReadOnlyDictionary<IMethodSymbol, string> helperNames,
-            IReadOnlyDictionary<IFieldSymbol, string> directFields,
-            IReadOnlyDictionary<IFieldSymbol, string> outputFields,
-            INamedTypeSymbol? returnType,
-            bool lowerReturns)
-        {
-            _model = model;
-            _context = context;
-            _stage = stage;
-            _parameters = parameters;
-            _pushFields = pushFields;
-            _structNames = structNames;
-            _structFields = structFields;
-            _helperNames = helperNames;
-            _directFields = directFields;
-            _outputFields = outputFields;
-            _returnType = returnType;
-            _lowerReturns = lowerReturns;
-        }
-
-        public override SyntaxNode? VisitIdentifierName(IdentifierNameSyntax node)
-        {
-            var symbol = _model.GetSymbolInfo(node).Symbol;
-            if (symbol is IParameterSymbol parameter && _parameters.TryGetValue(parameter, out var parameterName))
-            {
-                return SyntaxFactory.ParseName(parameterName);
-            }
-            return base.VisitIdentifierName(node);
-        }
-
-        public override SyntaxNode? VisitLiteralExpression(LiteralExpressionSyntax node)
-        {
-            if (node.IsKind(SyntaxKind.DefaultLiteralExpression))
-            {
-                var typeInfo = _model.GetTypeInfo(node);
-                var type = typeInfo.ConvertedType ?? typeInfo.Type;
-                if (type is not null && TryMap(type, out var glslType))
-                {
-                    var zero = glslType == "bool" ? "false" : glslType is "int" or "uint" ? "0" : "0.0";
-                    return SyntaxFactory.ParseExpression(glslType + "(" + zero + ")");
-                }
-            }
-
-            return base.VisitLiteralExpression(node);
-        }
-
-        public override SyntaxNode? VisitMemberAccessExpression(MemberAccessExpressionSyntax node)
-        {
-            var symbol = _model.GetSymbolInfo(node).Symbol;
-            if (TryTranslateShaderBuiltinMember(node, out var builtinExpression))
-            {
-                return SyntaxFactory.ParseExpression(builtinExpression);
-            }
-
-            if (symbol is IFieldSymbol field && _pushFields.TryGetValue(field, out var fieldName))
-            {
-                return SyntaxFactory.ParseExpression(fieldName);
-            }
-            if (symbol is IFieldSymbol directField && _directFields.TryGetValue(directField, out var directFieldName))
-            {
-                return SyntaxFactory.ParseExpression(directFieldName);
-            }
-            if (symbol is IFieldSymbol structField && _structFields.TryGetValue(structField, out var structFieldName))
-            {
-                var receiver = Visit(node.Expression)?.ToFullString() ?? node.Expression.ToFullString();
-                return SyntaxFactory.ParseExpression(receiver + "." + structFieldName);
-            }
-            return base.VisitMemberAccessExpression(node);
-        }
-
-        public override SyntaxNode? VisitReturnStatement(ReturnStatementSyntax node)
-        {
-            if (!_lowerReturns)
-            {
-                return base.VisitReturnStatement(node);
-            }
-
-            if (node.Expression is null)
-            {
-                Reason ??= "Graphics shader entry point must return its declared stage value.";
-                return SyntaxFactory.EmptyStatement();
-            }
-
-            return TranslateReturnedExpression(node.Expression);
-        }
-
-        public SyntaxNode TranslateExpressionBody(ExpressionSyntax expression)
-            => TranslateReturnedExpression(expression);
-
-        private SyntaxNode TranslateReturnedExpression(ExpressionSyntax expression)
-        {
-            if (_stage == ShaderStage.Fragment)
-            {
-                var fragmentExpression = Visit(expression)?.ToFullString().Trim();
-                if (string.IsNullOrWhiteSpace(fragmentExpression))
-                {
-                    Reason ??= "Fragment shader return expression could not be translated.";
-                    return SyntaxFactory.EmptyStatement();
-                }
-
-                return SyntaxFactory.ParseStatement("fragColor = " + fragmentExpression + ";");
-            }
-
-            if (_returnType is null)
-            {
-                Reason ??= "Vertex shader return type must be a varying payload struct.";
-                return SyntaxFactory.EmptyStatement();
-            }
-
-            var assignments = new List<StatementSyntax>();
-            foreach (var field in _returnType.GetMembers().OfType<IFieldSymbol>().Where(field => !field.IsStatic))
-            {
-                if (!_outputFields.TryGetValue(field, out var outputName))
-                {
-                    Reason ??= $"Vertex output field '{field.Name}' has no stage mapping.";
-                    continue;
-                }
-
-                var value = FindReturnedFieldValue(expression, field);
-                var translatedExpression = value is not null
-                    ? Visit(value)?.ToFullString().Trim()
-                    : _model.GetTypeInfo(expression).Type is INamedTypeSymbol expressionType &&
-                        SymbolEqualityComparer.Default.Equals(expressionType, _returnType) &&
-                        _directFields.TryGetValue(field, out var directFieldName)
-                        ? directFieldName
-                        : null;
-                if (string.IsNullOrWhiteSpace(translatedExpression))
-                {
-                    Reason ??= $"Vertex return value does not initialize field '{field.Name}'.";
-                    continue;
-                }
-
-                assignments.Add(SyntaxFactory.ParseStatement(outputName + " = " + translatedExpression + ";"));
-            }
-
-            return SyntaxFactory.Block(assignments);
-        }
-
-        private ExpressionSyntax? FindReturnedFieldValue(ExpressionSyntax expression, IFieldSymbol field)
-        {
-            if (expression is ObjectCreationExpressionSyntax creation && creation.Initializer is { } initializer)
-            {
-                return initializer.Expressions
-                    .OfType<AssignmentExpressionSyntax>()
-                    .FirstOrDefault(assignment => string.Equals(assignment.Left.ToString(), field.Name, StringComparison.Ordinal))?.Right;
-            }
-
-            return null;
-        }
-
-        private bool TryTranslateShaderBuiltinMember(
-            MemberAccessExpressionSyntax node,
-            out string translated)
-        {
-            translated = string.Empty;
-            if (_model.GetSymbolInfo(node).Symbol is IPropertySymbol property &&
-                _context.Intrinsics.TryGetIntrinsic(property, out var directBinding) &&
-                directBinding.Category == IntrinsicCategory.Builtin)
-            {
-                if (!directBinding.SupportsStage(_stage))
-                {
-                    Reason ??= $"Shader builtin '{property.Name}' is not valid in {_stage} stage.";
-                    return false;
-                }
-
-                translated = directBinding.GlslName;
-                return true;
-            }
-
-            if (node.Expression is not MemberAccessExpressionSyntax parent ||
-                _model.GetSymbolInfo(parent).Symbol is not IPropertySymbol parentProperty ||
-                !_context.Intrinsics.TryGetIntrinsic(parentProperty, out var parentBinding) ||
-                parentBinding.Category != IntrinsicCategory.Builtin)
-            {
-                return false;
-            }
-
-            if (!parentBinding.SupportsStage(_stage))
-            {
-                Reason ??= $"Shader builtin '{parentProperty.Name}' is not valid in {_stage} stage.";
-                return false;
-            }
-
-            var component = node.Name.Identifier.ValueText switch
-            {
-                "X" or "x" => "x",
-                "Y" or "y" => "y",
-                "Z" or "z" => "z",
-                "W" or "w" => "w",
-                _ => string.Empty
-            };
-            if (component.Length == 0)
-            {
-                Reason ??= $"Unsupported component '{node.Name.Identifier.ValueText}' on shader builtin '{parentProperty.Name}'.";
-                return false;
-            }
-
-            translated = parentBinding.GlslName + "." + component;
-            return true;
-        }
-
-        public override SyntaxNode? VisitInvocationExpression(InvocationExpressionSyntax node)
-        {
-            var symbol = _model.GetSymbolInfo(node).Symbol as IMethodSymbol;
-            var args = node.ArgumentList.Arguments.Select(argument => Visit(argument.Expression) ?? throw new InvalidOperationException("Shader expression visitor returned no argument node.")).ToArray();
-            if (symbol is not null && _context.Intrinsics.TryGetIntrinsic(symbol, out var binding))
-            {
-                if (!binding.SupportsStage(_stage))
-                {
-                    Reason ??= $"Intrinsic '{symbol.Name}' is not valid in {_stage} stage.";
-                }
-                if (binding.GlslName is "*" or "/" or "+" or "-")
-                {
-                    return base.VisitInvocationExpression(node);
-                }
-                return SyntaxFactory.ParseExpression(binding.GlslName + "(" + string.Join(", ", args.Select(argument => argument.ToFullString())) + ")");
-            }
-            if (symbol is not null && _helperNames.TryGetValue(symbol.OriginalDefinition, out var helperName))
-            {
-                return SyntaxFactory.ParseExpression(helperName + "(" + string.Join(", ", args.Select(argument => argument.ToFullString())) + ")");
-            }
-            return base.VisitInvocationExpression(node);
-        }
-
-        public override SyntaxNode? VisitObjectCreationExpression(ObjectCreationExpressionSyntax node)
-        {
-            var type = _model.GetTypeInfo(node).Type;
-            if (type is not null && _context.Intrinsics.TryMapType(type, out var glslType))
-            {
-                var args = node.ArgumentList?.Arguments.Select(argument => Visit(argument.Expression) ?? throw new InvalidOperationException("Shader expression visitor returned no argument node.")).ToArray() ?? Array.Empty<ExpressionSyntax>();
-                return SyntaxFactory.ParseExpression(glslType + "(" + string.Join(", ", args.Select(argument => argument.ToFullString())) + ")");
-            }
-            return base.VisitObjectCreationExpression(node);
-        }
-
-        public override SyntaxNode? VisitVariableDeclaration(VariableDeclarationSyntax node)
-        {
-            var rewritten = base.VisitVariableDeclaration(node) as VariableDeclarationSyntax;
-            if (rewritten is null)
-            {
-                return null;
-            }
-
-            if (node.Type.IsVar && node.Variables.Count == 1)
-            {
-                var type = node.Variables[0].Initializer is { } initializer
-                    ? _model.GetTypeInfo(initializer.Value).Type
-                    : null;
-                if (type is INamedTypeSymbol namedType && _structNames.TryGetValue(namedType, out var structName))
-                {
-                    return rewritten.WithType(SyntaxFactory.ParseTypeName(structName));
-                }
-
-                if (type is not null && TryMap(type, out var glslType))
-                {
-                    return rewritten.WithType(SyntaxFactory.ParseTypeName(glslType));
-                }
-            }
-            return rewritten;
-        }
-
-        private bool TryMap(ITypeSymbol type, out string glslType)
-        {
-            if (_context.Intrinsics.TryMapType(type, out glslType))
-            {
-                return true;
-            }
-            glslType = type.SpecialType switch
-            {
-                SpecialType.System_Boolean => "bool",
-                SpecialType.System_Single => "float",
-                SpecialType.System_UInt32 => "uint",
-                SpecialType.System_Int32 => "int",
-                _ => string.Empty
-            };
-            return glslType.Length > 0;
-        }
-    }
 }

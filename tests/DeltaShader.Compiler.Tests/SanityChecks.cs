@@ -338,13 +338,13 @@ public class IntrinsicCatalogTests
             {
                 public static class StorageBufferEntry
                 {
-                    [ComputeShader(localSizeX: 8, localSizeY: 2, localSizeZ: 4)]
                     public readonly struct ComputeContext
                     {
                         [Layout(0, 0)] public readonly ReadOnlyStorageBuffer<float3> input;
                         [Layout(0, 1)] public readonly ReadWriteStorageBuffer<uint2> output;
                     }
 
+                    [ComputeShader(localSizeX: 8, localSizeY: 2, localSizeZ: 4)]
                     public static void Compute(in ComputeContext context)
                     {
                     }
@@ -399,7 +399,9 @@ public class IntrinsicCatalogTests
 
         ShaderCompilationResult result = await CompileAndValidateEntryPointAsync(source).ConfigureAwait(true);
         Assert.False(result.Success);
-        Assert.True(result.Diagnostics.Count(d => d.Id == ShaderDiagnosticId.DSH002) >= 2);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Id == ShaderDiagnosticId.DSH002 &&
+            diagnostic.Message.Contains("double", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -563,7 +565,7 @@ public class IntrinsicCatalogTests
                         [ComputeShader] public static void Compute(in Context context) { }
                     }
                 }
-            ", ExpectedId: ShaderDiagnosticId.DSH006),
+            ", ExpectedId: ShaderDiagnosticId.DSH002),
             (Source: @"
                 using Delta.Shader;
                 namespace Delta.Shader.Compiler.Tests.Fixtures
@@ -676,7 +678,7 @@ public class IntrinsicCatalogTests
         Compilation invalidCompilation = await LoadCompilerTestProjectCompilationAsync(invalidSource).ConfigureAwait(true);
         ShaderCompilationResult invalidResult = Assert.Single(ShaderCompiler.CompileAll(invalidCompilation));
         Assert.False(invalidResult.Success);
-        Assert.Contains(invalidResult.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH010);
+        Assert.Contains(invalidResult.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH006);
 
         const string validSource = @"
             using Delta.Shader;
@@ -887,16 +889,16 @@ public class IntrinsicCatalogTests
         Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
         ShaderIrModule module = result.Module!;
         Assert.Equal(3, module.VertexInputs.Count);
-        Assert.Equal((0u, "vec3", "VK_FORMAT_R32G32B32_SFLOAT"), (module.VertexInputs[0].Location, module.VertexInputs[0].GlslType, module.VertexInputs[0].FormatHint));
+        Assert.Equal((0u, "vec4", "VK_FORMAT_R32G32B32A32_SFLOAT"), (module.VertexInputs[0].Location, module.VertexInputs[0].GlslType, module.VertexInputs[0].FormatHint));
         Assert.Equal((1u, "vec3", "VK_FORMAT_R32G32B32_SFLOAT"), (module.VertexInputs[1].Location, module.VertexInputs[1].GlslType, module.VertexInputs[1].FormatHint));
         Assert.Equal((2u, "vec2", "VK_FORMAT_R32G32_SFLOAT"), (module.VertexInputs[2].Location, module.VertexInputs[2].GlslType, module.VertexInputs[2].FormatHint));
         Assert.Single(module.VertexBuffers);
         Assert.Equal(0u, module.VertexBuffers[0].Binding);
-        Assert.Equal(32u, module.VertexBuffers[0].Stride);
+        Assert.Equal(36u, module.VertexBuffers[0].Stride);
         Assert.Equal(3, module.VertexBuffers[0].Attributes.Count);
         Assert.Equal(0u, module.VertexBuffers[0].Attributes[0].ByteOffset);
-        Assert.Equal(12u, module.VertexBuffers[0].Attributes[1].ByteOffset);
-        Assert.Equal(24u, module.VertexBuffers[0].Attributes[2].ByteOffset);
+        Assert.Equal(16u, module.VertexBuffers[0].Attributes[1].ByteOffset);
+        Assert.Equal(28u, module.VertexBuffers[0].Attributes[2].ByteOffset);
 
         ShaderIrResource resource = Assert.Single(module.Resources);
         Assert.Equal(ShaderResourceKind.StorageBuffer, resource.Category);
@@ -908,9 +910,9 @@ public class IntrinsicCatalogTests
 
         var glsl = Delta.Shader.Backend.Glsl.GlslEmitter.EmitFromModule(module).Source;
         Assert.Contains("#version 460", glsl, StringComparison.Ordinal);
-        Assert.Contains("layout(location = 0) in vec3 position;", glsl, StringComparison.Ordinal);
-        Assert.Contains("layout(location = 1) in vec3 normal;", glsl, StringComparison.Ordinal);
-        Assert.Contains("layout(location = 2) in vec2 uv;", glsl, StringComparison.Ordinal);
+        Assert.Contains("layout(location = 0) in vec4 vertex_Position;", glsl, StringComparison.Ordinal);
+        Assert.Contains("layout(location = 1) in vec3 vertex_Normal;", glsl, StringComparison.Ordinal);
+        Assert.Contains("layout(location = 2) in vec2 vertex_Uv;", glsl, StringComparison.Ordinal);
         Assert.Contains("member_Projection", glsl, StringComparison.Ordinal);
         Assert.Contains("member_View", glsl, StringComparison.Ordinal);
         Assert.Contains("member_Model", glsl, StringComparison.Ordinal);
@@ -948,7 +950,7 @@ public class IntrinsicCatalogTests
             public struct FragmentContext
             {
                 [Interstage] public FragmentPayload Fragment;
-                [Layout(0)] public SampledTexture2D Texture;
+                [Layout(0, 0)] public SampledTexture2D Texture;
             }
             public struct VertexContext
             {
@@ -971,11 +973,9 @@ public class IntrinsicCatalogTests
         ShaderCompilationResult vertex = Assert.Single(results, result => result.Module?.Stage == ShaderStage.Vertex);
         Assert.False(vertex.Success);
         Assert.Contains(vertex.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH013);
-        Assert.Contains(vertex.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH010);
 
         ShaderCompilationResult fragment = Assert.Single(results, result => result.Module?.Stage == ShaderStage.Fragment);
-        Assert.False(fragment.Success);
-        Assert.Contains(fragment.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH013);
+        Assert.True(fragment.Success, string.Join(Environment.NewLine, fragment.Diagnostics.Select(diagnostic => diagnostic.Message)));
     }
 
     [Fact]
@@ -996,7 +996,7 @@ public class IntrinsicCatalogTests
         Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
         ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
         Assert.False(result.Success);
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH011);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH008);
     }
 
     [Fact]
@@ -1021,6 +1021,45 @@ public class IntrinsicCatalogTests
         Assert.Contains("gl_Position", result.Module!.Body, StringComparison.Ordinal);
         Assert.Contains("vec4(0.0)", result.Module.Body, StringComparison.Ordinal);
         Assert.DoesNotContain("default", result.Module.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GraphicsEntryPoints_PreserveEarlyReturnsForFullscreenVertexBranches()
+    {
+        const string source = @"
+            using Delta.Maths;
+            using Delta.Shader;
+            [Interstage]
+            public struct VertexPayload { [Position] public float4 Position; }
+            public struct VertexContext { [Interstage] public VertexPayload Vertex; }
+            public static class FullscreenVertex
+            {
+                [VertexShader] public static VertexPayload Vertex(in VertexContext context)
+                {
+                    if (ShaderBuiltins.VertexIndex == 0u)
+                    {
+                        return new VertexPayload { Position = new float4(-1f, -1f, 0f, 1f) };
+                    }
+
+                    if (ShaderBuiltins.VertexIndex == 1u)
+                    {
+                        return new VertexPayload { Position = new float4(3f, -1f, 0f, 1f) };
+                    }
+
+                    return new VertexPayload { Position = new float4(-1f, 3f, 0f, 1f) };
+                }
+            }";
+
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        var body = result.Module!.Body;
+        Assert.Equal(3, body.Split("gl_Position =", StringSplitOptions.None).Length - 1);
+        Assert.Equal(3, body.Split("return;", StringSplitOptions.None).Length - 1);
+        Assert.Contains("vec4(-1, -1, 0, 1)", body, StringComparison.Ordinal);
+        Assert.Contains("vec4(3, -1, 0, 1)", body, StringComparison.Ordinal);
+        Assert.Contains("vec4(-1, 3, 0, 1)", body, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1058,14 +1097,14 @@ public class IntrinsicCatalogTests
                 [VertexShader(""sdf-text"")]
                 public static TexturePayload Vertex(in VertexContext context)
                 {
-                    var sampled = ShaderIntrinsics.SampleVertex<float2, float4>(context.Atlas, new float2(0.5f, 0.5f));
+                    var sampled = context.Atlas.Sample<float2, float4>(new float2(0.5f, 0.5f));
                     return new TexturePayload { Position = sampled, Uv = new float2(0.5f, 0.5f) };
                 }
 
                 [FragmentShader(""sdf-text"")]
                 public static float4 Fragment(in FragmentContext context)
                 {
-                    var texel = ShaderIntrinsics.SampleFragment<float2, float4>(context.Atlas, context.Fragment.Uv);
+                    var texel = context.Atlas.Sample<float2, float4>(context.Fragment.Uv);
                     var median = maths.max(maths.min(texel.x, texel.y), maths.min(maths.max(texel.x, texel.y), texel.z));
                     var edge = ShaderIntrinsics.fwidth(median - 0.5f);
                     var coverage = 1f - maths.smoothStep(-edge, edge, median - 0.5f);
@@ -1091,7 +1130,7 @@ public class IntrinsicCatalogTests
         var vertexGlsl = Delta.Shader.Backend.Glsl.GlslEmitter.EmitFromModule(vertex.Module!).Source;
         Assert.Contains("layout(set = 0, binding = 1) uniform sampler2D", vertexGlsl, StringComparison.Ordinal);
         Assert.Contains("texture(", vertexGlsl, StringComparison.Ordinal);
-        Assert.Contains("varying_0", vertexGlsl, StringComparison.Ordinal);
+        Assert.Contains("layout(location = 0) out vec2 Uv;", vertexGlsl, StringComparison.Ordinal);
         Assert.DoesNotContain("std430) readonly buffer", vertexGlsl, StringComparison.Ordinal);
 
         ShaderCompilationResult fragment = Assert.Single(results, result => result.Module!.Stage == ShaderStage.Fragment);
@@ -1235,7 +1274,7 @@ public class IntrinsicCatalogTests
                 [FragmentShader(""sdf-text"")]
                 public static float4 Fragment(in FragmentContext context)
                 {
-                    var texel = ShaderIntrinsics.SampleFragment<float2, float4>(context.Atlas, context.Fragment.Uv);
+                    var texel = context.Atlas.Sample<float2, float4>(context.Fragment.Uv);
                     var distance = texel.x - 0.5f;
                     var edge = ShaderIntrinsics.fwidth(distance);
                     var coverage = 1f - maths.smoothStep(-edge, edge, distance);
@@ -1342,8 +1381,8 @@ public class IntrinsicCatalogTests
         ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
 
         Assert.False(result.Success);
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH011);
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Message.Contains("vertex shader", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH008);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Message.Contains("Fragment stage", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1689,7 +1728,7 @@ public class IntrinsicCatalogTests
         IReadOnlyList<ShaderIrResource> resources = result.Module!.Resources;
         Assert.Equal("uint", Assert.Single(resources, resource => resource.ParameterName == "context.Input").GlslType);
         Assert.Equal("uint", Assert.Single(resources, resource => resource.ParameterName == "context.Output").GlslType);
-        Assert.Contains("Output.data[id] = Input.data[id] * 2u + 1u", result.Module.Body, StringComparison.Ordinal);
+        Assert.Contains("Output.data[id] = Input.data[id]* 2u + 1u", result.Module.Body, StringComparison.Ordinal);
 
         var glsl = Delta.Shader.Backend.Glsl.GlslEmitter.EmitFromModule(result.Module).Source;
         Assert.Contains("#version 460", glsl, StringComparison.Ordinal);
@@ -1716,7 +1755,7 @@ public class IntrinsicCatalogTests
                 public static void Compute(in ComputeContext context)
                 {
                     uint id = ShaderBuiltins.GlobalInvocationId.X;
-                    context.Output[id] = ShaderIntrinsics.SampleCompute<float2, float4>(context.Atlas, new float2(0.5f, 0.5f));
+                    context.Output[id] = context.Atlas.Sample<float2, float4>(new float2(0.5f, 0.5f));
                 }
             }";
 
@@ -1728,11 +1767,11 @@ public class IntrinsicCatalogTests
         Assert.Equal(0u, texture.Set);
         Assert.Equal(2u, texture.Binding);
         Assert.Equal(ShaderResourceAccess.ReadOnly, texture.Access);
-        Assert.Contains("texture(atlas", result.Module.Body, StringComparison.Ordinal);
+        Assert.Contains("texture(Atlas, vec2(0.5, 0.5))", result.Module.Body, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task ComputeSampledTexture_RejectsParameterForm()
+    public async Task ComputeSampledTexture_RejectsParameterStyleEntryPoint()
     {
         const string source = @"
             using Delta.Shader;
@@ -1746,6 +1785,7 @@ public class IntrinsicCatalogTests
             }";
 
         ShaderCompilationResult result = await CompileAndValidateEntryPointAsync(source).ConfigureAwait(true);
+        Assert.False(result.Success);
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH002);
     }
 
@@ -1775,7 +1815,7 @@ public class IntrinsicCatalogTests
 
         Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
         ShaderIrModule module = Assert.IsType<Delta.Shader.Compiler.IR.ShaderIrModule>(result.Module);
-        Assert.Contains("Output.data[id] = Input.data[id] * 2u + 1u", module.Body, StringComparison.Ordinal);
+        Assert.Contains("Output.data[id] = Input.data[id]* 2u + 1u", module.Body, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1920,7 +1960,7 @@ public class IntrinsicCatalogTests
                 {
                     string managed = ""not a shader value"";
                     var reflected = Assembly.GetExecutingAssembly().GetName();
-                    context.Output[ShaderBuiltins.GlobalInvocationId.X] = new VirtualWorker().Next() + MutableState;
+                    context.Output[ShaderBuiltins.GlobalInvocationId.X] = new VirtualWorker().Next(context.Input[ShaderBuiltins.GlobalInvocationId.X]) + MutableState;
                 }
             }";
 

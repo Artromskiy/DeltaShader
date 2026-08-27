@@ -23,7 +23,7 @@ public readonly struct AddContext
     [Layout(0, 2)] public readonly ReadWriteStorageBuffer<float4> Output;
 }
 
-[Compute(localSizeX: 32)]
+[ComputeShader(localSizeX: 32)]
 public static void Add(in AddContext context)
 {
     uint idx = ShaderBuiltins.GlobalInvocationId.X;

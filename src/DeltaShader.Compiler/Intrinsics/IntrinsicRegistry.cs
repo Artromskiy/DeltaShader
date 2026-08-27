@@ -194,34 +194,64 @@ public sealed class IntrinsicRegistry
         Dictionary<ISymbol, IntrinsicBinding> methods,
         Compilation compilation)
     {
-        var intrinsicType = compilation.GetTypeByMetadataName(typeof(ShaderIntrinsics).FullName);
-        if (intrinsicType is null)
+        var intrinsicTypes = new[]
         {
-            return;
-        }
+            compilation.GetTypeByMetadataName(typeof(ShaderIntrinsics).FullName),
+            compilation.GetTypeByMetadataName(typeof(SampledTexture2D).FullName)
+        };
 
-        foreach (var method in intrinsicType.GetMembers().OfType<IMethodSymbol>())
+        foreach (var intrinsicType in intrinsicTypes)
         {
-            var attribute = method.GetAttributes().FirstOrDefault(candidate =>
-                candidate.AttributeClass?.ToDisplayString() == typeof(ShaderIntrinsicAttribute).FullName);
-            if (attribute is null || attribute.ConstructorArguments.Length < 2)
+            if (intrinsicType is null)
             {
                 continue;
             }
 
-            var glslName = attribute.ConstructorArguments[0].Value as string;
-            var stage = attribute.ConstructorArguments[1].Value is int stageValue
-                ? ((ShaderStage)stageValue).ToString().ToLowerInvariant()
-                : "compute";
-            if (glslName is { Length: > 0 } attributeGlslName)
+            foreach (var method in intrinsicType.GetMembers().OfType<IMethodSymbol>())
             {
-                methods[method] = new IntrinsicBinding(
-                    IntrinsicCategory.Function,
-                    attributeGlslName,
-                    stage,
-                    ShaderStages: [stage]);
+                var attribute = method.GetAttributes().FirstOrDefault(candidate =>
+                    candidate.AttributeClass?.ToDisplayString() == typeof(ShaderIntrinsicAttribute).FullName);
+                if (attribute is null || attribute.ConstructorArguments.Length < 2)
+                {
+                    continue;
+                }
+
+                var glslName = attribute.ConstructorArguments[0].Value as string;
+                var stages = GetShaderStages(attribute);
+                if (glslName is { Length: > 0 } attributeGlslName && stages.Count > 0)
+                {
+                    methods[method] = new IntrinsicBinding(
+                        IntrinsicCategory.Function,
+                        attributeGlslName,
+                        stages[0],
+                        ShaderStages: stages);
+                }
             }
         }
+    }
+
+    private static IReadOnlyList<string> GetShaderStages(AttributeData attribute)
+    {
+        if (attribute.ConstructorArguments.Length < 2)
+        {
+            return Array.Empty<string>();
+        }
+
+        var stageArgument = attribute.ConstructorArguments[1];
+        if (stageArgument.Kind == TypedConstantKind.Array)
+        {
+            return stageArgument.Values
+                .Select(value => value.Value is int stageValue
+                    ? ((ShaderStage)stageValue).ToString().ToLowerInvariant()
+                    : string.Empty)
+                .Where(stage => stage.Length > 0)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        return stageArgument.Value is int stageValue
+            ? new[] { ((ShaderStage)stageValue).ToString().ToLowerInvariant() }
+            : Array.Empty<string>();
     }
 
     private static void RegisterShaderBuiltins(

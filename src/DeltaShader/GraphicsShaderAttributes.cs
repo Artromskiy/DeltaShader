@@ -28,7 +28,7 @@ public enum VertexInputRate
     Instance = 1
 }
 
-[AttributeUsage(AttributeTargets.Parameter | AttributeTargets.Field, Inherited = false, AllowMultiple = false)]
+[AttributeUsage(AttributeTargets.Field, Inherited = false, AllowMultiple = false)]
 public sealed class PositionAttribute : Attribute
 {
 }
@@ -45,9 +45,19 @@ public sealed class ShaderIntrinsicAttribute : Attribute
     public ShaderStage Stage { get; }
 
     public ShaderIntrinsicAttribute(string glslName, ShaderStage stage)
+        : this(glslName, new[] { stage })
+    {
+    }
+
+    public ShaderIntrinsicAttribute(string glslName, params ShaderStage[] stages)
     {
         GlslName = glslName;
-        Stage = stage;
+        if (stages.Length == 0)
+        {
+            throw new ArgumentException("At least one shader stage is required.", nameof(stages));
+        }
+
+        Stage = stages[0];
     }
 }
 
@@ -62,15 +72,4 @@ public static class ShaderIntrinsics
     [ShaderIntrinsic("dFdy", ShaderStage.Fragment)]
     public static T dFdy<T>(T value) => throw new NotSupportedException();
 
-    [ShaderIntrinsic("texture", ShaderStage.Vertex)]
-    public static TColor SampleVertex<TCoordinate, TColor>(SampledTexture2D texture, TCoordinate coordinate)
-        => throw new NotSupportedException();
-
-    [ShaderIntrinsic("texture", ShaderStage.Fragment)]
-    public static TColor SampleFragment<TCoordinate, TColor>(SampledTexture2D texture, TCoordinate coordinate)
-        => throw new NotSupportedException();
-
-    [ShaderIntrinsic("texture", ShaderStage.Compute)]
-    public static TColor SampleCompute<TCoordinate, TColor>(SampledTexture2D texture, TCoordinate coordinate)
-        => throw new NotSupportedException();
 }
