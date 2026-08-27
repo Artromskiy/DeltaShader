@@ -8,11 +8,10 @@ internal static class Example35_AnisotropicBlurImageWarp
 {
     [FragmentShader]
     public static void AnisotropicBlurImageWarp(
-        [FragmentCoord] float2 fragmentCoord,
         [PushConstant] GalleryConstants constants,
         [FragmentColor] out float4 color)
     {
-        var p = (fragmentCoord / constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / constants.Resolution) * 2f - new float2(1f, 1f);
         p.x = p.x * constants.Resolution.x / constants.Resolution.y;
         var warp = new float2(0.18f * maths.sin(p.y * 5f + constants.Time), 0.16f * maths.cos(p.x * 4f - constants.Time * 0.7f));
         var q = p + warp;

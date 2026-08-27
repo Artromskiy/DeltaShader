@@ -30,7 +30,7 @@ public static class ComputeEntryPoints
         {
             diagnostics.Add(new ShaderDiagnostic(
                 ShaderDiagnosticId.DSH004,
-                "No valid [ComputeShader] entry point found.",
+                "No valid [Compute] entry point found.",
                 Severity: ShaderDiagnosticSeverity.Error));
             return new ShaderCompilationResult(string.Empty, false, diagnostics);
         }
@@ -39,7 +39,7 @@ public static class ComputeEntryPoints
         {
             diagnostics.Add(new ShaderDiagnostic(
                 ShaderDiagnosticId.DSH004,
-                "MVP supports one [ComputeShader] entry point per module.",
+                "MVP supports one [Compute] entry point per module.",
                 Severity: ShaderDiagnosticSeverity.Error));
         }
 
@@ -53,17 +53,17 @@ public static class ComputeEntryPoints
 
         var entry = entries[0];
         var resources = new List<ShaderIrResource>();
+        var pushConstants = new List<ShaderIrPushConstant>();
         var seenBindings = new HashSet<(uint Set, uint Binding)>();
-        var storageBuffers = new Dictionary<IParameterSymbol, uint>(SymbolEqualityComparer.Default);
+        var storageBuffers = new Dictionary<ISymbol, uint>(SymbolEqualityComparer.Default);
         var structDefinitions = new Dictionary<INamedTypeSymbol, ShaderIrStruct>(SymbolEqualityComparer.Default);
-        IParameterSymbol? invocationParameter = null;
 
         if (!entry.Method.IsStatic || !entry.Method.ReturnsVoid)
         {
             var loc = entry.Method.Locations.FirstOrDefault()?.GetLineSpan();
             diagnostics.Add(new ShaderDiagnostic(
                 ShaderDiagnosticId.DSH004,
-                "[ComputeShader] entry point must be static void.",
+                "[Compute] entry point must be static void.",
                 loc?.Path,
                 loc is null ? 0 : loc.Value.StartLinePosition.Line + 1,
                 loc is null ? 0 : loc.Value.StartLinePosition.Character + 1));
@@ -80,161 +80,40 @@ public static class ComputeEntryPoints
                 loc is null ? 0 : loc.Value.StartLinePosition.Character + 1));
         }
 
-        foreach (var parameter in entry.Method.Parameters)
-        {
-            if (parameter.IsImplicitlyDeclared)
-            {
-                continue;
-            }
+        var contextParameter = entry.Method.Parameters.Length == 1 &&
+            ShaderVisibleTypeValidation.IsContextParameter(entry.Method.Parameters[0], context.Compilation)
+            ? entry.Method.Parameters[0]
+            : null;
 
-            var visibleType = ShaderVisibleTypeValidation.GetVisibleRootType(parameter, context.Compilation);
-            var visibleTypeIssues = ShaderVisibleTypeValidation.Validate(visibleType, parameter);
-            foreach (var issue in visibleTypeIssues)
+        if (contextParameter is null)
+        {
+            diagnostics.Add(CreateDiagnostic(entry.Method, ShaderDiagnosticId.DSH002,
+                "[Compute] entry point must have exactly one 'in' shader context parameter."));
+        }
+        else
+        {
+            foreach (var issue in ShaderVisibleTypeValidation.ValidateContext(contextParameter, context.Compilation))
             {
                 diagnostics.Add(CreateDiagnostic(issue.Symbol, issue.Id, issue.Message));
             }
 
-            if (visibleTypeIssues.Count > 0)
+            if (diagnostics.Count == 0 &&
+                !TryBuildContextContract(contextParameter, context, seenBindings, storageBuffers, structDefinitions,
+                    resources, pushConstants, out var contextDiagnostic))
             {
-                continue;
-            }
-
-            var location = parameter.Locations.FirstOrDefault()?.GetLineSpan();
-            var attributeInvocationId = parameter.GetAttributes().FirstOrDefault(a =>
-                IsGlobalInvocationIdAttribute(a.AttributeClass, context));
-
-            if (attributeInvocationId is not null)
-            {
-                var invocationLocation = parameter.Locations.FirstOrDefault()?.GetLineSpan();
-                if (invocationParameter is not null)
+                if (contextDiagnostic is not null)
                 {
-                    diagnostics.Add(new ShaderDiagnostic(
-                        ShaderDiagnosticId.DSH002,
-                        "Only one [GlobalInvocationId] parameter is supported on a compute entry point.",
-                        invocationLocation?.Path,
-                        invocationLocation is null ? 0 : invocationLocation.Value.StartLinePosition.Line + 1,
-                        invocationLocation is null ? 0 : invocationLocation.Value.StartLinePosition.Character + 1));
+                    diagnostics.Add(contextDiagnostic);
                 }
-                else if (parameter.Type.SpecialType != SpecialType.System_UInt32)
-                {
-                    diagnostics.Add(new ShaderDiagnostic(
-                        ShaderDiagnosticId.DSH002,
-                        "[GlobalInvocationId] parameter must be uint.",
-                        invocationLocation?.Path,
-                        invocationLocation is null ? 0 : invocationLocation.Value.StartLinePosition.Line + 1,
-                        invocationLocation is null ? 0 : invocationLocation.Value.StartLinePosition.Character + 1));
-                }
-                else
-                {
-                    invocationParameter = parameter;
-                }
-
-                continue;
-            }
-
-            if (context.SampledTexture2DType is not null &&
-                SymbolEqualityComparer.Default.Equals(parameter.Type, context.SampledTexture2DType))
-            {
-                var textureAttribute = parameter.GetAttributes().FirstOrDefault(attribute =>
-                    SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, context.SampledTexture2DAttributeType));
-                if (textureAttribute is null || textureAttribute.ConstructorArguments.Length < 3)
-                {
-                    diagnostics.Add(new ShaderDiagnostic(
-                        ShaderDiagnosticId.DSH002,
-                        $"SampledTexture2D parameter '{parameter.Name}' requires [SampledTexture2D(set, binding, stages)].",
-                        location?.Path,
-                        location is null ? 0 : location.Value.StartLinePosition.Line + 1,
-                        location is null ? 0 : location.Value.StartLinePosition.Character + 1));
-                }
-                else if (!SupportsComputeStage(textureAttribute))
-                {
-                    diagnostics.Add(new ShaderDiagnostic(
-                        ShaderDiagnosticId.DSH011,
-                        $"SampledTexture2D parameter '{parameter.Name}' is not enabled for the compute stage.",
-                        location?.Path,
-                        location is null ? 0 : location.Value.StartLinePosition.Line + 1,
-                        location is null ? 0 : location.Value.StartLinePosition.Character + 1));
-                }
-                else
-                {
-                    var set = GetAttributeUIntArg(textureAttribute, 0);
-                    var binding = GetAttributeUIntArg(textureAttribute, 1);
-                    if (!set.HasValue || !binding.HasValue)
-                    {
-                        diagnostics.Add(new ShaderDiagnostic(
-                            ShaderDiagnosticId.DSH002,
-                            $"SampledTexture2D parameter '{parameter.Name}' requires unsigned set and binding arguments.",
-                            location?.Path,
-                            location is null ? 0 : location.Value.StartLinePosition.Line + 1,
-                            location is null ? 0 : location.Value.StartLinePosition.Character + 1));
-                        continue;
-                    }
-
-                    var key = (Set: set.Value, Binding: binding.Value);
-                    if (!seenBindings.Add(key))
-                    {
-                        diagnostics.Add(new ShaderDiagnostic(ShaderDiagnosticId.DSH005,
-                            $"Duplicate descriptor (set = {key.Set}, binding = {key.Binding}) detected for '{parameter.Name}'.",
-                            location?.Path,
-                            location is null ? 0 : location.Value.StartLinePosition.Line + 1,
-                            location is null ? 0 : location.Value.StartLinePosition.Character + 1));
-                    }
-                    else
-                    {
-                        storageBuffers[parameter] = binding.Value;
-                        resources.Add(new ShaderIrResource
-                        {
-                            Name = SanitizeName(parameter.Name),
-                            ParameterName = parameter.Name,
-                            Category = ShaderResourceKind.SampledTexture2D,
-                            Stage = ShaderStage.Compute,
-                            Set = set.Value,
-                            Binding = binding.Value,
-                            GlslType = "sampler2D",
-                            ReadOnly = true,
-                            Access = ShaderResourceAccess.ReadOnly,
-                            Layout = "opaque"
-                        });
-                    }
-                }
-                continue;
-            }
-
-            if (!TryGetBufferElementType(parameter.Type, context, out var elementType))
-            {
-                diagnostics.Add(new ShaderDiagnostic(
-                    ShaderDiagnosticId.DSH002,
-                    $"Compute entry point parameter '{parameter.Name}' type '{parameter.Type}' is not supported in MVP. Use storage-buffer-backed parameter wrappers with explicit [ReadOnlyStorageBuffer] / [ReadWriteStorageBuffer] attributes.",
-                    location?.Path,
-                    location is null ? 0 : location.Value.StartLinePosition.Line + 1,
-                    location is null ? 0 : location.Value.StartLinePosition.Character + 1));
-                continue;
-            }
-
-            if (!TryBuildParameterResource(parameter, context, seenBindings, structDefinitions, out var resource, out var unsupportedReason, out var diagnosticId))
-            {
-                diagnostics.Add(new ShaderDiagnostic(
-                    diagnosticId,
-                    unsupportedReason ?? "Unsupported compute shader resource.",
-                    location?.Path,
-                    location is null ? 0 : location.Value.StartLinePosition.Line + 1,
-                    location is null ? 0 : location.Value.StartLinePosition.Character + 1));
-                continue;
-            }
-
-            if (resource is not null)
-            {
-                storageBuffers[parameter] = resource.Binding;
-                resources.Add(resource);
             }
         }
 
-        string? body = string.Empty;
+        string body = string.Empty;
         bool usesBuiltinInvocationId = false;
         if (diagnostics.Count == 0)
         {
             var methodSyntax = entry.Method.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() as MethodDeclarationSyntax;
-            if (!TryTranslateExecutableBody(entry.Method, context, methodSyntax, invocationParameter, storageBuffers, out body, out usesBuiltinInvocationId, out var bodyDiagnosticReason, out var bodyDiagnosticId))
+            if (!TryTranslateExecutableBody(entry.Method, context, methodSyntax, contextParameter, null, storageBuffers, out body, out usesBuiltinInvocationId, out var bodyDiagnosticReason, out var bodyDiagnosticId))
             {
                 var location = entry.Method.Locations.FirstOrDefault()?.GetLineSpan();
                 diagnostics.Add(new ShaderDiagnostic(
@@ -260,7 +139,8 @@ public static class ComputeEntryPoints
             Instructions = new[] { "entrypoint " + entry.Name },
             Body = body,
             UsesBuiltinInvocationId = usesBuiltinInvocationId,
-            InvocationParameterName = invocationParameter?.Name
+            InvocationParameterName = null,
+            PushConstants = pushConstants
         };
 
         return new ShaderCompilationResult(entry.Name, diagnostics.Count == 0, diagnostics, module, resultOptions, entry.Method.Name, entry.Method.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
@@ -277,39 +157,178 @@ public static class ComputeEntryPoints
             location is null ? 0 : location.Value.StartLinePosition.Character + 1);
     }
 
-    private static bool TryBuildParameterResource(
-        IParameterSymbol parameter,
+    private static bool TryBuildContextContract(
+        IParameterSymbol contextParameter,
+        ModuleCompilationContext context,
+        HashSet<(uint Set, uint Binding)> seenBindings,
+        Dictionary<ISymbol, uint> resourceBindings,
+        Dictionary<INamedTypeSymbol, ShaderIrStruct> structDefinitions,
+        List<ShaderIrResource> resources,
+        List<ShaderIrPushConstant> pushConstants,
+        out ShaderDiagnostic? diagnostic)
+    {
+        diagnostic = null;
+        if (contextParameter.Type is not INamedTypeSymbol contextType)
+        {
+            diagnostic = CreateDiagnostic(contextParameter, ShaderDiagnosticId.DSH002,
+                "Shader context parameter must be a user-defined value type.");
+            return false;
+        }
+
+        var pushMembers = new List<ShaderIrStructMember>();
+        uint pushOffset = 0;
+        uint pushAlignment = 1;
+        foreach (var field in contextType.GetMembers().OfType<IFieldSymbol>().Where(field => !field.IsStatic))
+        {
+            var attributes = field.GetAttributes()
+                .Where(attribute => IsContextFieldAttribute(attribute.AttributeClass, context))
+                .ToArray();
+            if (attributes.Length == 0)
+            {
+                diagnostic = CreateDiagnostic(field, ShaderDiagnosticId.DSH002,
+                    $"Shader context field '{field.Name}' must declare a resource, push constant, or builtin role.");
+                return false;
+            }
+
+            if (attributes.Length > 1)
+            {
+                diagnostic = CreateDiagnostic(field, ShaderDiagnosticId.DSH002,
+                    $"Shader context field '{field.Name}' has more than one shader role attribute.");
+                return false;
+            }
+
+            var attribute = attributes[0];
+            if (IsBindingAttribute(attribute.AttributeClass, context))
+            {
+                if (attribute.ConstructorArguments.Length == 1)
+                {
+                    diagnostic = CreateDiagnostic(field, ShaderDiagnosticId.DSH002,
+                        $"Vertex-input [Layout(location)] is not valid in compute context field '{field.Name}'.");
+                    return false;
+                }
+
+                if (attribute.ConstructorArguments.Length != 2)
+                {
+                    diagnostic = CreateDiagnostic(field, ShaderDiagnosticId.DSH002,
+                        $"Descriptor [Layout(set, binding)] on context field '{field.Name}' requires two constant arguments.");
+                    return false;
+                }
+
+                if (SymbolEqualityComparer.Default.Equals(field.Type, context.SampledTexture2DType))
+                {
+                    if (!TryBuildContextTextureResource(field, contextParameter, context, seenBindings,
+                            out var texture, out var textureReason))
+                    {
+                        diagnostic = CreateDiagnostic(field, ShaderDiagnosticId.DSH002,
+                            textureReason ?? "Unsupported context sampled texture.");
+                        return false;
+                    }
+
+                    if (texture is null)
+                    {
+                        diagnostic = CreateDiagnostic(field, ShaderDiagnosticId.DSH002,
+                            "Sampled texture context field did not produce a resource binding.");
+                        return false;
+                    }
+
+                    resourceBindings[field] = texture.Binding;
+                    resources.Add(texture);
+                    continue;
+                }
+
+                if (!TryBuildContextStorageResource(field, contextParameter, context, seenBindings,
+                        structDefinitions, out var boundResource, out var boundReason, out var boundDiagnosticId))
+                {
+                    diagnostic = CreateDiagnostic(field, boundDiagnosticId,
+                        boundReason ?? "Unsupported context descriptor resource.");
+                    return false;
+                }
+
+                if (boundResource is not null)
+                {
+                    resourceBindings[field] = boundResource.Binding;
+                    resources.Add(boundResource);
+                }
+
+                continue;
+            }
+
+            if (SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, context.PushConstantAttributeType))
+            {
+                if (!TryMapShaderType(field.Type, context, structDefinitions,
+                        new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default), out var glslType,
+                        out var layout, out var members, out var reason))
+                {
+                    diagnostic = CreateDiagnostic(field, ShaderDiagnosticId.DSH002,
+                        reason ?? $"Unsupported push-constant field '{field.Name}'.");
+                    return false;
+                }
+
+                pushOffset = AlignUp(pushOffset, layout.Alignment);
+                pushMembers.Add(new ShaderIrStructMember
+                {
+                    Name = field.Name,
+                    GlslName = "member_" + SanitizeName(field.Name),
+                    GlslType = glslType,
+                    Offset = pushOffset,
+                    Alignment = layout.Alignment,
+                    Size = layout.Size,
+                    ArrayStride = layout.ArrayStride,
+                    MatrixStride = layout.MatrixStride,
+                    Members = members
+                });
+                pushOffset += layout.Size;
+                pushAlignment = Math.Max(pushAlignment, layout.Alignment);
+            }
+        }
+
+        if (pushMembers.Count > 0)
+        {
+            pushConstants.Add(new ShaderIrPushConstant
+            {
+                Name = "DeltaPushConstants",
+                ParameterName = contextParameter.Name,
+                GlslType = "DeltaPushConstants",
+                Alignment = pushAlignment,
+                Size = AlignUp(pushOffset, pushAlignment),
+                Members = pushMembers
+            });
+        }
+
+        return true;
+    }
+
+    private static bool TryBuildContextStorageResource(
+        IFieldSymbol field,
+        IParameterSymbol contextParameter,
         ModuleCompilationContext context,
         HashSet<(uint Set, uint Binding)> seenBindings,
         Dictionary<INamedTypeSymbol, ShaderIrStruct> structDefinitions,
         out ShaderIrResource? resource,
-        out string? unsupportedReason,
+        out string? reason,
         out string diagnosticId)
     {
         resource = null;
-        unsupportedReason = null;
+        reason = null;
         diagnosticId = ShaderDiagnosticId.DSH002;
-
-        if (!TryGetBufferElementType(parameter.Type, context, out var elementType))
+        if (!TryGetBufferElementType(field.Type, context, out var elementType))
         {
-            unsupportedReason = $"Unsupported storage buffer wrapper type '{parameter.Type}' in parameter list.";
+            reason = $"Context field '{field.Name}' must use a typed storage-buffer wrapper.";
             return false;
         }
 
         if (ShaderVisibleTypeValidation.TryFindReferenceType(elementType, out var referenceType))
         {
-            unsupportedReason =
-                $"Shader-visible storage-buffer type '{elementType}' contains reference type '{referenceType}'. Shader types must contain only value types.";
+            reason = $"Shader-visible storage-buffer type '{elementType}' contains reference type '{referenceType}'.";
             diagnosticId = ShaderDiagnosticId.DSH010;
             return false;
         }
 
-        var attribute = parameter.GetAttributes().FirstOrDefault(a =>
-            IsStorageBufferAttribute(a.AttributeClass, context));
+        var attribute = field.GetAttributes().FirstOrDefault(candidate =>
+            IsBindingAttribute(candidate.AttributeClass, context));
         if (attribute is null)
         {
-            unsupportedReason =
-                $"Compute entry point parameter '{parameter.Name}' is not annotated with [ReadOnlyStorageBuffer] or [ReadWriteStorageBuffer].";
+            reason = $"Storage-buffer field '{field.Name}' requires an explicit binding and access contract.";
             return false;
         }
 
@@ -317,17 +336,16 @@ public static class ComputeEntryPoints
         var binding = GetAttributeUIntArg(attribute, 1);
         if (!set.HasValue || !binding.HasValue)
         {
-            unsupportedReason =
-                $"Storage buffer attribute on '{parameter.Name}' must provide set and binding as uint constants.";
+            reason = $"Storage-buffer field '{field.Name}' requires constant set and binding arguments.";
             return false;
         }
 
-        if (!TryMapShaderType(elementType, context, structDefinitions, new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default), out var elementGlslType, out var elementLayout, out var members, out unsupportedReason))
+        if (!TryMapShaderType(elementType, context, structDefinitions,
+                new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default), out var elementGlslType,
+                out var elementLayout, out var members, out reason))
         {
             diagnosticId = ShaderVisibleTypeValidation.TryFindReferenceType(elementType, out _)
                 ? ShaderDiagnosticId.DSH010
-                : elementType.TypeKind == TypeKind.Struct && !context.Intrinsics.TryMapType(elementType, out _)
-                ? ShaderDiagnosticId.DSH006
                 : ShaderDiagnosticId.DSH002;
             return false;
         }
@@ -335,27 +353,78 @@ public static class ComputeEntryPoints
         var key = (Set: set.Value, Binding: binding.Value);
         if (!seenBindings.Add(key))
         {
-            unsupportedReason =
-                $"Duplicate descriptor (set = {key.Set}, binding = {key.Binding}) detected for '{parameter.Name}'.";
+            reason = $"Duplicate descriptor (set = {key.Set}, binding = {key.Binding}) detected for context field '{field.Name}'.";
             diagnosticId = ShaderDiagnosticId.DSH005;
             return false;
         }
 
         resource = new ShaderIrResource
         {
-            Name = SanitizeName(parameter.Name),
-            ParameterName = parameter.Name,
+            Name = field.Name,
+            ParameterName = contextParameter.Name + "." + field.Name,
             Category = ShaderResourceKind.StorageBuffer,
             Set = key.Set,
             Binding = key.Binding,
             GlslType = elementGlslType,
-            ReadOnly = IsReadOnlyStorageBuffer(parameter.Type, context),
+            ReadOnly = IsReadOnlyStorageBuffer(field.Type, context),
             Std430Layout = elementLayout,
             Members = members
         };
-
         return true;
     }
+
+    private static bool TryBuildContextTextureResource(
+        IFieldSymbol field,
+        IParameterSymbol contextParameter,
+        ModuleCompilationContext context,
+        HashSet<(uint Set, uint Binding)> seenBindings,
+        out ShaderIrResource? resource,
+        out string? reason)
+    {
+        resource = null;
+        reason = null;
+        var attribute = field.GetAttributes().FirstOrDefault(candidate =>
+            IsBindingAttribute(candidate.AttributeClass, context));
+        if (attribute is null || attribute.ConstructorArguments.Length != 2)
+        {
+            reason = $"SampledTexture2D field '{field.Name}' requires [Layout(set, binding)].";
+            return false;
+        }
+
+        var set = GetAttributeUIntArg(attribute, 0);
+        var binding = GetAttributeUIntArg(attribute, 1);
+        if (!set.HasValue || !binding.HasValue)
+        {
+            reason = $"SampledTexture2D field '{field.Name}' requires constant set and binding arguments.";
+            return false;
+        }
+
+        var key = (Set: set.Value, Binding: binding.Value);
+        if (!seenBindings.Add(key))
+        {
+            reason = $"Duplicate descriptor (set = {key.Set}, binding = {key.Binding}) detected for context field '{field.Name}'.";
+            return false;
+        }
+
+        resource = new ShaderIrResource
+        {
+            Name = field.Name,
+            ParameterName = contextParameter.Name + "." + field.Name,
+            Category = ShaderResourceKind.SampledTexture2D,
+            Stage = ShaderStage.Compute,
+            Set = key.Set,
+            Binding = key.Binding,
+            GlslType = "sampler2D",
+            ReadOnly = true,
+            Access = ShaderResourceAccess.ReadOnly,
+            Layout = "opaque"
+        };
+        return true;
+    }
+
+    private static bool IsContextFieldAttribute(ITypeSymbol? attributeType, ModuleCompilationContext context)
+        => IsBindingAttribute(attributeType, context) ||
+           SymbolEqualityComparer.Default.Equals(attributeType, context.PushConstantAttributeType);
 
     private static bool TryMapShaderType(
         ITypeSymbol type,
@@ -416,37 +485,18 @@ public static class ComputeEntryPoints
         return true;
     }
 
-    private static bool IsStorageBufferAttribute(
+    private static bool IsBindingAttribute(
         ITypeSymbol? attributeType,
         ModuleCompilationContext context)
-    {
-        return SymbolEqualityComparer.Default.Equals(attributeType, context.ReadOnlyStorageBufferAttributeType)
-            || SymbolEqualityComparer.Default.Equals(attributeType, context.ReadWriteStorageBufferAttributeType);
-    }
-
-    private static bool SupportsComputeStage(AttributeData attribute)
-    {
-        if (attribute.ConstructorArguments.Length < 3 || attribute.ConstructorArguments[2].Value is not int value)
-        {
-            return false;
-        }
-
-        return (((ShaderStageMask)value) & ShaderStageMask.Compute) != 0;
-    }
-
-    private static bool IsGlobalInvocationIdAttribute(
-        ITypeSymbol? attributeType,
-        ModuleCompilationContext context)
-    {
-        return SymbolEqualityComparer.Default.Equals(attributeType, context.GlobalInvocationIdAttributeType);
-    }
+        => SymbolEqualityComparer.Default.Equals(attributeType, context.BindingAttributeType);
 
     private static bool TryTranslateExecutableBody(
         IMethodSymbol method,
         ModuleCompilationContext context,
         MethodDeclarationSyntax? methodSyntax,
+        IParameterSymbol? contextParameter,
         IParameterSymbol? invocationParameter,
-        Dictionary<IParameterSymbol, uint> storageParameters,
+        Dictionary<ISymbol, uint> storageParameters,
         out string body,
         out bool usesBuiltinInvocationId,
         out string? reason,
@@ -470,7 +520,9 @@ public static class ComputeEntryPoints
         }
 
         var semanticModel = context.Compilation.GetSemanticModel(methodSyntax.SyntaxTree);
-        if (!new ComputeShaderBodyTranslator(context.Intrinsics).TryTranslate(method, methodSyntax, semanticModel, invocationParameter, storageParameters, out var translation, out reason, out diagnosticId))
+        if (!new ComputeShaderBodyTranslator(context.Intrinsics).TryTranslate(method, methodSyntax, semanticModel,
+                contextParameter, invocationParameter, storageParameters,
+                out var translation, out reason, out diagnosticId))
         {
             return false;
         }
@@ -487,10 +539,8 @@ public static class ComputeEntryPoints
     }
 
     private static bool IsReadOnlyStorageBuffer(ITypeSymbol type, ModuleCompilationContext context)
-        => (context.ReadOnlyStorageBufferType is not null &&
-            SymbolEqualityComparer.Default.Equals((type as INamedTypeSymbol)?.OriginalDefinition, context.ReadOnlyStorageBufferType)) ||
-           (context.ReadOnlyStorageBufferValueType is not null &&
-            SymbolEqualityComparer.Default.Equals((type as INamedTypeSymbol)?.OriginalDefinition, context.ReadOnlyStorageBufferValueType));
+        => context.ReadOnlyStorageBufferType is not null &&
+           SymbolEqualityComparer.Default.Equals((type as INamedTypeSymbol)?.OriginalDefinition, context.ReadOnlyStorageBufferType);
 
     private static bool TryBuildStructLayout(
         INamedTypeSymbol type,
@@ -606,13 +656,6 @@ public static class ComputeEntryPoints
         }
 
         var originalDefinition = namedType.OriginalDefinition;
-        if (SymbolEqualityComparer.Default.Equals(originalDefinition, context.ReadOnlyStorageBufferValueType) ||
-            SymbolEqualityComparer.Default.Equals(originalDefinition, context.ReadWriteStorageBufferValueType))
-        {
-            elementType = context.Compilation.GetSpecialType(SpecialType.System_UInt32);
-            return true;
-        }
-
         if (context.ReadOnlyStorageBufferType is null || context.ReadWriteStorageBufferType is null ||
             (!SymbolEqualityComparer.Default.Equals(originalDefinition, context.ReadOnlyStorageBufferType) &&
              !SymbolEqualityComparer.Default.Equals(originalDefinition, context.ReadWriteStorageBufferType)))
@@ -788,40 +831,22 @@ public sealed class ModuleCompilationContext
         Intrinsics = intrinsics;
         ReadOnlyStorageBufferType = compilation.GetTypeByMetadataName("Delta.Shader.ReadOnlyStorageBuffer`1");
         ReadWriteStorageBufferType = compilation.GetTypeByMetadataName("Delta.Shader.ReadWriteStorageBuffer`1");
-        ReadOnlyStorageBufferValueType = compilation.GetTypeByMetadataName("Delta.Shader.ReadOnlyStorageBuffer");
-        ReadWriteStorageBufferValueType = compilation.GetTypeByMetadataName("Delta.Shader.ReadWriteStorageBuffer");
         SampledTexture2DType = compilation.GetTypeByMetadataName("Delta.Shader.SampledTexture2D");
-        ReadOnlyStorageBufferAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.ReadOnlyStorageBufferAttribute");
-        ReadWriteStorageBufferAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.ReadWriteStorageBufferAttribute");
-        GlobalInvocationIdAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.GlobalInvocationIdAttribute");
-        VertexIndexAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.VertexIndexAttribute");
-        VertexInputAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.VertexInputAttribute");
-        InstanceIndexAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.InstanceIndexAttribute");
-        FragmentCoordAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.FragmentCoordAttribute");
+        BindingAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.LayoutAttribute");
         PositionAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.PositionAttribute");
         FragmentColorAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.FragmentColorAttribute");
         ShaderVaryingAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.ShaderVaryingAttribute");
         PushConstantAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.PushConstantAttribute");
-        SampledTexture2DAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.SampledTexture2DAttribute");
     }
 
     public Compilation Compilation { get; }
     public IntrinsicRegistry Intrinsics { get; }
     public ITypeSymbol? ReadOnlyStorageBufferType { get; }
     public ITypeSymbol? ReadWriteStorageBufferType { get; }
-    public ITypeSymbol? ReadOnlyStorageBufferValueType { get; }
-    public ITypeSymbol? ReadWriteStorageBufferValueType { get; }
     public ITypeSymbol? SampledTexture2DType { get; }
-    public ITypeSymbol? ReadOnlyStorageBufferAttributeType { get; }
-    public ITypeSymbol? ReadWriteStorageBufferAttributeType { get; }
-    public ITypeSymbol? GlobalInvocationIdAttributeType { get; }
-    public ITypeSymbol? VertexIndexAttributeType { get; }
-    public ITypeSymbol? VertexInputAttributeType { get; }
-    public ITypeSymbol? InstanceIndexAttributeType { get; }
-    public ITypeSymbol? FragmentCoordAttributeType { get; }
+    public ITypeSymbol? BindingAttributeType { get; }
     public ITypeSymbol? PositionAttributeType { get; }
     public ITypeSymbol? FragmentColorAttributeType { get; }
     public ITypeSymbol? ShaderVaryingAttributeType { get; }
     public ITypeSymbol? PushConstantAttributeType { get; }
-    public ITypeSymbol? SampledTexture2DAttributeType { get; }
 }

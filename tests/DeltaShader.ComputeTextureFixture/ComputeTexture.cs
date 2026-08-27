@@ -5,17 +5,22 @@ namespace Delta.Shader.ComputeTextureFixture;
 
 public static class ComputeTexture
 {
-    [DeltaCompute(localSizeX: 8)]
-#pragma warning disable CA1062 // Shader resource parameters are validated by the compiler and are not CLR runtime inputs.
-    public static void Compute(
-        [SampledTexture2D(0, 2, ShaderStageMask.Compute)] SampledTexture2D atlas,
-        [ReadWriteStorageBuffer(0, 1)] ReadWriteStorageBuffer<float4> output,
-        [GlobalInvocationId] uint id)
+    public readonly struct ComputeContext
     {
-        if (id < output.Length)
+        [Layout(0, 2)]
+        public readonly SampledTexture2D Atlas;
+
+        [Layout(0, 1)]
+        public readonly ReadWriteStorageBuffer<float4> Output;
+    }
+
+    [Compute(localSizeX: 8)]
+    public static void Compute(in ComputeContext context)
+    {
+        uint id = ShaderBuiltins.GlobalInvocationId.X;
+        if (id < context.Output.Length)
         {
-            output[id] = ShaderIntrinsics.SampleCompute<float2, float4>(atlas, new float2(0.5f, 0.5f));
+            context.Output[id] = ShaderIntrinsics.SampleCompute<float2, float4>(context.Atlas, new float2(0.5f, 0.5f));
         }
     }
-#pragma warning restore CA1062
 }

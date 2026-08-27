@@ -22,39 +22,10 @@ public sealed class FragmentShaderAttribute : Attribute
     }
 }
 
-[AttributeUsage(AttributeTargets.Parameter, Inherited = false, AllowMultiple = false)]
-public sealed class VertexIndexAttribute : Attribute
-{
-}
-
-[AttributeUsage(AttributeTargets.Parameter, Inherited = false, AllowMultiple = false)]
-public sealed class VertexInputAttribute : Attribute
-{
-    public uint Location { get; }
-    public uint Binding { get; set; }
-    public uint ByteOffset { get; set; }
-    public VertexInputRate InputRate { get; set; } = VertexInputRate.Vertex;
-
-    public VertexInputAttribute(uint location)
-    {
-        Location = location;
-    }
-}
-
 public enum VertexInputRate
 {
     Vertex = 0,
     Instance = 1
-}
-
-[AttributeUsage(AttributeTargets.Parameter, Inherited = false, AllowMultiple = false)]
-public sealed class FragmentCoordAttribute : Attribute
-{
-}
-
-[AttributeUsage(AttributeTargets.Parameter, Inherited = false, AllowMultiple = false)]
-public sealed class InstanceIndexAttribute : Attribute
-{
 }
 
 [AttributeUsage(AttributeTargets.Parameter, Inherited = false, AllowMultiple = false)]

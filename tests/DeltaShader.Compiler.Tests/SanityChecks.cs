@@ -24,14 +24,22 @@ public class IntrinsicCatalogTests
 {
     private struct HostTransformBase
     {
-        public float3 Position;
+        public float3 Position = default;
+
+        public HostTransformBase()
+        {
+        }
     }
 
     private struct HostTransformRecord
     {
-        public HostTransformBase Base;
-        public quaternion Rotation;
-        public float4x4 Transform;
+        public HostTransformBase Base = new();
+        public quaternion Rotation = default;
+        public float4x4 Transform = default;
+
+        public HostTransformRecord()
+        {
+        }
     }
 
     [Fact]
@@ -306,6 +314,20 @@ public class IntrinsicCatalogTests
     }
 
     [Fact]
+    public async Task IntrinsicRegistry_MapsUnlistedScalarOverloadWithoutConfusingVectorOverloads()
+    {
+        Compilation compilation = await LoadDeltaMathsCompilationAsync().ConfigureAwait(true);
+        var registry = IntrinsicRegistry.Build(compilation, ShaderContractManifest.LoadEmbedded());
+        var maths = compilation.GetTypeByMetadataName("Delta.Maths.maths")
+            ?? throw new InvalidOperationException("Delta.Maths.maths was not found in the test compilation.");
+        var scalarAbs = maths.GetMembers("abs").OfType<IMethodSymbol>().Single(method =>
+            method.Parameters.Length == 1 && method.Parameters[0].Type.SpecialType == SpecialType.System_Single);
+
+        Assert.True(registry.TryGetIntrinsic(scalarAbs, out IntrinsicBinding? binding));
+        Assert.Equal("abs", binding.GlslName);
+    }
+
+    [Fact]
     public async Task ComputeEntryPoint_ResourcesUseSetBindingAndGlslTypeFromSymbol()
     {
         var source = @"
@@ -316,10 +338,14 @@ public class IntrinsicCatalogTests
             {
                 public static class StorageBufferEntry
                 {
-                    [ComputeShader(localSizeX: 8, localSizeY: 2, localSizeZ: 4)]
-                    public static void Compute(
-                        [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<float3> input,
-                        [ReadWriteStorageBuffer(0, 1)] ReadWriteStorageBuffer<uint2> output)
+                    [Compute(localSizeX: 8, localSizeY: 2, localSizeZ: 4)]
+                    public readonly struct ComputeContext
+                    {
+                        [Layout(0, 0)] public readonly ReadOnlyStorageBuffer<float3> input;
+                        [Layout(0, 1)] public readonly ReadWriteStorageBuffer<uint2> output;
+                    }
+
+                    public static void Compute(in ComputeContext context)
                     {
                     }
                 }
@@ -336,8 +362,8 @@ public class IntrinsicCatalogTests
         Assert.Equal(4u, module.LocalSizeZ);
         Assert.Equal(2, module.Resources.Count);
 
-        ShaderIrResource input = module.Resources.First(r => r.ParameterName == "input");
-        ShaderIrResource output = module.Resources.First(r => r.ParameterName == "output");
+        ShaderIrResource input = module.Resources.First(r => r.ParameterName == "context.input");
+        ShaderIrResource output = module.Resources.First(r => r.ParameterName == "context.output");
         Assert.Equal(0u, input.Set);
         Assert.Equal(0u, input.Binding);
         Assert.True(input.ReadOnly);
@@ -359,8 +385,14 @@ public class IntrinsicCatalogTests
             {
                 public static class InvalidTypesEntry
                 {
-                    [ComputeShader]
-                    public static void Compute(double doubleValue, fix fixValue) { }
+                    public readonly struct ComputeContext
+                    {
+                        [PushConstant] public readonly double DoubleValue;
+                        [PushConstant] public readonly fix FixValue;
+                    }
+
+                    [Compute]
+                    public static void Compute(in ComputeContext context) { }
                 }
             }
         ";
@@ -381,9 +413,9 @@ public class IntrinsicCatalogTests
             {
                 public static class InvalidParamEntry
                 {
-                    [ComputeShader]
+                    [Compute]
                     public static void Compute(
-                        [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<uint> input,
+                        [Layout(0, 0)] ReadOnlyStorageBuffer<uint> input,
                         uint invocationIndex)
                     {
                     }
@@ -407,9 +439,9 @@ public class IntrinsicCatalogTests
             {
                 public static class ProfileMismatch
                 {
-                    [ComputeShader(localSizeX: 1)]
+                    [Compute(localSizeX: 1)]
                     public static void Compute(
-                        [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<float> input)
+                        [Layout(0, 0)] ReadOnlyStorageBuffer<float> input)
                     {
                     }
                 }
@@ -435,10 +467,14 @@ public class IntrinsicCatalogTests
             {
                 public static class DuplicateBindingEntry
                 {
-                    [ComputeShader]
-                    public static void Compute(
-                        [ReadOnlyStorageBuffer(1, 0)] ReadOnlyStorageBuffer<float> first,
-                        [ReadWriteStorageBuffer(1, 0)] ReadWriteStorageBuffer<float> second)
+                    public readonly struct ComputeContext
+                    {
+                        [Layout(1, 0)] public readonly ReadOnlyStorageBuffer<float> First;
+                        [Layout(1, 0)] public readonly ReadWriteStorageBuffer<float> Second;
+                    }
+
+                    [Compute]
+                    public static void Compute(in ComputeContext context)
                     { }
                 }
             }
@@ -472,14 +508,18 @@ public class IntrinsicCatalogTests
 
                 public static class StructuredEntry
                 {
-                    [ComputeShader(localSizeX: 8)]
-                    public static void Compute(
-                        [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<TransformRecord> input,
-                        [ReadWriteStorageBuffer(0, 1)] ReadWriteStorageBuffer<TransformRecord> output,
-                        [GlobalInvocationId] uint invocation)
+                    public readonly struct ComputeContext
                     {
-                        if (invocation < input.Length)
-                            output.Store(invocation, input.Load(invocation));
+                        [Layout(0, 0)] public readonly ReadOnlyStorageBuffer<TransformRecord> input;
+                        [Layout(0, 1)] public readonly ReadWriteStorageBuffer<TransformRecord> output;
+                    }
+
+                    [Compute(localSizeX: 8)]
+                    public static void Compute(in ComputeContext context)
+                    {
+                        uint invocation = ShaderBuiltins.GlobalInvocationId.X;
+                        if (invocation < context.input.Length)
+                            context.output[invocation] = context.input[invocation];
                     }
                 }
             }
@@ -488,7 +528,7 @@ public class IntrinsicCatalogTests
         ShaderCompilationResult result = await CompileAndValidateEntryPointAsync(source).ConfigureAwait(true);
 
         Assert.True(result.Success);
-        ShaderIrResource input = Assert.Single(result.Module!.Resources, resource => resource.ParameterName == "input");
+        ShaderIrResource input = Assert.Single(result.Module!.Resources, resource => resource.ParameterName == "context.input");
         Assert.Equal("DeltaStruct_Delta_Shader_Compiler_Tests_Fixtures_TransformRecord", input.GlslType);
         Assert.Equal(16u, input.Std430Layout!.Alignment);
         Assert.Equal(96u, input.Std430Layout.Size);
@@ -519,8 +559,8 @@ public class IntrinsicCatalogTests
                     }
                     public static class ExplicitEntry
                     {
-                        [ComputeShader] public static void Compute(
-                            [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<ExplicitRecord> input) { }
+                        public struct Context { [Layout(0, 0)] public ReadOnlyStorageBuffer<ExplicitRecord> Input; }
+                        [Compute] public static void Compute(in Context context) { }
                     }
                 }
             ", ExpectedId: ShaderDiagnosticId.DSH006),
@@ -531,8 +571,8 @@ public class IntrinsicCatalogTests
                     public struct ManagedRecord { public string Name; }
                     public static class ManagedEntry
                     {
-                        [ComputeShader] public static void Compute(
-                            [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<ManagedRecord> input) { }
+                        public struct Context { [Layout(0, 0)] public ReadOnlyStorageBuffer<ManagedRecord> Input; }
+                        [Compute] public static void Compute(in Context context) { }
                     }
                 }
             ", ExpectedId: ShaderDiagnosticId.DSH010),
@@ -543,8 +583,8 @@ public class IntrinsicCatalogTests
                     public struct RecursiveRecord { public RecursiveRecord[] Children; }
                     public static class RecursiveEntry
                     {
-                        [ComputeShader] public static void Compute(
-                            [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<RecursiveRecord> input) { }
+                        public struct Context { [Layout(0, 0)] public ReadOnlyStorageBuffer<RecursiveRecord> Input; }
+                        [Compute] public static void Compute(in Context context) { }
                     }
                 }
             ", ExpectedId: ShaderDiagnosticId.DSH010),
@@ -555,8 +595,8 @@ public class IntrinsicCatalogTests
                     public struct ArrayFieldRecord { public float[] Values; }
                     public static class ArrayFieldEntry
                     {
-                        [ComputeShader] public static void Compute(
-                            [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<ArrayFieldRecord> input) { }
+                        public struct Context { [Layout(0, 0)] public ReadOnlyStorageBuffer<ArrayFieldRecord> Input; }
+                        [Compute] public static void Compute(in Context context) { }
                     }
                 }
             ", ExpectedId: ShaderDiagnosticId.DSH010)
@@ -579,7 +619,8 @@ public class IntrinsicCatalogTests
                 using Delta.Shader;
                 public static class EntryParameter
                 {
-                    [ComputeShader] public static void Compute(string value) { }
+                    public struct Context { [PushConstant] public string Value; }
+                    [Compute] public static void Compute(in Context context) { }
                 }
             ",
             @"
@@ -588,8 +629,8 @@ public class IntrinsicCatalogTests
                 public struct StorageRecord { public CpuOnlyHelper Helper; }
                 public static class StorageEntry
                 {
-                    [ComputeShader] public static void Compute(
-                        [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<StorageRecord> values) { }
+                    public struct Context { [Layout(0, 0)] public ReadOnlyStorageBuffer<StorageRecord> Values; }
+                    [Compute] public static void Compute(in Context context) { }
                 }
             ",
             @"
@@ -597,8 +638,8 @@ public class IntrinsicCatalogTests
                 public struct RecursiveRecord { public RecursiveRecord[] Children; }
                 public static class RecursiveEntry
                 {
-                    [ComputeShader] public static void Compute(
-                        [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<RecursiveRecord> values) { }
+                    public struct Context { [Layout(0, 0)] public ReadOnlyStorageBuffer<RecursiveRecord> Values; }
+                    [Compute] public static void Compute(in Context context) { }
                 }
             "
         };
@@ -637,7 +678,12 @@ public class IntrinsicCatalogTests
             public class CpuOnlyHelper { public string Name; }
             public static class ValidCompute
             {
-                [ComputeShader] public static void Compute([GlobalInvocationId] uint id) { }
+                public readonly struct Context
+                {
+                    [PushConstant] public readonly uint Count;
+                }
+
+                [Compute] public static void Compute(in Context context) { }
             }";
 
         ShaderCompilationResult validResult = await CompileAndValidateEntryPointAsync(validSource).ConfigureAwait(true);
@@ -679,10 +725,10 @@ public class IntrinsicCatalogTests
                 public struct Constants { public float2 Resolution; public float Time; }
                 public static class Graphics
                 {
-                    [VertexShader(""FullscreenVertex"")] public static void Vertex([VertexIndex] uint index, [Position] out float4 position, [ShaderVarying(0)] out float2 uv)
-                    { position = new float4(-1f, -1f, 0f, 1f); uv = new float2(0f, 0f); }
-                    [FragmentShader(""FullscreenFragment"")] public static void Fragment([FragmentCoord] float2 coord, [PushConstant] Constants constants, [ShaderVarying(0)] float2 uv, [FragmentColor] out float4 color)
-                    { var normalized = float2.Normalize(uv); var edge = ShaderIntrinsics.fwidth(coord.x); color = new float4(edge, constants.Time, normalized.x, 1f); }
+                    [VertexShader(""FullscreenVertex"")] public static void Vertex([Position] out float4 position, [ShaderVarying(0)] out float2 uv)
+                    { uint index = ShaderBuiltins.VertexIndex; position = new float4(-1f, -1f, 0f, 1f); uv = new float2(index, 0f); }
+                    [FragmentShader(""FullscreenFragment"")] public static void Fragment([PushConstant] Constants constants, [ShaderVarying(0)] float2 uv, [FragmentColor] out float4 color)
+                    { var coord = new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y); var normalized = float2.Normalize(uv); var edge = ShaderIntrinsics.fwidth(coord.x); color = new float4(edge, constants.Time, normalized.x, 1f); }
                 }
             }";
 
@@ -788,10 +834,10 @@ public class IntrinsicCatalogTests
             {
                 [VertexShader(""EditorViewportCubeVertex"")]
                 public static void Vertex(
-                    [VertexInput(0, Binding = 0, ByteOffset = 0)] float3 position,
-                    [VertexInput(1, Binding = 0, ByteOffset = 12)] float3 normal,
-                    [VertexInput(2, Binding = 0, ByteOffset = 24)] float2 uv,
-                    [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<SceneParameters> scene,
+                    [Layout(0)] float3 position,
+                    [Layout(1)] float3 normal,
+                    [Layout(2)] float2 uv,
+                    [Layout(0, 0)] ReadOnlyStorageBuffer<SceneParameters> scene,
                     [Position] out float4 clipPosition,
                     [ShaderVarying(0)] out float3 worldNormal,
                     [ShaderVarying(1)] out float2 texCoord)
@@ -861,16 +907,16 @@ public class IntrinsicCatalogTests
             public static class InvalidViewport
             {
                 [FragmentShader(""Fragment"")]
-                public static void Fragment([VertexInput(0)] float3 position, [FragmentColor] out float4 color)
+                public static void Fragment([Layout(0)] float3 position, [FragmentColor] out float4 color)
                 {
                     color = new float4(position, 1f);
                 }
 
                 [VertexShader(""Vertex"")]
                 public static void Vertex(
-                    [VertexInput(0)] float3 first,
-                    [VertexInput(0)] float2 duplicate,
-                    [VertexInput(1)] ManagedData managed,
+                    [Layout(0)] float3 first,
+                    [Layout(0)] float2 duplicate,
+                    [Layout(1)] ManagedData managed,
                     [Position] out float4 position)
                 {
                     position = new float4(first, 1f);
@@ -899,8 +945,8 @@ public class IntrinsicCatalogTests
             using Delta.Shader;
             public static class InvalidGraphics
             {
-                [VertexShader] public static void Vertex([FragmentCoord] float2 coord, [Position] out float4 position)
-                { position = new float4(coord.x, 0f, 0f, 1f); }
+                [VertexShader] public static void Vertex([Position] out float4 position)
+                { position = new float4(ShaderBuiltins.FragmentCoord.X, 0f, 0f, 1f); }
             }";
 
         Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
@@ -918,9 +964,8 @@ public class IntrinsicCatalogTests
             public static class FullscreenUi
             {
                 [VertexShader] public static void Vertex(
-                    [VertexIndex] uint index,
                     [Position] out float4 position)
-                { position = default; }
+                { uint index = ShaderBuiltins.VertexIndex; position = default; }
             }";
 
         Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
@@ -949,8 +994,7 @@ public class IntrinsicCatalogTests
 
                 [VertexShader(""sdf-text"")]
                 public static void Vertex(
-                    [VertexIndex] uint index,
-                    [SampledTexture2D(0, 1, ShaderStageMask.Vertex)] SampledTexture2D atlas,
+                    [Layout(0, 1)] SampledTexture2D atlas,
                     [Position] out float4 position,
                     [ShaderVarying(0)] out float2 uv)
                 {
@@ -961,7 +1005,7 @@ public class IntrinsicCatalogTests
 
                 [FragmentShader(""sdf-text"")]
                 public static void Fragment(
-                    [SampledTexture2D(0, 2)] SampledTexture2D atlas,
+                    [Layout(0, 2)] SampledTexture2D atlas,
                     [ShaderVarying(0)] float2 uv,
                     [PushConstant] TextParameters parameters,
                     [FragmentColor] out float4 color)
@@ -1010,7 +1054,7 @@ public class IntrinsicCatalogTests
     }
 
     [Fact]
-    public async Task SampledTexture_RejectsStageMaskThatExcludesFragment()
+    public async Task SampledTexture_RejectsVertexBindingFormInFragment()
     {
         const string source = @"
             using Delta.Maths;
@@ -1019,7 +1063,7 @@ public class IntrinsicCatalogTests
             {
                 [FragmentShader]
                 public static void Fragment(
-                    [SampledTexture2D(0, 0, ShaderStageMask.Vertex)] SampledTexture2D atlas,
+                    [Layout(0)] SampledTexture2D atlas,
                     [FragmentColor] out float4 color)
                 {
                     color = new float4(1f, 1f, 1f, 1f);
@@ -1030,8 +1074,7 @@ public class IntrinsicCatalogTests
         ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
 
         Assert.False(result.Success);
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH011);
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Message.Contains("not enabled", StringComparison.Ordinal));
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH002);
     }
 
     [Fact]
@@ -1043,8 +1086,9 @@ public class IntrinsicCatalogTests
             public static class DerivativeStages
             {
                 [FragmentShader]
-                public static void Fragment([FragmentCoord] float2 coord, [FragmentColor] out float4 color)
+                public static void Fragment([FragmentColor] out float4 color)
                 {
+                    var coord = new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y);
                     var dx = ShaderIntrinsics.dFdx(coord.x);
                     var dy = ShaderIntrinsics.dFdy(coord.y);
                     color = new float4(dx, dy, 0f, 1f);
@@ -1098,14 +1142,14 @@ public class IntrinsicCatalogTests
 
                 [VertexShader(""sdf-text"")]
                 public static void Vertex(
-                    [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<GlyphInstance> glyphs,
-                    [InstanceIndex] uint instanceIndex,
-                    [VertexIndex] uint vertexIndex,
+                    [Layout(0, 0)] ReadOnlyStorageBuffer<GlyphInstance> glyphs,
                     [Position] out float4 position,
                     [ShaderVarying(0)] out float2 uv,
                     [ShaderVarying(1)] out float4 glyphColor,
                     [PushConstant] TextParameters parameters)
                 {
+                    uint instanceIndex = ShaderBuiltins.InstanceIndex;
+                    uint vertexIndex = ShaderBuiltins.VertexIndex;
                     var glyph = glyphs[instanceIndex];
                     var min = glyph.PixelMin;
                     var max = glyph.PixelMax;
@@ -1148,7 +1192,7 @@ public class IntrinsicCatalogTests
 
                 [FragmentShader(""sdf-text"")]
                 public static void Fragment(
-                    [SampledTexture2D(0, 3)] SampledTexture2D atlas,
+                    [Layout(0, 3)] SampledTexture2D atlas,
                     [ShaderVarying(0)] float2 uv,
                     [ShaderVarying(1)] float4 glyphColor,
                     [PushConstant] TextParameters parameters,
@@ -1210,10 +1254,10 @@ public class IntrinsicCatalogTests
 
                 [VertexShader]
                 public static void Vertex(
-                    [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<Payload> payloads,
-                    [VertexIndex] uint index,
+                    [Layout(0, 0)] ReadOnlyStorageBuffer<Payload> payloads,
                     [Position] out float4 position)
                 {
+                    uint index = ShaderBuiltins.VertexIndex;
                     var payload = payloads[index];
                     var copiedColor = payload.Color;
                     var Color = new float4(0.25f, 0.5f, 0.75f, 1f);
@@ -1240,9 +1284,9 @@ public class IntrinsicCatalogTests
             public static class InvalidInstanceIndex
             {
                 [FragmentShader]
-                public static void Fragment([InstanceIndex] uint instanceIndex, [FragmentColor] out float4 color)
+                public static void Fragment([FragmentColor] out float4 color)
                 {
-                    color = new float4(instanceIndex, instanceIndex, instanceIndex, 1f);
+                    color = new float4(ShaderBuiltins.InstanceIndex, ShaderBuiltins.InstanceIndex, ShaderBuiltins.InstanceIndex, 1f);
                 }
             }";
 
@@ -1285,6 +1329,34 @@ public class IntrinsicCatalogTests
         var helperIndex = glsl.IndexOf("delta_helper_", StringComparison.Ordinal);
         Assert.True(helperIndex >= 0);
         Assert.True(helperIndex < glsl.IndexOf("void main()", StringComparison.Ordinal));
+        Assert.Contains("return sin(arg_value)", glsl, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GraphicsEntryPoint_LowersExpressionBodiedStaticHelper()
+    {
+        const string source = @"
+            using Delta.Maths;
+            using Delta.Shader;
+            public static class ExpressionHelperShader
+            {
+                private static float Wave(float value) => maths.sin(value);
+
+                [FragmentShader]
+                public static void Fragment([FragmentColor] out float4 color)
+                {
+                    var value = Wave(0.5f);
+                    color = new float4(value);
+                }
+            }";
+
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        var module = result.Module ?? throw new InvalidOperationException("Successful expression-bodied helper compilation did not produce an IR module.");
+        Assert.Single(module.HelperFunctions);
+        var glsl = Delta.Shader.Backend.Glsl.GlslEmitter.EmitFromModule(module).Source;
         Assert.Contains("return sin(arg_value)", glsl, StringComparison.Ordinal);
     }
 
@@ -1351,6 +1423,276 @@ public class IntrinsicCatalogTests
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Message.Contains("captures managed field 'Scale'", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task ComputeContext_LowersUserDefinedResourcesBuiltinsAndPushConstants()
+    {
+        const string source = @"
+            using Delta.Maths;
+            using Delta.Shader;
+
+            public readonly struct UserDefinedComputeContext
+            {
+                [Layout(0, 0)]
+                public readonly ReadOnlyStorageBuffer<uint> Input;
+
+                [Layout(0, 1)]
+                public readonly ReadWriteStorageBuffer<uint> Output;
+
+                [PushConstant]
+                public readonly uint Count;
+
+            }
+
+            public static class ContextCompute
+            {
+                [Compute(localSizeX: 64)]
+                public static void Compute(in UserDefinedComputeContext ctx)
+                {
+                    if (ShaderBuiltins.GlobalInvocationId.X < ctx.Count)
+                        ctx.Output[ShaderBuiltins.GlobalInvocationId.X] = ctx.Input[ShaderBuiltins.GlobalInvocationId.X] * 2u + 1u;
+                }
+            }";
+
+        ShaderCompilationResult result = await CompileAndValidateEntryPointAsync(source).ConfigureAwait(true);
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        Assert.Equal("ctx.Input", Assert.Single(result.BuildManifest!.Resources, resource => resource.ParameterName == "ctx.Input").ParameterName);
+        Assert.Equal("ctx.Output", Assert.Single(result.BuildManifest.Resources, resource => resource.ParameterName == "ctx.Output").ParameterName);
+        ShaderCompilationPushConstant push = Assert.Single(result.BuildManifest.PushConstants);
+        Assert.Equal("Count", Assert.Single(push.Members).Name);
+
+        var glsl = Delta.Shader.Backend.Glsl.GlslEmitter.EmitFromModule(result.Module!).Source;
+        Assert.Contains("gl_GlobalInvocationID.x", glsl, StringComparison.Ordinal);
+        Assert.Contains("pushConstants.member_Count", glsl, StringComparison.Ordinal);
+        Assert.Contains("std430", glsl, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ComputeContext_CanContainOnlyUserDefinedPushConstants()
+    {
+        const string source = @"
+            using Delta.Shader;
+
+            public readonly struct ParametersContext
+            {
+                [PushConstant]
+                public readonly uint Count;
+            }
+
+            public static class ParametersCompute
+            {
+                [Compute]
+                public static void Compute(in ParametersContext ctx)
+                {
+                }
+            }";
+
+        ShaderCompilationResult result = await CompileAndValidateEntryPointAsync(source).ConfigureAwait(true);
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        Assert.Empty(result.BuildManifest!.Resources);
+        Assert.Single(result.BuildManifest.PushConstants);
+    }
+
+    [Fact]
+    public async Task ComputeContext_RejectsReferenceFieldsAndUnannotatedState()
+    {
+        const string source = @"
+            using Delta.Shader;
+
+            public readonly struct InvalidContext
+            {
+                [PushConstant]
+                public readonly string Label;
+
+                public readonly uint HiddenState;
+            }
+
+            public static class InvalidContextCompute
+            {
+                [Compute]
+                public static void Compute(in InvalidContext ctx)
+                {
+                }
+            }";
+
+        ShaderCompilationResult result = await CompileAndValidateEntryPointAsync(source).ConfigureAwait(true);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Id == ShaderDiagnosticId.DSH010 &&
+            diagnostic.Message.Contains("reference", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Id == ShaderDiagnosticId.DSH010 &&
+            diagnostic.Message.Contains("role", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task ComputeContext_ParameterFormRequiresContext()
+    {
+        const string source = @"
+            using Delta.Shader;
+
+            public readonly struct ValidContext
+            {
+                [PushConstant]
+                public readonly uint Count;
+            }
+
+            public static class MigrationDiagnostics
+            {
+                [Compute]
+                public static void Context(in ValidContext ctx) { }
+
+                [Compute]
+                public static void Legacy() { }
+            }";
+
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
+        ImmutableArray<Diagnostic> diagnostics = await compilation
+            .WithAnalyzers(ImmutableArray.Create<DiagnosticAnalyzer>(new ComputeEntryPointAnalyzer()))
+            .GetAnalyzerDiagnosticsAsync();
+
+        Assert.Contains(diagnostics, diagnostic => diagnostic.Id == "DSH002" && diagnostic.GetMessage().Contains("exactly one", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ComputeContext_LowersUserDefinedResourcesBuiltinsAndPushConstants()
+    {
+        const string source = @"
+            using Delta.Maths;
+            using Delta.Shader;
+
+            public readonly struct UserDefinedComputeContext
+            {
+                [Layout(0, 0)]
+                public readonly ReadOnlyStorageBuffer<uint> Input;
+
+                [Layout(0, 1)]
+                public readonly ReadWriteStorageBuffer<uint> Output;
+
+                [PushConstant]
+                public readonly uint Count;
+
+            }
+
+            public static class ContextCompute
+            {
+                [Compute(localSizeX: 64)]
+                public static void Compute(in UserDefinedComputeContext ctx)
+                {
+                    if (ShaderBuiltins.GlobalInvocationId.X < ctx.Count)
+                        ctx.Output[ShaderBuiltins.GlobalInvocationId.X] = ctx.Input[ShaderBuiltins.GlobalInvocationId.X] * 2u + 1u;
+                }
+            }";
+
+        ShaderCompilationResult result = await CompileAndValidateEntryPointAsync(source).ConfigureAwait(true);
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        ShaderCompilationManifest buildManifest = Assert.IsType<ShaderCompilationManifest>(result.BuildManifest);
+        ShaderIrModule module = Assert.IsType<ShaderIrModule>(result.Module);
+        Assert.Equal("ctx.Input", Assert.Single(buildManifest.Resources, resource => resource.ParameterName == "ctx.Input").ParameterName);
+        Assert.Equal("ctx.Output", Assert.Single(buildManifest.Resources, resource => resource.ParameterName == "ctx.Output").ParameterName);
+        ShaderCompilationPushConstant push = Assert.Single(buildManifest.PushConstants);
+        Assert.Equal("Count", Assert.Single(push.Members).Name);
+
+        var glsl = Delta.Shader.Backend.Glsl.GlslEmitter.EmitFromModule(module).Source;
+        Assert.Contains("gl_GlobalInvocationID.x", glsl, StringComparison.Ordinal);
+        Assert.Contains("pushConstants.member_Count", glsl, StringComparison.Ordinal);
+        Assert.Contains("std430", glsl, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ComputeContext_CanContainOnlyUserDefinedPushConstants()
+    {
+        const string source = @"
+            using Delta.Shader;
+
+            public readonly struct ParametersContext
+            {
+                [PushConstant]
+                public readonly uint Count;
+            }
+
+            public static class ParametersCompute
+            {
+                [Compute]
+                public static void Compute(in ParametersContext ctx)
+                {
+                }
+            }";
+
+        ShaderCompilationResult result = await CompileAndValidateEntryPointAsync(source).ConfigureAwait(true);
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        ShaderCompilationManifest buildManifest = Assert.IsType<ShaderCompilationManifest>(result.BuildManifest);
+        Assert.Empty(buildManifest.Resources);
+        Assert.Single(buildManifest.PushConstants);
+    }
+
+    [Fact]
+    public async Task ComputeContext_RejectsReferenceFieldsAndUnannotatedState()
+    {
+        const string source = @"
+            using Delta.Shader;
+
+            public readonly struct InvalidContext
+            {
+                [PushConstant]
+                public readonly string Label;
+
+                public readonly uint HiddenState;
+            }
+
+            public static class InvalidContextCompute
+            {
+                [Compute]
+                public static void Compute(in InvalidContext ctx)
+                {
+                }
+            }";
+
+        ShaderCompilationResult result = await CompileAndValidateEntryPointAsync(source).ConfigureAwait(true);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Id == ShaderDiagnosticId.DSH010 &&
+            diagnostic.Message.Contains("reference", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Id == ShaderDiagnosticId.DSH010 &&
+            diagnostic.Message.Contains("role", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task ComputeContext_ParameterFormRequiresContextAgain()
+    {
+        const string source = @"
+            using Delta.Shader;
+
+            public readonly struct ValidContext
+            {
+                [PushConstant]
+                public readonly uint Count;
+            }
+
+            public static class MigrationDiagnostics
+            {
+                [Compute]
+                public static void Context(in ValidContext ctx) { }
+
+                [Compute]
+                public static void Legacy() { }
+            }";
+
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
+        ImmutableArray<Diagnostic> diagnostics = await compilation
+            .WithAnalyzers(ImmutableArray.Create<DiagnosticAnalyzer>(new ComputeEntryPointAnalyzer()))
+            .GetAnalyzerDiagnosticsAsync();
+
+        Assert.Contains(diagnostics, diagnostic => diagnostic.Id == "DSH002" && diagnostic.GetMessage().Contains("exactly one", StringComparison.Ordinal));
+        Assert.DoesNotContain(diagnostics, diagnostic => diagnostic.Id == "DSH002" && diagnostic.GetMessage().Contains("Context", StringComparison.Ordinal));
+    }
+
     private static async Task<ShaderCompilationResult> CompileAndValidateEntryPointAsync(
         string source,
         ShaderCompilationOptions? options = null)
@@ -1370,21 +1712,25 @@ public class IntrinsicCatalogTests
 
             public static class CompileTimeValid
             {
-                [ComputeShader(localSizeX: 64)]
-                public static void Compute(
-                    [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<float> input,
-                    [ReadWriteStorageBuffer(0, 1)] ReadWriteStorageBuffer<float> output,
-                    [GlobalInvocationId] uint invocation)
+                public readonly struct ComputeContext
                 {
-                    output[invocation] = maths.sin(input[invocation]);
+                    [Layout(0, 0)] public readonly ReadOnlyStorageBuffer<float> Input;
+                    [Layout(0, 1)] public readonly ReadWriteStorageBuffer<float> Output;
+                }
+
+                [Compute(localSizeX: 64)]
+                public static void Compute(in ComputeContext context)
+                {
+                    uint invocation = ShaderBuiltins.GlobalInvocationId.X;
+                    context.Output[invocation] = maths.sin(context.Input[invocation]);
                 }
             }";
 
         ShaderCompilationResult result = await CompileAndValidateEntryPointAsync(source).ConfigureAwait(true);
 
         Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
-        Assert.Contains("output.data[invocation]", result.Module!.Body, StringComparison.Ordinal);
-        Assert.Contains("sin(input.data[invocation])", result.Module.Body, StringComparison.Ordinal);
+        Assert.Contains("Output.data[invocation]", result.Module!.Body, StringComparison.Ordinal);
+        Assert.Contains("sin(Input.data[invocation])", result.Module.Body, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1396,13 +1742,17 @@ public class IntrinsicCatalogTests
 
             public static class SimpleCompute
             {
-                [DeltaCompute(localSizeX: 64)]
-                public static void Compute(
-                    [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer input,
-                    [ReadWriteStorageBuffer(0, 1)] ReadWriteStorageBuffer output,
-                    [GlobalInvocationId] uint id)
+                public readonly struct ComputeContext
                 {
-                    if (id < input.Length) output[id] = input[id] * 2u + 1u;
+                    [Layout(0, 0)] public readonly ReadOnlyStorageBuffer<uint> Input;
+                    [Layout(0, 1)] public readonly ReadWriteStorageBuffer<uint> Output;
+                }
+
+                [Compute(localSizeX: 64)]
+                public static void Compute(in ComputeContext context)
+                {
+                    uint id = ShaderBuiltins.GlobalInvocationId.X;
+                    if (id < context.Input.Length) context.Output[id] = context.Input[id] * 2u + 1u;
                 }
             }";
 
@@ -1410,9 +1760,9 @@ public class IntrinsicCatalogTests
 
         Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
         IReadOnlyList<ShaderIrResource> resources = result.Module!.Resources;
-        Assert.Equal("uint", Assert.Single(resources, resource => resource.ParameterName == "input").GlslType);
-        Assert.Equal("uint", Assert.Single(resources, resource => resource.ParameterName == "output").GlslType);
-        Assert.Contains("output.data[id] = input.data[id] * 2u + 1u", result.Module.Body, StringComparison.Ordinal);
+        Assert.Equal("uint", Assert.Single(resources, resource => resource.ParameterName == "context.Input").GlslType);
+        Assert.Equal("uint", Assert.Single(resources, resource => resource.ParameterName == "context.Output").GlslType);
+        Assert.Contains("Output.data[id] = Input.data[id] * 2u + 1u", result.Module.Body, StringComparison.Ordinal);
 
         var glsl = Delta.Shader.Backend.Glsl.GlslEmitter.EmitFromModule(result.Module).Source;
         Assert.Contains("#version 460", glsl, StringComparison.Ordinal);
@@ -1429,13 +1779,17 @@ public class IntrinsicCatalogTests
 
             public static class ComputeTexture
             {
-                [DeltaCompute(localSizeX: 8)]
-                public static void Compute(
-                    [SampledTexture2D(0, 2, ShaderStageMask.Compute)] SampledTexture2D atlas,
-                    [ReadWriteStorageBuffer(0, 1)] ReadWriteStorageBuffer<float4> output,
-                    [GlobalInvocationId] uint id)
+                public readonly struct ComputeContext
                 {
-                    output[id] = ShaderIntrinsics.SampleCompute<float2, float4>(atlas, new float2(0.5f, 0.5f));
+                    [Layout(0, 2)] public readonly SampledTexture2D Atlas;
+                    [Layout(0, 1)] public readonly ReadWriteStorageBuffer<float4> Output;
+                }
+
+                [Compute(localSizeX: 8)]
+                public static void Compute(in ComputeContext context)
+                {
+                    uint id = ShaderBuiltins.GlobalInvocationId.X;
+                    context.Output[id] = ShaderIntrinsics.SampleCompute<float2, float4>(context.Atlas, new float2(0.5f, 0.5f));
                 }
             }";
 
@@ -1451,21 +1805,21 @@ public class IntrinsicCatalogTests
     }
 
     [Fact]
-    public async Task ComputeSampledTexture_RejectsMissingComputeStageMask()
+    public async Task ComputeSampledTexture_RejectsParameterForm()
     {
         const string source = @"
             using Delta.Shader;
 
             public static class InvalidComputeTexture
             {
-                [DeltaCompute]
-                public static void Compute([SampledTexture2D(0, 0, ShaderStageMask.Fragment)] SampledTexture2D atlas)
+                [Compute]
+                public static void Compute([Layout(0, 0)] SampledTexture2D atlas)
                 {
                 }
             }";
 
         ShaderCompilationResult result = await CompileAndValidateEntryPointAsync(source).ConfigureAwait(true);
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH011);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH002);
     }
 
     [Fact]
@@ -1476,13 +1830,17 @@ public class IntrinsicCatalogTests
 
             public static class IndexedPayloadCompute
             {
-                [DeltaCompute(localSizeX: 8)]
-                public static void Compute(
-                    [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<uint> input,
-                    [ReadWriteStorageBuffer(0, 1)] ReadWriteStorageBuffer<uint> output,
-                    [GlobalInvocationId] uint id)
+                public readonly struct ComputeContext
                 {
-                    if (id < input.Length) output[id] = input[id] * 2u + 1u;
+                    [Layout(0, 0)] public readonly ReadOnlyStorageBuffer<uint> Input;
+                    [Layout(0, 1)] public readonly ReadWriteStorageBuffer<uint> Output;
+                }
+
+                [Compute(localSizeX: 8)]
+                public static void Compute(in ComputeContext context)
+                {
+                    uint id = ShaderBuiltins.GlobalInvocationId.X;
+                    if (id < context.Input.Length) context.Output[id] = context.Input[id] * 2u + 1u;
                 }
             }";
 
@@ -1490,7 +1848,7 @@ public class IntrinsicCatalogTests
 
         Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
         ShaderIrModule module = Assert.IsType<Delta.Shader.Compiler.IR.ShaderIrModule>(result.Module);
-        Assert.Contains("output.data[id] = input.data[id] * 2u + 1u", module.Body, StringComparison.Ordinal);
+        Assert.Contains("Output.data[id] = Input.data[id] * 2u + 1u", module.Body, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1507,9 +1865,13 @@ public class IntrinsicCatalogTests
 
             public static class ManagedPayloadCompute
             {
-                [DeltaCompute]
-                public static void Compute(
-                    [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<ManagedPayload> input)
+                public struct Context
+                {
+                    [Layout(0, 0)] public ReadOnlyStorageBuffer<ManagedPayload> Input;
+                }
+
+                [Compute]
+                public static void Compute(in Context context)
                 {
                 }
             }";
@@ -1531,13 +1893,17 @@ public class IntrinsicCatalogTests
 
             public static class GeneratedKernel
             {
-                [DeltaCompute(localSizeX: 64)]
-                public static void Compute(
-                    [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<float> input,
-                    [ReadWriteStorageBuffer(0, 1)] ReadWriteStorageBuffer<float> output,
-                    [GlobalInvocationId] uint invocation)
+                public readonly struct ComputeContext
                 {
-                    output[invocation] = maths.sin(input[invocation]);
+                    [Layout(0, 0)] public readonly ReadOnlyStorageBuffer<float> Input;
+                    [Layout(0, 1)] public readonly ReadWriteStorageBuffer<float> Output;
+                }
+
+                [Compute(localSizeX: 64)]
+                public static void Compute(in ComputeContext context)
+                {
+                    uint invocation = ShaderBuiltins.GlobalInvocationId.X;
+                    context.Output[invocation] = maths.sin(context.Input[invocation]);
                 }
             }";
 
@@ -1566,9 +1932,9 @@ public class IntrinsicCatalogTests
             public static class GeneratedGraphics
             {
                 [VertexShader(""CubeVertex"")]
-                public static void Vertex([VertexIndex] uint index, [Position] out float4 position)
+                public static void Vertex([Position] out float4 position)
                 {
-                    position = new float4((float)index, 0.0f, 0.0f, 1.0f);
+                    position = new float4((float)ShaderBuiltins.VertexIndex, 0.0f, 0.0f, 1.0f);
                 }
 
                 [FragmentShader(""CubeFragment"")]
@@ -1610,15 +1976,18 @@ public class IntrinsicCatalogTests
             {
                 public static uint MutableState;
 
-                [ComputeShader(localSizeX: 64)]
-                public static void Compute(
-                    [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<uint> input,
-                    [ReadWriteStorageBuffer(0, 1)] ReadWriteStorageBuffer<uint> output,
-                    [GlobalInvocationId] uint invocation)
+                public readonly struct ComputeContext
+                {
+                    [Layout(0, 0)] public readonly ReadOnlyStorageBuffer<uint> Input;
+                    [Layout(0, 1)] public readonly ReadWriteStorageBuffer<uint> Output;
+                }
+
+                [Compute(localSizeX: 64)]
+                public static void Compute(in ComputeContext context)
                 {
                     string managed = ""not a shader value"";
                     var reflected = Assembly.GetExecutingAssembly().GetName();
-                    output.Store(invocation, new VirtualWorker().Next(input.Load(invocation)) + MutableState);
+                    context.Output[ShaderBuiltins.GlobalInvocationId.X] = new VirtualWorker().Next() + MutableState;
                 }
             }";
 

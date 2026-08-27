@@ -5,18 +5,25 @@ namespace Delta.Shader.Compiler.ReferenceFixtures;
 
 internal static class VectorSymbolFixture
 {
-    [ComputeShader(localSizeX: 4, localSizeY: 2, localSizeZ: 1)]
-    public static void SymbolMapKernel(
-        [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<float3> input,
-        [ReadWriteStorageBuffer(0, 1)] ReadWriteStorageBuffer<float2> output,
-        uint invocationIndex)
+    public readonly struct ComputeContext
     {
-        var a = input.Load(invocationIndex);
+        [Layout(0, 0)]
+        public readonly ReadOnlyStorageBuffer<float3> Input;
+
+        [Layout(0, 1)]
+        public readonly ReadWriteStorageBuffer<float2> Output;
+    }
+
+    [Compute(localSizeX: 4, localSizeY: 2, localSizeZ: 1)]
+    public static void SymbolMapKernel(in ComputeContext context)
+    {
+        uint invocationIndex = ShaderBuiltins.GlobalInvocationId.X;
+        var a = context.Input[invocationIndex];
         var b = new float3(1f, 2f, 3f);
         var c = a + b;
         var xy = c.xy;
 
-        output.Store(invocationIndex, new float2(xy.x, xy.y));
+        context.Output[invocationIndex] = new float2(xy.x, xy.y);
         _ = maths.dot(a, b);
         _ = maths.normalize(c);
     }

@@ -8,11 +8,10 @@ internal static class Example06_NoiseCube
 {
     [FragmentShader]
     public static void NoiseCube(
-        [FragmentCoord] float2 fragmentCoord,
         [PushConstant] GalleryConstants constants,
         [FragmentColor] out float4 color)
     {
-        var p = (fragmentCoord / constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / constants.Resolution) * 2f - new float2(1f, 1f);
         var q = p;
         var value = 0f;
         var weight = 0.5f;

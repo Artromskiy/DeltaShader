@@ -16,6 +16,7 @@ public interface IShaderArtifact
 public sealed class ShaderArtifact : IShaderArtifact
 {
     private const uint SpirvMagic = 0x07230203;
+    private const int SpirvHeaderSize = sizeof(uint) * 5;
 
     private readonly byte[] _spirv;
 
@@ -26,14 +27,23 @@ public sealed class ShaderArtifact : IShaderArtifact
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(entryPoint);
         ArgumentNullException.ThrowIfNull(abi);
-        if (spirv.IsEmpty || spirv.Length % sizeof(uint) != 0)
+        if (spirv.Length < SpirvHeaderSize || spirv.Length % sizeof(uint) != 0)
         {
-            throw new ArgumentException("SPIR-V must contain complete 32-bit words.", nameof(spirv));
+            throw new ArgumentException("SPIR-V must contain a complete module header and 32-bit words.", nameof(spirv));
         }
 
         if (BinaryPrimitives.ReadUInt32LittleEndian(spirv) != SpirvMagic)
         {
             throw new ArgumentException("SPIR-V has an invalid magic word.", nameof(spirv));
+        }
+
+        var version = BinaryPrimitives.ReadUInt32LittleEndian(spirv[sizeof(uint)..]);
+        var majorVersion = (version >> 16) & 0xff;
+        var bound = BinaryPrimitives.ReadUInt32LittleEndian(spirv[(sizeof(uint) * 3)..]);
+        var reserved = BinaryPrimitives.ReadUInt32LittleEndian(spirv[(sizeof(uint) * 4)..]);
+        if (majorVersion != 1 || bound == 0 || reserved != 0)
+        {
+            throw new ArgumentException("SPIR-V has an invalid module header.", nameof(spirv));
         }
 
         _spirv = spirv.ToArray();

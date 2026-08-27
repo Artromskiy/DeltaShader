@@ -8,11 +8,10 @@ internal static class Example31_HappyBouncing
 {
     [FragmentShader]
     public static void HappyBouncing(
-        [FragmentCoord] float2 fragmentCoord,
         [PushConstant] GalleryConstants constants,
         [FragmentColor] out float4 color)
     {
-        var p = (fragmentCoord / constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / constants.Resolution) * 2f - new float2(1f, 1f);
         p.x = p.x * constants.Resolution.x / constants.Resolution.y;
         var glow = 0f;
         var colorMix = new float3(0.02f, 0.05f, 0.12f);

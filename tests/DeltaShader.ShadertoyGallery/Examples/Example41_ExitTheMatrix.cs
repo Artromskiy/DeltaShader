@@ -8,11 +8,10 @@ internal static class Example41_ExitTheMatrix
 {
     [FragmentShader]
     public static void ExitTheMatrix(
-        [FragmentCoord] float2 fragmentCoord,
         [PushConstant] GalleryConstants constants,
         [FragmentColor] out float4 color)
     {
-        var uv = fragmentCoord / constants.Resolution;
+        var uv = new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / constants.Resolution;
         var grid = uv * new float2(18f, 10f);
         var cell = new float2(grid.x - maths.floor(grid.x) - 0.5f, grid.y - maths.floor(grid.y) - 0.5f);
         var column = maths.floor(grid.x);

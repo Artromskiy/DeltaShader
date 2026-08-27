@@ -8,11 +8,10 @@ internal static class Example37_Spilled
 {
     [FragmentShader]
     public static void Spilled(
-        [FragmentCoord] float2 fragmentCoord,
         [PushConstant] GalleryConstants constants,
         [FragmentColor] out float4 color)
     {
-        var p = (fragmentCoord / constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / constants.Resolution) * 2f - new float2(1f, 1f);
         p.x = p.x * constants.Resolution.x / constants.Resolution.y;
         var drops = 0f;
         var trails = 0f;

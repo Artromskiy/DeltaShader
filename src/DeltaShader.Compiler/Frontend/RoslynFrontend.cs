@@ -19,11 +19,11 @@ public sealed class RoslynFrontend
         _compilation = compilation;
         _stageAttributes = new Dictionary<ShaderStage, ITypeSymbol?>
         {
-            [ShaderStage.Compute] = compilation.GetTypeByMetadataName(typeof(ComputeShaderAttribute).FullName),
-            [ShaderStage.Vertex] = compilation.GetTypeByMetadataName(typeof(VertexShaderAttribute).FullName),
-            [ShaderStage.Fragment] = compilation.GetTypeByMetadataName(typeof(FragmentShaderAttribute).FullName)
+            [ShaderStage.Compute] = compilation.GetTypeByMetadataName(GetMetadataName(typeof(ComputeAttribute))),
+            [ShaderStage.Vertex] = compilation.GetTypeByMetadataName(GetMetadataName(typeof(VertexShaderAttribute))),
+            [ShaderStage.Fragment] = compilation.GetTypeByMetadataName(GetMetadataName(typeof(FragmentShaderAttribute)))
         };
-        _deltaComputeAttribute = compilation.GetTypeByMetadataName(typeof(DeltaComputeAttribute).FullName);
+        _deltaComputeAttribute = compilation.GetTypeByMetadataName(GetMetadataName(typeof(ComputeAttribute)));
     }
 
     public IReadOnlyList<ShaderEntryPointSymbol> FindComputeEntryPoints()
@@ -108,4 +108,7 @@ public sealed class RoslynFrontend
 
         return defaultValue;
     }
+
+    private static string GetMetadataName(Type type)
+        => type.FullName ?? throw new InvalidOperationException("Shader attribute type must have a metadata name.");
 }

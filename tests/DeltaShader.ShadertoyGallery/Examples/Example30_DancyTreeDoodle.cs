@@ -8,11 +8,10 @@ internal static class Example30_DancyTreeDoodle
 {
     [FragmentShader]
     public static void DancyTreeDoodle(
-        [FragmentCoord] float2 fragmentCoord,
         [PushConstant] GalleryConstants constants,
         [FragmentColor] out float4 color)
     {
-        var p = (fragmentCoord / constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / constants.Resolution) * 2f - new float2(1f, 1f);
         p.x = p.x * constants.Resolution.x / constants.Resolution.y;
         var trunk = maths.exp(-maths.abs(p.x + 0.08f * maths.sin(p.y * 8f + constants.Time)) * 55f) * (1f - maths.smoothStep(0.55f, 0.9f, maths.abs(p.y)));
         var branches = 0f;

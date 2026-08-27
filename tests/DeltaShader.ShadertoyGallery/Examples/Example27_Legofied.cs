@@ -8,11 +8,10 @@ internal static class Example27_Legofied
 {
     [FragmentShader]
     public static void Legofied(
-        [FragmentCoord] float2 fragmentCoord,
         [PushConstant] GalleryConstants constants,
         [FragmentColor] out float4 color)
     {
-        var uv = fragmentCoord / constants.Resolution;
+        var uv = new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / constants.Resolution;
         var grid = uv * 9f + new float2(constants.Time * 0.08f, -constants.Time * 0.05f);
         var cell = new float2(grid.x - maths.floor(grid.x) - 0.5f, grid.y - maths.floor(grid.y) - 0.5f);
         var seam = 1f - maths.smoothStep(0.38f, 0.49f, maths.max(maths.abs(cell.x), maths.abs(cell.y)));

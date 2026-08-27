@@ -8,11 +8,10 @@ internal static class Example40_Day94
 {
     [FragmentShader]
     public static void Day94(
-        [FragmentCoord] float2 fragmentCoord,
         [PushConstant] GalleryConstants constants,
         [FragmentColor] out float4 color)
     {
-        var p = (fragmentCoord / constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / constants.Resolution) * 2f - new float2(1f, 1f);
         p.x = p.x * constants.Resolution.x / constants.Resolution.y;
         var sunCenter = new float2(-0.22f, 0.12f + 0.05f * maths.sin(constants.Time * 0.2f));
         var sunDistance = maths.length(p - sunCenter);

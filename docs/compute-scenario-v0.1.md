@@ -1,6 +1,6 @@
 # Compute scenario for 0.1 MVP
 
-> Historical 0.1 sketch. The current contract is `[DeltaCompute]` with indexed
+> Historical 0.1 sketch. The current contract is `[Compute]` with indexed
 > resource views; see `../README.md` and `../WORKFLOW.md`.
 >
 > Runtime compilation of arbitrary lambdas is intentionally outside this
@@ -16,15 +16,18 @@ Illustrative historical C# input (use the fixture and `../README.md` for the
 current authoring syntax):
 
 ```csharp
-[DeltaCompute(localSizeX: 32)]
-public static void Add(
-    ReadOnlyStorageBuffer<float4> inputA,
-    ReadOnlyStorageBuffer<float4> inputB,
-    ReadWriteStorageBuffer<float4> output,
-    uint3 invocation)
+public readonly struct AddContext
 {
-    var idx = (uint)invocation.x;
-    output[idx] = inputA[idx] + inputB[idx];
+    [Layout(0, 0)] public readonly ReadOnlyStorageBuffer<float4> InputA;
+    [Layout(0, 1)] public readonly ReadOnlyStorageBuffer<float4> InputB;
+    [Layout(0, 2)] public readonly ReadWriteStorageBuffer<float4> Output;
+}
+
+[Compute(localSizeX: 32)]
+public static void Add(in AddContext context)
+{
+    uint idx = ShaderBuiltins.GlobalInvocationId.X;
+    context.Output[idx] = context.InputA[idx] + context.InputB[idx];
 }
 ```
 

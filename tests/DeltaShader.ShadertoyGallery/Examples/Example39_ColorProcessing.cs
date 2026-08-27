@@ -8,11 +8,10 @@ internal static class Example39_ColorProcessing
 {
     [FragmentShader]
     public static void ColorProcessing(
-        [FragmentCoord] float2 fragmentCoord,
         [PushConstant] GalleryConstants constants,
         [FragmentColor] out float4 color)
     {
-        var uv = fragmentCoord / constants.Resolution;
+        var uv = new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / constants.Resolution;
         var p = uv * 2f - new float2(1f, 1f);
         p.x = p.x * constants.Resolution.x / constants.Resolution.y;
         var red = 0.5f + 0.5f * maths.sin(p.x * 4f + constants.Time);

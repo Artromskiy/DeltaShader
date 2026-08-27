@@ -8,11 +8,10 @@ internal static class Example16_GlassBubble
 {
     [FragmentShader]
     public static void GlassBubble(
-        [FragmentCoord] float2 fragmentCoord,
         [PushConstant] GalleryConstants constants,
         [FragmentColor] out float4 color)
     {
-        var p = (fragmentCoord / constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / constants.Resolution) * 2f - new float2(1f, 1f);
         var radius = maths.length(p);
         var body = 1f - maths.smoothStep(0.42f, 0.5f, radius);
         var rim = maths.exp(-maths.abs(radius - 0.43f) * 65f);

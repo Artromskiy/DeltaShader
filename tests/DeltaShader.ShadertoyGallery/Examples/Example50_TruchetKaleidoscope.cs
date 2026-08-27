@@ -8,11 +8,10 @@ internal static class Example50_TruchetKaleidoscope
 {
     [FragmentShader]
     public static void TruchetKaleidoscope(
-        [FragmentCoord] float2 fragmentCoord,
         [PushConstant] GalleryConstants constants,
         [FragmentColor] out float4 color)
     {
-        var uv = fragmentCoord / constants.Resolution;
+        var uv = new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / constants.Resolution;
         var p = uv * 6f - new float2(3f, 3f);
         p.x = maths.abs(p.x);
         p.y = maths.abs(p.y);

@@ -8,11 +8,10 @@ internal static class Example08_NeuronField
 {
     [FragmentShader]
     public static void NeuronField(
-        [FragmentCoord] float2 fragmentCoord,
         [PushConstant] GalleryConstants constants,
         [FragmentColor] out float4 color)
     {
-        var p = (fragmentCoord / constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / constants.Resolution) * 2f - new float2(1f, 1f);
         var pulse = 0f;
         var connections = 0f;
         for (var i = 0f; i < 4f; i += 1f)

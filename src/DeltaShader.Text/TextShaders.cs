@@ -37,14 +37,14 @@ public static class TextShaders
     [VertexShader("sdf-text")]
     [SuppressMessage("Design", "CA1062", Justification = "Shader entry points are compile-time authoring methods; the analyzer lowers resource parameters instead of executing them on the CLR.")]
     public static void SdfTextVertex(
-        [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<GlyphInstance> glyphs,
-        [InstanceIndex] uint instanceIndex,
-        [VertexIndex] uint vertexIndex,
+        [Layout(0, 0)] ReadOnlyStorageBuffer<GlyphInstance> glyphs,
         [Position] out float4 position,
         [ShaderVarying(0)] out float2 uv,
         [ShaderVarying(1)] out float4 glyphColor,
         [PushConstant] TextParameters parameters)
     {
+        uint instanceIndex = ShaderBuiltins.InstanceIndex;
+        uint vertexIndex = ShaderBuiltins.VertexIndex;
         var glyph = glyphs[instanceIndex];
         var min = glyph.PixelMin;
         var max = glyph.PixelMax;
@@ -87,7 +87,7 @@ public static class TextShaders
 
     [FragmentShader("sdf-text")]
     public static void SdfTextFragment(
-        [SampledTexture2D(0, 3)] SampledTexture2D atlas,
+        [Layout(0, 3)] SampledTexture2D atlas,
         [ShaderVarying(0)] float2 uv,
         [ShaderVarying(1)] float4 glyphColor,
         [PushConstant] TextParameters parameters,
@@ -103,14 +103,14 @@ public static class TextShaders
     [VertexShader("msdf-text")]
     [SuppressMessage("Design", "CA1062", Justification = "Shader entry points are compile-time authoring methods; the analyzer lowers resource parameters instead of executing them on the CLR.")]
     public static void MsdfTextVertex(
-        [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<GlyphInstance> glyphs,
-        [InstanceIndex] uint instanceIndex,
-        [VertexIndex] uint vertexIndex,
+        [Layout(0, 0)] ReadOnlyStorageBuffer<GlyphInstance> glyphs,
         [Position] out float4 position,
         [ShaderVarying(0)] out float2 uv,
         [ShaderVarying(1)] out float4 glyphColor,
         [PushConstant] TextParameters parameters)
     {
+        uint instanceIndex = ShaderBuiltins.InstanceIndex;
+        uint vertexIndex = ShaderBuiltins.VertexIndex;
         var glyph = glyphs[instanceIndex];
         var min = glyph.PixelMin;
         var max = glyph.PixelMax;
@@ -153,7 +153,7 @@ public static class TextShaders
 
     [FragmentShader("msdf-text")]
     public static void MsdfTextFragment(
-        [SampledTexture2D(0, 4)] SampledTexture2D atlas,
+        [Layout(0, 4)] SampledTexture2D atlas,
         [ShaderVarying(0)] float2 uv,
         [ShaderVarying(1)] float4 glyphColor,
         [PushConstant] TextParameters parameters,

@@ -8,11 +8,10 @@ internal static class Example02_BumpyOrbit
 {
     [FragmentShader]
     public static void BumpyOrbit(
-        [FragmentCoord] float2 fragmentCoord,
         [PushConstant] GalleryConstants constants,
         [FragmentColor] out float4 color)
     {
-        var p = (fragmentCoord / constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / constants.Resolution) * 2f - new float2(1f, 1f);
         var center = new float2(0.28f * maths.cos(constants.Time), 0.18f * maths.sin(constants.Time * 1.3f));
         var q = p - center;
         var radius = maths.length(q);

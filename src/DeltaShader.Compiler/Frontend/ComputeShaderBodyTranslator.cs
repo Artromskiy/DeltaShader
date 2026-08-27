@@ -16,6 +16,7 @@ internal sealed class ComputeShaderBodyTranslationResult
 internal sealed class ComputeShaderBodyTranslator
 {
     private readonly IntrinsicRegistry _intrinsics;
+    private IParameterSymbol? _contextParameter;
 
     public ComputeShaderBodyTranslator(IntrinsicRegistry intrinsics)
     {
@@ -26,8 +27,9 @@ internal sealed class ComputeShaderBodyTranslator
         IMethodSymbol method,
         MethodDeclarationSyntax methodSyntax,
         SemanticModel semanticModel,
+        IParameterSymbol? contextParameter,
         IParameterSymbol? invocationParameter,
-        IReadOnlyDictionary<IParameterSymbol, uint> resourceBindings,
+        IReadOnlyDictionary<ISymbol, uint> resourceBindings,
         out ComputeShaderBodyTranslationResult? result,
         out string? reason,
         out string diagnosticId)
@@ -35,6 +37,7 @@ internal sealed class ComputeShaderBodyTranslator
         reason = null;
         result = null;
         diagnosticId = ShaderDiagnosticId.DSH008;
+        _contextParameter = contextParameter;
 
         var body = methodSyntax.Body;
         if (body is null)
@@ -110,7 +113,7 @@ internal sealed class ComputeShaderBodyTranslator
         StatementSyntax statement,
         SemanticModel semanticModel,
         IParameterSymbol? invocationParameter,
-        IReadOnlyDictionary<IParameterSymbol, uint> resourceBindings,
+        IReadOnlyDictionary<ISymbol, uint> resourceBindings,
         out string translated,
         out bool usesBuiltin,
         out string? reason,
@@ -125,7 +128,7 @@ internal sealed class ComputeShaderBodyTranslator
         {
             if (block.Statements.Count != 1)
             {
-                reason = "Store block must contain a single expression statement.";
+                reason = "Indexed assignment block must contain a single expression statement.";
                 return false;
             }
 
@@ -134,7 +137,7 @@ internal sealed class ComputeShaderBodyTranslator
 
         if (statement is not ExpressionStatementSyntax exprStmt)
         {
-            reason = "Store statement must be a single expression statement.";
+            reason = "Indexed assignment must be a single expression statement.";
             return false;
         }
 
@@ -166,58 +169,15 @@ internal sealed class ComputeShaderBodyTranslator
             return true;
         }
 
-        if (exprStmt.Expression is not InvocationExpressionSyntax invocation)
-        {
-            reason = "Only invocation statements are supported in executable MVP body.";
-            return false;
-        }
-
-        if (!TryGetSymbol(invocation, semanticModel, out var targetMethod) || targetMethod is null)
-        {
-            reason = "Unable to resolve store invocation symbol.";
-            return false;
-        }
-
-        if (targetMethod.Name != "Store" || targetMethod.Parameters.Length != 2)
-        {
-            reason = "Executable body currently supports only StorageBuffer.Store(index, value) calls.";
-            return false;
-        }
-
-        if (invocation.Expression is not MemberAccessExpressionSyntax access)
-        {
-            reason = "Storage buffer store must be expressed through member access.";
-            return false;
-        }
-
-        if (!TryTranslateResourceTarget(access.Expression, semanticModel, resourceBindings, out var bufferName, out reason))
-        {
-            return false;
-        }
-
-        var indexArg = invocation.ArgumentList.Arguments[0].Expression;
-        if (!TryTranslateIndexExpression(indexArg, invocationParameter, semanticModel, out var index, out var indexUsesBuiltin, out reason))
-        {
-            return false;
-        }
-
-        var valueArg = invocation.ArgumentList.Arguments[1].Expression;
-        if (!TryTranslateValueExpression(valueArg, semanticModel, invocationParameter, resourceBindings, out var value, out var valueUsesBuiltin, out reason, out var valueDiagnosticId))
-        {
-            diagnosticId = valueDiagnosticId;
-            return false;
-        }
-
-        translated = $"{bufferName}.data[{index}] = {value};";
-        usesBuiltin = indexUsesBuiltin || valueUsesBuiltin;
-        return true;
+        reason = "Only indexed storage-buffer assignment is supported in executable compute bodies.";
+        return false;
     }
 
     private bool TryTranslateInvocationCondition(
         ExpressionSyntax expression,
         SemanticModel semanticModel,
         IParameterSymbol? invocationParameter,
-        IReadOnlyDictionary<IParameterSymbol, uint> resourceBindings,
+        IReadOnlyDictionary<ISymbol, uint> resourceBindings,
         out string condition,
         out bool usesBuiltin,
         out string? reason,
@@ -265,7 +225,7 @@ internal sealed class ComputeShaderBodyTranslator
             expression,
             semanticModel,
             invocationParameter,
-            new Dictionary<IParameterSymbol, uint>(SymbolEqualityComparer.Default),
+            new Dictionary<ISymbol, uint>(SymbolEqualityComparer.Default),
             out translated,
             out usesBuiltin,
             out reason,
@@ -281,7 +241,7 @@ internal sealed class ComputeShaderBodyTranslator
         ExpressionSyntax expression,
         SemanticModel semanticModel,
         IParameterSymbol? invocationParameter,
-        IReadOnlyDictionary<IParameterSymbol, uint> resourceBindings,
+        IReadOnlyDictionary<ISymbol, uint> resourceBindings,
         out string translated,
         out bool usesBuiltin,
         out string? reason,
@@ -358,6 +318,22 @@ internal sealed class ComputeShaderBodyTranslator
 
             case MemberAccessExpressionSyntax memberAccess:
                 {
+                    if (TryTranslateContextMember(memberAccess, semanticModel, out translated, out usesBuiltin))
+                    {
+                        return true;
+                    }
+
+                    if (TryTranslateShaderBuiltinMember(memberAccess, semanticModel, out translated,
+                            out usesBuiltin, out reason, out var builtinRecognized))
+                    {
+                        return true;
+                    }
+
+                    if (builtinRecognized)
+                    {
+                        return false;
+                    }
+
                     if (TryGetSymbol(memberAccess, semanticModel, out var memberSymbol) &&
                         memberSymbol is IPropertySymbol property &&
                         property.Name == "Length" &&
@@ -442,28 +418,6 @@ internal sealed class ComputeShaderBodyTranslator
                 {
                     if (TryGetSymbol(invocation, semanticModel, out var symbol) &&
                         symbol is not null &&
-                        symbol.Name == "Load" &&
-                        symbol.Parameters.Length == 1 &&
-                        invocation.ArgumentList.Arguments.Count == 1 &&
-                        invocation.Expression is MemberAccessExpressionSyntax memberAccess)
-                    {
-                        if (!TryTranslateIndexExpression(invocation.ArgumentList.Arguments[0].Expression, invocationParameter, semanticModel,
-                                out var index, out var indexUsesBuiltin, out reason))
-                        {
-                            return false;
-                        }
-
-                        if (!TryTranslateResourceTarget(memberAccess.Expression, semanticModel, resourceBindings, out var resourceName, out reason))
-                        {
-                            return false;
-                        }
-
-                        translated = $"{resourceName}.data[{index}]";
-                        usesBuiltin = indexUsesBuiltin;
-                        return true;
-                    }
-
-                    if (symbol is not null &&
                         _intrinsics.TryGetIntrinsic(symbol, out var intrinsic))
                     {
                         if (!intrinsic.SupportsStage(ShaderStage.Compute))
@@ -556,7 +510,7 @@ internal sealed class ComputeShaderBodyTranslator
     private bool TryTranslateResourceTarget(
         ExpressionSyntax expression,
         SemanticModel semanticModel,
-        IReadOnlyDictionary<IParameterSymbol, uint> resourceBindings,
+        IReadOnlyDictionary<ISymbol, uint> resourceBindings,
         out string target,
         out string? reason)
     {
@@ -564,21 +518,139 @@ internal sealed class ComputeShaderBodyTranslator
         target = string.Empty;
 
         var symbol = semanticModel.GetSymbolInfo(expression).Symbol;
-        if (symbol is not IParameterSymbol parameter)
+        if (symbol is IParameterSymbol parameter && resourceBindings.ContainsKey(parameter))
         {
-            reason = "Only direct parameter access is supported for storage buffer operations.";
+            target = parameter.Name;
+            return true;
+        }
+
+        if (symbol is IFieldSymbol field && IsContextStorageField(field))
+        {
+            target = field.Name;
+            return true;
+        }
+
+        reason = "Storage buffer operation target is not a declared shader storage buffer.";
+        return false;
+    }
+
+    private bool TryTranslateContextMember(
+        MemberAccessExpressionSyntax memberAccess,
+        SemanticModel semanticModel,
+        out string translated,
+        out bool usesBuiltin)
+    {
+        translated = string.Empty;
+        usesBuiltin = false;
+
+        if (_contextParameter is null)
+        {
             return false;
         }
 
-        if (!resourceBindings.ContainsKey(parameter))
+        if (semanticModel.GetSymbolInfo(memberAccess).Symbol is not IFieldSymbol field ||
+            !IsContextField(field))
         {
-            reason = "Storage buffer operation target is not a shader storage buffer parameter.";
             return false;
         }
 
-        target = parameter.Name;
+        if (HasContextAttribute(field, "Delta.Shader.PushConstantAttribute"))
+        {
+            translated = "pushConstants.member_" + SanitizeName(field.Name);
+            return true;
+        }
+
+        if (IsContextResourceField(field))
+        {
+            translated = field.Name;
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool TryTranslateShaderBuiltinMember(
+        MemberAccessExpressionSyntax memberAccess,
+        SemanticModel semanticModel,
+        out string translated,
+        out bool usesBuiltin,
+        out string? reason,
+        out bool recognized)
+    {
+        translated = string.Empty;
+        usesBuiltin = false;
+        reason = null;
+        recognized = false;
+
+        if (semanticModel.GetSymbolInfo(memberAccess).Symbol is IPropertySymbol property &&
+            _intrinsics.TryGetIntrinsic(property, out var directBinding) &&
+            directBinding.Category == IntrinsicCategory.Builtin)
+        {
+            recognized = true;
+            if (!directBinding.SupportsStage(ShaderStage.Compute))
+            {
+                reason = $"Shader builtin '{property.Name}' is not valid in compute stage.";
+                return false;
+            }
+
+            translated = directBinding.GlslName;
+            usesBuiltin = true;
+            return true;
+        }
+
+        if (memberAccess.Expression is not MemberAccessExpressionSyntax parent ||
+            semanticModel.GetSymbolInfo(parent).Symbol is not IPropertySymbol parentProperty ||
+            !_intrinsics.TryGetIntrinsic(parentProperty, out var parentBinding) ||
+            parentBinding.Category != IntrinsicCategory.Builtin)
+        {
+            return false;
+        }
+
+        recognized = true;
+        if (!parentBinding.SupportsStage(ShaderStage.Compute))
+        {
+            reason = $"Shader builtin '{parentProperty.Name}' is not valid in compute stage.";
+            return false;
+        }
+
+        var component = GetBuiltinComponent(memberAccess.Name.Identifier.ValueText);
+        if (component.Length == 0)
+        {
+            reason = $"Unsupported component '{memberAccess.Name.Identifier.ValueText}' on shader builtin '{parentProperty.Name}'.";
+            return false;
+        }
+
+        translated = parentBinding.GlslName + "." + component;
+        usesBuiltin = true;
         return true;
     }
+
+    private bool IsContextField(IFieldSymbol field)
+        => _contextParameter is not null &&
+           SymbolEqualityComparer.Default.Equals(field.ContainingType, _contextParameter.Type);
+
+    private bool IsContextStorageField(IFieldSymbol field)
+        => IsContextField(field) && HasContextAttribute(field, "Delta.Shader.LayoutAttribute");
+
+    private bool IsContextResourceField(IFieldSymbol field)
+        => IsContextField(field) && HasContextAttribute(field, "Delta.Shader.LayoutAttribute");
+
+    private static bool HasContextAttribute(IFieldSymbol field, string metadataName)
+        => field.GetAttributes().Any(attribute =>
+            attribute.AttributeClass?.ToDisplayString() == metadataName);
+
+    private static string SanitizeName(string name)
+        => string.Concat(name.Select(character => char.IsLetterOrDigit(character) || character == '_' ? character : '_'));
+
+    private static string GetBuiltinComponent(string name)
+        => name switch
+        {
+            "X" or "x" => "x",
+            "Y" or "y" => "y",
+            "Z" or "z" => "z",
+            "W" or "w" => "w",
+            _ => string.Empty
+        };
 
     private bool TryTranslateBinaryOperator(string token, out string mapped)
     {
@@ -607,7 +679,7 @@ internal sealed class ComputeShaderBodyTranslator
         ExpressionSyntax expression,
         SemanticModel semanticModel,
         IParameterSymbol? invocationParameter,
-        IReadOnlyDictionary<IParameterSymbol, uint> resourceBindings,
+        IReadOnlyDictionary<ISymbol, uint> resourceBindings,
         out string translated,
         out bool usesBuiltin,
         out string? reason,

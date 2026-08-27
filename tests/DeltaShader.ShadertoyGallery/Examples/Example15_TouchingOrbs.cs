@@ -8,11 +8,10 @@ internal static class Example15_TouchingOrbs
 {
     [FragmentShader]
     public static void TouchingOrbs(
-        [FragmentCoord] float2 fragmentCoord,
         [PushConstant] GalleryConstants constants,
         [FragmentColor] out float4 color)
     {
-        var p = (fragmentCoord / constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / constants.Resolution) * 2f - new float2(1f, 1f);
         var left = maths.length(p - new float2(-0.28f, 0f)) - 0.3f;
         var right = maths.length(p - new float2(0.28f, 0f)) - 0.3f;
         var field = maths.min(left, right);

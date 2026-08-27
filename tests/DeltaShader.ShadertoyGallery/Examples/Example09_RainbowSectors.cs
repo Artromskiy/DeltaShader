@@ -8,11 +8,10 @@ internal static class Example09_RainbowSectors
 {
     [FragmentShader]
     public static void RainbowSectors(
-        [FragmentCoord] float2 fragmentCoord,
         [PushConstant] GalleryConstants constants,
         [FragmentColor] out float4 color)
     {
-        var p = (fragmentCoord / constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / constants.Resolution) * 2f - new float2(1f, 1f);
         var angle = maths.atan(p.y / (maths.abs(p.x) + 0.001f)) + constants.Time * 0.4f;
         var radius = maths.length(p);
         var sector = 0.5f + 0.5f * maths.cos(angle * 8f);

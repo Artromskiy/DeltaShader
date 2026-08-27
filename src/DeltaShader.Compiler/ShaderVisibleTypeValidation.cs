@@ -22,6 +22,95 @@ public sealed class ShaderVisibleTypeIssue
 
 public static class ShaderVisibleTypeValidation
 {
+    private const string PushConstantAttributeName = "Delta.Shader.PushConstantAttribute";
+    private const string BindingAttributeName = "Delta.Shader.LayoutAttribute";
+
+    public static bool IsContextParameter(IParameterSymbol parameter, Compilation compilation)
+    {
+        if (parameter is null)
+        {
+            throw new ArgumentNullException(nameof(parameter));
+        }
+
+        if (compilation is null)
+        {
+            throw new ArgumentNullException(nameof(compilation));
+        }
+
+        if (parameter.RefKind != RefKind.In ||
+            parameter.Type is not INamedTypeSymbol { TypeKind: TypeKind.Struct } contextType)
+        {
+            return false;
+        }
+
+        return contextType.GetMembers().OfType<IFieldSymbol>()
+            .Where(field => !field.IsStatic)
+            .Any(field => field.GetAttributes().Any(attribute => IsContextAttribute(attribute.AttributeClass)));
+    }
+
+    public static IReadOnlyList<ShaderVisibleTypeIssue> ValidateContext(
+        IParameterSymbol parameter,
+        Compilation compilation)
+    {
+        if (!IsContextParameter(parameter, compilation))
+        {
+            throw new ArgumentException("The parameter is not a shader context parameter.", nameof(parameter));
+        }
+
+        var issues = new List<ShaderVisibleTypeIssue>();
+        var contextType = (INamedTypeSymbol)parameter.Type;
+        foreach (var field in contextType.GetMembers().OfType<IFieldSymbol>().Where(field => !field.IsStatic))
+        {
+            var attributes = field.GetAttributes()
+                .Where(attribute => IsContextAttribute(attribute.AttributeClass))
+                .ToArray();
+            if (attributes.Length == 0)
+            {
+                AddIssue(field, $"Shader context field '{field.Name}' must declare a storage buffer, push constant, texture, or builtin role.", issues);
+                continue;
+            }
+
+            if (attributes.Length > 1)
+            {
+                AddIssue(field, $"Shader context field '{field.Name}' has more than one shader role attribute.", issues);
+                continue;
+            }
+
+            var attributeName = attributes[0].AttributeClass?.ToDisplayString();
+            var visibleType = field.Type;
+            if (attributeName == BindingAttributeName)
+            {
+                var bindingAttribute = attributes[0];
+                if (bindingAttribute.ConstructorArguments.Length == 1)
+                {
+                    AddIssue(field, "Vertex-input [Layout(location)] is not valid in a compute context.", issues);
+                    continue;
+                }
+
+                if (bindingAttribute.ConstructorArguments.Length != 2)
+                {
+                    AddIssue(field, "Descriptor [Layout(set, binding)] requires constant set and binding arguments.", issues);
+                    continue;
+                }
+
+                var sampledTextureType = compilation.GetTypeByMetadataName("Delta.Shader.SampledTexture2D");
+                if (SymbolEqualityComparer.Default.Equals(field.Type, sampledTextureType))
+                {
+                    continue;
+                }
+
+                visibleType = GetBufferElementType(field.Type, compilation) ?? field.Type;
+            }
+
+            foreach (var issue in Validate(visibleType, field))
+            {
+                issues.Add(issue);
+            }
+        }
+
+        return issues;
+    }
+
     public static IReadOnlyList<ShaderVisibleTypeIssue> Validate(
         ITypeSymbol rootType,
         ISymbol? rootSymbol = null)
@@ -59,10 +148,6 @@ public static class ShaderVisibleTypeValidation
                 "Delta.Shader.ReadOnlyStorageBuffer`1");
             var readWriteBuffer = compilation.GetTypeByMetadataName(
                 "Delta.Shader.ReadWriteStorageBuffer`1");
-            var readOnlyValueBuffer = compilation.GetTypeByMetadataName(
-                "Delta.Shader.ReadOnlyStorageBuffer");
-            var readWriteValueBuffer = compilation.GetTypeByMetadataName(
-                "Delta.Shader.ReadWriteStorageBuffer");
             var sampledTexture2D = compilation.GetTypeByMetadataName(
                 "Delta.Shader.SampledTexture2D");
 
@@ -72,12 +157,6 @@ public static class ShaderVisibleTypeValidation
             )
             {
                 return namedType.TypeArguments[0];
-            }
-
-            if (SymbolEqualityComparer.Default.Equals(namedType, readOnlyValueBuffer) ||
-                SymbolEqualityComparer.Default.Equals(namedType, readWriteValueBuffer))
-            {
-                return compilation.GetSpecialType(SpecialType.System_UInt32);
             }
 
             if (SymbolEqualityComparer.Default.Equals(namedType, sampledTexture2D))
@@ -154,6 +233,31 @@ public static class ShaderVisibleTypeValidation
         {
             issues.Add(new ShaderVisibleTypeIssue(symbol, message));
         }
+    }
+
+    private static bool IsContextAttribute(ITypeSymbol? attributeType)
+    {
+        var name = attributeType?.ToDisplayString();
+        return name == PushConstantAttributeName || name == BindingAttributeName;
+    }
+
+    private static ITypeSymbol? GetBufferElementType(ITypeSymbol type, Compilation compilation)
+    {
+        if (type is not INamedTypeSymbol namedType)
+        {
+            return null;
+        }
+
+        var readOnly = compilation.GetTypeByMetadataName("Delta.Shader.ReadOnlyStorageBuffer`1");
+        var readWrite = compilation.GetTypeByMetadataName("Delta.Shader.ReadWriteStorageBuffer`1");
+        if (namedType.TypeArguments.Length == 1 &&
+            (SymbolEqualityComparer.Default.Equals(namedType.OriginalDefinition, readOnly) ||
+             SymbolEqualityComparer.Default.Equals(namedType.OriginalDefinition, readWrite)))
+        {
+            return namedType.TypeArguments[0];
+        }
+
+        return null;
     }
 
     private static bool TryFindReferenceType(

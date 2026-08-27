@@ -8,11 +8,10 @@ internal static class Example20_EnergyPlant
 {
     [FragmentShader]
     public static void EnergyPlant(
-        [FragmentCoord] float2 fragmentCoord,
         [PushConstant] GalleryConstants constants,
         [FragmentColor] out float4 color)
     {
-        var p = (fragmentCoord / constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / constants.Resolution) * 2f - new float2(1f, 1f);
         var radius = maths.length(p);
         var core = maths.exp(-radius * radius * 28f);
         var branches = 0f;

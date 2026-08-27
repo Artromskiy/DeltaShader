@@ -8,11 +8,10 @@ internal static class Example46_SimpleRefractionTest
 {
     [FragmentShader]
     public static void SimpleRefractionTest(
-        [FragmentCoord] float2 fragmentCoord,
         [PushConstant] GalleryConstants constants,
         [FragmentColor] out float4 color)
     {
-        var p = (fragmentCoord / constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / constants.Resolution) * 2f - new float2(1f, 1f);
         p.x = p.x * constants.Resolution.x / constants.Resolution.y;
         var radius = maths.length(p);
         var normalProxy = new float2(p.x, p.y) / (radius + 0.08f);

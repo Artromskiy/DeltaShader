@@ -8,11 +8,10 @@ internal static class Example10_SpaghettiCurves
 {
     [FragmentShader]
     public static void SpaghettiCurves(
-        [FragmentCoord] float2 fragmentCoord,
         [PushConstant] GalleryConstants constants,
         [FragmentColor] out float4 color)
     {
-        var p = (fragmentCoord / constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / constants.Resolution) * 2f - new float2(1f, 1f);
         var glow = new float3(0f, 0f, 0f);
         for (var strand = 0f; strand < 3f; strand += 1f)
         {

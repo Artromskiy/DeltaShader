@@ -8,11 +8,10 @@ internal static class Example34_ProceduralWalkAnimation
 {
     [FragmentShader]
     public static void ProceduralWalkAnimation(
-        [FragmentCoord] float2 fragmentCoord,
         [PushConstant] GalleryConstants constants,
         [FragmentColor] out float4 color)
     {
-        var p = (fragmentCoord / constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / constants.Resolution) * 2f - new float2(1f, 1f);
         p.x = p.x * constants.Resolution.x / constants.Resolution.y;
         var cycle = constants.Time * 2.2f;
         var stride = maths.sin(cycle);

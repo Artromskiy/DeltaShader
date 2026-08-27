@@ -6,8 +6,25 @@ Restore once, then use bounded Release checks:
 dotnet restore DeltaShader.slnx
 dotnet build DeltaShader.slnx -c Release --no-restore \
   --disable-build-servers -m:1 /p:UseSharedCompilation=false -v:minimal
-dotnet test DeltaShader.slnx -c Release --no-build --no-restore \
-  --disable-build-servers -m:1
+# Keep test projects separate so one stuck test host cannot hide results from
+# the other gates. The compiler gallery/integration host is bounded separately.
+dotnet test tests/DeltaShader.Compiler.Tests/DeltaShader.Compiler.Tests.csproj \
+  -c Release --no-build --no-restore --disable-build-servers -m:1 \
+  /p:UseSharedCompilation=false \
+  --filter 'FullyQualifiedName!~ShadertoyGalleryTests'
+dotnet test tests/DeltaShader.Golden.Tests/DeltaShader.Golden.Tests.csproj \
+  -c Release --no-build --no-restore --disable-build-servers -m:1 \
+  /p:UseSharedCompilation=false
+dotnet test tests/DeltaShader.Vulkan.Tests/DeltaShader.Vulkan.Tests.csproj \
+  -c Release --no-build --no-restore --disable-build-servers -m:1 \
+  /p:UseSharedCompilation=false
+# Do not retry this command automatically after a timeout. On macOS, perl is
+# used because the base system does not provide a portable timeout utility.
+perl -e 'alarm 60; exec @ARGV' -- \
+  dotnet test tests/DeltaShader.Compiler.Tests/DeltaShader.Compiler.Tests.csproj \
+    -c Release --no-build --no-restore --disable-build-servers -m:1 \
+    /p:UseSharedCompilation=false \
+    --filter 'FullyQualifiedName~ShadertoyGalleryTests'
 ```
 
 Real compiler output must also pass the CLI and external validators:
@@ -27,6 +44,19 @@ Inspect emitted GLSL and manifest as well as test totals. `dotnet test` and
 `MSBuildWorkspace` need local IPC; a sandbox `SocketException`/named-pipe denial
 requires rerunning the same command outside the sandbox, not parallel retries.
 The real GPU compute smoke is owned by DeltaRender.
+
+For the deterministic fullscreen graphics fixture, use the checked-in project
+that links the canonical C# source without duplicating the shader definition:
+
+```bash
+out_dir="$(mktemp -d)"
+./eng/prepare-fullscreen-artifact.sh "$out_dir"
+```
+
+The script requires `glslangValidator`, `spirv-val`, and `jq`; it builds the
+tool and fixture from a clean checkout, emits `fullscreen-ui.vert.*` and
+`fullscreen-ui.frag.*` into the requested directory, and validates both SPIR-V
+modules. No generated output is checked in.
 
 ## Code metrics
 

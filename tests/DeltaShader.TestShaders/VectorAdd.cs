@@ -25,15 +25,22 @@ internal static class VectorAdd
         }
     }
 
-    [ComputeShader(localSizeX: 8)]
-    public static void Compute(
-        [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<TransformRecord> input,
-        [ReadWriteStorageBuffer(0, 1)] ReadWriteStorageBuffer<TransformRecord> output,
-        [GlobalInvocationId] uint invocation)
+    public readonly struct ComputeContext
     {
-        if (invocation < input.Length)
+        [Layout(0, 0)]
+        public readonly ReadOnlyStorageBuffer<TransformRecord> Input;
+
+        [Layout(0, 1)]
+        public readonly ReadWriteStorageBuffer<TransformRecord> Output;
+    }
+
+    [Compute(localSizeX: 8)]
+    public static void Compute(in ComputeContext context)
+    {
+        uint invocation = ShaderBuiltins.GlobalInvocationId.X;
+        if (invocation < context.Input.Length)
         {
-            output.Store(invocation, input.Load(invocation));
+            context.Output[invocation] = context.Input[invocation];
         }
     }
 }

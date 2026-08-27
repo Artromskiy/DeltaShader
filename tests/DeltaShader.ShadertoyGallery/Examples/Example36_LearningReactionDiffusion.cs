@@ -8,11 +8,10 @@ internal static class Example36_LearningReactionDiffusion
 {
     [FragmentShader]
     public static void LearningReactionDiffusion(
-        [FragmentCoord] float2 fragmentCoord,
         [PushConstant] GalleryConstants constants,
         [FragmentColor] out float4 color)
     {
-        var p = (fragmentCoord / constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / constants.Resolution) * 2f - new float2(1f, 1f);
         p.x = p.x * constants.Resolution.x / constants.Resolution.y;
         var activator = 0.5f + 0.5f * maths.sin(p.x * 3f + constants.Time * 0.25f);
         var inhibitor = 0.5f + 0.5f * maths.cos(p.y * 4f - constants.Time * 0.18f);

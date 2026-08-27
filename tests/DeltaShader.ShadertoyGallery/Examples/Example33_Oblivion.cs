@@ -8,11 +8,10 @@ internal static class Example33_Oblivion
 {
     [FragmentShader]
     public static void Oblivion(
-        [FragmentCoord] float2 fragmentCoord,
         [PushConstant] GalleryConstants constants,
         [FragmentColor] out float4 color)
     {
-        var p = (fragmentCoord / constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / constants.Resolution) * 2f - new float2(1f, 1f);
         p.x = p.x * constants.Resolution.x / constants.Resolution.y;
         var radius = maths.length(p);
         var angle = maths.atan(p.y / (maths.abs(p.x) + 0.001f));

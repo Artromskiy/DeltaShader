@@ -7,50 +7,32 @@ public enum ShaderResourceAccess
     ReadWrite,
 }
 
-[AttributeUsage(AttributeTargets.Parameter, Inherited = false, AllowMultiple = false)]
-public sealed class ShaderResourceAttribute : Attribute
+public enum ShaderBindingKind
 {
-    public uint Set { get; }
-    public uint Binding { get; }
-    public ShaderResourceAccess Access { get; }
-
-    public ShaderResourceAttribute(uint set, uint binding, ShaderResourceAccess access)
-    {
-        Set = set;
-        Binding = binding;
-        Access = access;
-    }
+    Descriptor,
+    VertexInput,
 }
 
-[AttributeUsage(AttributeTargets.Parameter, Inherited = false, AllowMultiple = false)]
-public sealed class ReadOnlyStorageBufferAttribute : Attribute
+[AttributeUsage(AttributeTargets.Parameter | AttributeTargets.Field, Inherited = false, AllowMultiple = false)]
+public sealed class LayoutAttribute : Attribute
 {
-    public uint Set { get; }
-    public uint Binding { get; }
-
-    public ReadOnlyStorageBufferAttribute(uint set, uint binding)
+    public LayoutAttribute(uint location)
     {
+        Kind = ShaderBindingKind.VertexInput;
+        Location = location;
+    }
+
+    public LayoutAttribute(uint set, uint binding)
+    {
+        Kind = ShaderBindingKind.Descriptor;
         Set = set;
         Binding = binding;
     }
-}
 
-[AttributeUsage(AttributeTargets.Parameter, Inherited = false, AllowMultiple = false)]
-public sealed class ReadWriteStorageBufferAttribute : Attribute
-{
+    public ShaderBindingKind Kind { get; }
     public uint Set { get; }
     public uint Binding { get; }
-
-    public ReadWriteStorageBufferAttribute(uint set, uint binding)
-    {
-        Set = set;
-        Binding = binding;
-    }
-}
-
-[AttributeUsage(AttributeTargets.Parameter, Inherited = false, AllowMultiple = false)]
-public sealed class GlobalInvocationIdAttribute : Attribute
-{
+    public uint Location { get; }
 }
 
 [AttributeUsage(AttributeTargets.Parameter | AttributeTargets.Field, Inherited = false, AllowMultiple = false)]

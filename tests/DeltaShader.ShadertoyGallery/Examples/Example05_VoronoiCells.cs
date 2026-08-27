@@ -8,11 +8,10 @@ internal static class Example05_VoronoiCells
 {
     [FragmentShader]
     public static void VoronoiCells(
-        [FragmentCoord] float2 fragmentCoord,
         [PushConstant] GalleryConstants constants,
         [FragmentColor] out float4 color)
     {
-        var p = (fragmentCoord / constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / constants.Resolution) * 2f - new float2(1f, 1f);
         var grid = p * 4f;
         var cell = new float2(grid.x - maths.floor(grid.x), grid.y - maths.floor(grid.y));
         var nearest = 1.5f;

@@ -8,7 +8,8 @@ Vulkan validation path support it.
 
 ## Current compiler boundary
 
-The compiled fixtures use explicit Vulkan graphics inputs: `[FragmentCoord]`,
+The compiled fixtures use explicit Vulkan graphics inputs:
+`ShaderBuiltins.FragmentCoord`,
 a sequential `[PushConstant]` struct, and `[FragmentColor]`. ShaderToy names
 such as `iResolution`, `iTime`, `fragCoord`, `iChannel0`, and `mainImage` are
 not compiler inputs. The current gallery therefore recreates visual ideas in

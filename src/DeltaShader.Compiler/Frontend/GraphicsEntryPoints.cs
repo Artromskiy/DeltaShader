@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text.RegularExpressions;
 using Delta.Shader;
@@ -77,42 +78,27 @@ internal static class GraphicsEntryPoints
             var attributeType = attribute?.AttributeClass;
             var locationSpan = parameter.Locations.FirstOrDefault()?.GetLineSpan();
 
-            if (Same(attributeType, context.VertexIndexAttributeType))
-            {
-                if (stage != ShaderStage.Vertex || parameter.Type.SpecialType != SpecialType.System_UInt32 || parameter.RefKind != RefKind.None)
-                {
-                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH011, "[VertexIndex] is only valid on a value uint parameter of a vertex shader.", locationSpan);
-                }
-                else
-                {
-                    parameterMap[parameter] = "uint(gl_VertexIndex)";
-                    inputs.Add(new ShaderIrInterfaceVariable { Name = parameter.Name, ParameterName = parameter.Name, GlslType = "uint", GlslName = "gl_VertexIndex", Builtin = "VertexIndex" });
-                }
-                continue;
-            }
-
-            if (Same(attributeType, context.VertexInputAttributeType) && attribute is not null)
+            if (Same(attributeType, context.BindingAttributeType) && attribute is not null &&
+                attribute.ConstructorArguments.Length == 1)
             {
                 var vertexLocation = GetUIntArg(attribute, 0);
-                var vertexBinding = GetUIntNamedArg(attribute, "Binding");
-                var byteOffset = GetUIntNamedArg(attribute, "ByteOffset");
-                var inputRate = GetInputRate(attribute);
+                const uint vertexBinding = 0;
+                var byteOffset = vertexInputs
+                    .Where(input => input.Binding == vertexBinding)
+                    .Select(input => input.ByteOffset + input.ByteSize)
+                    .DefaultIfEmpty(0)
+                    .Max();
                 if (stage != ShaderStage.Vertex || parameter.RefKind != RefKind.None ||
                     !TryMapType(parameter.Type, context, out var vertexType) ||
                     !TryGetVertexInputLayout(vertexType, out var byteSize, out var alignment, out var formatHint))
                 {
                     AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH013,
-                        "[VertexInput] is only valid on a value vertex-stage parameter with a supported scalar or vector type.", locationSpan);
+                        "[Layout(location)] is only valid on a value vertex-stage parameter with a supported scalar or vector type.", locationSpan);
                 }
                 else if (vertexInputs.Any(input => input.Location == vertexLocation))
                 {
                     AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH013,
                         $"Vertex input location {vertexLocation} is declared more than once.", locationSpan);
-                }
-                else if (vertexInputs.Any(input => input.Binding == vertexBinding && input.ByteOffset == byteOffset))
-                {
-                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH013,
-                        $"Vertex buffer binding {vertexBinding} offset {byteOffset} overlaps with another vertex input.", locationSpan);
                 }
                 else
                 {
@@ -127,53 +113,24 @@ internal static class GraphicsEntryPoints
                         Location = vertexLocation,
                         Binding = vertexBinding,
                         ByteOffset = byteOffset,
-                        InputRate = inputRate,
+                        InputRate = VertexInputRate.Vertex,
                         ByteSize = byteSize,
                         Alignment = alignment,
                         FormatHint = formatHint
                     });
                 }
+
                 continue;
             }
 
-            if (Same(attributeType, context.InstanceIndexAttributeType))
+            var isReadOnlyStorageBuffer = context.ReadOnlyStorageBufferType is not null &&
+                SymbolEqualityComparer.Default.Equals((parameter.Type as INamedTypeSymbol)?.OriginalDefinition, context.ReadOnlyStorageBufferType);
+            var isReadWriteStorageBuffer = context.ReadWriteStorageBufferType is not null &&
+                SymbolEqualityComparer.Default.Equals((parameter.Type as INamedTypeSymbol)?.OriginalDefinition, context.ReadWriteStorageBufferType);
+            if (Same(attributeType, context.BindingAttributeType) && attribute is not null &&
+                attribute.ConstructorArguments.Length == 2 && (isReadOnlyStorageBuffer || isReadWriteStorageBuffer))
             {
-                if (stage != ShaderStage.Vertex || parameter.Type.SpecialType != SpecialType.System_UInt32 || parameter.RefKind != RefKind.None)
-                {
-                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH011, "[InstanceIndex] is only valid on a value uint parameter of a vertex shader.", locationSpan);
-                }
-                else
-                {
-                    parameterMap[parameter] = "uint(gl_InstanceIndex)";
-                    inputs.Add(new ShaderIrInterfaceVariable { Name = parameter.Name, ParameterName = parameter.Name, GlslType = "uint", GlslName = "gl_InstanceIndex", Builtin = "InstanceIndex" });
-                }
-                continue;
-            }
-
-            if (Same(attributeType, context.FragmentCoordAttributeType))
-            {
-                var coordType = context.Intrinsics.TryMapType(parameter.Type, out var mappedCoordType) ? mappedCoordType : string.Empty;
-                if (stage != ShaderStage.Fragment || !string.Equals(coordType, "vec2", StringComparison.Ordinal) || parameter.RefKind != RefKind.None)
-                {
-                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH011, "[FragmentCoord] is only valid on a float2 value parameter of a fragment shader.", locationSpan);
-                }
-                else
-                {
-                    parameterMap[parameter] = "gl_FragCoord.xy";
-                    inputs.Add(new ShaderIrInterfaceVariable { Name = parameter.Name, ParameterName = parameter.Name, GlslType = "vec2", GlslName = "gl_FragCoord", Builtin = "FragmentCoord" });
-                }
-                continue;
-            }
-
-            if (context.ReadOnlyStorageBufferType is not null &&
-                SymbolEqualityComparer.Default.Equals((parameter.Type as INamedTypeSymbol)?.OriginalDefinition, context.ReadOnlyStorageBufferType))
-            {
-                if (!Same(attributeType, context.ReadOnlyStorageBufferAttributeType) || attribute is null)
-                {
-                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH002,
-                        $"Storage-buffer parameter '{parameter.Name}' requires [ReadOnlyStorageBuffer(set, binding)].", locationSpan);
-                }
-                else if (stage != ShaderStage.Vertex && stage != ShaderStage.Fragment)
+                if (stage != ShaderStage.Vertex && stage != ShaderStage.Fragment)
                 {
                     AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH011,
                         $"Storage-buffer parameter '{parameter.Name}' is only supported in vertex and fragment stages.", locationSpan);
@@ -202,8 +159,8 @@ internal static class GraphicsEntryPoints
                             Set = set,
                             Binding = binding,
                             GlslType = elementStruct.GlslName,
-                            ReadOnly = true,
-                            Access = ShaderResourceAccess.ReadOnly,
+                            ReadOnly = isReadOnlyStorageBuffer,
+                            Access = isReadOnlyStorageBuffer ? ShaderResourceAccess.ReadOnly : ShaderResourceAccess.ReadWrite,
                             Layout = ShaderStd430Layout.Standard,
                             Std430Layout = ShaderStd430Layout.ForStruct(elementStruct.Alignment, elementStruct.Size),
                             Members = elementStruct.Members
@@ -217,6 +174,7 @@ internal static class GraphicsEntryPoints
                             $"Storage-buffer parameter '{parameter.Name}' must wrap a sequential shader struct value.", locationSpan);
                     }
                 }
+
                 continue;
             }
 
@@ -314,15 +272,11 @@ internal static class GraphicsEntryPoints
             if (context.SampledTexture2DType is not null &&
                 SymbolEqualityComparer.Default.Equals(parameter.Type, context.SampledTexture2DType))
             {
-                if (!Same(attributeType, context.SampledTexture2DAttributeType) || attribute is null)
+                if (!Same(attributeType, context.BindingAttributeType) || attribute is null ||
+                    attribute.ConstructorArguments.Length != 2)
                 {
                     AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH002,
-                        $"SampledTexture2D parameter '{parameter.Name}' requires [SampledTexture2D(set, binding)].", locationSpan);
-                }
-                else if (!SupportsStage(attribute, stage))
-                {
-                    AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH011,
-                        $"SampledTexture2D parameter '{parameter.Name}' is not enabled for the {stage} stage.", locationSpan);
+                        $"SampledTexture2D parameter '{parameter.Name}' requires [Layout(set, binding)].", locationSpan);
                 }
                 else
                 {
@@ -507,9 +461,10 @@ internal static class GraphicsEntryPoints
                 failureReason = $"Shader helper '{definition.Name}' must be declared in the shader source project.";
                 return false;
             }
-            if (syntax.Body is null)
+            SyntaxNode? helperBody = syntax.Body ?? (SyntaxNode?)syntax.ExpressionBody?.Expression;
+            if (helperBody is null)
             {
-                failureReason = $"Shader helper '{definition.Name}' must use a block body; expression-bodied helpers are not supported yet.";
+                failureReason = $"Shader helper '{definition.Name}' must have a translatable body.";
                 return false;
             }
             if (!TryGetGlslType(definition.ReturnType, context, structNames, out _)
@@ -521,13 +476,17 @@ internal static class GraphicsEntryPoints
 
             states[definition] = 1;
             helperNames[definition] = CreateHelperName(definition, usedNames);
-            var model = context.Compilation.GetSemanticModel(syntax.SyntaxTree);
-            if (syntax.Body.DescendantNodes().OfType<ThisExpressionSyntax>().Any())
+            if (!TryGetSemanticModel(context.Compilation, syntax.SyntaxTree, out var model))
+            {
+                failureReason = $"Shader helper '{definition.Name}' is not declared in the active shader compilation.";
+                return false;
+            }
+            if (helperBody.DescendantNodesAndSelf().OfType<ThisExpressionSyntax>().Any())
             {
                 failureReason = $"Shader helper '{definition.Name}' captures managed instance state.";
                 return false;
             }
-            foreach (var identifier in syntax.Body.DescendantNodes().OfType<IdentifierNameSyntax>())
+            foreach (var identifier in helperBody.DescendantNodesAndSelf().OfType<IdentifierNameSyntax>())
             {
                 var symbol = model.GetSymbolInfo(identifier).Symbol;
                 if (symbol is IFieldSymbol field && !field.HasConstantValue && !pushFieldMap.ContainsKey(field) && !structFields.ContainsKey(field))
@@ -535,6 +494,13 @@ internal static class GraphicsEntryPoints
                     failureReason = $"Shader helper '{definition.Name}' captures managed field '{field.Name}'.";
                     return false;
                 }
+                if (symbol is IPropertySymbol property &&
+                    context.Intrinsics.TryGetIntrinsic(property, out var propertyBinding) &&
+                    propertyBinding.Category is IntrinsicCategory.Builtin or IntrinsicCategory.Swizzle)
+                {
+                    continue;
+                }
+
                 if (symbol is IPropertySymbol)
                 {
                     failureReason = $"Shader helper '{definition.Name}' uses unsupported property state.";
@@ -542,7 +508,7 @@ internal static class GraphicsEntryPoints
                 }
             }
 
-            foreach (var invocation in syntax.Body.DescendantNodes().OfType<InvocationExpressionSyntax>())
+            foreach (var invocation in helperBody.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
             {
                 if (model.GetSymbolInfo(invocation).Symbol is not IMethodSymbol called)
                 {
@@ -601,7 +567,7 @@ internal static class GraphicsEntryPoints
         var emitted = new List<string>(ordered.Count);
         foreach (var helper in ordered)
         {
-            if (!TryGetHelperSyntax(helper, out var syntax) || syntax is null || syntax.Body is null)
+            if (!TryGetHelperSyntax(helper, out var syntax) || syntax is null)
             {
                 reason = $"Shader helper '{helper.Name}' has no translatable body.";
                 functions = [];
@@ -609,7 +575,22 @@ internal static class GraphicsEntryPoints
                 return false;
             }
 
-            var model = context.Compilation.GetSemanticModel(syntax.SyntaxTree);
+            SyntaxNode? helperBody = syntax.Body ?? (SyntaxNode?)syntax.ExpressionBody?.Expression;
+            if (helperBody is null)
+            {
+                reason = $"Shader helper '{helper.Name}' has no translatable body.";
+                functions = [];
+                names = helperNames;
+                return false;
+            }
+
+            if (!TryGetSemanticModel(context.Compilation, syntax.SyntaxTree, out var model))
+            {
+                reason = $"Shader helper '{helper.Name}' is not declared in the active shader compilation.";
+                functions = [];
+                names = helperNames;
+                return false;
+            }
             var parameterMap = new Dictionary<IParameterSymbol, string>(SymbolEqualityComparer.Default);
             var signature = new List<string>(helper.Parameters.Length);
             foreach (var parameter in helper.Parameters)
@@ -632,14 +613,15 @@ internal static class GraphicsEntryPoints
                 names = helperNames;
                 return false;
             }
-            if (!GraphicsShaderBodyTranslator.TryTranslate(syntax.Body, model, context, stage, parameterMap, pushFieldMap, structNames, structFields, storageBufferTargets, helperNames, out var body, out var bodyReason))
+            if (!GraphicsShaderBodyTranslator.TryTranslate(helperBody, model, context, stage, parameterMap, pushFieldMap, structNames, structFields, storageBufferTargets, helperNames, out var body, out var bodyReason))
             {
                 reason = bodyReason ?? $"Unable to translate shader helper '{helper.Name}'.";
                 functions = [];
                 names = helperNames;
                 return false;
             }
-            emitted.Add(returnType + " " + helperNames[helper] + "(" + string.Join(", ", signature) + ") " + body);
+            var functionBody = syntax.Body is null ? "{ return " + body + "; }" : body;
+            emitted.Add(returnType + " " + helperNames[helper] + "(" + string.Join(", ", signature) + ") " + functionBody);
         }
 
         functions = emitted;
@@ -651,6 +633,21 @@ internal static class GraphicsEntryPoints
     {
         syntax = method.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() as MethodDeclarationSyntax;
         return syntax is not null;
+    }
+
+    private static bool TryGetSemanticModel(
+        Compilation compilation,
+        SyntaxTree syntaxTree,
+        [NotNullWhen(true)] out SemanticModel? model)
+    {
+        if (!compilation.SyntaxTrees.Contains(syntaxTree))
+        {
+            model = null;
+            return false;
+        }
+
+        model = compilation.GetSemanticModel(syntaxTree);
+        return true;
     }
 
     private static bool TryGetGlslType(ITypeSymbol type, ModuleCompilationContext context, IReadOnlyDictionary<INamedTypeSymbol, string> structNames, out string glslType)
@@ -684,50 +681,6 @@ internal static class GraphicsEntryPoints
         => attribute.ConstructorArguments.Length > index && attribute.ConstructorArguments[index].Value is not null
             ? Convert.ToUInt32(attribute.ConstructorArguments[index].Value)
             : 0;
-
-    private static uint GetUIntNamedArg(AttributeData attribute, string name)
-    {
-        foreach (var namedArgument in attribute.NamedArguments)
-        {
-            if (namedArgument.Key == name && namedArgument.Value.Value is not null)
-            {
-                return Convert.ToUInt32(namedArgument.Value.Value);
-            }
-        }
-
-        return 0;
-    }
-
-    private static VertexInputRate GetInputRate(AttributeData attribute)
-    {
-        foreach (var namedArgument in attribute.NamedArguments)
-        {
-            if (namedArgument.Key == "InputRate" && namedArgument.Value.Value is int value)
-            {
-                return (VertexInputRate)value;
-            }
-        }
-
-        return VertexInputRate.Vertex;
-    }
-
-    private static bool SupportsStage(AttributeData attribute, ShaderStage stage)
-    {
-        if (attribute.ConstructorArguments.Length < 3 || attribute.ConstructorArguments[2].Value is null)
-        {
-            return stage is ShaderStage.Vertex or ShaderStage.Fragment;
-        }
-
-        var mask = Convert.ToInt32(attribute.ConstructorArguments[2].Value);
-        var required = stage switch
-        {
-            ShaderStage.Compute => (int)ShaderStageMask.Compute,
-            ShaderStage.Vertex => (int)ShaderStageMask.Vertex,
-            ShaderStage.Fragment => (int)ShaderStageMask.Fragment,
-            _ => 0
-        };
-        return (mask & required) != 0;
-    }
 
     private static bool TryMapType(ITypeSymbol type, ModuleCompilationContext context, out string glslType)
     {
@@ -924,6 +877,11 @@ internal static class GraphicsShaderBodyTranslator
         public override SyntaxNode? VisitMemberAccessExpression(MemberAccessExpressionSyntax node)
         {
             var symbol = _model.GetSymbolInfo(node).Symbol;
+            if (TryTranslateShaderBuiltinMember(node, out var builtinExpression))
+            {
+                return SyntaxFactory.ParseExpression(builtinExpression);
+            }
+
             if (symbol is IFieldSymbol field && _pushFields.TryGetValue(field, out var fieldName))
             {
                 return SyntaxFactory.ParseExpression(fieldName);
@@ -934,6 +892,57 @@ internal static class GraphicsShaderBodyTranslator
                 return SyntaxFactory.ParseExpression(receiver + "." + structFieldName);
             }
             return base.VisitMemberAccessExpression(node);
+        }
+
+        private bool TryTranslateShaderBuiltinMember(
+            MemberAccessExpressionSyntax node,
+            out string translated)
+        {
+            translated = string.Empty;
+            if (_model.GetSymbolInfo(node).Symbol is IPropertySymbol property &&
+                _context.Intrinsics.TryGetIntrinsic(property, out var directBinding) &&
+                directBinding.Category == IntrinsicCategory.Builtin)
+            {
+                if (!directBinding.SupportsStage(_stage))
+                {
+                    Reason ??= $"Shader builtin '{property.Name}' is not valid in {_stage} stage.";
+                    return false;
+                }
+
+                translated = directBinding.GlslName;
+                return true;
+            }
+
+            if (node.Expression is not MemberAccessExpressionSyntax parent ||
+                _model.GetSymbolInfo(parent).Symbol is not IPropertySymbol parentProperty ||
+                !_context.Intrinsics.TryGetIntrinsic(parentProperty, out var parentBinding) ||
+                parentBinding.Category != IntrinsicCategory.Builtin)
+            {
+                return false;
+            }
+
+            if (!parentBinding.SupportsStage(_stage))
+            {
+                Reason ??= $"Shader builtin '{parentProperty.Name}' is not valid in {_stage} stage.";
+                return false;
+            }
+
+            var component = node.Name.Identifier.ValueText switch
+            {
+                "X" or "x" => "x",
+                "Y" or "y" => "y",
+                "Z" or "z" => "z",
+                "W" or "w" => "w",
+                _ => string.Empty
+            };
+            if (component.Length == 0)
+            {
+                Reason ??= $"Unsupported component '{node.Name.Identifier.ValueText}' on shader builtin '{parentProperty.Name}'.";
+                return false;
+            }
+
+            translated = parentBinding.GlslName + "." + component;
+            return true;
         }
 
         public override SyntaxNode? VisitInvocationExpression(InvocationExpressionSyntax node)

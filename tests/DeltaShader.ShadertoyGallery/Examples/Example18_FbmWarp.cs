@@ -8,11 +8,10 @@ internal static class Example18_FbmWarp
 {
     [FragmentShader]
     public static void FbmWarp(
-        [FragmentCoord] float2 fragmentCoord,
         [PushConstant] GalleryConstants constants,
         [FragmentColor] out float4 color)
     {
-        var p = (fragmentCoord / constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / constants.Resolution) * 2f - new float2(1f, 1f);
         var q = p + new float2(0.25f * maths.sin(p.y * 3f + constants.Time), 0.2f * maths.cos(p.x * 4f - constants.Time));
         var value = 0f;
         var weight = 0.5f;

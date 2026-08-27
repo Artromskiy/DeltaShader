@@ -15,7 +15,7 @@ internal static class ShaderArtifactPublisher
         => new(
             ToStage(manifest.Stage),
             manifest.Resources.Select(ToResource).ToArray(),
-            manifest.PushConstants.Select(ToPushConstant).ToArray(),
+            manifest.PushConstants.Select(push => ToPushConstant(push, manifest.Stage)).ToArray(),
             manifest.Inputs.Select(ToInterface).ToArray(),
             manifest.Outputs.Select(ToInterface).ToArray(),
             manifest.VertexInputs.Select(ToVertexInput).ToArray(),
@@ -46,8 +46,10 @@ internal static class ShaderArtifactPublisher
             layout);
     }
 
-    private static Final.ShaderPushConstantRange ToPushConstant(Compiler.ShaderCompilationPushConstant pushConstant)
-        => new(0u, pushConstant.Size, ToStageMask(Delta.Shader.ShaderStage.Vertex), ToLayout(pushConstant.Size, pushConstant.Alignment, pushConstant.ArrayStride, 0u, pushConstant.Members));
+    private static Final.ShaderPushConstantRange ToPushConstant(
+        Compiler.ShaderCompilationPushConstant pushConstant,
+        Delta.Shader.ShaderStage stage)
+        => new(0u, pushConstant.Size, ToStageMask(stage), ToLayout(pushConstant.Size, pushConstant.Alignment, pushConstant.ArrayStride, 0u, pushConstant.Members));
 
     private static Final.ShaderInterfaceVariable ToInterface(Compiler.ShaderCompilationInterfaceVariable variable)
         => new(ToValueType(variable.GlslType), string.IsNullOrWhiteSpace(variable.Builtin) ? variable.Location : null, ToBuiltin(variable.Builtin));

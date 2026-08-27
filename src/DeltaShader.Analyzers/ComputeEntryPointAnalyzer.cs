@@ -16,6 +16,7 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
     private const string VisibleTypeDescriptorId = ShaderDiagnosticId.DSH010;
     private const string GraphicsDescriptorId = ShaderDiagnosticId.DSH012;
     private const string UnsupportedConstructDescriptorId = ShaderDiagnosticId.DSH014;
+    private const string ContextDescriptorId = ShaderDiagnosticId.DSH002;
     private const string GraphicsPairDescriptorId = ShaderDiagnosticId.DSH017;
     private const string DuplicateGraphicsNameDescriptorId = ShaderDiagnosticId.DSH018;
 
@@ -67,31 +68,34 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    private static readonly DiagnosticDescriptor _contextDescriptor = new(
+        id: ContextDescriptorId,
+        title: "Invalid shader context contract",
+        messageFormat: "{0}",
+        category: "DeltaShader",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         [_descriptor, _graphicsDescriptor, _visibleTypeDescriptor, _unsupportedConstructDescriptor,
-            _graphicsPairDescriptor, _duplicateGraphicsNameDescriptor];
+            _contextDescriptor, _graphicsPairDescriptor, _duplicateGraphicsNameDescriptor];
 
     public override void Initialize(AnalysisContext context)
     {
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         context.EnableConcurrentExecution();
-        var computeShaderAttribute = typeof(ComputeShaderAttribute).FullName;
-        var deltaComputeAttribute = typeof(DeltaComputeAttribute).FullName;
+        var deltaComputeAttributeName = typeof(ComputeAttribute).FullName ??
+            throw new InvalidOperationException("ComputeAttribute must have a metadata name.");
+        var deltaComputeAttribute = context.Compilation.GetTypeByMetadataName(deltaComputeAttributeName);
         context.RegisterSymbolAction(context =>
         {
-            if (context.Compilation.GetTypeByMetadataName(computeShaderAttribute) is not ITypeSymbol attributeType)
-            {
-                return;
-            }
-
             if (context.Symbol is not IMethodSymbol methodSymbol)
             {
                 return;
             }
 
             var attribute = methodSymbol.GetAttributes()
-                .FirstOrDefault(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, attributeType) ||
-                    a.AttributeClass?.ToDisplayString() == deltaComputeAttribute);
+                .FirstOrDefault(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, deltaComputeAttribute));
 
             var vertexAttribute = context.Compilation.GetTypeByMetadataName(typeof(VertexShaderAttribute).FullName);
             var fragmentAttribute = context.Compilation.GetTypeByMetadataName(typeof(FragmentShaderAttribute).FullName);
@@ -102,6 +106,16 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
             if (attribute is null && graphicsAttribute is null)
             {
                 return;
+            }
+
+            if (attribute is not null &&
+                (methodSymbol.Parameters.Length != 1 ||
+                 !ShaderVisibleTypeValidation.IsContextParameter(methodSymbol.Parameters[0], context.Compilation)))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    _contextDescriptor,
+                    methodSymbol.Locations[0],
+                    "[Compute] entry point must have exactly one 'in' shader context parameter."));
             }
 
             if (graphicsAttribute is not null)
@@ -132,14 +146,19 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
                 }
             }
 
-            foreach (var parameter in methodSymbol.Parameters)
-            {
-                var visibleType = ShaderVisibleTypeValidation.GetVisibleRootType(parameter, context.Compilation);
-                foreach (var issue in ShaderVisibleTypeValidation.Validate(visibleType, parameter))
+            var isContext = methodSymbol.Parameters.Length == 1 &&
+                ShaderVisibleTypeValidation.IsContextParameter(methodSymbol.Parameters[0], context.Compilation);
+            var visibleIssues = isContext
+                ? ShaderVisibleTypeValidation.ValidateContext(methodSymbol.Parameters[0], context.Compilation)
+                : methodSymbol.Parameters.SelectMany(parameter =>
                 {
-                    var location = issue.Symbol.Locations.FirstOrDefault() ?? parameter.Locations[0];
-                    context.ReportDiagnostic(Diagnostic.Create(_visibleTypeDescriptor, location, issue.Message));
-                }
+                    var visibleType = ShaderVisibleTypeValidation.GetVisibleRootType(parameter, context.Compilation);
+                    return ShaderVisibleTypeValidation.Validate(visibleType, parameter);
+                }).ToArray();
+            foreach (var issue in visibleIssues)
+            {
+                var location = issue.Symbol.Locations.FirstOrDefault() ?? methodSymbol.Locations[0];
+                context.ReportDiagnostic(Diagnostic.Create(_visibleTypeDescriptor, location, issue.Message));
             }
 
             if (!methodSymbol.IsStatic || methodSymbol.ReturnType.SpecialType != SpecialType.System_Void)
@@ -156,8 +175,7 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
         if (context.Node is not MethodDeclarationSyntax syntax ||
             context.SemanticModel.GetDeclaredSymbol(syntax) is not IMethodSymbol method ||
             !method.GetAttributes().Any(attribute =>
-                attribute.AttributeClass?.ToDisplayString() == typeof(ComputeShaderAttribute).FullName ||
-                attribute.AttributeClass?.ToDisplayString() == typeof(DeltaComputeAttribute).FullName))
+                attribute.AttributeClass?.ToDisplayString() == typeof(ComputeAttribute).FullName))
         {
             return;
         }
@@ -193,7 +211,11 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
             }
 
             var namespaceName = field.ContainingNamespace?.ToDisplayString() ?? string.Empty;
+            var isContextField = method.Parameters.Length == 1 &&
+                ShaderVisibleTypeValidation.IsContextParameter(method.Parameters[0], context.SemanticModel.Compilation) &&
+                SymbolEqualityComparer.Default.Equals(field.ContainingType, method.Parameters[0].Type);
             if (!field.IsConst &&
+                !isContextField &&
                 namespaceName != "Delta.Shader" &&
                 !namespaceName.StartsWith("DeltaMaths", StringComparison.Ordinal))
             {

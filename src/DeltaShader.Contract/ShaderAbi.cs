@@ -78,9 +78,19 @@ public sealed class ShaderPushConstantRange
         ArgumentNullException.ThrowIfNull(layout);
         ArgumentOutOfRangeException.ThrowIfZero(size);
 
+        if (offset % 4 != 0)
+        {
+            throw new ArgumentException("Push-constant offsets must be multiples of four.", nameof(offset));
+        }
+
         if (stages == ShaderStageMask.None)
         {
             throw new ArgumentException("At least one shader stage is required.", nameof(stages));
+        }
+
+        if (layout.Size != size)
+        {
+            throw new ArgumentException("Push-constant layout size must match the range size.", nameof(layout));
         }
 
         Offset = offset;
@@ -115,6 +125,17 @@ public sealed class ShaderSpecializationConstant
         if (type.Kind == ShaderValueKind.Structure)
         {
             throw new ArgumentException("Specialization constants must be scalar, vector or matrix values.", nameof(type));
+        }
+
+        if (type.BitWidth % 8 != 0)
+        {
+            throw new ArgumentException("Specialization constant bit width must be a whole number of bytes.", nameof(type));
+        }
+
+        var expectedSize = checked((int)((ulong)(type.BitWidth / 8) * type.VectorSize * type.Columns));
+        if (defaultValue.Length != expectedSize)
+        {
+            throw new ArgumentException($"Specialization constant default value must contain exactly {expectedSize} bytes.", nameof(defaultValue));
         }
 
         Id = id;
@@ -171,6 +192,13 @@ public sealed class ShaderAbi
         _vertexInputs = Copy(vertexInputs);
         _vertexBuffers = Copy(vertexBuffers);
         _specializationConstants = Copy(specializationConstants);
+
+        ValidateResources(_resources, stage);
+        ValidatePushConstants(_pushConstants, stage);
+        ValidateInterfaces(_inputs, "input");
+        ValidateInterfaces(_outputs, "output");
+        ValidateVertexInputs(_vertexInputs, _vertexBuffers, stage);
+        ValidateSpecializationConstants(_specializationConstants);
     }
 
     public ShaderStage Stage { get; }
@@ -193,6 +221,121 @@ public sealed class ShaderAbi
 
     public ShaderCapabilities RequiredCapabilities { get; }
 
+    private static void ValidateResources(IReadOnlyList<ShaderResourceBinding> resources, ShaderStage stage)
+    {
+        var stageFlag = ToStageMask(stage);
+        var bindings = new HashSet<ShaderBinding>();
+        foreach (var resource in resources)
+        {
+            if (resource is null)
+            {
+                throw new ArgumentException("Shader resources cannot contain null entries.", nameof(resources));
+            }
+
+            if ((resource.Stages & stageFlag) == 0)
+            {
+                throw new ArgumentException($"Resource {resource.Binding.Set}:{resource.Binding.Binding} does not include the ABI stage.", nameof(resources));
+            }
+
+            if (!bindings.Add(resource.Binding))
+            {
+                throw new ArgumentException($"Shader resource binding {resource.Binding.Set}:{resource.Binding.Binding} is duplicated.", nameof(resources));
+            }
+        }
+    }
+
+    private static void ValidatePushConstants(IReadOnlyList<ShaderPushConstantRange> pushConstants, ShaderStage stage)
+    {
+        var stageFlag = ToStageMask(stage);
+        foreach (var pushConstant in pushConstants)
+        {
+            if (pushConstant is null)
+            {
+                throw new ArgumentException("Push constants cannot contain null entries.", nameof(pushConstants));
+            }
+
+            if ((pushConstant.Stages & stageFlag) == 0)
+            {
+                throw new ArgumentException("A push-constant range does not include the ABI stage.", nameof(pushConstants));
+            }
+        }
+    }
+
+    private static void ValidateInterfaces(IReadOnlyList<ShaderInterfaceVariable> interfaces, string role)
+    {
+        var locations = new HashSet<uint>();
+        foreach (var variable in interfaces)
+        {
+            if (variable.Builtin == ShaderBuiltin.None && variable.Location is uint location && !locations.Add(location))
+            {
+                throw new ArgumentException($"Shader {role} location {location} is duplicated.", nameof(interfaces));
+            }
+        }
+    }
+
+    private static void ValidateVertexInputs(
+        ReadOnlyCollection<ShaderVertexInput> inputs,
+        ReadOnlyCollection<ShaderVertexBufferLayout> buffers,
+        ShaderStage stage)
+    {
+        if (inputs.Count == 0 && buffers.Count == 0)
+        {
+            return;
+        }
+
+        if (stage != ShaderStage.Vertex)
+        {
+            throw new ArgumentException("Vertex inputs and buffers are only valid for vertex shaders.", nameof(stage));
+        }
+
+        var bufferBindings = new HashSet<uint>();
+        foreach (var buffer in buffers)
+        {
+            if (buffer.Stride == 0 || !bufferBindings.Add(buffer.Binding))
+            {
+                throw new ArgumentException("Vertex buffer bindings must be unique and have a non-zero stride.", nameof(buffers));
+            }
+        }
+
+        var locations = new HashSet<uint>();
+        foreach (var input in inputs)
+        {
+            if (!locations.Add(input.Location) || !bufferBindings.Contains(input.Binding))
+            {
+                throw new ArgumentException("Vertex input locations must be unique and refer to a declared buffer binding.", nameof(inputs));
+            }
+        }
+    }
+
+    private static void ValidateSpecializationConstants(IReadOnlyList<ShaderSpecializationConstant> constants)
+    {
+        var ids = new HashSet<uint>();
+        foreach (var constant in constants)
+        {
+            if (constant is null || !ids.Add(constant.Id))
+            {
+                throw new ArgumentException("Specialization constant ids must be unique and non-null.", nameof(constants));
+            }
+        }
+    }
+
+    private static ShaderStageMask ToStageMask(ShaderStage stage)
+        => stage switch
+        {
+            ShaderStage.Compute => ShaderStageMask.Compute,
+            ShaderStage.Vertex => ShaderStageMask.Vertex,
+            ShaderStage.Fragment => ShaderStageMask.Fragment,
+            _ => throw new ArgumentOutOfRangeException(nameof(stage), stage, "Unknown shader stage.")
+        };
+
     private static ReadOnlyCollection<T> Copy<T>(IEnumerable<T>? values)
-        => Array.AsReadOnly(values?.ToArray() ?? []);
+    {
+        var array = values?.ToArray() ?? [];
+        if (array.Any(value => value is null))
+        {
+            throw new ArgumentException("Shader ABI collections cannot contain null entries.", nameof(values));
+        }
+
+        return Array.AsReadOnly(array);
+    }
 }

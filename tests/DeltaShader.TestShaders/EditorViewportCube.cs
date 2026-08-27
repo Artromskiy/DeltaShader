@@ -32,10 +32,10 @@ internal static class EditorViewportCube
 
     [VertexShader("EditorViewportCubeVertex")]
     public static void Vertex(
-        [VertexInput(0, Binding = 0, ByteOffset = 0)] float3 position,
-        [VertexInput(1, Binding = 0, ByteOffset = 12)] float3 normal,
-        [VertexInput(2, Binding = 0, ByteOffset = 24)] float2 uv,
-        [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<SceneParameters> scene,
+        [Layout(0)] float3 position,
+        [Layout(1)] float3 normal,
+        [Layout(2)] float2 uv,
+        [Layout(0, 0)] ReadOnlyStorageBuffer<SceneParameters> scene,
         [Position] out float4 clipPosition,
         [ShaderVarying(0)] out float3 worldNormal,
         [ShaderVarying(1)] out float2 texCoord)
@@ -48,8 +48,8 @@ internal static class EditorViewportCube
 
     [FragmentShader("EditorViewportCubeFragment")]
     public static void Fragment(
-        [ReadOnlyStorageBuffer(0, 0)] ReadOnlyStorageBuffer<SceneParameters> scene,
-        [SampledTexture2D(0, 1)] SampledTexture2D albedo,
+        [Layout(0, 0)] ReadOnlyStorageBuffer<SceneParameters> scene,
+        [Layout(0, 1)] SampledTexture2D albedo,
         [ShaderVarying(0)] float3 worldNormal,
         [ShaderVarying(1)] float2 texCoord,
         [FragmentColor] out float4 color)

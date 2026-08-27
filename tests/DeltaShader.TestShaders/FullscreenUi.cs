@@ -17,10 +17,10 @@ internal static class FullscreenUi
 
     [VertexShader]
     public static void Vertex(
-        [VertexIndex] uint vertexIndex,
         [Position] out float4 position,
         [ShaderVarying(0)] out float2 uv)
     {
+        uint vertexIndex = ShaderBuiltins.VertexIndex;
         position = default;
         uv = default;
 
@@ -43,11 +43,11 @@ internal static class FullscreenUi
 
     [FragmentShader]
     public static void Fragment(
-        [FragmentCoord] float2 fragmentCoord,
         [PushConstant] UiPushConstants constants,
         [ShaderVarying(0)] float2 uv,
         [FragmentColor] out float4 color)
     {
+        float2 fragmentCoord = new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y);
         var p = (fragmentCoord / constants.Resolution) * 2f - new float2(1f, 1f);
         var halfSize = new float2(0.55f, 0.32f);
         var q = maths.abs(p) - halfSize + 0.12f;

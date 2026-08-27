@@ -13,6 +13,7 @@ public enum IntrinsicCategory
     Function,
     Operator,
     Swizzle,
+    Builtin,
 }
 
 public sealed record IntrinsicBinding(
@@ -110,6 +111,7 @@ public sealed class IntrinsicRegistry
         }
 
         RegisterOwnedShaderIntrinsics(methods, compilation);
+        RegisterShaderBuiltins(methods, compilation);
         RegisterDeltaMathsFacadeBuiltins(methods, types, compilation, contract);
         return new IntrinsicRegistry(methods, types);
     }
@@ -222,6 +224,55 @@ public sealed class IntrinsicRegistry
         }
     }
 
+    private static void RegisterShaderBuiltins(
+        Dictionary<ISymbol, IntrinsicBinding> methods,
+        Compilation compilation)
+    {
+        var builtinType = compilation.GetTypeByMetadataName("Delta.Shader.ShaderBuiltins");
+        if (builtinType is null)
+        {
+            return;
+        }
+
+        foreach (var property in builtinType.GetMembers().OfType<IPropertySymbol>())
+        {
+            var (glslName, stage) = property.Name switch
+            {
+                "GlobalInvocationId" => ("gl_GlobalInvocationID", ShaderStage.Compute),
+                "VertexIndex" => ("gl_VertexIndex", ShaderStage.Vertex),
+                "InstanceIndex" => ("gl_InstanceIndex", ShaderStage.Vertex),
+                "FragmentCoord" => ("gl_FragCoord", ShaderStage.Fragment),
+                _ => (string.Empty, ShaderStage.Compute)
+            };
+            if (glslName.Length == 0)
+            {
+                continue;
+            }
+
+            var stageName = stage.ToString().ToLowerInvariant();
+            methods[property] = new IntrinsicBinding(
+                IntrinsicCategory.Builtin,
+                glslName,
+                stageName,
+                ShaderStages: new[] { stageName });
+
+            if (property.Type is not INamedTypeSymbol vectorType)
+            {
+                continue;
+            }
+
+            foreach (var component in vectorType.GetMembers().OfType<IPropertySymbol>()
+                         .Where(component => component.Parameters.Length == 0))
+            {
+                methods[component] = new IntrinsicBinding(
+                    IntrinsicCategory.Swizzle,
+                    component.Name.ToLowerInvariant(),
+                    stageName,
+                    ShaderStages: new[] { stageName });
+            }
+        }
+    }
+
     private static void RegisterDeltaMathsFacadeBuiltins(
         Dictionary<ISymbol, IntrinsicBinding> methods,
         Dictionary<ITypeSymbol, string> mappedTypes,
@@ -254,23 +305,15 @@ public sealed class IntrinsicRegistry
             var methodContracts = facadeContracts
                 .Where(function => string.Equals(function.ClrName, method.Name, StringComparison.Ordinal))
                 .ToArray();
-            if (methodContracts.Length > 0)
+            var matchingContract = methodContracts.FirstOrDefault(function => Matches(method, function));
+            if (matchingContract is not null)
             {
-                var supportedContract = methodContracts.FirstOrDefault(function =>
-                    IsSupportedMapping(function.Mapping) &&
-                    !string.IsNullOrWhiteSpace(function.GlslName) &&
-                    Matches(method, function));
-                if (supportedContract is null)
+                if (!IsSupportedMapping(matchingContract.Mapping) || matchingContract.GlslName is not { Length: > 0 } glslName)
                 {
                     continue;
                 }
 
-                if (supportedContract.GlslName is not { Length: > 0 } supportedGlslName)
-                {
-                    continue;
-                }
-
-                methods[method] = new IntrinsicBinding(IntrinsicCategory.Function, supportedGlslName);
+                methods[method] = new IntrinsicBinding(IntrinsicCategory.Function, glslName);
                 continue;
             }
 
