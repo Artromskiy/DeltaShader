@@ -61,7 +61,16 @@ internal static class ShaderArtifactPublisher
         => new(buffer.Binding, buffer.Stride, (Final.ShaderVertexInputRate)buffer.InputRate);
 
     private static Final.ShaderAbiLayout ToLayout(uint size, uint alignment, uint arrayStride, uint matrixStride, IEnumerable<Compiler.ShaderCompilationMember> members)
-        => new(size, alignment, arrayStride, matrixStride, members.Select(ToMember));
+    {
+        var memberArray = members.ToArray();
+        if (size == 0 && alignment == 0 && arrayStride == 0 && matrixStride == 0 && memberArray.Length == 0)
+        {
+            return Final.ShaderAbiLayout.Empty;
+        }
+
+        var paddedSize = Math.Max(size, alignment);
+        return new(paddedSize, alignment, arrayStride, matrixStride, memberArray.Select(ToMember));
+    }
 
     private static Final.ShaderAbiMember ToMember(Compiler.ShaderCompilationMember member)
     {

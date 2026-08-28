@@ -40,6 +40,19 @@ for shader in "$out_dir"/*.spv; do
 done
 ```
 
+The Stage-1 CPU/GPU Maths producer bundle is generated from the DeltaMaths
+handoff without changing DeltaMaths tests:
+
+```bash
+./eng/prepare-maths-conformance-artifacts.sh "$out_dir" ../DeltaMaths
+```
+
+This emits generated C# fixtures, GLSL 460, SPIR-V, resolved `ShaderAbi`
+sidecars and `index.json` into the requested output directory. The command
+requires the handoff `shader-contract.json`, `shader-conformance.json`,
+`glslangValidator` and `spirv-val`; it fails with a diagnostic instead of
+silently skipping a case.
+
 Inspect emitted GLSL and manifest as well as test totals. `dotnet test` and
 `MSBuildWorkspace` need local IPC; a sandbox `SocketException`/named-pipe denial
 requires rerunning the same command outside the sandbox, not parallel retries.

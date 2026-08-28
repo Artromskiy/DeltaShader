@@ -23,6 +23,7 @@ return options.Command switch
     "CHECK" => await ExecuteCheckAsync(options).ConfigureAwait(false),
     "EMIT" => await ExecuteEmitAsync(options).ConfigureAwait(false),
     "BUILD" => await ExecuteEmitAsync(options).ConfigureAwait(false),
+    "MATHS-CONFORMANCE" => await ExecuteMathsConformanceAsync(options).ConfigureAwait(false),
     _ => throw new InvalidOperationException($"Unhandled command '{options.Command}'.")
 };
 
@@ -125,6 +126,13 @@ static async Task<int> ExecuteEmitAsync(ProgramOptions options)
     return 0;
 }
 
+static Task<int> ExecuteMathsConformanceAsync(ProgramOptions options)
+{
+    var outputDirectory = options.OutputDirectory ??
+        Path.Combine(options.ProjectPath, "artifacts", "delta-shader-maths-conformance");
+    return MathsConformancePublisher.PublishAsync(options.ProjectPath, outputDirectory, options.CompilationOptions);
+}
+
 static async Task<IReadOnlyList<ShaderCompilationResult>> CompileProjectAsync(ProgramOptions options)
 {
     if (!MSBuildLocator.IsRegistered)
@@ -152,7 +160,7 @@ static ProgramOptions ParseOptions(string[] args)
     }
 
     var command = args[0].ToUpperInvariant();
-    if (command is not "CHECK" and not "EMIT" and not "BUILD")
+    if (command is not "CHECK" and not "EMIT" and not "BUILD" and not "MATHS-CONFORMANCE")
     {
         return new ProgramOptions(command, string.Empty, true, ShaderCompilationOptions.Default, null, string.Empty);
     }
@@ -240,6 +248,8 @@ static void PrintUsage()
     Console.WriteLine("  --spirv <version>     target SPIR-V version");
     Console.WriteLine("  --glsl <version>      target GLSL version");
     Console.WriteLine("  --out <path>          output directory for emitted artifacts");
+    Console.WriteLine("  maths-conformance <DeltaMaths root> --out <path>");
+    Console.WriteLine("                         publish test-only CPU/GPU Maths artifacts");
     Console.WriteLine();
     Console.WriteLine("Returns 0 on success, non-zero on validation failures.");
 }

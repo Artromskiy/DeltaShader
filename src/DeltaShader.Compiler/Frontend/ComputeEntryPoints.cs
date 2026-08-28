@@ -754,6 +754,7 @@ public static class ComputeEntryPoints
             return false;
         }
 
+        var readOnly = IsReadOnlyStorageBuffer(field.Type, context);
         resource = new ShaderIrResource
         {
             Name = field.Name,
@@ -762,7 +763,8 @@ public static class ComputeEntryPoints
             Set = key.Set,
             Binding = key.Binding,
             GlslType = elementGlslType,
-            ReadOnly = IsReadOnlyStorageBuffer(field.Type, context),
+            ReadOnly = readOnly,
+            Access = readOnly ? ShaderResourceAccess.ReadOnly : ShaderResourceAccess.ReadWrite,
             Std430Layout = elementLayout,
             Members = members
         };
