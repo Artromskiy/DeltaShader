@@ -41,17 +41,29 @@ done
 ```
 
 The Stage-1 CPU/GPU Maths producer bundle is generated from the DeltaMaths
-handoff without changing DeltaMaths tests:
+handoff without changing DeltaMaths tests. With no arguments, the publisher
+atomically refreshes the stable ignored catalog at
+`artifacts/maths-conformance`:
+
+```bash
+./eng/prepare-maths-conformance-artifacts.sh
+```
+
+The optional positional arguments remain available for an explicit catalog:
 
 ```bash
 ./eng/prepare-maths-conformance-artifacts.sh "$out_dir" ../DeltaMaths
 ```
 
 This emits generated C# fixtures, GLSL 460, SPIR-V, resolved `ShaderAbi`
-sidecars and `index.json` into the requested output directory. The command
-requires the handoff `shader-contract.json`, `shader-conformance.json`,
-`glslangValidator` and `spirv-val`; it fails with a diagnostic instead of
-silently skipping a case.
+(`*.abi.json`) sidecars, source manifests (`*.shader.json`) and `index.json`.
+The script builds Maths and the Tool from the current checkout, validates the
+artifact/sidecar counts, and requires the handoff `shader-contract.json`,
+`shader-conformance.json`, `glslangValidator`, `spirv-val` and `jq`; it fails
+with a diagnostic instead of silently skipping a case. Generated binaries are
+ignored by Git. Platform-specific `packages.lock.json` changes caused by
+restore are dependency metadata and are reviewed separately from this
+artifact publication.
 
 Inspect emitted GLSL and manifest as well as test totals. `dotnet test` and
 `MSBuildWorkspace` need local IPC; a sandbox `SocketException`/named-pipe denial
