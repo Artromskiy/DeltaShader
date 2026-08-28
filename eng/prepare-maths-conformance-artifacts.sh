@@ -22,7 +22,7 @@ if [[ ! -f "$maths_root/src/DeltaMaths/DeltaMaths.csproj" ]]; then
   exit 66
 fi
 
-conformance_project="$maths_root/Tests/DeltaMaths.Conformance/DeltaMaths.Conformance.csproj"
+conformance_project="$maths_root/tests/DeltaMaths.Conformance/DeltaMaths.Conformance.csproj"
 if [[ ! -f "$conformance_project" ]]; then
   printf 'DeltaMaths conformance project not found: %s\n' "$conformance_project" >&2
   exit 66

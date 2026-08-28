@@ -56,13 +56,25 @@ internal static class MathsConformancePublisher
             return 1;
         }
 
-        var manifestPath = Path.Combine(mathsRoot, "Vectors", "shader-contract.json");
+        var manifestPath = Path.Combine(
+            mathsRoot,
+            "src",
+            "DeltaMaths",
+            "Vectors",
+            "shader-contract.json");
         var bundlePath = Path.Combine(
             mathsRoot,
-            "Tests",
+            "tests",
             "DeltaMaths.Conformance",
             "shader-conformance.json");
-        var mathsAssemblyPath = Path.Combine(mathsRoot, "bin", "Release", "net10.0", "DeltaMaths.dll");
+        var mathsAssemblyPath = Path.Combine(
+            mathsRoot,
+            "src",
+            "DeltaMaths",
+            "bin",
+            "Release",
+            "net10.0",
+            "DeltaMaths.dll");
         if (!File.Exists(manifestPath) || !File.Exists(bundlePath))
         {
             await Console.Error.WriteLineAsync(
