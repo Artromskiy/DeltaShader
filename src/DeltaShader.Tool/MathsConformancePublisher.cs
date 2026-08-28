@@ -88,10 +88,7 @@ internal static class MathsConformancePublisher
             return 1;
         }
 
-        var functions = LoadFunctions(manifestPath)
-            .Where(IsFirstSliceFunction)
-            .OrderBy(function => function.Identity, StringComparer.Ordinal)
-            .ToArray();
+        var manifestFunctions = LoadFunctions(manifestPath);
         ConformanceBundle bundle;
         try
         {
@@ -120,6 +117,45 @@ internal static class MathsConformancePublisher
         var casesByIdentity = cases.ToDictionary(
             conformanceCase => conformanceCase.Operation.Identity,
             StringComparer.Ordinal);
+
+        var duplicateManifestIdentities = manifestFunctions
+            .GroupBy(function => function.Identity, StringComparer.Ordinal)
+            .Where(group => group.Count() != 1)
+            .Select(group => group.Key)
+            .ToArray();
+        if (duplicateManifestIdentities.Length != 0)
+        {
+            await Console.Error.WriteLineAsync(
+                "Maths conformance failed: duplicate manifest identities: "
+                + string.Join(", ", duplicateManifestIdentities)).ConfigureAwait(false);
+            return 1;
+        }
+
+        var manifestIdentities = manifestFunctions
+            .Select(function => function.Identity)
+            .ToHashSet(StringComparer.Ordinal);
+        var missingManifestFunctions = cases
+            .Select(conformanceCase => conformanceCase.Operation.Identity)
+            .Where(identity => !manifestIdentities.Contains(identity))
+            .ToArray();
+        if (missingManifestFunctions.Length != 0)
+        {
+            await Console.Error.WriteLineAsync(
+                "Maths conformance failed: bundle identities are absent from the contract manifest:\n"
+                + string.Join(Environment.NewLine, missingManifestFunctions)).ConfigureAwait(false);
+            return 1;
+        }
+
+        var firstSliceFunctions = manifestFunctions
+            .Where(IsFirstSliceFunction)
+            .OrderBy(function => function.Identity, StringComparer.Ordinal);
+        var remainingFunctions = manifestFunctions
+            .Where(function => !IsFirstSliceFunction(function))
+            .OrderBy(function => function.Identity, StringComparer.Ordinal);
+        var functions = firstSliceFunctions
+            .Concat(remainingFunctions)
+            .Where(function => casesByIdentity.ContainsKey(function.Identity))
+            .ToArray();
         var missingCases = functions
             .Select(function => function.Identity)
             .Where(identity => !casesByIdentity.ContainsKey(identity))
@@ -134,7 +170,7 @@ internal static class MathsConformancePublisher
 
         if (functions.Length == 0)
         {
-            await Console.Error.WriteLineAsync("Maths conformance failed: the first-slice selection is empty.").ConfigureAwait(false);
+            await Console.Error.WriteLineAsync("Maths conformance failed: the supported case selection is empty.").ConfigureAwait(false);
             return 1;
         }
 
@@ -455,20 +491,58 @@ internal static class MathsConformancePublisher
         builder.AppendLine(CultureInfo.InvariantCulture, $"    public static void {methodName}(in {contextName} context)");
         builder.AppendLine("    {");
         builder.AppendLine("        uint index = ShaderBuiltins.GlobalInvocationId.X;");
-        builder.AppendLine("        if (index >= context.Count || index >= context.Input0.Length)");
+        if (function.ParameterTypes.Length == 0)
+        {
+            builder.AppendLine("        if (index >= context.Count)");
+        }
+        else
+        {
+            builder.AppendLine("        if (index >= context.Count || index >= context.Input0.Length)");
+        }
         builder.AppendLine("        {");
         builder.AppendLine("            return;");
         builder.AppendLine("        }");
-        var arguments = string.Join(
-            ", ",
-            Enumerable.Range(0, function.ParameterTypes.Length)
-                .Select(parameterIndex => $"context.Input{parameterIndex}[index]"));
+        var arguments = Enumerable.Range(0, function.ParameterTypes.Length)
+            .Select(parameterIndex => $"context.Input{parameterIndex}[index]")
+            .ToArray();
+        var operatorToken = GetOperatorToken(function.MethodName);
+        string expression;
+        if (operatorToken is null)
+        {
+            expression = $"Delta.Maths.{function.OwnerType}.{function.MethodName}({string.Join(", ", arguments)})";
+        }
+        else if (arguments.Length == 1)
+        {
+            expression = $"({operatorToken}{arguments[0]})";
+        }
+        else if (arguments.Length == 2)
+        {
+            expression = $"({arguments[0]} {operatorToken} {arguments[1]})";
+        }
+        else
+        {
+            throw new InvalidOperationException(
+                $"Operator {function.Identity} has {arguments.Length} operands.");
+        }
+
         builder.AppendLine(
             CultureInfo.InvariantCulture,
-            $"        context.Output[index] = Delta.Maths.{function.OwnerType}.{function.MethodName}({arguments});");
+            $"        context.Output[index] = {expression};");
         builder.AppendLine("    }");
         builder.AppendLine();
     }
+
+    private static string? GetOperatorToken(string methodName)
+        => methodName switch
+        {
+            "op_Addition" => "+",
+            "op_Subtraction" => "-",
+            "op_Multiply" => "*",
+            "op_Division" => "/",
+            "op_UnaryPlus" => "+",
+            "op_UnaryNegation" => "-",
+            _ => null
+        };
 
     private static PortableExecutableReference[] CreateReferences(params string[] requiredAssemblies)
     {

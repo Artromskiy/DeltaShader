@@ -34,14 +34,15 @@ dotnet build "$maths_root/DeltaMaths.csproj" -c Release \
 dotnet build "$repo_root/src/DeltaShader.Tool/DeltaShader.Tool.csproj" -c Release \
   --disable-build-servers -m:1 /p:UseSharedCompilation=false -v:minimal
 
+publisher_exit=0
 dotnet run --project "$repo_root/src/DeltaShader.Tool/DeltaShader.Tool.csproj" \
   -c Release --no-build --no-restore -- maths-conformance "$maths_root" \
-  --profile vulkan1.2 --spirv 1.5 --glsl 460 --out "$staging_dir"
+  --profile vulkan1.2 --spirv 1.5 --glsl 460 --out "$staging_dir" || publisher_exit=$?
 
 index_path="$staging_dir/index.json"
 if [[ ! -s "$index_path" ]]; then
   printf 'publisher did not produce index.json: %s\n' "$index_path" >&2
-  exit 65
+  exit "${publisher_exit:-65}"
 fi
 
 spv_count="$(find "$staging_dir" -type f -name '*.spv' -print | wc -l | tr -d ' ')"
@@ -61,9 +62,14 @@ while IFS= read -r spv_path; do
 done < <(find "$staging_dir" -type f -name '*.spv' -print | sort)
 
 artifact_count="$(jq -er '.ArtifactCount' "$index_path")"
-if [[ "$artifact_count" -ne "$spv_count" || "$artifact_count" -ne "$abi_count" || "$artifact_count" -ne "$shader_count" ]]; then
-  printf 'artifact count mismatch: index=%s spv=%s abi=%s shader=%s\n' \
+blocked_count="$(jq -er '[.Cases[] | select(.Status != "passed")] | length' "$index_path")"
+missing_diagnostics="$(jq -er '[.Cases[] | select(.Status != "passed") | select((.Diagnostic // "") == "")] | length' "$index_path")"
+if [[ "$artifact_count" -ne "$spv_count" || "$artifact_count" -ne "$abi_count" || "$missing_diagnostics" -ne 0 ]]; then
+  printf 'artifact sidecar count mismatch: index=%s spv=%s abi=%s shader=%s\n' \
     "$artifact_count" "$spv_count" "$abi_count" "$shader_count" >&2
+  if [[ "$missing_diagnostics" -ne 0 ]]; then
+    printf 'blocked cases without diagnostics: %s\n' "$missing_diagnostics" >&2
+  fi
   exit 65
 fi
 
@@ -72,3 +78,6 @@ mv "$staging_dir" "$output_dir"
 trap - EXIT
 printf 'Published %s validated Maths conformance artifacts to %s\n' \
   "$artifact_count" "$output_dir"
+if [[ "$blocked_count" -ne 0 ]]; then
+  printf '%s cases retain exact compiler diagnostics in index.json\n' "$blocked_count"
+fi

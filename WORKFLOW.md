@@ -59,11 +59,12 @@ This emits generated C# fixtures, GLSL 460, SPIR-V, resolved `ShaderAbi`
 (`*.abi.json`) sidecars, source manifests (`*.shader.json`) and `index.json`.
 The script builds Maths and the Tool from the current checkout, validates the
 artifact/sidecar counts, and requires the handoff `shader-contract.json`,
-`shader-conformance.json`, `glslangValidator`, `spirv-val` and `jq`; it fails
-with a diagnostic instead of silently skipping a case. Generated binaries are
-ignored by Git. Platform-specific `packages.lock.json` changes caused by
-restore are dependency metadata and are reviewed separately from this
-artifact publication.
+`shader-conformance.json`, `glslangValidator`, `spirv-val` and `jq`. Cases that
+the current compiler/backend cannot lower remain in `index.json` with their
+exact diagnostic; they are never silently emitted as artifacts. Generated
+binaries are ignored by Git. Platform-specific `packages.lock.json` changes
+caused by restore are dependency metadata and are reviewed separately from
+this artifact publication.
 
 Inspect emitted GLSL and manifest as well as test totals. `dotnet test` and
 `MSBuildWorkspace` need local IPC; a sandbox `SocketException`/named-pipe denial
