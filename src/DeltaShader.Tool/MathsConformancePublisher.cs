@@ -15,6 +15,16 @@ internal static class MathsConformancePublisher
 {
     private static readonly HashSet<string> OperationNames = new(StringComparer.Ordinal)
     {
+        "abs",
+        "min",
+        "max",
+        "clamp",
+        "sqrt",
+        "sin",
+        "dot",
+        "cross",
+        "length",
+        "normalize",
         "Abs",
         "Min",
         "Max",
