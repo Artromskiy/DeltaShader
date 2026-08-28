@@ -8,8 +8,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\DeltaShader\DeltaShader.csproj" />
-    <ProjectReference Include="..\..\..\DeltaMaths\DeltaMaths.csproj">
+    <ProjectReference Include="..\DeltaShader\DeltaShader.csproj" />
+    <ProjectReference Include="..\..\DeltaMaths\DeltaMaths.csproj">
       <SetTargetFramework>TargetFramework=netstandard2.1</SetTargetFramework>
     </ProjectReference>
   </ItemGroup>

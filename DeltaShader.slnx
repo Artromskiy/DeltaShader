@@ -16,6 +16,7 @@
   <Project Path="src/DeltaShader.Contract/DeltaShader.Contract.csproj" />
   <Project Path="src/DeltaShader.Tool/DeltaShader.Tool.csproj" />
   <Project Path="src/DeltaShader.Text/DeltaShader.Text.csproj" />
+  <Project Path="src/DeltaShader.ShadertoyGallery/DeltaShader.ShadertoyGallery.csproj" />
   <Project Path="tests/DeltaShader.Compiler.ReferenceFixtures/DeltaShader.Compiler.ReferenceFixtures.csproj" />
   <Project Path="tests/DeltaShader.Compiler.Tests/DeltaShader.Compiler.Tests.csproj" />
   <Project Path="tests/DeltaShader.Golden.Tests/DeltaShader.Golden.Tests.csproj" />

@@ -20,7 +20,7 @@ public sealed class ShadertoyGalleryTests
     public async Task InternalGallery_HasFiftyTraceableFixtures_AndCompilesToVulkanGlsl()
     {
         var shaderRoot = FindShaderRoot();
-        var catalogPath = Path.Combine(shaderRoot, "tests", "DeltaShader.ShadertoyGallery", "gallery", "catalog.json");
+        var catalogPath = Path.Combine(shaderRoot, "src", "DeltaShader.ShadertoyGallery", "gallery", "catalog.json");
         var catalogJson = await File.ReadAllTextAsync(catalogPath).ConfigureAwait(true);
         var catalog = JsonSerializer.Deserialize<GalleryCatalog>(catalogJson, CatalogJsonOptions);
 
@@ -30,7 +30,7 @@ public sealed class ShadertoyGalleryTests
         Assert.Equal(catalog.Entries.Count, catalog.Entries.Select(entry => entry.SourceIdentifier).Distinct(StringComparer.Ordinal).Count());
         Assert.Equal(catalog.Entries.Count, catalog.Entries.Select(entry => entry.EntryPoint).Distinct(StringComparer.Ordinal).Count());
 
-        var galleryRoot = Path.Combine(shaderRoot, "tests", "DeltaShader.ShadertoyGallery");
+        var galleryRoot = Path.Combine(shaderRoot, "src", "DeltaShader.ShadertoyGallery");
         foreach (var entry in catalog.Entries)
         {
             Assert.Equal("compiled", entry.Status);
@@ -91,7 +91,7 @@ public sealed class ShadertoyGalleryTests
         while (current is not null)
         {
             if (File.Exists(Path.Combine(current.FullName, "DeltaShader.slnx")) &&
-                Directory.Exists(Path.Combine(current.FullName, "tests", "DeltaShader.ShadertoyGallery")))
+                Directory.Exists(Path.Combine(current.FullName, "src", "DeltaShader.ShadertoyGallery")))
             {
                 return current.FullName;
             }
@@ -99,7 +99,7 @@ public sealed class ShadertoyGalleryTests
             current = current.Parent;
         }
 
-        throw new DirectoryNotFoundException("Unable to locate the DeltaShader-ShadertoyGallery checkout.");
+        throw new DirectoryNotFoundException("Unable to locate the DeltaShader Shadertoy gallery project.");
     }
 
 #pragma warning disable CA1812 // System.Text.Json creates the catalog DTOs through reflection.
