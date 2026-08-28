@@ -4,7 +4,7 @@ Review date: 2026-08-25.
 
 This is a contract-boundary review, not a claim that the producer/consumer
 migration is complete. The normative final handoff is
-[docs/final-artifact-contract.md](docs/final-artifact-contract.md) together
+[final-artifact-contract.md](final-artifact-contract.md) together
 with `src/DeltaShader.Contract`.
 
 ## Current findings
@@ -54,5 +54,5 @@ runtime boundary.
 The previous contents of this file described the 2026-08-18 restore, GLSL
 syntax, entry-point, fixture and diagnostic review. Those findings were
 subsequently remediated and are not a current task list. Selected remaining
-work is maintained in [TODO.md](TODO.md); build and validation commands live in
-[WORKFLOW.md](WORKFLOW.md).
+work is maintained in [../TODO.md](../TODO.md); build and validation commands
+live in [../WORKFLOW.md](../WORKFLOW.md).

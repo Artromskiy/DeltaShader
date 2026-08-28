@@ -3,7 +3,7 @@
 Scope: Roslyn validation, typed shader IR, GLSL 460/SPIR-V generation and the
 runtime-neutral `ShaderArtifact` ABI.
 
-- [README.md](README.md) — stable public authoring/compiler contract.
+- [docs/README.md](docs/README.md) — stable public authoring/compiler contract.
 - [docs/final-artifact-contract.md](docs/final-artifact-contract.md) — immutable
   final DeltaShader-to-DeltaRender handoff.
 - [TODO.md](TODO.md) — selected compiler work.

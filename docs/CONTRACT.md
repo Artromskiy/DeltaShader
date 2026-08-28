@@ -5,7 +5,7 @@ boundary. It is not a C# shader authoring guide and does not expose compiler
 implementation.
 
 The frozen authoritative contract is
-[docs/final-artifact-contract.md](docs/final-artifact-contract.md). Its CLR
+[final-artifact-contract.md](final-artifact-contract.md). Its CLR
 declarations live only in `src/DeltaShader.Contract` under the
 `Delta.Shader.Contract` namespace.
 

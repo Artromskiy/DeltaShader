@@ -10,7 +10,7 @@
   <ItemGroup>
     <ProjectReference Include="..\\..\\src\\DeltaShader.Compiler\\DeltaShader.Compiler.csproj" />
     <ProjectReference Include="..\\..\\src\\DeltaShader.Analyzers\\DeltaShader.Analyzers.csproj" />
-    <ProjectReference Include="..\\..\\..\\DeltaMaths\\DeltaMaths.csproj" />
+    <ProjectReference Include="..\\..\\..\\DeltaMaths\\src\\DeltaMaths\\DeltaMaths.csproj" />
     <ProjectReference Include="..\\DeltaShader.Compiler.ReferenceFixtures\\DeltaShader.Compiler.ReferenceFixtures.csproj" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />

@@ -6,16 +6,9 @@ project_name="${LAYOUT_PROJECT_NAME:-$(basename "$repo_root")}"
 required_directories=(
     src
     tests
-    benchmarks
-    samples
-    probes
-    playground
-    tools
-    adr
     docs
     eng
-    artifacts
-    assets
+    DeltaShaderPlayground
 )
 failed=0
 
@@ -29,7 +22,7 @@ done
 
 while IFS= read -r tracked_directory; do
     case "$tracked_directory" in
-        .github|src|tests|benchmarks|samples|probes|playground|tools|adr|docs|eng|artifacts|assets)
+        .github|src|tests|docs|eng|DeltaShaderPlayground)
             ;;
         *)
             printf 'layout: unexpected tracked top-level directory: %s\n' "$tracked_directory" >&2

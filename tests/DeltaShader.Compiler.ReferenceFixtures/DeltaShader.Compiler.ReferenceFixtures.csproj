@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../../DeltaMaths/DeltaMaths.csproj" />
+    <ProjectReference Include="../../../DeltaMaths/src/DeltaMaths/DeltaMaths.csproj" />
     <ProjectReference Include="../../src/DeltaShader/DeltaShader.csproj" />
   </ItemGroup>
 </Project>

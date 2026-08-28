@@ -2,19 +2,17 @@
 
 ## Repository layout gate
 
-The repository must follow the shared first-party layout documented in the
-Furnace project standard. Before restore/build or a structural handoff, run:
+The repository follows the project-local layout in
+[docs/repository-layout.md](docs/repository-layout.md). Before restore/build
+or a structural handoff, run:
 
 ```bash
 ./eng/check-layout.sh
 ```
 
-The gate checks the mandatory top-level directories, rejects unexpected
-tracked top-level folders, requires src/DeltaShader/ as the primary source
-project, and requires source siblings to use the src/DeltaShader.<Area>/ form.
-samples/ contains runnable examples; probes/ contains bounded
-headless/compiler/contract checks. Empty mandatory domains stay tracked with
-.gitkeep.
+The gate checks the required top-level directories, rejects unexpected tracked
+top-level folders, requires `src/DeltaShader/` as the primary source project,
+and requires source siblings to use the `src/DeltaShader.<Area>/` form.
 
 Restore once, then use bounded Release checks:
 

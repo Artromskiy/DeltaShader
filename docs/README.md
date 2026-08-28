@@ -22,12 +22,17 @@ Public documentation:
 - [USER_API.md](USER_API.md) describes C# shader authoring.
 - [CONTRACT.md](CONTRACT.md) indexes the frozen DeltaShader-to-consumer
   artifact contract.
-- [docs/diagnostics.md](docs/diagnostics.md) lists compiler and analyzer
+- [repository-layout.md](repository-layout.md) defines the project
+  folder and project-boundary layout.
+- [diagnostics.md](diagnostics.md) lists compiler and analyzer
   diagnostics.
 
 Developer documentation:
 
 - [INTERNAL.md](INTERNAL.md) describes compiler and publication boundaries.
-- [WORKFLOW.md](WORKFLOW.md) contains bounded build, test and validation
+- [../WORKFLOW.md](../WORKFLOW.md) contains bounded build, test and validation
   commands.
-- [TODO.md](TODO.md) contains selected migration work.
+- [../TODO.md](../TODO.md) contains selected migration work.
+
+The playground guide is in [playground.md](playground.md), and the contract
+project notes are in [contract-project.md](contract-project.md).

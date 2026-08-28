@@ -17,8 +17,8 @@ for command_name in dotnet glslangValidator spirv-val jq; do
   fi
 done
 
-if [[ ! -f "$maths_root/DeltaMaths.csproj" ]]; then
-  printf 'DeltaMaths project not found: %s\n' "$maths_root/DeltaMaths.csproj" >&2
+if [[ ! -f "$maths_root/src/DeltaMaths/DeltaMaths.csproj" ]]; then
+  printf 'DeltaMaths project not found: %s\n' "$maths_root/src/DeltaMaths/DeltaMaths.csproj" >&2
   exit 66
 fi
 
@@ -34,7 +34,7 @@ rm -rf "$staging_dir"
 mkdir -p "$staging_dir"
 trap 'rm -rf "$staging_dir"' EXIT
 
-dotnet build "$maths_root/DeltaMaths.csproj" -c Release \
+dotnet build "$maths_root/src/DeltaMaths/DeltaMaths.csproj" -c Release \
   --disable-build-servers -m:1 /p:UseSharedCompilation=false -v:minimal
 
 dotnet build "$conformance_project" -c Release \
