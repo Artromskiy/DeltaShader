@@ -11,7 +11,7 @@ internal static class Example30_DancyTreeDoodle
     {
         var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution) * 2f - new float2(1f, 1f);
         p.x = p.x * context.Constants.Resolution.x / context.Constants.Resolution.y;
-        var trunk = maths.exp(-maths.abs(p.x + 0.08f * maths.sin(p.y * 8f + context.Constants.Time)) * 55f) * (1f - maths.smoothStep(0.55f, 0.9f, maths.abs(p.y)));
+        var trunk = maths.exp(-maths.abs(p.x + 0.08f * maths.sin(p.y * 8f + context.Constants.Time)) * 55f) * (1f - maths.smoothstep(0.55f, 0.9f, maths.abs(p.y)));
         var branches = 0f;
         for (var branch = 0f; branch < 5f; branch += 1f)
         {
@@ -19,7 +19,7 @@ internal static class Example30_DancyTreeDoodle
             var span = 0.2f + (branch + 1f) * 0.09f;
             var sway = 0.08f * maths.sin(context.Constants.Time * 1.4f + branch);
             var line = maths.abs((p.x - sway) * maths.cos(branch * 0.5f) + (p.y - level) * maths.sin(branch * 0.5f));
-            var extent = 1f - maths.smoothStep(span, span + 0.08f, maths.abs(p.x));
+            var extent = 1f - maths.smoothstep(span, span + 0.08f, maths.abs(p.x));
             branches += maths.exp(-line * 85f) * extent;
         }
         var crown = maths.exp(-maths.dot(p - new float2(0f, 0.5f), p - new float2(0f, 0.5f)) * 8f);

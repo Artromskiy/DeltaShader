@@ -57,8 +57,9 @@ The optional positional arguments remain available for an explicit catalog:
 
 This emits generated C# fixtures, GLSL 460, SPIR-V, resolved `ShaderAbi`
 (`*.abi.json`) sidecars, source manifests (`*.shader.json`) and `index.json`.
-The script builds Maths and the Tool from the current checkout, validates the
-artifact/sidecar counts, and requires the handoff `shader-contract.json`,
+The script builds Maths, the DeltaMaths conformance project, and the Tool from
+the current checkout, validates that every supported handoff case has a
+matching artifact/sidecar set, and requires the handoff `shader-contract.json`,
 `shader-conformance.json`, `glslangValidator`, `spirv-val` and `jq`. Cases that
 the current compiler/backend cannot lower remain in `index.json` with their
 exact diagnostic; they are never silently emitted as artifacts. Generated

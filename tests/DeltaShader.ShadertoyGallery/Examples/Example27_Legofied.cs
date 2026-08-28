@@ -12,7 +12,7 @@ internal static class Example27_Legofied
         var uv = new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution;
         var grid = uv * 9f + new float2(context.Constants.Time * 0.08f, -context.Constants.Time * 0.05f);
         var cell = new float2(grid.x - maths.floor(grid.x) - 0.5f, grid.y - maths.floor(grid.y) - 0.5f);
-        var seam = 1f - maths.smoothStep(0.38f, 0.49f, maths.max(maths.abs(cell.x), maths.abs(cell.y)));
+        var seam = 1f - maths.smoothstep(0.38f, 0.49f, maths.max(maths.abs(cell.x), maths.abs(cell.y)));
         var tile = new float2(maths.floor(grid.x), maths.floor(grid.y));
         var phase = maths.sin(maths.dot(tile, new float2(12.7f, 28.3f)));
         var red = 0.5f + 0.5f * maths.sin(phase * 5f + 0.8f);

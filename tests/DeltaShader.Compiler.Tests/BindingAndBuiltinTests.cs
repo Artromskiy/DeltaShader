@@ -487,6 +487,47 @@ public sealed class BindingAndBuiltinTests
             diagnostic.Message.Contains("Shader builtin 'VertexIndex' is not valid in Fragment stage", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task GraphicsHelper_AllowsDeltaMathsFieldSwizzles()
+    {
+        const string source = @"
+            using Delta.Maths;
+            using Delta.Shader;
+
+            [Interstage]
+            public struct FragmentPayload
+            {
+                [Position]
+                public float4 Position;
+            }
+
+            public readonly struct FragmentContext
+            {
+                [Interstage]
+                public readonly FragmentPayload Fragment;
+            }
+
+            public static class SwizzleHelperShader
+            {
+                [FragmentShader]
+                public static float4 Fragment(in FragmentContext context)
+                {
+                    return ReadCandidate(new float4(1f, 2f, 3f, 4f));
+                }
+
+                private static float4 ReadCandidate(float4 candidate)
+                {
+                    return new float4(candidate.z, candidate.y, candidate.x, candidate.w);
+                }
+            }";
+
+        Compilation compilation = await LoadCompilationAsync(source).ConfigureAwait(true);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        Assert.Contains(result.Module!.HelperFunctions, helper => helper.Contains(".z", StringComparison.Ordinal));
+    }
+
     private static async Task<Compilation> LoadCompilationAsync(string source)
     {
         if (!MSBuildLocator.IsRegistered)

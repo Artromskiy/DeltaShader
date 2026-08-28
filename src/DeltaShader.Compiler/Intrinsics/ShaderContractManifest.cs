@@ -96,8 +96,14 @@ public sealed class ShaderContractFunction
     [JsonPropertyName("parameterClrNames")]
     public IReadOnlyList<string> ParameterClrNames { get; set; } = Array.Empty<string>();
 
+    [JsonPropertyName("parameterGlslTypes")]
+    public IReadOnlyList<string?> ParameterGlslTypes { get; set; } = Array.Empty<string?>();
+
     [JsonPropertyName("returnClrName")]
     public string ReturnClrName { get; set; } = string.Empty;
+
+    [JsonPropertyName("returnGlslType")]
+    public string? ReturnGlslType { get; set; }
 
     [JsonPropertyName("glslName")]
     public string? GlslName { get; set; }

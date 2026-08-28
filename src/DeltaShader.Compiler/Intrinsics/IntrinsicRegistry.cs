@@ -21,7 +21,9 @@ public sealed record IntrinsicBinding(
     string GlslName,
     string ShaderStage = "compute",
     string? RequiredCapability = null,
-    IReadOnlyList<string>? ShaderStages = null)
+    IReadOnlyList<string>? ShaderStages = null,
+    IReadOnlyList<string?>? ParameterGlslTypes = null,
+    string? ReturnGlslType = null)
 {
     public bool SupportsStage(ShaderStage stage)
     {
@@ -37,13 +39,16 @@ public sealed class IntrinsicRegistry
 {
     private readonly Dictionary<ISymbol, IntrinsicBinding> _methodsAndProperties;
     private readonly Dictionary<ITypeSymbol, string> _types;
+    private readonly ShaderContractManifest _contract;
 
     private IntrinsicRegistry(
         Dictionary<ISymbol, IntrinsicBinding> methodsAndProperties,
-        Dictionary<ITypeSymbol, string> types)
+        Dictionary<ITypeSymbol, string> types,
+        ShaderContractManifest contract)
     {
         _methodsAndProperties = methodsAndProperties;
         _types = types;
+        _contract = contract;
     }
 
     public static IntrinsicRegistry Build(Compilation compilation, ShaderContractManifest? contract = null)
@@ -106,14 +111,16 @@ public sealed class IntrinsicRegistry
                     category,
                     glslFunctionName,
                     RequiredCapability: functionContract.RequiredCapability,
-                    ShaderStages: functionContract.Stages);
+                    ShaderStages: functionContract.Stages,
+                    ParameterGlslTypes: functionContract.ParameterGlslTypes,
+                    ReturnGlslType: functionContract.ReturnGlslType);
             }
         }
 
         RegisterOwnedShaderIntrinsics(methods, compilation);
         RegisterShaderBuiltins(methods, compilation);
         RegisterDeltaMathsFacadeBuiltins(methods, types, compilation, contract);
-        return new IntrinsicRegistry(methods, types);
+        return new IntrinsicRegistry(methods, types, contract);
     }
 
     private static bool IsSupportedMapping(ShaderContractMapping mapping)
@@ -133,6 +140,14 @@ public sealed class IntrinsicRegistry
             if (!property.IsIndexer && property.Parameters.Length == 0 && IsKnownSwizzle(property.Name))
             {
                 methods[property] = new IntrinsicBinding(IntrinsicCategory.Swizzle, property.Name);
+            }
+        }
+
+        foreach (var field in type.GetMembers().OfType<IFieldSymbol>())
+        {
+            if (!field.IsStatic && IsKnownSwizzle(field.Name))
+            {
+                methods[field] = new IntrinsicBinding(IntrinsicCategory.Swizzle, field.Name);
             }
         }
 
@@ -315,50 +330,86 @@ public sealed class IntrinsicRegistry
             return;
         }
 
-        var glslBuiltins = new HashSet<string>(StringComparer.Ordinal)
-        {
-            "abs", "acos", "asin", "atan", "ceil", "clamp", "cos", "cross", "distance", "dot",
-            "exp", "floor", "length", "max", "min", "mix", "normalize", "pow", "round", "sign",
-            "sin", "smoothstep", "smoothStep", "sqrt", "step", "tan"
-        };
         var facadeContracts = contract.Functions
             .Where(function => string.Equals(function.TypeClrName, "maths", StringComparison.Ordinal))
             .ToArray();
+        var fallbackNames = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["abs"] = "abs",
+            ["acos"] = "acos",
+            ["asin"] = "asin",
+            ["atan"] = "atan",
+            ["ceil"] = "ceil",
+            ["clamp"] = "clamp",
+            ["cos"] = "cos",
+            ["cross"] = "cross",
+            ["distance"] = "distance",
+            ["dot"] = "dot",
+            ["exp"] = "exp",
+            ["floor"] = "floor",
+            ["length"] = "length",
+            ["max"] = "max",
+            ["min"] = "min",
+            ["normalize"] = "normalize",
+            ["pow"] = "pow",
+            ["round"] = "roundEven",
+            ["sign"] = "sign",
+            ["sin"] = "sin",
+            ["sqrt"] = "sqrt",
+            ["step"] = "step",
+            ["tan"] = "tan",
+            ["smoothstep"] = "smoothstep"
+        };
         foreach (var method in mathsType.GetMembers().OfType<IMethodSymbol>())
         {
-            if (!method.IsStatic || method.MethodKind != MethodKind.Ordinary || !glslBuiltins.Contains(method.Name) ||
-                !IsGlslValue(method.ReturnType, mappedTypes) || !method.Parameters.All(parameter => IsGlslValue(parameter.Type, mappedTypes)))
+            if (!method.IsStatic || method.MethodKind != MethodKind.Ordinary)
             {
                 continue;
             }
 
-            var methodContracts = facadeContracts
-                .Where(function => string.Equals(function.ClrName, method.Name, StringComparison.Ordinal))
-                .ToArray();
-            var matchingContract = methodContracts.FirstOrDefault(function => Matches(method, function));
+            var matchingContract = facadeContracts.FirstOrDefault(function => Matches(method, function));
             if (matchingContract is not null)
             {
-                if (!IsSupportedMapping(matchingContract.Mapping) || matchingContract.GlslName is not { Length: > 0 } glslName)
+                if (IsSupportedMapping(matchingContract.Mapping) &&
+                    matchingContract.GlslName is { Length: > 0 } glslName)
                 {
-                    continue;
+                    methods[method] = new IntrinsicBinding(
+                        IntrinsicCategory.Function,
+                        glslName,
+                        RequiredCapability: matchingContract.RequiredCapability,
+                        ShaderStages: matchingContract.Stages,
+                        ParameterGlslTypes: matchingContract.ParameterGlslTypes,
+                        ReturnGlslType: matchingContract.ReturnGlslType);
                 }
 
-                methods[method] = new IntrinsicBinding(IntrinsicCategory.Function, glslName);
+                continue;
+            }
+
+            if (!fallbackNames.TryGetValue(method.Name, out var fallbackName)
+                || !IsGlslValue(method.ReturnType, mappedTypes)
+                || method.Parameters.Any(parameter => !IsGlslValue(parameter.Type, mappedTypes)))
+            {
                 continue;
             }
 
             methods[method] = new IntrinsicBinding(
                 IntrinsicCategory.Function,
-                string.Equals(method.Name, "smoothStep", StringComparison.Ordinal) ? "smoothstep" : method.Name);
+                fallbackName,
+                ShaderStages: new[] { "compute", "vertex", "fragment" });
         }
     }
 
     private static bool IsGlslValue(ITypeSymbol type, Dictionary<ITypeSymbol, string> mappedTypes)
         => type.SpecialType == SpecialType.System_Single || mappedTypes.ContainsKey(type);
 
+    public IReadOnlyList<string> GetGlslHelperFunctions(
+        ShaderStage stage,
+        IEnumerable<string> sourceFragments)
+        => ShaderContractHelperEmitter.Emit(_contract, stage, sourceFragments);
+
     private static bool IsKnownSwizzle(string name)
     {
-        if (name.Length == 1 || name.Length > 4)
+        if (name.Length == 0 || name.Length > 4)
         {
             return false;
         }

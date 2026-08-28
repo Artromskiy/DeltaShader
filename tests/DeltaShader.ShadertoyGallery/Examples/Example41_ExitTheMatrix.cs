@@ -15,7 +15,7 @@ internal static class Example41_ExitTheMatrix
         var column = maths.floor(grid.x);
         var drift = context.Constants.Time * (0.7f + 0.08f * maths.sin(column * 4.1f));
         var trail = 0.5f + 0.5f * maths.sin((grid.y - drift) * 5.2f + column * 1.8f);
-        var glyph = 1f - maths.smoothStep(0.13f, 0.24f, maths.abs(cell.x + 0.08f * maths.sin(column)));
+        var glyph = 1f - maths.smoothstep(0.13f, 0.24f, maths.abs(cell.x + 0.08f * maths.sin(column)));
         var head = maths.exp(-maths.abs(grid.y - drift - trail * 0.2f) * 3.5f);
         var intensity = maths.clamp(glyph * (0.15f + trail * 0.35f + head * 0.8f), 0f, 1f);
         return new float4(0.005f + intensity * 0.02f, 0.04f + intensity * 0.64f, 0.025f + intensity * 0.18f, 1f);

@@ -894,9 +894,21 @@ internal static class ShaderBodyTranslator
                 }
                 if (binding.GlslName is "*" or "/" or "+" or "-")
                 {
-                    return base.VisitInvocationExpression(node);
+                    var operatorExpression = CreateOperatorExpression(binding, glslArguments);
+                    if (operatorExpression is null)
+                    {
+                        Reason ??= $"Operator intrinsic '{symbol.Name}' has an unsupported arity.";
+                        return base.VisitInvocationExpression(node);
+                    }
+
+                    return SyntaxFactory.ParseExpression(operatorExpression);
                 }
-                return SyntaxFactory.ParseExpression(binding.GlslName + "(" + string.Join(", ", glslArguments) + ")");
+
+                var intrinsicArguments = GetIntrinsicArguments(binding, glslArguments);
+                var glslName = string.Equals(binding.GlslName, "round", StringComparison.Ordinal)
+                    ? "roundEven"
+                    : binding.GlslName;
+                return SyntaxFactory.ParseExpression(glslName + "(" + string.Join(", ", intrinsicArguments) + ")");
             }
             if (symbol is not null && _helperNames.TryGetValue(symbol.OriginalDefinition, out var helperName))
             {
@@ -904,6 +916,68 @@ internal static class ShaderBodyTranslator
             }
             Reason ??= "Unsupported method call in shader body.";
             return base.VisitInvocationExpression(node);
+        }
+
+        private static string? CreateOperatorExpression(
+            IntrinsicBinding binding,
+            IEnumerable<string> arguments)
+        {
+            var values = arguments.ToArray();
+            var operatorToken = binding.GlslName;
+            if (values.Length == 2)
+            {
+                if (binding.ParameterGlslTypes is { Count: 2 } parameterTypes)
+                {
+                    if (IsVectorType(parameterTypes[0]) && parameterTypes[1] == "float")
+                    {
+                        values[1] = parameterTypes[0] + "(" + values[1] + ")";
+                    }
+                    else if (parameterTypes[0] == "float" && IsVectorType(parameterTypes[1]))
+                    {
+                        values[0] = parameterTypes[1] + "(" + values[0] + ")";
+                    }
+                }
+
+                return "(" + values[0] + " " + operatorToken + " " + values[1] + ")";
+            }
+
+            if (values.Length == 1 && (operatorToken == "+" || operatorToken == "-"))
+            {
+                return "(" + operatorToken + values[0] + ")";
+            }
+
+            return null;
+        }
+
+        private static IReadOnlyList<string> GetIntrinsicArguments(
+            IntrinsicBinding binding,
+            IEnumerable<string> arguments)
+        {
+            var values = arguments.ToArray();
+            if (!string.Equals(binding.GlslName, "atan", StringComparison.Ordinal)
+                || binding.ParameterGlslTypes is not { Count: 2 } parameterTypes
+                || values.Length != 2)
+            {
+                return values;
+            }
+
+            if (IsVectorType(parameterTypes[0]) && parameterTypes[1] == "float")
+            {
+                values[1] = parameterTypes[0] + "(" + values[1] + ")";
+            }
+            else if (parameterTypes[0] == "float" && IsVectorType(parameterTypes[1]))
+            {
+                values[0] = parameterTypes[1] + "(" + values[0] + ")";
+            }
+
+            return values;
+        }
+
+        private static bool IsVectorType(string? glslType)
+        {
+            return glslType is "vec2" or "vec3" or "vec4"
+                or "ivec2" or "ivec3" or "ivec4"
+                or "uvec2" or "uvec3" or "uvec4";
         }
 
         public override SyntaxNode? VisitObjectCreationExpression(ObjectCreationExpressionSyntax node)
@@ -1018,11 +1092,13 @@ internal static class ShaderBodyTranslator
                 return null;
             }
 
-            if (node.Type.IsVar && node.Variables.Count == 1)
+            if (node.Variables.Count == 1)
             {
-                var type = node.Variables[0].Initializer is { } initializer
-                    ? _model.GetTypeInfo(initializer.Value).Type
-                    : null;
+                var type = node.Type.IsVar
+                    ? node.Variables[0].Initializer is { } initializer
+                        ? _model.GetTypeInfo(initializer.Value).Type
+                        : null
+                    : _model.GetTypeInfo(node.Type).Type;
                 if (type is INamedTypeSymbol namedType && _structNames.TryGetValue(namedType, out var structName))
                 {
                     return rewritten.WithType(SyntaxFactory.ParseTypeName(structName));

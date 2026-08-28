@@ -180,7 +180,11 @@ public static class ComputeEntryPoints
             Requirements = [$"Vulkan {resultOptions.Profile}", $"GLSL {resultOptions.Glsl}", $"SPIRV {resultOptions.Spirv}"],
             Instructions = new[] { "entrypoint " + entry.Name },
             Body = body,
-            HelperFunctions = helperFunctions,
+            HelperFunctions = context.Intrinsics.GetGlslHelperFunctions(
+                    ShaderStage.Compute,
+                    new[] { body }.Concat(helperFunctions))
+                .Concat(helperFunctions)
+                .ToArray(),
             UsesBuiltinInvocationId = usesBuiltinInvocationId,
             InvocationParameterName = null,
             PushConstants = pushConstants
@@ -257,6 +261,13 @@ public static class ComputeEntryPoints
             foreach (var identifier in helperBody.DescendantNodesAndSelf().OfType<IdentifierNameSyntax>())
             {
                 var symbol = model.GetSymbolInfo(identifier).Symbol;
+                if (symbol is not null &&
+                    context.Intrinsics.TryGetIntrinsic(symbol, out var memberBinding) &&
+                    memberBinding.Category is IntrinsicCategory.Builtin or IntrinsicCategory.Swizzle)
+                {
+                    continue;
+                }
+
                 if (symbol is IFieldSymbol field && !field.HasConstantValue)
                 {
                     failureReason = $"Compute shader helper '{definition.Name}' captures managed field '{field.Name}'.";

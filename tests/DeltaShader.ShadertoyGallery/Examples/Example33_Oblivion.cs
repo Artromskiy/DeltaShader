@@ -20,7 +20,7 @@ internal static class Example33_Oblivion
             rings += maths.exp(-maths.abs(maths.sin(phase)) * 14f) / (ring + 1f);
         }
         var singularity = maths.exp(-radius * radius * 80f);
-        var vignette = 1f - maths.smoothStep(0.5f, 1.3f, radius);
+        var vignette = 1f - maths.smoothstep(0.5f, 1.3f, radius);
         return new float4(0.005f + rings * 0.03f + singularity * 0.02f, 0.008f + rings * 0.06f + singularity * 0.18f, 0.02f + rings * 0.12f + singularity * 0.58f, 1f) * vignette;
     }
 }

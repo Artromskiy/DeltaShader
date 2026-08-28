@@ -1107,7 +1107,7 @@ public class IntrinsicCatalogTests
                     var texel = context.Atlas.Sample<float2, float4>(context.Fragment.Uv);
                     var median = maths.max(maths.min(texel.x, texel.y), maths.min(maths.max(texel.x, texel.y), texel.z));
                     var edge = ShaderIntrinsics.fwidth(median - 0.5f);
-                    var coverage = 1f - maths.smoothStep(-edge, edge, median - 0.5f);
+                    var coverage = 1f - maths.smoothstep(-edge, edge, median - 0.5f);
                     return context.Parameters.TextColor * coverage + context.Parameters.OutlineColor * (1f - coverage) * context.Parameters.OutlineWidth;
                 }
             }";
@@ -1277,7 +1277,7 @@ public class IntrinsicCatalogTests
                     var texel = context.Atlas.Sample<float2, float4>(context.Fragment.Uv);
                     var distance = texel.x - 0.5f;
                     var edge = ShaderIntrinsics.fwidth(distance);
-                    var coverage = 1f - maths.smoothStep(-edge, edge, distance);
+                    var coverage = 1f - maths.smoothstep(-edge, edge, distance);
                     return context.Parameters.TextColor * context.Fragment.GlyphColor * coverage;
                 }
             }";

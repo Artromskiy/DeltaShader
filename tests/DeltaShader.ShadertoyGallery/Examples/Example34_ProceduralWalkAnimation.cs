@@ -13,7 +13,7 @@ internal static class Example34_ProceduralWalkAnimation
         p.x = p.x * context.Constants.Resolution.x / context.Constants.Resolution.y;
         var cycle = context.Constants.Time * 2.2f;
         var stride = maths.sin(cycle);
-        var torso = maths.exp(-maths.abs(p.x + 0.03f * stride) * 70f) * (1f - maths.smoothStep(0.35f, 0.72f, maths.abs(p.y)));
+        var torso = maths.exp(-maths.abs(p.x + 0.03f * stride) * 70f) * (1f - maths.smoothstep(0.35f, 0.72f, maths.abs(p.y)));
         var head = maths.exp(-maths.dot(p - new float2(0.03f + 0.03f * stride, 0.48f), p - new float2(0.03f + 0.03f * stride, 0.48f)) * 85f);
         var legs = 0f;
         for (var leg = 0f; leg < 2f; leg += 1f)
@@ -21,7 +21,7 @@ internal static class Example34_ProceduralWalkAnimation
             var side = leg * 2f - 1f;
             var swing = side * 0.23f * stride;
             var line = maths.abs((p.x - swing) * (0.45f + side * 0.08f) + (p.y + 0.3f) * (0.9f - side * 0.08f));
-            var reach = 1f - maths.smoothStep(0.28f, 0.62f, maths.length(p - new float2(swing, -0.34f)));
+            var reach = 1f - maths.smoothstep(0.28f, 0.62f, maths.length(p - new float2(swing, -0.34f)));
             legs += maths.exp(-line * 95f) * reach;
         }
         var ground = maths.exp(-maths.abs(p.y + 0.62f) * 65f) * (0.35f + 0.65f * (0.5f + 0.5f * maths.sin(p.x * 9f)));

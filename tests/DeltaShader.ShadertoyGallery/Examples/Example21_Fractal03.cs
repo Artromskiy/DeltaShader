@@ -21,7 +21,7 @@ internal static class Example21_Fractal03
             q = q * inversion + new float2(0.08f * maths.sin(context.Constants.Time), -0.06f);
             glow += maths.exp(-maths.abs(maths.length(q) - 0.34f) * (18f + fold * 4f));
         }
-        var vignette = 1f - maths.smoothStep(0.72f, 1.35f, maths.length(p));
+        var vignette = 1f - maths.smoothstep(0.72f, 1.35f, maths.length(p));
         return new float4(0.12f + glow * 0.07f, 0.03f + glow * 0.18f, 0.2f + glow * 0.55f, 1f) * vignette;
     }
 }

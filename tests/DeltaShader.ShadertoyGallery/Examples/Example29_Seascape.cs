@@ -22,7 +22,7 @@ internal static class Example29_Seascape
             weight = weight * 0.55f;
         }
         var horizon = 0.02f + (height - 0.4f) * 0.35f;
-        var water = 1f - maths.smoothStep(horizon - 0.02f, horizon + 0.02f, p.y);
+        var water = 1f - maths.smoothstep(horizon - 0.02f, horizon + 0.02f, p.y);
         var foam = maths.exp(-maths.abs(p.y - horizon) * 55f);
         return new float4(0.03f + water * 0.02f + foam * 0.5f, 0.08f + water * 0.25f + foam * 0.35f, 0.18f + water * 0.45f + foam * 0.18f, 1f);
     }

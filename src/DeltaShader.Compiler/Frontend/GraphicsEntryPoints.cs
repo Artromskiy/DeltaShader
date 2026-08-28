@@ -503,7 +503,11 @@ internal static class GraphicsEntryPoints
             Requirements = [$"Vulkan {options.Profile}", $"GLSL {options.Glsl}", $"SPIRV {options.Spirv}"],
             Instructions = new[] { "entrypoint " + entry.Name },
             Body = body,
-            HelperFunctions = helperFunctions,
+            HelperFunctions = context.Intrinsics.GetGlslHelperFunctions(
+                    entry.Stage,
+                    new[] { body }.Concat(helperFunctions))
+                .Concat(helperFunctions)
+                .ToArray(),
             Inputs = inputs,
             VertexInputs = vertexInputs,
             VertexBuffers = vertexBuffers,
@@ -599,16 +603,17 @@ internal static class GraphicsEntryPoints
             foreach (var identifier in helperBody.DescendantNodesAndSelf().OfType<IdentifierNameSyntax>())
             {
                 var symbol = model.GetSymbolInfo(identifier).Symbol;
+                if (symbol is not null &&
+                    context.Intrinsics.TryGetIntrinsic(symbol, out var memberBinding) &&
+                    memberBinding.Category is IntrinsicCategory.Builtin or IntrinsicCategory.Swizzle)
+                {
+                    continue;
+                }
+
                 if (symbol is IFieldSymbol field && !field.HasConstantValue && !pushFieldMap.ContainsKey(field) && !structFields.ContainsKey(field))
                 {
                     failureReason = $"Shader helper '{definition.Name}' captures managed field '{field.Name}'.";
                     return false;
-                }
-                if (symbol is IPropertySymbol property &&
-                    context.Intrinsics.TryGetIntrinsic(property, out var propertyBinding) &&
-                    propertyBinding.Category is IntrinsicCategory.Builtin or IntrinsicCategory.Swizzle)
-                {
-                    continue;
                 }
 
                 if (symbol is IPropertySymbol)

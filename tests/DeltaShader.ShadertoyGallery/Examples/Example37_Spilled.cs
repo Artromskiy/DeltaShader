@@ -20,7 +20,7 @@ internal static class Example37_Spilled
             var delta = p - center;
             drops += maths.exp(-maths.dot(delta, delta) * (80f - drop * 5f));
             var trailDistance = maths.abs(delta.y + 0.28f * maths.sin(delta.x * 8f + phase));
-            trails += maths.exp(-trailDistance * 70f) * (1f - maths.smoothStep(0.12f, 0.8f, maths.abs(delta.x)));
+            trails += maths.exp(-trailDistance * 70f) * (1f - maths.smoothstep(0.12f, 0.8f, maths.abs(delta.x)));
         }
         var sheen = 0.5f + 0.5f * maths.sin(p.x * 15f + p.y * 4f);
         return new float4(0.025f + drops * 0.32f + trails * 0.08f, 0.04f + drops * 0.15f + trails * 0.18f, 0.08f + drops * 0.05f + trails * 0.42f + sheen * 0.03f, 1f);
