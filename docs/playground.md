@@ -1,11 +1,11 @@
-# DeltaShaderPlayground
+# DeltaShader.Playground
 
 Small user-facing project for writing C# compute shaders and immediately
 checking their Vulkan artifacts.
 
 `Compute.cs` and `AddBias.cs` contain two editable compute entry points:
 
-- `DoubleValues`: `output[id] = input[id] * 2u + 1u`;
+- `SequenceMovement`: `output[id] = output[id] + input[id]`;
 - `AddBias`: `output[id] = input[id] + 7u`.
 
 `Jfa.cs` contains the graphics form of the original JFA outline flow:
@@ -40,14 +40,14 @@ after `glslangValidator` and `spirv-val` succeed.
 Both shader modules reference the sibling `DeltaMaths` project and can use its
 canonical `Delta.Maths` types directly.
 
-Open `DeltaShaderPlayground.slnx` in VS Code, then use `Ctrl+Shift+B`, or run
-`dotnet build DeltaShaderPlayground.csproj -c Release`. The solution includes
-both shader modules and the sibling `DeltaMaths` project, so the C# language
-server resolves `Delta.Maths` in the editor. Generated files are written to the ignored `artifacts/`
-directory as `DoubleValues.comp.*` and `AddBias.comp.*`.
+Open `DeltaShader.slnx` in VS Code, then use `Ctrl+Shift+B`, or run
+`dotnet build src/DeltaShader.Playground/DeltaShader.Playground.csproj -c Release`. The solution includes
+builds the `AddBias` module. The project references the sibling `DeltaMaths` project,
+so the C# language server resolves `Delta.Maths` in the editor. Generated files are written to the ignored `artifacts/`
+directory as `SequenceMovement.comp.*` and `AddBias.comp.*`.
 
 The production contract is a compile-time static shader method; managed state,
 implicit captures and closures are rejected. See
-[../DeltaShaderPlayground/WORKFLOW.md](../DeltaShaderPlayground/WORKFLOW.md) for
-the bounded command and [../DeltaShaderPlayground/TODO.md](../DeltaShaderPlayground/TODO.md)
+[../WORKFLOW.md](../WORKFLOW.md) for
+the bounded command and [../TODO.md](../TODO.md)
 for selected example work.

@@ -8,7 +8,6 @@ required_directories=(
     tests
     docs
     eng
-    DeltaShaderPlayground
 )
 failed=0
 
@@ -22,7 +21,7 @@ done
 
 while IFS= read -r tracked_directory; do
     case "$tracked_directory" in
-        .github|src|tests|docs|eng|DeltaShaderPlayground)
+        .github|src|tests|docs|eng)
             ;;
         *)
             printf 'layout: unexpected tracked top-level directory: %s\n' "$tracked_directory" >&2

@@ -1,0 +1,8 @@
+<Project>
+  <Target Name="CompileAndValidatePlaygroundShaders"
+          AfterTargets="Build"
+          Condition="'$(MSBuildProjectName)' == 'DeltaShader.Playground' and '$(DesignTimeBuild)' != 'true' and '$(DeltaShaderSkipValidation)' != 'true'">
+    <Exec Command="sh &quot;$(MSBuildProjectDirectory)/build-artifacts.sh&quot;"
+          WorkingDirectory="$(MSBuildProjectDirectory)" />
+  </Target>
+</Project>
