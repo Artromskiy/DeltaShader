@@ -87,3 +87,18 @@ added here.
 GLSL and JSON remain explicit build/inspection sidecars. They are not an
 alternate runtime boundary and are not required by a consumer that already
 has final SPIR-V plus `ShaderAbi`.
+
+## Composite compiler model (proposed)
+
+The composition design is documented in
+[shader-composition.md](shader-composition.md). Its implementation must keep
+layer payloads as compiler-side typed patches and resolve them into one final
+vertex/fragment interface. Full Roslyn symbol identity is used for source
+resolution; only stable semantic IDs, resolved types and physical locations
+are emitted into the final `ShaderAbi`.
+
+Context merging and interstage merging are separate operations. Context merging
+collects live resources, host inputs and push-constant values for the selected
+composite. Interstage merging performs backward demand analysis, chain
+forwarding and dead-field elimination. Neither operation may match fields by
+short name or introduce a second runtime ABI.

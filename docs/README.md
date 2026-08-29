@@ -28,6 +28,8 @@ Public documentation:
   diagnostics.
 - [ui-shader-contract.md](ui-shader-contract.md) defines the canonical
   rectangle shader sources and resolved push-constant ABI.
+- [shader-composition.md](shader-composition.md) records the proposed
+  compile-time typed layer-composition model.
 
 Developer documentation:
 

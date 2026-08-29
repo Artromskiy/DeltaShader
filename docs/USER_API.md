@@ -226,6 +226,19 @@ The vertex payload is intentionally one structure rather than a separate
 boundary, while the surrounding context keeps resources and constants
 separate from that data.
 
+## Composite shaders (proposed)
+
+Typed shader composition is not part of the current stable authoring surface.
+The proposed editor workflow selects ordered vertex and fragment layers, then
+DeltaShader emits one final artifact and ABI. Semantic fields are matched by
+their full semantic type identity, not by field name; omitted layer fields are
+forwarded unchanged and unused fields are removed from the physical interface.
+The complete design is in [shader-composition.md](shader-composition.md).
+
+This proposal does not add runtime C# composition or several Vulkan entry
+points per draw. Until the compiler slice is implemented, use the current
+single static vertex/fragment entry-point API above.
+
 Compile-time `const` values remain inlined and do not become context fields or
 bindings. Values supplied by host code must be explicitly annotated as push
 constants or declared resources.

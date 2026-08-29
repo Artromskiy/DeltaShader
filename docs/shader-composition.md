@@ -1,0 +1,203 @@
+# Shader composition design
+
+This document describes the proposed compile-time shader-composition model. It
+is design documentation, not a claim that the current compiler already accepts
+this surface. The current single-entry-point API remains documented in
+[USER_API.md](USER_API.md).
+
+## Goal
+
+A composite is an editor-selected ordered set of independent vertex and
+fragment/material shader layers. DeltaShader compiles that set into one final
+vertex module, one final fragment module, one `ShaderArtifact` and one resolved
+`ShaderAbi`. Runtime does not combine C# shaders or execute several Vulkan
+entry points for one draw.
+
+```text
+editor layer selection
+    -> typed semantic dataflow
+    -> one logical composite state
+    -> one vertex/fragment interface
+    -> one ShaderArtifact + ShaderAbi
+```
+
+## Semantic value types
+
+Interstage matching uses the full symbol identity of a semantic value type, not
+the CLR field name and not the underlying scalar/vector shape. Standard types
+are supplied for common meanings:
+
+```text
+Position
+Uv0
+Uv1
+Color
+WorldPosition
+WorldNormal
+Tangent
+```
+
+Two user types containing the same `float2` are not implicitly compatible. A
+user-defined semantic type or an explicit compiler adapter is required for an
+intentional conversion.
+
+The compiler uses Roslyn symbol identity while composing. The final artifact
+stores a stable semantic/port identity together with the resolved type and
+physical location. Raw Roslyn symbols never cross the runtime boundary.
+
+## Payloads are typed patches
+
+An interstage payload is a set of values produced or changed by one layer. It
+does not have to repeat the complete composite state.
+
+```csharp
+public struct InterstageVertex
+{
+    public Position Position;
+    public Uv0 Uv;
+    public VertexColor VertexColor;
+}
+
+public struct InterstageUvAnimation
+{
+    public Uv0 Uv;
+}
+
+public struct InterstageFragment
+{
+    public Color Color;
+}
+```
+
+The semantic types provide field meaning, so field names are not used to match
+ports. A payload that omits `Color` forwards the previous value; it does not
+clear or overwrite it.
+
+`Position` is special: exactly one vertex output must provide it and it lowers
+to `gl_Position`. It is not an ordinary varying. `Color` is the required final
+fragment semantic: at least one fragment-side payload must provide or carry it
+to the final fragment result. A separate `FragmentOutput` wrapper is not
+required.
+
+## Stage contexts
+
+Contexts are input declarations for one composite, not interstage storage.
+They may contain different fields in different stages:
+
+```csharp
+public readonly struct VertexContext
+{
+    public InterstageVertex Input;
+    public ObjectColors ObjectColors;
+    public FrameConstants Frame;
+}
+
+public readonly struct FragmentContext
+{
+    public Uv0 Uv;
+    public Color Color;
+    public FrameConstants Frame;
+    public MainTexture Texture;
+}
+```
+
+The context merger uses full type/member identity. It collects fields used by
+selected layers, removes dead fields, merges equal declarations and reports
+conflicting types or resource meanings. Contexts are not required to be
+structurally identical.
+
+In the target design, a user-defined resource type carries its resource kind,
+element type and access contract. The composite compiler assigns descriptor
+coordinates after composition. A value context type supplies push-constant
+data after liveness analysis. Explicit layout markers are therefore not needed
+in the canonical composite surface; resolved coordinates and byte layout remain
+visible in `ShaderAbi`.
+
+## Composition and chain behavior
+
+The editor selects layers by their full source symbols and preserves their
+explicit order. A layer can read, write or leave a semantic untouched:
+
+```text
+Geometry layer:
+  produces Position, Uv0, VertexColor
+
+UV animation layer:
+  reads/writes Uv0
+  forwards Position and VertexColor
+
+Texture layer:
+  reads Uv0 and Color
+  writes Color
+
+Final fragment layer:
+  reads Color
+  provides the final fragment Color
+```
+
+The default merge policy is `chain`. A later layer does not need to write a
+field merely because it appears in an earlier payload. The logical composite
+state keeps the last produced value and forwards it until a later layer reads
+or changes it. If no downstream stage reads a field, liveness analysis removes
+it from the physical interface.
+
+The compiler starts from final fragment requirements and resolves producers
+back through the layer chain. A required semantic is reported only when no
+earlier producer, host-provided input, builtin or explicit constant/provider
+can supply it. Duplicate writers are valid when their order and chain behavior
+are explicit; ambiguous or cyclic dependencies are diagnostics.
+
+## Final ShaderAbi
+
+The ABI has visibly separate external-input and interstage sections:
+
+```text
+VertexInputs
+  semantic, type, location, binding, offset, stride, format, required-by-host
+
+Interstage
+  semantic, type, location, producer, consumer, interpolation, required-by-chain
+
+Resources
+  semantic/type identity, set, binding, kind, access, stage visibility, layout
+
+PushConstants
+  type/member identity, offset, alignment, size, stage visibility
+```
+
+Vertex inputs and interstage values use the same shader-visible semantic types,
+but vertex inputs additionally describe how the host supplies the bytes.
+Interstage locations are assigned after composition and may differ between
+composites. The host reads the selected artifact ABI; it does not assume global
+locations, bindings or strides.
+
+Only live fields are emitted. This reduces interpolation and bandwidth cost
+without changing logical chain semantics. Unsupported vertex formats, missing
+required host inputs and resource conflicts prevent artifact publication rather
+than being silently ignored.
+
+## Editor and runtime ownership
+
+The editor owns layer selection, composition requests and the cache key. A
+composition key includes selected source identities, their order, relevant
+contract fingerprints and backend/profile. DeltaShader owns validation, semantic
+resolution, lowering, ABI generation and artifact publication.
+
+DeltaRender receives only the final `ShaderArtifact` and `ShaderAbi`; it owns
+pipeline creation, descriptor allocation and GPU lifetime. Runtime C#
+transpilation and runtime layer merging are not part of this design.
+
+## Required implementation slices
+
+The compiler work needed to make this design real is bounded to:
+
+1. represent semantic typed patches and full-symbol layer selection;
+2. resolve context/resource declarations without field-name matching;
+3. perform producer lookup, chain forwarding and dead-field elimination;
+4. emit one final vertex output and fragment input interface;
+5. generate the final ABI and typed packers from that ABI;
+6. add diagnostics for missing producers, duplicate/ambiguous writers, cycles,
+   type conflicts and unsupported stage declarations.
+
+No second runtime ABI, Vulkan-specific authoring type or runtime compiler is
+needed.
