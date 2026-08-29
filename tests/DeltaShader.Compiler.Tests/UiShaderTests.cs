@@ -48,14 +48,15 @@ public sealed class UiShaderTests
         var fragmentPush = Assert.Single(roundedFragment.BuildManifest.PushConstants);
         Assert.Equal("main", roundedFragment.BuildManifest.EntryPointName);
         Assert.Empty(roundedFragment.BuildManifest.Resources);
-        Assert.Equal(80u, fragmentPush.Size);
+        Assert.Equal(96u, fragmentPush.Size);
         Assert.Equal(16u, fragmentPush.Alignment);
         Assert.Equal(0u, Assert.Single(fragmentPush.Members, member => member.Name == "Resolution").Offset);
         Assert.Equal(16u, Assert.Single(fragmentPush.Members, member => member.Name == "Rect").Offset);
         Assert.Equal(32u, Assert.Single(fragmentPush.Members, member => member.Name == "FillColor").Offset);
         Assert.Equal(48u, Assert.Single(fragmentPush.Members, member => member.Name == "BorderColor").Offset);
-        Assert.Equal(64u, Assert.Single(fragmentPush.Members, member => member.Name == "CornerRadius").Offset);
-        Assert.Equal(68u, Assert.Single(fragmentPush.Members, member => member.Name == "BorderWidth").Offset);
+        Assert.Equal(64u, Assert.Single(fragmentPush.Members, member => member.Name == "CornerRadii").Offset);
+        Assert.Equal(80u, Assert.Single(fragmentPush.Members, member => member.Name == "BorderWidth").Offset);
+        Assert.Equal(96u, fragmentPush.Size);
 
         var fragmentGlsl = GlslEmitter.EmitFromModule(fragmentModule).Source;
         Assert.Contains("#version 460", fragmentGlsl, StringComparison.Ordinal);
@@ -63,6 +64,9 @@ public sealed class UiShaderTests
         Assert.Contains("smoothstep", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("BorderColor", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("FillColor", fragmentGlsl, StringComparison.Ordinal);
+        Assert.Contains("1 - smoothstep(-edge, edge, distance)", fragmentGlsl, StringComparison.Ordinal);
+        Assert.Contains("1 - smoothstep(-edge, edge, distance +", fragmentGlsl, StringComparison.Ordinal);
+        Assert.Contains("max(fillCoverage - innerCoverage, 0)", fragmentGlsl, StringComparison.Ordinal);
         Assert.Equal("main", vertexManifest.EntryPointName);
         Assert.Single(vertexManifest.Outputs, output => output.Builtin == "Position");
         Assert.Single(vertexManifest.Outputs, output => output.Name == "Uv");
@@ -90,8 +94,11 @@ public sealed class UiShaderTests
         Assert.Contains("WriteFloat(0u, value.Resolution.x)", generatedSource, StringComparison.Ordinal);
         Assert.Contains("WriteFloat(16u, value.Rect.x)", generatedSource, StringComparison.Ordinal);
         Assert.Contains("WriteFloat(32u, value.FillColor.x)", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("WriteFloat(64u, value.CornerRadius)", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("WriteFloat(68u, value.BorderWidth)", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("WriteFloat(64u, value.CornerRadii.x)", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("WriteFloat(68u, value.CornerRadii.y)", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("WriteFloat(72u, value.CornerRadii.z)", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("WriteFloat(76u, value.CornerRadii.w)", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("WriteFloat(80u, value.BorderWidth)", generatedSource, StringComparison.Ordinal);
     }
 
     private static async Task<Compilation> LoadUiCompilationAsync()

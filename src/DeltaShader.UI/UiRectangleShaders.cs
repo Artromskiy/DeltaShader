@@ -2,7 +2,7 @@ using Delta.Maths;
 using Delta.Shader;
 using static Delta.Maths.maths;
 
-namespace Delta.Shader.Ui;
+namespace Delta.Shader.UI;
 
 public struct SolidRectangleParameters
 {
@@ -46,7 +46,7 @@ public struct RoundedRectangleParameters
     public float4 Rect = default;
     public float4 FillColor = default;
     public float4 BorderColor = default;
-    public float CornerRadius = default;
+    public float4 CornerRadii = default;
     public float BorderWidth = default;
 
     public RoundedRectangleParameters()
@@ -150,7 +150,23 @@ public static class UiRectangleShaders
         float2 pixel = context.Fragment.Uv * size;
         float2 halfSize = size * 0.5f;
         float2 centered = pixel - halfSize;
-        float radius = context.Parameters.CornerRadius;
+        float radius = context.Parameters.CornerRadii.x;
+        if (centered.x > 0f)
+        {
+            if (centered.y > 0f)
+            {
+                radius = context.Parameters.CornerRadii.z;
+            }
+            else
+            {
+                radius = context.Parameters.CornerRadii.y;
+            }
+        }
+        else if (centered.y > 0f)
+        {
+            radius = context.Parameters.CornerRadii.w;
+        }
+
         float2 q = abs(centered) - halfSize + new float2(radius, radius);
         float2 outside = max(q, 0f);
         float outsideDistance = length(outside);
