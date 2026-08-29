@@ -45,6 +45,33 @@ or dispatch API.
 The conversion is intentionally strict. Unknown resource categories or ABI
 types fail publication rather than producing a partially described artifact.
 
+## Generated host packing
+
+Typed host packing belongs to DeltaShader tooling and generated application
+code, not to `DeltaShader.Contract` and not to DeltaRender's Vulkan layer.
+The generator consumes the resolved layout already produced for `ShaderAbi`
+and emits direct typed helpers for concrete authoring values:
+
+- push-constant values are written at their resolved member offsets;
+- storage-buffer elements use their resolved struct and array strides;
+- vertex values use the resolved binding stride and attribute offsets;
+- readback helpers decode the same layouts in reverse.
+
+Generated code must make padding and ownership visible, preserve column-major
+matrix semantics, and reject managed/reference fields and ambiguous CLR
+representations. It must not infer GPU layout from CLR sequential layout,
+reflection, `Marshal.SizeOf`, raw struct copies or a second manifest.
+
+The Render-side adapter receives packed bytes plus the final artifact. It owns
+resource allocation, upload/readback, descriptors and device-limit checks;
+DeltaShader does not reference Vulkan or DeltaRender. `UiTextDraw` and its
+paint semantics remain producer data in DeltaXAML, while atlas pages, UVs,
+glyph instances and distance-range interpretation remain Render-owned.
+
+`ShaderAbi` already expresses the layout required by this design. No new
+neutral runtime contract type is justified until an actual missing invariant
+is demonstrated and separately approved.
+
 ## Ownership
 
 DeltaShader owns compiler validation, lowering, final artifact construction
