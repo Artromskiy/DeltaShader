@@ -68,6 +68,32 @@ public sealed class UiShaderTests
         Assert.Single(vertexManifest.Outputs, output => output.Name == "Uv");
     }
 
+    [Fact]
+    public async Task GeneratedUiFactoriesExposeDirectPushRootPackers()
+    {
+        Compilation compilation = await LoadUiCompilationAsync().ConfigureAwait(true);
+        Assert.DoesNotContain(
+            compilation.GetDiagnostics(),
+            diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+
+        var generatedSource = string.Join(
+            Environment.NewLine,
+            compilation.SyntaxTrees.Select(tree => tree.GetText().ToString()));
+
+        Assert.Contains("PackSolidRectangleVertexParameters", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("PackSolidRectangleFragmentParameters", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("WriteFloat(0u, value.Resolution.x)", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("WriteFloat(16u, value.Rect.x)", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("WriteFloat(32u, value.Color.x)", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("PackRoundedRectangleVertexParameters", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("PackRoundedRectangleFragmentParameters", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("WriteFloat(0u, value.Resolution.x)", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("WriteFloat(16u, value.Rect.x)", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("WriteFloat(32u, value.FillColor.x)", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("WriteFloat(64u, value.CornerRadius)", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("WriteFloat(68u, value.BorderWidth)", generatedSource, StringComparison.Ordinal);
+    }
+
     private static async Task<Compilation> LoadUiCompilationAsync()
     {
         if (!MSBuildLocator.IsRegistered)
@@ -76,10 +102,10 @@ public sealed class UiShaderTests
         }
 
         using MSBuildWorkspace workspace = MSBuildWorkspace.Create();
-        string projectPath = Path.Combine(FindRepositoryRoot(), "src", "DeltaShader.Ui", "DeltaShader.Ui.csproj");
+        string projectPath = Path.Combine(FindRepositoryRoot(), "src", "DeltaShader.UI", "DeltaShader.UI.csproj");
         Project project = await workspace.OpenProjectAsync(projectPath).ConfigureAwait(true);
         Compilation? compilation = await project.GetCompilationAsync().ConfigureAwait(true);
-        return compilation ?? throw new InvalidOperationException("DeltaShader.Ui compilation was not created.");
+        return compilation ?? throw new InvalidOperationException("DeltaShader.UI compilation was not created.");
     }
 
     private static string FindRepositoryRoot()

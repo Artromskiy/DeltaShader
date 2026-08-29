@@ -77,6 +77,19 @@ internal static class ArtifactSourceEmitter
 
             if (rootField is not null)
             {
+                var rootOperations = new StringBuilder();
+                if (!TryEmitMembers(pushConstant.Members, rootType, "value", 0u, rootOperations, out reason))
+                {
+                    return false;
+                }
+
+                AppendPackMethod(
+                    methods,
+                    "Pack" + stem + SanitizeIdentifier(rootField.Name),
+                    FullyQualifiedType(rootType),
+                    pushConstant.Size,
+                    rootOperations);
+
                 var unpackOperations = new StringBuilder();
                 if (TryEmitUnpackMembers(pushConstant.Members, rootType, "value", 0u, unpackOperations, out _))
                 {
