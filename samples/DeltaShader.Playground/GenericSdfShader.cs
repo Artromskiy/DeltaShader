@@ -92,10 +92,10 @@ public struct SpaceTwist : ISdfModifier
     {
         float c = maths.cos(Amount * p.y + time);
         float s = maths.sin(Amount * p.y + time);
-        
+
         // Rotate around the Y axis without requiring a 2x2 matrix ABI type.
         float2 rotated = new float2(c * p.x - s * p.z, s * p.x + c * p.z);
-        
+
         return new float3(rotated.x, p.y, rotated.y);
     }
 }
@@ -116,7 +116,7 @@ public struct SpaceInfRepeat : ISdfModifier
 // ============================================================================
 
 // Комбинирует Модификатор и Форму на уровне типов. Полностью unmanaged.
-public struct ModifiedShape<TModifier, TShape> : ISdfShape 
+public struct ModifiedShape<TModifier, TShape> : ISdfShape
     where TModifier : unmanaged, ISdfModifier
     where TShape : unmanaged, ISdfShape
 {
@@ -164,7 +164,7 @@ public struct Raymarcher<TScene> where TScene : unmanaged, ISdfShape
 
         float3 baseColor = new float3(0.1f, 0.4f, 0.8f);
         float3 glowColor = new float3(0.9f, 0.2f, 0.6f);
-        
+
         // Смешиваем базовый цвет по глубине и добавляем объемное свечение
         float3 finalColor = maths.lerp(new float3(0.02f, 0.02f, 0.05f), baseColor, maths.exp(-0.1f * t));
         return finalColor + glowColor * glow * 0.25f;
@@ -203,10 +203,10 @@ public static class GenericShaderPipeline
         // СБОРКА СЦЕНЫ НА СТАТИЧЕСКИХ ДЖЕНЕРИКАХ
         // Скручиваем (Twist) бесконечно повторяющийся (InfRepeat) куб (Box)
         // --------------------------------------------------------------------
-        
+
         // 1. Создаем примитив
         SdfBox box = new SdfBox { Size = new float3(0.4f, 0.4f, 0.4f) };
-        
+
         // 2. Оборачиваем в бесконечный повторитель пространства
         var repeatedBox = new ModifiedShape<SpaceInfRepeat, SdfBox>
         {

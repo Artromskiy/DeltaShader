@@ -8,6 +8,7 @@ required_directories=(
     tests
     docs
     eng
+    samples
 )
 failed=0
 
@@ -21,7 +22,7 @@ done
 
 while IFS= read -r tracked_directory; do
     case "$tracked_directory" in
-        .github|src|tests|docs|eng)
+        .github|src|tests|docs|eng|samples)
             ;;
         *)
             printf 'layout: unexpected tracked top-level directory: %s\n' "$tracked_directory" >&2

@@ -16,7 +16,7 @@ fi
 
 mkdir -p "$OUT"
 for project in DeltaShader.Playground.csproj DeltaShader.Playground.AddBias.csproj; do
-    if ! dotnet run --project "$ROOT/../DeltaShader.Tool/DeltaShader.Tool.csproj" \
+    if ! dotnet run --project "$ROOT/../../src/DeltaShader.Tool/DeltaShader.Tool.csproj" \
         -c Release -- \
         build "$ROOT/$project" \
         --profile vulkan1.2 --spirv 1.5 --glsl 460 --out "$OUT"; then

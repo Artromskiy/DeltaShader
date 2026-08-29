@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Program.cs" />
+    <Compile Remove="Compute.cs" />
+    <Compile Remove="tools/**/*.cs" />
+    <ProjectReference Include="../../src/DeltaShader/DeltaShader.csproj" />
+    <ProjectReference Include="../../src/DeltaShader.Contract/DeltaShader.Contract.csproj" />
+    <ProjectReference Include="../../../DeltaMaths/src/DeltaMaths/DeltaMaths.csproj">
+      <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
+    </ProjectReference>
+    <ProjectReference Include="../../src/DeltaShader.Analyzers/DeltaShader.Analyzers.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+    <Analyzer Include="../../src/DeltaShader.Analyzers/bin/$(Configuration)/netstandard2.0/DeltaShader.Analyzers.dll" />
+    <Analyzer Include="../../src/DeltaShader/bin/$(Configuration)/netstandard2.0/DeltaShader.dll" />
+    <Analyzer Include="../../src/DeltaShader.Compiler/bin/$(Configuration)/netstandard2.0/DeltaShader.Compiler.dll" />
+    <Analyzer Include="../../src/DeltaShader.Backend.Glsl/bin/$(Configuration)/netstandard2.0/DeltaShader.Backend.Glsl.dll" />
+  </ItemGroup>
+</Project>

@@ -201,6 +201,19 @@ public static class ShaderVisibleTypeValidation
             return;
         }
 
+        if (type.TypeKind == TypeKind.Enum)
+        {
+            if (!ShaderEnumSupport.TryMap(type, out _))
+            {
+                AddIssue(
+                    owner ?? type,
+                    $"Shader-visible enum '{type.ToDisplayString()}' must use a supported 32-bit int or uint underlying type.",
+                    issues);
+            }
+
+            return;
+        }
+
         if (type is not INamedTypeSymbol namedType || namedType.TypeKind != TypeKind.Struct)
         {
             return;

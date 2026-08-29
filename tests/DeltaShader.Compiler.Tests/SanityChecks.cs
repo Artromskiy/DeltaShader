@@ -2042,6 +2042,442 @@ public class IntrinsicCatalogTests
         Assert.Contains(unsupported, diagnostic => diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture).Contains("mutable state", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public async Task Compute_MapsSupportedEnumConstantsToGlslScalars()
+    {
+        const string source = @"
+            using Delta.Shader;
+            public enum Operation : byte { Add = 3 }
+            public struct ComputeContext
+            {
+                [Layout(0, 0)] public ReadOnlyStorageBuffer<uint> Input;
+                [Layout(0, 1)] public ReadWriteStorageBuffer<uint> Output;
+            }
+            public static class EnumShader
+            {
+                [ComputeShader(localSizeX: 64)]
+                public static void Compute(in ComputeContext context)
+                {
+                    uint id = ShaderBuiltins.GlobalInvocationId.X;
+                    Operation operation = Operation.Add;
+                    context.Output[id] = context.Input[id] + (uint)operation;
+                }
+            }";
+
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        Assert.Contains("uint", result.Module!.Body, StringComparison.Ordinal);
+        Assert.Contains("3u", result.Module.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain("Operation", result.Module.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Compute_Rejects64BitEnumStorageAbi()
+    {
+        const string source = @"
+            using Delta.Shader;
+            public enum WideOperation : long { Add = 3 }
+            public struct ComputeContext
+            {
+                [Layout(0, 0)] public ReadOnlyStorageBuffer<uint> Input;
+                [Layout(0, 1)] public ReadWriteStorageBuffer<uint> Output;
+                [PushConstant] public WideOperation Operation;
+            }
+            public static class EnumShader
+            {
+                [ComputeShader(localSizeX: 64)]
+                public static void Compute(in ComputeContext context)
+                {
+                    uint id = ShaderBuiltins.GlobalInvocationId.X;
+                    context.Output[id] = context.Input[id];
+                }
+            }";
+
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Message.Contains("enum", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Compute_LowersInstanceMethodOnValueStructWithReceiver()
+    {
+        const string source = @"
+            using Delta.Shader;
+            public struct Calculator
+            {
+                public uint Bias;
+                public uint Add(uint value) => value + Bias;
+            }
+            public struct ComputeContext
+            {
+                [Layout(0, 0)] public ReadOnlyStorageBuffer<uint> Input;
+                [Layout(0, 1)] public ReadWriteStorageBuffer<uint> Output;
+            }
+            public static class InstanceShader
+            {
+                [ComputeShader(localSizeX: 64)]
+                public static void Compute(in ComputeContext context)
+                {
+                    uint id = ShaderBuiltins.GlobalInvocationId.X;
+                    Calculator calculator = new Calculator { Bias = 3u };
+                    context.Output[id] = calculator.Add(context.Input[id]);
+                }
+            }";
+
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        string emitted = string.Join(Environment.NewLine, result.Module!.HelperFunctions);
+        Assert.Contains("self", emitted, StringComparison.Ordinal);
+        Assert.Contains("member_Bias", emitted, StringComparison.Ordinal);
+        Assert.Contains("delta_helper_", emitted, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Compute_RejectsInstanceMethodOnReferenceType()
+    {
+        const string source = @"
+            using Delta.Shader;
+            public sealed class Calculator
+            {
+                public uint Add(uint value) => value + 1u;
+            }
+            public struct ComputeContext
+            {
+                [Layout(0, 0)] public ReadOnlyStorageBuffer<uint> Input;
+                [Layout(0, 1)] public ReadWriteStorageBuffer<uint> Output;
+            }
+            public static class InstanceShader
+            {
+                [ComputeShader(localSizeX: 64)]
+                public static void Compute(in ComputeContext context)
+                {
+                    uint id = ShaderBuiltins.GlobalInvocationId.X;
+                    Calculator calculator = new Calculator();
+                    context.Output[id] = calculator.Add(context.Input[id]);
+                }
+            }";
+
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Message.Contains("instance", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Compute_SpecializesGenericValueStructInstanceMethod()
+    {
+        const string source = @"
+            using Delta.Shader;
+            public interface IAdder
+            {
+                uint Add(uint value);
+            }
+            public struct Adder : IAdder
+            {
+                public uint Bias;
+                public uint Add(uint value) => value + Bias;
+            }
+            public struct Box<T> where T : unmanaged, IAdder
+            {
+                public T Worker;
+                public uint Apply(uint value) => Worker.Add(value);
+            }
+            public struct ComputeContext
+            {
+                [Layout(0, 0)] public ReadOnlyStorageBuffer<uint> Input;
+                [Layout(0, 1)] public ReadWriteStorageBuffer<uint> Output;
+            }
+            public static class GenericShader
+            {
+                [ComputeShader(localSizeX: 64)]
+                public static void Compute(in ComputeContext context)
+                {
+                    uint id = ShaderBuiltins.GlobalInvocationId.X;
+                    Box<Adder> box = new Box<Adder> { Worker = new Adder { Bias = 3u } };
+                    context.Output[id] = box.Apply(context.Input[id]);
+                }
+            }";
+
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        string emitted = string.Join(Environment.NewLine, result.Module!.HelperFunctions);
+        Assert.Contains("member_Bias", emitted, StringComparison.Ordinal);
+        Assert.DoesNotContain("IAdder", emitted, StringComparison.Ordinal);
+        Assert.DoesNotContain("Box<T>", emitted, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Compute_SpecializesClosedGenericMethodWithInterfaceConstraint()
+    {
+        const string source = @"
+            using Delta.Shader;
+            public interface IAdder
+            {
+                uint Add(uint value);
+            }
+            public struct Adder : IAdder
+            {
+                public uint Bias;
+                public uint Add(uint value) => value + Bias;
+            }
+            public static class GenericShader
+            {
+                public static uint Apply<T>(T worker, uint value) where T : unmanaged, IAdder
+                    => worker.Add(value);
+
+                public struct ComputeContext
+                {
+                    [Layout(0, 0)] public ReadOnlyStorageBuffer<uint> Input;
+                    [Layout(0, 1)] public ReadWriteStorageBuffer<uint> Output;
+                }
+
+                [ComputeShader(localSizeX: 64)]
+                public static void Compute(in ComputeContext context)
+                {
+                    uint id = ShaderBuiltins.GlobalInvocationId.X;
+                    context.Output[id] = Apply<Adder>(new Adder { Bias = 3u }, context.Input[id]);
+                }
+            }";
+
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        string emitted = string.Join(Environment.NewLine, result.Module!.HelperFunctions);
+        Assert.Contains("member_Bias", emitted, StringComparison.Ordinal);
+        Assert.DoesNotContain("IAdder", emitted, StringComparison.Ordinal);
+        Assert.DoesNotContain("<T>", emitted, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Compute_LowersStatelessValueStructInstanceMethodWithoutAbiReceiver()
+    {
+        const string source = @"
+            using Delta.Shader;
+            public readonly struct StatelessAdder
+            {
+                public uint Add(uint value) => value + 1u;
+            }
+            public struct ComputeContext
+            {
+                [Layout(0, 0)] public ReadOnlyStorageBuffer<uint> Input;
+                [Layout(0, 1)] public ReadWriteStorageBuffer<uint> Output;
+            }
+            public static class StatelessShader
+            {
+                [ComputeShader(localSizeX: 64)]
+                public static void Compute(in ComputeContext context)
+                {
+                    uint id = ShaderBuiltins.GlobalInvocationId.X;
+                    StatelessAdder adder = default;
+                    context.Output[id] = adder.Add(context.Input[id]);
+                }
+            }";
+
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        string emitted = string.Join(Environment.NewLine, result.Module!.HelperFunctions);
+        Assert.Contains("delta_helper_", emitted, StringComparison.Ordinal);
+        Assert.Contains("uint arg_value", emitted, StringComparison.Ordinal);
+        Assert.DoesNotContain("StatelessAdder self", emitted, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Compute_LowersReadableInstanceAutoPropertyAsStructMember()
+    {
+        const string source = @"
+            using Delta.Shader;
+            public struct Calculator
+            {
+                public uint Bias { get; set; }
+                public uint Add(uint value) => value + Bias;
+            }
+            public struct ComputeContext
+            {
+                [Layout(0, 0)] public ReadOnlyStorageBuffer<uint> Input;
+                [Layout(0, 1)] public ReadWriteStorageBuffer<uint> Output;
+            }
+            public static class PropertyShader
+            {
+                [ComputeShader(localSizeX: 64)]
+                public static void Compute(in ComputeContext context)
+                {
+                    uint id = ShaderBuiltins.GlobalInvocationId.X;
+                    Calculator calculator = new Calculator { Bias = 3u };
+                    context.Output[id] = calculator.Add(context.Input[id]);
+                }
+            }";
+
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        string emitted = string.Join(Environment.NewLine, result.Module!.HelperFunctions);
+        Assert.Contains("member_Bias", emitted, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Compute_LowersStaticExpressionBodiedProperty()
+    {
+        const string source = @"
+            using Delta.Shader;
+            public struct ComputeContext
+            {
+                [Layout(0, 0)] public ReadOnlyStorageBuffer<uint> Input;
+                [Layout(0, 1)] public ReadWriteStorageBuffer<uint> Output;
+            }
+            public static class PropertyShader
+            {
+                private static uint Scale => 3u;
+
+                [ComputeShader(localSizeX: 64)]
+                public static void Compute(in ComputeContext context)
+                {
+                    uint id = ShaderBuiltins.GlobalInvocationId.X;
+                    context.Output[id] = context.Input[id] * Scale;
+                }
+            }";
+
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        Assert.Contains("* 3u", result.Module!.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Compute_LowersInstanceExpressionBodiedAndStaticAutoProperties()
+    {
+        const string source = @"
+            using Delta.Shader;
+            public struct Calculator
+            {
+                public uint Bias;
+                public uint Doubled => Bias * 2u;
+            }
+            public struct ComputeContext
+            {
+                [Layout(0, 0)] public ReadOnlyStorageBuffer<uint> Input;
+                [Layout(0, 1)] public ReadWriteStorageBuffer<uint> Output;
+            }
+            public static class PropertyShader
+            {
+                private static uint Scale { get; } = 3u;
+
+                [ComputeShader(localSizeX: 64)]
+                public static void Compute(in ComputeContext context)
+                {
+                    uint id = ShaderBuiltins.GlobalInvocationId.X;
+                    Calculator calculator = new Calculator { Bias = context.Input[id] };
+                    context.Output[id] = calculator.Doubled * Scale;
+                }
+            }";
+
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        Assert.Contains("calculator.member_Bias", result.Module!.Body, StringComparison.Ordinal);
+        Assert.Contains("* 3u", result.Module.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Compute_RejectsPropertyMutationInInstanceHelper()
+    {
+        const string source = @"
+            using Delta.Shader;
+            public struct Calculator
+            {
+                public uint Bias { get; set; }
+                public uint Add(uint value)
+                {
+                    Bias = 2u;
+                    return value + Bias;
+                }
+            }
+            public struct ComputeContext
+            {
+                [Layout(0, 0)] public ReadOnlyStorageBuffer<uint> Input;
+                [Layout(0, 1)] public ReadWriteStorageBuffer<uint> Output;
+            }
+            public static class PropertyShader
+            {
+                [ComputeShader(localSizeX: 64)]
+                public static void Compute(in ComputeContext context)
+                {
+                    uint id = ShaderBuiltins.GlobalInvocationId.X;
+                    Calculator calculator = new Calculator { Bias = 3u };
+                    context.Output[id] = calculator.Add(context.Input[id]);
+                }
+            }";
+
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Message.Contains("mutate a property", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Graphics_SpecializesClosedGenericHelperWithValueStructInterface()
+    {
+        const string source = @"
+            using Delta.Maths;
+            using Delta.Shader;
+            public interface ITransform
+            {
+                float4 Apply(float4 value);
+            }
+            public struct Offset : ITransform
+            {
+                public float4 Delta;
+                public float4 Apply(float4 value) => value + Delta;
+            }
+            [Interstage]
+            public struct VertexPayload
+            {
+                [Position] public float4 Position;
+                public float4 Color;
+            }
+            public struct VertexContext
+            {
+                [Interstage] public VertexPayload Vertex;
+            }
+            public static class GenericGraphicsShader
+            {
+                public static float4 Apply<T>(T operation, float4 value) where T : unmanaged, ITransform
+                    => operation.Apply(value);
+
+                [VertexShader]
+                public static VertexPayload Vertex(in VertexContext context)
+                    => new VertexPayload
+                    {
+                        Position = Apply<Offset>(new Offset { Delta = new float4(1f, 0f, 0f, 0f) }, context.Vertex.Position),
+                        Color = context.Vertex.Color
+                    };
+            }";
+
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        string emitted = string.Join(Environment.NewLine, result.Module!.HelperFunctions);
+        Assert.Contains("member_Delta", emitted, StringComparison.Ordinal);
+        Assert.DoesNotContain("ITransform", emitted, StringComparison.Ordinal);
+        Assert.DoesNotContain("<T>", emitted, StringComparison.Ordinal);
+    }
+
     private static async Task<Compilation> LoadDeltaMathsCompilationAsync(string? extraSource = null)
     {
         var root = Path.Combine(FindRepositoryRoot(), "DeltaMaths", "DeltaMaths.csproj");
