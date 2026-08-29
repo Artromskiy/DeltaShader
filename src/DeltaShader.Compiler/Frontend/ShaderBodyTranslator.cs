@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text.RegularExpressions;
 using Delta.Shader;
@@ -29,7 +30,9 @@ internal static class ShaderBodyTranslator
         out string? reason,
         IReadOnlyDictionary<IParameterSymbol, string>? parameterMap = null,
         IReadOnlyCollection<IParameterSymbol>? outputParameters = null,
-        bool allowValueReturn = false)
+        bool allowValueReturn = false,
+        string? instanceReceiver = null,
+        IReadOnlyDictionary<IMethodSymbol, bool>? helperReceivers = null)
     {
         var rewriter = CreateComputeRewriter(
             model,
@@ -43,7 +46,22 @@ internal static class ShaderBodyTranslator
             structFields,
             structProperties,
             outputParameters,
-            allowValueReturn);
+            allowValueReturn,
+            instanceReceiver,
+            helperReceivers);
+        if (methodSyntax.Body is { } methodBlock)
+        {
+            rewriter.PredeclareOutLocals(methodBlock);
+        }
+        else if (methodSyntax.ExpressionBody?.Expression is { } expression &&
+                 rewriter.ContainsOutLocalDeclaration(expression))
+        {
+            translated = string.Empty;
+            usesBuiltin = false;
+            reason = "Expression-bodied shader methods cannot declare local out variables; use a block body.";
+            return false;
+        }
+
         var rewritten = methodSyntax.Body is { } body
             ? rewriter.Visit(body)
             : methodSyntax.ExpressionBody?.Expression is { } expression
@@ -60,6 +78,10 @@ internal static class ShaderBodyTranslator
         }
 
         translated = NormalizeComputeText(translated);
+        if (rewriter.OutDeclarations.Count != 0)
+        {
+            translated = string.Join("\n", rewriter.OutDeclarations) + "\n" + translated;
+        }
         usesBuiltin = rewriter.UsesBuiltin;
         reason = rewriter.Reason;
         return reason is null;
@@ -76,10 +98,26 @@ internal static class ShaderBodyTranslator
         IReadOnlyDictionary<IMethodSymbol, string> helperNames,
         out string translated,
         out bool usesBuiltin,
-        out string? reason)
+        out string? reason,
+        string? instanceReceiver = null,
+        IReadOnlyDictionary<INamedTypeSymbol, string>? structNames = null,
+        IReadOnlyDictionary<IFieldSymbol, string>? structFields = null,
+        IReadOnlyDictionary<IPropertySymbol, string>? structProperties = null,
+        IReadOnlyDictionary<IMethodSymbol, bool>? helperReceivers = null)
     {
         var rewriter = CreateComputeRewriter(model, context, contextParameter, resourceBindings,
-            parameterMap, locals, helperNames);
+            parameterMap, locals, helperNames, structNames, structFields, structProperties,
+            instanceReceiver: instanceReceiver,
+            helperReceivers: helperReceivers);
+        rewriter.PredeclareOutLocals(expression);
+        if (rewriter.OutDeclarations.Count != 0)
+        {
+            translated = string.Empty;
+            usesBuiltin = false;
+            reason = "Expression-bodied shader methods cannot declare local out variables; use a block body.";
+            return false;
+        }
+
         var rewritten = rewriter.Visit(expression);
         translated = NormalizeComputeText(rewritten?.ToFullString().Trim() ?? string.Empty);
         usesBuiltin = rewriter.UsesBuiltin;
@@ -99,7 +137,9 @@ internal static class ShaderBodyTranslator
         IReadOnlyDictionary<IFieldSymbol, string>? structFields = null,
         IReadOnlyDictionary<IPropertySymbol, string>? structProperties = null,
         IReadOnlyCollection<IParameterSymbol>? outputParameters = null,
-        bool allowValueReturn = false)
+        bool allowValueReturn = false,
+        string? instanceReceiver = null,
+        IReadOnlyDictionary<IMethodSymbol, bool>? helperReceivers = null)
     {
         var directFields = new Dictionary<IFieldSymbol, string>(SymbolEqualityComparer.Default);
         var pushFields = new Dictionary<IFieldSymbol, string>(SymbolEqualityComparer.Default);
@@ -165,7 +205,9 @@ internal static class ShaderBodyTranslator
             storageParameters,
             structProperties,
             outputParameters,
-            allowValueReturn);
+            allowValueReturn,
+            instanceReceiver,
+            helperReceivers);
     }
 
     private static bool IsStorageBufferType(ITypeSymbol type, ModuleCompilationContext context)
@@ -196,7 +238,10 @@ internal static class ShaderBodyTranslator
         IReadOnlyDictionary<IFieldSymbol, string>? directFields = null,
         IReadOnlyDictionary<IFieldSymbol, string>? outputFields = null,
         INamedTypeSymbol? returnType = null,
-        bool lowerReturns = false)
+        bool lowerReturns = false,
+        string? instanceReceiver = null,
+        IReadOnlyDictionary<IPropertySymbol, string>? structProperties = null,
+        IReadOnlyDictionary<IMethodSymbol, bool>? helperReceivers = null)
     {
         var rewriter = new Rewriter(
             model,
@@ -210,11 +255,29 @@ internal static class ShaderBodyTranslator
             directFields ?? new Dictionary<IFieldSymbol, string>(SymbolEqualityComparer.Default),
             outputFields ?? new Dictionary<IFieldSymbol, string>(SymbolEqualityComparer.Default),
             returnType,
-            lowerReturns);
+            lowerReturns,
+            structProperties: structProperties,
+            instanceReceiver: instanceReceiver,
+            helperReceivers: helperReceivers);
+        if (body is not ExpressionSyntax expressionBody)
+        {
+            rewriter.PredeclareOutLocals(body);
+        }
+        else if (rewriter.ContainsOutLocalDeclaration(expressionBody))
+        {
+            translated = string.Empty;
+            reason = "Expression-bodied shader methods cannot declare local out variables; use a block body.";
+            return false;
+        }
+
         var rewritten = body is ExpressionSyntax expression && lowerReturns
             ? rewriter.TranslateExpressionBody(expression)
             : rewriter.Visit(body);
         translated = rewritten?.ToFullString().Trim() ?? string.Empty;
+        if (rewriter.OutDeclarations.Count != 0)
+        {
+            translated = string.Join("\n", rewriter.OutDeclarations) + "\n" + translated;
+        }
         foreach (var field in pushFieldMap)
         {
             foreach (var parameter in parameterMap.Keys.Where(parameter => SymbolEqualityComparer.Default.Equals(parameter.Type, field.Key.ContainingType)))
@@ -266,6 +329,51 @@ internal static class ShaderBodyTranslator
         return reason is null;
     }
 
+    public static bool ValidateOutParameters(
+        MethodDeclarationSyntax methodSyntax,
+        SemanticModel model,
+        IMethodSymbol method,
+        out string? reason)
+    {
+        reason = null;
+        var outParameters = method.Parameters.Where(parameter => parameter.RefKind == RefKind.Out).ToArray();
+        if (outParameters.Length == 0)
+        {
+            return true;
+        }
+
+        DataFlowAnalysis? flow = null;
+        if (methodSyntax.Body is { } body)
+        {
+            if (body.Statements.Count != 0)
+            {
+                flow = model.AnalyzeDataFlow(body.Statements.First(), body.Statements.Last());
+            }
+        }
+        else if (methodSyntax.ExpressionBody?.Expression is { } expression)
+        {
+            flow = model.AnalyzeDataFlow(expression);
+        }
+
+        if (flow is null || !flow.Succeeded)
+        {
+            reason = $"Shader helper '{method.Name}' out parameters could not be analyzed for definite assignment.";
+            return false;
+        }
+
+        foreach (var parameter in outParameters)
+        {
+            if (!flow.AlwaysAssigned.Contains(parameter) &&
+                !flow.AlwaysAssigned.Contains(parameter.OriginalDefinition))
+            {
+                reason = $"Shader helper '{method.Name}' out parameter '{parameter.Name}' is not definitely assigned on all paths.";
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private static bool _TryBinding(SemanticModel model, ModuleCompilationContext context, InvocationExpressionSyntax invocation, ShaderStage stage, out string? glslName)
     {
         glslName = null;
@@ -309,8 +417,14 @@ internal static class ShaderBodyTranslator
         private readonly INamedTypeSymbol? _returnType;
         private readonly bool _lowerReturns;
         private readonly bool _allowValueReturn;
+        private readonly string? _instanceReceiver;
+        private readonly HashSet<IPropertySymbol> _staticProperties;
+        private readonly IReadOnlyDictionary<IMethodSymbol, bool> _helperReceivers;
+        private readonly HashSet<ILocalSymbol> _outLocals;
+        private readonly List<string> _outDeclarations;
         public string? Reason { get; private set; }
         public bool UsesBuiltin { get; private set; }
+        public IReadOnlyList<string> OutDeclarations => _outDeclarations;
 
         public Rewriter(
             SemanticModel model,
@@ -331,7 +445,9 @@ internal static class ShaderBodyTranslator
             IReadOnlyCollection<IParameterSymbol>? storageParameters = null,
             IReadOnlyDictionary<IPropertySymbol, string>? structProperties = null,
             IReadOnlyCollection<IParameterSymbol>? outputParameters = null,
-            bool allowValueReturn = false)
+            bool allowValueReturn = false,
+            string? instanceReceiver = null,
+            IReadOnlyDictionary<IMethodSymbol, bool>? helperReceivers = null)
         {
             _model = model;
             _context = context;
@@ -373,11 +489,64 @@ internal static class ShaderBodyTranslator
             _returnType = returnType;
             _lowerReturns = lowerReturns;
             _allowValueReturn = allowValueReturn;
+            _instanceReceiver = instanceReceiver;
+            _staticProperties = new HashSet<IPropertySymbol>(SymbolEqualityComparer.Default);
+            _helperReceivers = helperReceivers ?? new Dictionary<IMethodSymbol, bool>(SymbolEqualityComparer.Default);
+            _outLocals = new HashSet<ILocalSymbol>(SymbolEqualityComparer.Default);
+            _outDeclarations = new List<string>();
+        }
+
+        public bool ContainsOutLocalDeclaration(SyntaxNode root)
+            => root.DescendantNodesAndSelf()
+                .OfType<ArgumentSyntax>()
+                .Any(argument => argument.RefKindKeyword.IsKind(SyntaxKind.OutKeyword) &&
+                    argument.Expression is DeclarationExpressionSyntax);
+
+        public void PredeclareOutLocals(SyntaxNode root)
+        {
+            foreach (var argument in root.DescendantNodesAndSelf()
+                         .OfType<ArgumentSyntax>()
+                         .Where(argument => argument.RefKindKeyword.IsKind(SyntaxKind.OutKeyword))
+                         .OrderBy(argument => argument.SpanStart))
+            {
+                var symbol = argument.Expression switch
+                {
+                    DeclarationExpressionSyntax declaration when declaration.Designation is SingleVariableDesignationSyntax designation
+                        => GetDeclaredSymbol(designation),
+                    IdentifierNameSyntax identifier => GetSymbolInfo(identifier).Symbol,
+                    _ => null
+                };
+                if (symbol is not ILocalSymbol local)
+                {
+                    continue;
+                }
+
+                if (local.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is VariableDeclaratorSyntax declarationWithInitializer &&
+                    declarationWithInitializer.Initializer is not null)
+                {
+                    continue;
+                }
+
+                if (!_outLocals.Add(local))
+                {
+                    continue;
+                }
+
+                if (!TryMap(local.Type, out var glslType))
+                {
+                    Reason ??= $"Shader out variable '{local.Name}' has an unsupported type.";
+                    continue;
+                }
+
+                var localName = CreateLocalName(local.Name);
+                _locals[local] = localName;
+                _outDeclarations.Add($"{glslType} {localName};");
+            }
         }
 
         public override SyntaxNode? VisitIdentifierName(IdentifierNameSyntax node)
         {
-            var symbol = _model.GetSymbolInfo(node).Symbol;
+            var symbol = GetSymbolInfo(node).Symbol;
             if (symbol is ILocalSymbol local && _locals.TryGetValue(local, out var localName))
             {
                 return SyntaxFactory.ParseName(localName);
@@ -387,7 +556,49 @@ internal static class ShaderBodyTranslator
             {
                 return SyntaxFactory.ParseName(parameterName);
             }
+
+            if (_instanceReceiver is not null &&
+                symbol is IFieldSymbol field &&
+                !field.IsStatic &&
+                _structFields.TryGetValue(field, out var fieldName))
+            {
+                return SyntaxFactory.ParseExpression(_instanceReceiver + "." + fieldName);
+            }
+
+            if (_instanceReceiver is not null &&
+                symbol is IPropertySymbol property &&
+                !property.IsStatic &&
+                _structProperties.TryGetValue(property, out var propertyName))
+            {
+                return SyntaxFactory.ParseExpression(_instanceReceiver + "." + propertyName);
+            }
+
+            if (symbol is IPropertySymbol instanceProperty &&
+                !instanceProperty.IsStatic &&
+                TryTranslateInstanceProperty(instanceProperty, _instanceReceiver, out var instancePropertyExpression))
+            {
+                return instancePropertyExpression;
+            }
+
+            if (symbol is IPropertySymbol staticProperty &&
+                staticProperty.IsStatic &&
+                TryTranslateStaticProperty(staticProperty, out var propertyExpression))
+            {
+                return propertyExpression;
+            }
+
             return base.VisitIdentifierName(node);
+        }
+
+        public override SyntaxNode? VisitThisExpression(ThisExpressionSyntax node)
+        {
+            if (_instanceReceiver is not null)
+            {
+                return SyntaxFactory.ParseName(_instanceReceiver);
+            }
+
+            Reason ??= "Static shader helpers cannot use an instance receiver.";
+            return base.VisitThisExpression(node);
         }
 
         public override SyntaxNode? VisitBlock(BlockSyntax node)
@@ -417,8 +628,37 @@ internal static class ShaderBodyTranslator
 
         public override SyntaxNode? VisitLocalDeclarationStatement(LocalDeclarationStatementSyntax node)
         {
+            if (node.Declaration.Variables.Count == 1 &&
+                node.Declaration.Variables[0].Initializer is null &&
+                GetDeclaredSymbol(node.Declaration.Variables[0]) is ILocalSymbol local &&
+                _outLocals.Contains(local))
+            {
+                return SyntaxFactory.EmptyStatement();
+            }
+
             if (!_computeMode)
             {
+                if (node.Declaration.Variables.Count == 1 &&
+                    node.Declaration.Variables[0].Initializer is { } initializer)
+                {
+                    var type = node.Declaration.Type.IsVar
+                        ? GetTypeInfo(initializer.Value).ConvertedType ?? GetTypeInfo(initializer.Value).Type
+                        : GetTypeInfo(node.Declaration.Type).Type;
+                    if (_returnType is not null &&
+                        type is not null &&
+                        SymbolEqualityComparer.Default.Equals(type, _returnType))
+                    {
+                        return SyntaxFactory.EmptyStatement();
+                    }
+
+                    if (type is INamedTypeSymbol statelessType &&
+                        ShaderStructSupport.IsStateless(statelessType) &&
+                        !TryMap(statelessType, out _))
+                    {
+                        return SyntaxFactory.EmptyStatement();
+                    }
+                }
+
                 return base.VisitLocalDeclarationStatement(node);
             }
 
@@ -434,15 +674,22 @@ internal static class ShaderBodyTranslator
             }
 
             var variable = declaration.Variables[0];
-            if (_model.GetDeclaredSymbol(variable) is not ILocalSymbol local)
+            if (GetDeclaredSymbol(variable) is not ILocalSymbol local)
             {
                 Reason ??= "Compute shader local declaration has no Roslyn symbol.";
                 return null;
             }
 
             var type = declaration.Type.IsVar
-                ? _model.GetTypeInfo(initializer.Value).ConvertedType ?? _model.GetTypeInfo(initializer.Value).Type
-                : _model.GetTypeInfo(declaration.Type).Type;
+                ? GetTypeInfo(initializer.Value).ConvertedType ?? GetTypeInfo(initializer.Value).Type
+                : GetTypeInfo(declaration.Type).Type;
+            if (_computeMode && type is INamedTypeSymbol statelessType &&
+                ShaderStructSupport.IsStateless(statelessType) &&
+                !TryMap(statelessType, out _))
+            {
+                return SyntaxFactory.EmptyStatement();
+            }
+
             if (type is null || !TryMap(type, out var glslType))
             {
                 Reason ??= "Local declaration has an unsupported shader type.";
@@ -540,11 +787,17 @@ internal static class ShaderBodyTranslator
 
         private bool IsLocalIdentifier(ExpressionSyntax? expression)
             => expression is IdentifierNameSyntax identifier &&
-                _model.GetSymbolInfo(identifier).Symbol is ILocalSymbol local &&
+                GetSymbolInfo(identifier).Symbol is ILocalSymbol local &&
                 _locals.ContainsKey(local);
 
         public override SyntaxNode? VisitExpressionStatement(ExpressionStatementSyntax node)
         {
+            if (node.Expression is InvocationExpressionSyntax invocation &&
+                Visit(invocation) is ExpressionSyntax translatedInvocation)
+            {
+                return SyntaxFactory.ParseStatement(translatedInvocation.ToFullString().Trim() + ";");
+            }
+
             if (!_computeMode)
             {
                 return base.VisitExpressionStatement(node);
@@ -583,7 +836,7 @@ internal static class ShaderBodyTranslator
             }
 
             if (assignment.Left is IdentifierNameSyntax identifier &&
-                _model.GetSymbolInfo(identifier).Symbol is ILocalSymbol local &&
+                GetSymbolInfo(identifier).Symbol is ILocalSymbol local &&
                 _locals.ContainsKey(local))
             {
                 if (!IsComputeLocalAssignment(assignment))
@@ -602,7 +855,7 @@ internal static class ShaderBodyTranslator
             }
 
             if (assignment.Left is IdentifierNameSyntax outputIdentifier &&
-                _model.GetSymbolInfo(outputIdentifier).Symbol is IParameterSymbol outputParameter &&
+                GetSymbolInfo(outputIdentifier).Symbol is IParameterSymbol outputParameter &&
                 _outputParameters.Contains(outputParameter) &&
                 _parameters.TryGetValue(outputParameter, out var outputName))
             {
@@ -652,24 +905,63 @@ internal static class ShaderBodyTranslator
         {
             if (node.IsKind(SyntaxKind.DefaultLiteralExpression))
             {
-                var typeInfo = _model.GetTypeInfo(node);
+                var typeInfo = GetTypeInfo(node);
                 var type = typeInfo.ConvertedType ?? typeInfo.Type;
-                if (type is not null && TryMap(type, out var glslType))
+                if (type is not null && TryCreateZeroValue(type, out var zero))
                 {
-                    var zero = glslType == "bool" ? "false" : glslType is "int" or "uint" ? "0" : "0.0";
-                    return SyntaxFactory.ParseExpression(glslType + "(" + zero + ")");
+                    return zero;
                 }
             }
 
             return base.VisitLiteralExpression(node);
         }
 
+        public override SyntaxNode? VisitDefaultExpression(DefaultExpressionSyntax node)
+        {
+            var type = GetTypeInfo(node).Type;
+            if (type is not null && TryCreateZeroValue(type, out var zero))
+            {
+                return zero;
+            }
+
+            Reason ??= "Default shader value has an unsupported type.";
+            return base.VisitDefaultExpression(node);
+        }
+
         public override SyntaxNode? VisitMemberAccessExpression(MemberAccessExpressionSyntax node)
         {
-            var symbol = _model.GetSymbolInfo(node).Symbol;
+            var symbol = GetSymbolInfo(node).Symbol;
+            if (symbol is IFieldSymbol { ContainingType.TypeKind: TypeKind.Enum, HasConstantValue: true } enumField &&
+                ShaderEnumSupport.TryMap(enumField.ContainingType, out var enumType))
+            {
+                return SyntaxFactory.ParseExpression(
+                    ShaderEnumSupport.FormatConstant(enumField.ConstantValue, enumType));
+            }
+
             if (TryTranslateShaderBuiltinMember(node, out var builtinExpression))
             {
                 return SyntaxFactory.ParseExpression(builtinExpression);
+            }
+
+            if (symbol is IPropertySymbol staticProperty &&
+                staticProperty.IsStatic &&
+                TryTranslateStaticProperty(staticProperty, out var propertyExpression))
+            {
+                return propertyExpression;
+            }
+
+            if (symbol is IPropertySymbol or IFieldSymbol &&
+                _context.Intrinsics.TryGetIntrinsic(symbol, out var swizzleBinding) &&
+                swizzleBinding.Category == IntrinsicCategory.Swizzle)
+            {
+                if (!swizzleBinding.SupportsStage(_stage))
+                {
+                    Reason ??= $"Shader swizzle '{node.Name.Identifier.ValueText}' is not valid in {_stage} stage.";
+                    return SyntaxFactory.EmptyStatement();
+                }
+
+                var receiver = Visit(node.Expression)?.ToFullString() ?? node.Expression.ToFullString();
+                return SyntaxFactory.ParseExpression(receiver + "." + swizzleBinding.GlslName);
             }
 
             if (symbol is IFieldSymbol field && _pushFields.TryGetValue(field, out var fieldName))
@@ -692,13 +984,152 @@ internal static class ShaderBodyTranslator
             }
 
             if (node.Name.Identifier.ValueText == "Length" &&
-                _model.GetSymbolInfo(node.Expression).Symbol is IFieldSymbol resourceField &&
+                GetSymbolInfo(node.Expression).Symbol is IFieldSymbol resourceField &&
                 _storageFields.TryGetValue(resourceField, out var resourceName))
             {
                 return SyntaxFactory.ParseExpression(resourceName + ".data.length()");
             }
 
+            if (symbol is IPropertySymbol instanceProperty &&
+                !instanceProperty.IsStatic &&
+                instanceProperty.ContainingType is INamedTypeSymbol containingType &&
+                _structNames.ContainsKey(containingType) &&
+                IsPropertyDeclaredInActiveCompilation(instanceProperty))
+            {
+                var receiver = Visit(node.Expression)?.ToFullString() ?? node.Expression.ToFullString();
+                if (TryTranslateInstanceProperty(instanceProperty, receiver, out var instancePropertyExpression))
+                {
+                    return instancePropertyExpression;
+                }
+            }
+
             return base.VisitMemberAccessExpression(node);
+        }
+
+        private bool TryTranslateStaticProperty(
+            IPropertySymbol property,
+            [NotNullWhen(true)] out ExpressionSyntax? expression)
+        {
+            expression = null;
+            if (!_staticProperties.Add(property))
+            {
+                Reason ??= $"Static shader property '{property.Name}' is recursive.";
+                return false;
+            }
+
+            try
+            {
+                if (property.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is not PropertyDeclarationSyntax syntax)
+                {
+                    Reason ??= $"Static shader property '{property.Name}' must be declared in the shader source project.";
+                    return false;
+                }
+
+                var getter = syntax.ExpressionBody?.Expression ??
+                    syntax.AccessorList?.Accessors
+                        .Where(accessor => accessor.IsKind(SyntaxKind.GetAccessorDeclaration))
+                        .Select(accessor => accessor.ExpressionBody?.Expression)
+                        .FirstOrDefault(value => value is not null);
+                if (getter is null && syntax.Initializer?.Value is { } initializer &&
+                    HasConstantValue(initializer))
+                {
+                    getter = initializer;
+                }
+                if (getter is null)
+                {
+                    Reason ??= $"Static shader property '{property.Name}' must have a compile-time getter expression.";
+                    return false;
+                }
+
+                getter = RebindExpressionToActiveCompilation(getter);
+                if (getter is null)
+                {
+                    Reason ??= $"Static shader property '{property.Name}' getter is not part of the active Roslyn compilation.";
+                    return false;
+                }
+
+                expression = Visit(getter) as ExpressionSyntax;
+                if (expression is null)
+                {
+                    Reason ??= $"Static shader property '{property.Name}' has an unsupported getter expression.";
+                    return false;
+                }
+
+                return true;
+            }
+            finally
+            {
+                _staticProperties.Remove(property);
+            }
+        }
+
+        private bool TryTranslateInstanceProperty(
+            IPropertySymbol property,
+            string? receiver,
+            [NotNullWhen(true)] out ExpressionSyntax? expression)
+        {
+            expression = null;
+            if (property.GetMethod is null || property.IsStatic || property.Parameters.Length != 0 ||
+                property.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is not PropertyDeclarationSyntax syntax)
+            {
+                return false;
+            }
+
+            var getter = syntax.ExpressionBody?.Expression ??
+                syntax.AccessorList?.Accessors
+                    .Where(accessor => accessor.IsKind(SyntaxKind.GetAccessorDeclaration))
+                    .Select(accessor => accessor.ExpressionBody?.Expression)
+                    .FirstOrDefault(value => value is not null);
+            if (getter is null)
+            {
+                return false;
+            }
+
+            getter = RebindExpressionToActiveCompilation(getter);
+            if (getter is null)
+            {
+                Reason ??= $"Instance shader property '{property.Name}' getter is not part of the active Roslyn compilation.";
+                return false;
+            }
+
+            var propertyRewriter = new Rewriter(
+                _model,
+                _context,
+                _stage,
+                _parameters,
+                _pushFields,
+                _structNames,
+                _structFields,
+                _helperNames,
+                _directFields,
+                _outputFields,
+                _returnType,
+                _lowerReturns,
+                _locals,
+                _computeMode,
+                _storageFields,
+                _storageParameters,
+                _structProperties,
+                _outputParameters,
+                _allowValueReturn,
+                receiver,
+                _helperReceivers);
+            expression = propertyRewriter.Visit(getter) as ExpressionSyntax;
+            if (propertyRewriter.Reason is not null)
+            {
+                Reason ??= propertyRewriter.Reason;
+                expression = null;
+                return false;
+            }
+
+            return expression is not null;
+        }
+
+        private bool IsPropertyDeclaredInActiveCompilation(IPropertySymbol property)
+        {
+            var declaration = property.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax();
+            return declaration is not null &&
+                _model.Compilation.SyntaxTrees.Any(tree => ReferenceEquals(tree, declaration.SyntaxTree));
         }
 
         public override SyntaxNode? VisitReturnStatement(ReturnStatementSyntax node)
@@ -770,7 +1201,7 @@ internal static class ShaderBodyTranslator
                 var value = FindReturnedFieldValue(expression, field);
                 var translatedExpression = value is not null
                     ? Visit(value)?.ToFullString().Trim()
-                    : _model.GetTypeInfo(expression).Type is INamedTypeSymbol expressionType &&
+                    : GetTypeInfo(expression).Type is INamedTypeSymbol expressionType &&
                         SymbolEqualityComparer.Default.Equals(expressionType, _returnType) &&
                         _directFields.TryGetValue(field, out var directFieldName)
                         ? directFieldName
@@ -805,7 +1236,7 @@ internal static class ShaderBodyTranslator
             out string translated)
         {
             translated = string.Empty;
-            if (_model.GetSymbolInfo(node).Symbol is IPropertySymbol property &&
+            if (GetSymbolInfo(node).Symbol is IPropertySymbol property &&
                 _context.Intrinsics.TryGetIntrinsic(property, out var directBinding) &&
                 directBinding.Category == IntrinsicCategory.Builtin)
             {
@@ -821,7 +1252,7 @@ internal static class ShaderBodyTranslator
             }
 
             if (node.Expression is not MemberAccessExpressionSyntax parent ||
-                _model.GetSymbolInfo(parent).Symbol is not IPropertySymbol parentProperty ||
+                GetSymbolInfo(parent).Symbol is not IPropertySymbol parentProperty ||
                 !_context.Intrinsics.TryGetIntrinsic(parentProperty, out var parentBinding) ||
                 parentBinding.Category != IntrinsicCategory.Builtin)
             {
@@ -854,12 +1285,14 @@ internal static class ShaderBodyTranslator
 
         public override SyntaxNode? VisitDeclarationExpression(DeclarationExpressionSyntax node)
         {
-            if (!_computeMode || node.Designation is not SingleVariableDesignationSyntax designation)
+            var isOutDeclaration = node.Parent is ArgumentSyntax argument &&
+                argument.RefKindKeyword.IsKind(SyntaxKind.OutKeyword);
+            if ((!_computeMode && !isOutDeclaration) || node.Designation is not SingleVariableDesignationSyntax designation)
             {
                 return base.VisitDeclarationExpression(node);
             }
 
-            if (_model.GetDeclaredSymbol(designation) is not ILocalSymbol local)
+            if (GetDeclaredSymbol(designation) is not ILocalSymbol local)
             {
                 Reason ??= "Compute shader out-variable declaration has no Roslyn symbol.";
                 return SyntaxFactory.ParseExpression("0");
@@ -878,11 +1311,25 @@ internal static class ShaderBodyTranslator
 
         public override SyntaxNode? VisitInvocationExpression(InvocationExpressionSyntax node)
         {
-            var symbol = _model.GetSymbolInfo(node).Symbol as IMethodSymbol;
-            var args = node.ArgumentList.Arguments.Select(argument => Visit(argument.Expression) ?? throw new InvalidOperationException("Shader expression visitor returned no argument node.")).ToArray();
+            var symbol = GetSymbolInfo(node).Symbol as IMethodSymbol;
+            if (!ValidateOutArguments(node, symbol))
+            {
+                return base.VisitInvocationExpression(node);
+            }
+
+            var args = node.ArgumentList.Arguments
+                .Select(argument => Visit(argument.Expression) ?? throw new InvalidOperationException("Shader expression visitor returned no argument node."))
+                .ToArray();
             var receiver = symbol is { IsStatic: false } && node.Expression is MemberAccessExpressionSyntax memberAccess
                 ? Visit(memberAccess.Expression)?.ToFullString()
                 : null;
+            if (symbol is not null && receiver is not null &&
+                (_helperReceivers.TryGetValue(symbol, out var hasReceiver) ||
+                 _helperReceivers.TryGetValue(symbol.OriginalDefinition, out hasReceiver)) &&
+                !hasReceiver)
+            {
+                receiver = null;
+            }
             var glslArguments = receiver is null
                 ? args.Select(argument => argument.ToFullString())
                 : new[] { receiver }.Concat(args.Select(argument => argument.ToFullString()));
@@ -910,12 +1357,73 @@ internal static class ShaderBodyTranslator
                     : binding.GlslName;
                 return SyntaxFactory.ParseExpression(glslName + "(" + string.Join(", ", intrinsicArguments) + ")");
             }
-            if (symbol is not null && _helperNames.TryGetValue(symbol.OriginalDefinition, out var helperName))
+            if (symbol is not null &&
+                (_helperNames.TryGetValue(symbol, out var helperName) ||
+                 _helperNames.TryGetValue(symbol.OriginalDefinition, out helperName)))
             {
-                return SyntaxFactory.ParseExpression(helperName + "(" + string.Join(", ", args.Select(argument => argument.ToFullString())) + ")");
+                return SyntaxFactory.ParseExpression(helperName + "(" + string.Join(", ", glslArguments) + ")");
             }
             Reason ??= "Unsupported method call in shader body.";
             return base.VisitInvocationExpression(node);
+        }
+
+        private bool ValidateOutArguments(InvocationExpressionSyntax node, IMethodSymbol? method)
+        {
+            var arguments = node.ArgumentList.Arguments;
+            if (!arguments.Any(argument => !argument.RefKindKeyword.IsKind(SyntaxKind.None)))
+            {
+                return true;
+            }
+
+            if (method is null)
+            {
+                Reason ??= "Shader calls with ref or out arguments must resolve to a method symbol.";
+                return false;
+            }
+
+            var targets = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
+            for (var index = 0; index < arguments.Count; index++)
+            {
+                var argument = arguments[index];
+                if (argument.RefKindKeyword.IsKind(SyntaxKind.None))
+                {
+                    continue;
+                }
+
+                if (!argument.RefKindKeyword.IsKind(SyntaxKind.OutKeyword))
+                {
+                    Reason ??= $"Shader helper '{method.Name}' supports out arguments but not ref or in arguments.";
+                    return false;
+                }
+
+                if (index >= method.Parameters.Length || method.Parameters[index].RefKind != RefKind.Out)
+                {
+                    Reason ??= $"Shader call '{method.Name}' has an out argument that does not match its method signature.";
+                    return false;
+                }
+
+                var target = argument.Expression switch
+                {
+                    DeclarationExpressionSyntax declaration when declaration.Designation is SingleVariableDesignationSyntax designation
+                        => GetDeclaredSymbol(designation),
+                    IdentifierNameSyntax identifier => GetSymbolInfo(identifier).Symbol,
+                    _ => null
+                };
+                if (target is not ISymbol targetSymbol ||
+                    targetSymbol is not ILocalSymbol && targetSymbol is not IParameterSymbol)
+                {
+                    Reason ??= $"Shader out argument for '{method.Name}' must be a local or shader parameter.";
+                    return false;
+                }
+
+                if (!targets.Add(targetSymbol))
+                {
+                    Reason ??= $"Shader call '{method.Name}' aliases multiple out arguments to '{targetSymbol.Name}'.";
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private static string? CreateOperatorExpression(
@@ -980,9 +1488,106 @@ internal static class ShaderBodyTranslator
                 or "uvec2" or "uvec3" or "uvec4";
         }
 
+        private ExpressionSyntax? RebindExpressionToActiveCompilation(ExpressionSyntax expression)
+        {
+            var syntaxTree = expression.SyntaxTree;
+            if (syntaxTree is null)
+            {
+                return null;
+            }
+
+            if (_model.Compilation.SyntaxTrees.Any(tree => ReferenceEquals(tree, syntaxTree)))
+            {
+                return expression;
+            }
+
+            var sourceText = syntaxTree.GetText().ToString();
+            foreach (var candidateTree in _model.Compilation.SyntaxTrees)
+            {
+                if (!string.Equals(candidateTree.FilePath, syntaxTree.FilePath, StringComparison.Ordinal) ||
+                    !string.Equals(candidateTree.GetText().ToString(), sourceText, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var candidateNode = candidateTree.GetRoot().FindNode(expression.Span, getInnermostNodeForTie: true);
+                if (candidateNode is ExpressionSyntax candidateExpression)
+                {
+                    return candidateExpression;
+                }
+            }
+
+            return null;
+        }
+
+        private SemanticModel? TryGetSemanticModel(SyntaxNode node)
+        {
+            var syntaxTree = node.SyntaxTree;
+            if (ReferenceEquals(syntaxTree, _model.SyntaxTree))
+            {
+                return _model;
+            }
+
+            if (syntaxTree is null || !_model.Compilation.SyntaxTrees.Any(tree => ReferenceEquals(tree, syntaxTree)))
+            {
+                Reason ??= "Shader helper syntax is not part of the active Roslyn compilation.";
+                return null;
+            }
+
+            return _model.Compilation.GetSemanticModel(syntaxTree);
+        }
+
+        private bool TryGetTypeInfo(ExpressionSyntax expression, out TypeInfo typeInfo)
+        {
+            var semanticModel = TryGetSemanticModel(expression);
+            if (semanticModel is null)
+            {
+                typeInfo = default;
+                return false;
+            }
+
+            typeInfo = semanticModel.GetTypeInfo(expression);
+            return true;
+        }
+
+        private SymbolInfo GetSymbolInfo(ExpressionSyntax expression)
+        {
+            return TryGetSemanticModel(expression)?.GetSymbolInfo(expression) ?? default;
+        }
+
+        private TypeInfo GetTypeInfo(ExpressionSyntax expression)
+        {
+            return TryGetSemanticModel(expression)?.GetTypeInfo(expression) ?? default;
+        }
+
+        private TypeInfo GetTypeInfo(TypeSyntax type)
+        {
+            return TryGetSemanticModel(type)?.GetTypeInfo(type) ?? default;
+        }
+
+        private ISymbol? GetDeclaredSymbol(VariableDeclaratorSyntax declaration)
+        {
+            return TryGetSemanticModel(declaration)?.GetDeclaredSymbol(declaration);
+        }
+
+        private ISymbol? GetDeclaredSymbol(SingleVariableDesignationSyntax designation)
+        {
+            return TryGetSemanticModel(designation)?.GetDeclaredSymbol(designation);
+        }
+
+        private bool HasConstantValue(ExpressionSyntax expression)
+        {
+            return TryGetSemanticModel(expression)?.GetConstantValue(expression).HasValue == true;
+        }
+
         public override SyntaxNode? VisitObjectCreationExpression(ObjectCreationExpressionSyntax node)
         {
-            var type = _model.GetTypeInfo(node).Type;
+            if (!TryGetTypeInfo(node, out var typeInfo))
+            {
+                return node;
+            }
+
+            var type = typeInfo.Type;
             if (type is INamedTypeSymbol structType &&
                 TryTranslateStructCreation(structType, node.Initializer, out var structExpression))
             {
@@ -999,7 +1604,11 @@ internal static class ShaderBodyTranslator
 
         public override SyntaxNode? VisitImplicitObjectCreationExpression(ImplicitObjectCreationExpressionSyntax node)
         {
-            var typeInfo = _model.GetTypeInfo(node);
+            if (!TryGetTypeInfo(node, out var typeInfo))
+            {
+                return node;
+            }
+
             var type = typeInfo.ConvertedType ?? typeInfo.Type;
             if (type is INamedTypeSymbol structType &&
                 TryTranslateStructCreation(structType, node.Initializer, out var structExpression))
@@ -1030,10 +1639,9 @@ internal static class ShaderBodyTranslator
                 return false;
             }
 
-            if (initializer is null)
+            if (initializer is null || initializer.Expressions.Count == 0)
             {
-                Reason ??= $"Local shader struct '{type.Name}' requires an object initializer.";
-                return true;
+                return TryCreateZeroValue(type, out translated);
             }
 
             var assignments = initializer.Expressions.OfType<AssignmentExpressionSyntax>().ToArray();
@@ -1041,7 +1649,7 @@ internal static class ShaderBodyTranslator
             foreach (var member in GetStructValueMembers(type))
             {
                 var assignment = assignments.FirstOrDefault(candidate =>
-                    SymbolEqualityComparer.Default.Equals(_model.GetSymbolInfo(candidate.Left).Symbol, member));
+                    SymbolEqualityComparer.Default.Equals(GetSymbolInfo(candidate.Left).Symbol, member));
                 if (assignment is null || Visit(assignment.Right) is not ExpressionSyntax value)
                 {
                     Reason ??= $"Local shader struct '{type.Name}' does not initialize member '{member.Name}'.";
@@ -1055,6 +1663,64 @@ internal static class ShaderBodyTranslator
             return true;
         }
 
+        private bool TryCreateZeroValue(ITypeSymbol type, out ExpressionSyntax zero)
+            => TryCreateZeroValue(type, new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default), out zero);
+
+        private bool TryCreateZeroValue(
+            ITypeSymbol type,
+            HashSet<INamedTypeSymbol> visiting,
+            out ExpressionSyntax zero)
+        {
+            if (type is INamedTypeSymbol structType && _structNames.TryGetValue(structType, out var structName))
+            {
+                if (!visiting.Add(structType))
+                {
+                    Reason ??= $"Recursive shader struct '{structType.Name}' cannot receive a default value.";
+                    zero = SyntaxFactory.ParseExpression("0");
+                    return false;
+                }
+
+                try
+                {
+                    var values = new List<string>();
+                    foreach (var member in GetStructValueMembers(structType))
+                    {
+                        var memberType = member is IFieldSymbol field ? field.Type : ((IPropertySymbol)member).Type;
+                        if (!TryCreateZeroValue(memberType, visiting, out var memberZero))
+                        {
+                            zero = SyntaxFactory.ParseExpression("0");
+                            return false;
+                        }
+
+                        values.Add(memberZero.ToFullString());
+                    }
+
+                    zero = SyntaxFactory.ParseExpression(structName + "(" + string.Join(", ", values) + ")");
+                    return true;
+                }
+                finally
+                {
+                    visiting.Remove(structType);
+                }
+            }
+
+            if (TryMap(type, out var glslType))
+            {
+                var scalarZero = glslType == "bool" || glslType.StartsWith("bvec", StringComparison.Ordinal)
+                    ? "false"
+                    : glslType is "int" or "uint" || glslType.StartsWith("ivec", StringComparison.Ordinal) ||
+                      glslType.StartsWith("uvec", StringComparison.Ordinal)
+                        ? "0"
+                        : "0.0";
+                zero = SyntaxFactory.ParseExpression(glslType + "(" + scalarZero + ")");
+                return true;
+            }
+
+            Reason ??= $"Shader type '{type}' has no zero-value lowering.";
+            zero = SyntaxFactory.ParseExpression("0");
+            return false;
+        }
+
         private static IEnumerable<ISymbol> GetStructValueMembers(INamedTypeSymbol type)
         {
             foreach (var member in type.GetMembers())
@@ -1064,7 +1730,8 @@ internal static class ShaderBodyTranslator
                     yield return field;
                 }
                 else if (member is IPropertySymbol property && !property.IsStatic && !property.IsIndexer &&
-                         property.Parameters.Length == 0 && property.GetMethod is not null)
+                         property.Parameters.Length == 0 && property.GetMethod is not null &&
+                         ShaderStructSupport.IsAutoProperty(property))
                 {
                     yield return property;
                 }
@@ -1073,7 +1740,7 @@ internal static class ShaderBodyTranslator
 
         public override SyntaxNode? VisitCastExpression(CastExpressionSyntax node)
         {
-            var targetType = _model.GetTypeInfo(node.Type).Type;
+            var targetType = GetTypeInfo(node.Type).Type;
             if (targetType is not null && TryMap(targetType, out var glslType))
             {
                 var operand = Visit(node.Expression) ?? throw new InvalidOperationException("Shader expression visitor returned no cast operand.");
@@ -1096,9 +1763,15 @@ internal static class ShaderBodyTranslator
             {
                 var type = node.Type.IsVar
                     ? node.Variables[0].Initializer is { } initializer
-                        ? _model.GetTypeInfo(initializer.Value).Type
+                        ? GetTypeInfo(initializer.Value).Type
                         : null
-                    : _model.GetTypeInfo(node.Type).Type;
+                    : GetTypeInfo(node.Type).Type;
+                if (_computeMode && type is INamedTypeSymbol statelessType &&
+                    ShaderStructSupport.IsStateless(statelessType) &&
+                    !TryMap(statelessType, out _))
+                {
+                    return SyntaxFactory.EmptyStatement();
+                }
                 if (type is INamedTypeSymbol namedType && _structNames.TryGetValue(namedType, out var structName))
                 {
                     return rewritten.WithType(SyntaxFactory.ParseTypeName(structName));
@@ -1109,6 +1782,17 @@ internal static class ShaderBodyTranslator
                     return rewritten.WithType(SyntaxFactory.ParseTypeName(glslType));
                 }
             }
+
+            if (!_computeMode &&
+                node.Variables.Count == 1 &&
+                GetDeclaredSymbol(node.Variables[0]) is ILocalSymbol local)
+            {
+                var localName = CreateLocalName(local.Name);
+                _locals[local] = localName;
+                var variable = rewritten.Variables[0].WithIdentifier(SyntaxFactory.Identifier(localName));
+                rewritten = rewritten.WithVariables(SyntaxFactory.SingletonSeparatedList(variable));
+            }
+
             return rewritten;
         }
 
@@ -1119,6 +1803,10 @@ internal static class ShaderBodyTranslator
                 return true;
             }
             if (type is INamedTypeSymbol namedType && _structNames.TryGetValue(namedType, out glslType))
+            {
+                return true;
+            }
+            if (ShaderEnumSupport.TryMap(type, out glslType))
             {
                 return true;
             }
@@ -1135,7 +1823,7 @@ internal static class ShaderBodyTranslator
 
         private string CreateLocalName(string name)
         {
-            var baseName = Sanitize(name);
+            var baseName = "local_" + Sanitize(name);
             var candidate = baseName;
             var suffix = 2;
             while (_locals.Values.Contains(candidate, StringComparer.Ordinal))
@@ -1148,7 +1836,7 @@ internal static class ShaderBodyTranslator
 
         private bool IsComputeStorageTarget(ExpressionSyntax expression)
         {
-            var symbol = _model.GetSymbolInfo(expression).Symbol;
+            var symbol = GetSymbolInfo(expression).Symbol;
             return symbol is IFieldSymbol field && _storageFields.ContainsKey(field) ||
                    symbol is IParameterSymbol parameter && _storageParameters.Contains(parameter);
         }

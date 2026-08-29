@@ -433,6 +433,7 @@ internal static class GraphicsEntryPoints
         string body = string.Empty;
         IReadOnlyList<string> helperFunctions = [];
         IReadOnlyDictionary<IMethodSymbol, string> helperNames = new Dictionary<IMethodSymbol, string>(SymbolEqualityComparer.Default);
+        IReadOnlyDictionary<IMethodSymbol, bool> helperReceivers = new Dictionary<IMethodSymbol, bool>(SymbolEqualityComparer.Default);
         if (diagnostics.Count == 0)
         {
             var structNames = new Dictionary<INamedTypeSymbol, string>(SymbolEqualityComparer.Default);
@@ -441,6 +442,7 @@ internal static class GraphicsEntryPoints
                 structNames[definition.Key] = definition.Value.GlslName;
             }
             var structFields = new Dictionary<IFieldSymbol, string>(SymbolEqualityComparer.Default);
+            var structProperties = new Dictionary<IPropertySymbol, string>(SymbolEqualityComparer.Default);
             foreach (var definition in structures)
             {
                 foreach (var field in definition.Key.GetMembers().OfType<IFieldSymbol>().Where(field => !field.IsStatic))
@@ -449,6 +451,17 @@ internal static class GraphicsEntryPoints
                     if (member is not null)
                     {
                         structFields[field] = member.GlslName;
+                        structFields[field.OriginalDefinition] = member.GlslName;
+                    }
+                }
+
+                foreach (var property in definition.Key.GetMembers().OfType<IPropertySymbol>().Where(property => !property.IsStatic && !property.IsIndexer && property.GetMethod is not null))
+                {
+                    var member = definition.Value.Members.FirstOrDefault(candidate => candidate.Name == property.Name);
+                    if (member is not null)
+                    {
+                        structProperties[property] = member.GlslName;
+                        structProperties[property.OriginalDefinition] = member.GlslName;
                     }
                 }
             }
@@ -462,7 +475,7 @@ internal static class GraphicsEntryPoints
             {
                 var executableBody = GetExecutableBody(syntax);
                 var semanticModel = context.Compilation.GetSemanticModel(syntax.SyntaxTree);
-                if (!TryBuildHelpers(syntax, semanticModel, context, entry.Stage, pushFieldMap, structNames, structFields, storageBufferTargets, out helperFunctions, out helperNames, out var helperReason))
+                if (!TryBuildHelpers(syntax, semanticModel, context, entry.Stage, structures, pushFieldMap, structNames, structFields, structProperties, storageBufferTargets, out helperFunctions, out helperNames, out helperReceivers, out var helperReason))
                 {
                     diagnostics.Add(new ShaderDiagnostic(ShaderDiagnosticId.DSH008, helperReason ?? "Unable to lower shader helper call graph.", Severity: ShaderDiagnosticSeverity.Error));
                 }
@@ -482,7 +495,9 @@ internal static class GraphicsEntryPoints
                     directFields,
                     outputFields,
                     entry.Stage == ShaderStage.Vertex ? varyingType : null,
-                    lowerReturns: true))
+                    lowerReturns: true,
+                    structProperties: structProperties,
+                    helperReceivers: helperReceivers))
                 {
                     diagnostics.Add(new ShaderDiagnostic(ShaderDiagnosticId.DSH008, reason ?? "Unable to translate graphics shader body.", Severity: ShaderDiagnosticSeverity.Error));
                 }
@@ -537,25 +552,83 @@ internal static class GraphicsEntryPoints
         SemanticModel entryModel,
         ModuleCompilationContext context,
         ShaderStage stage,
+        Dictionary<INamedTypeSymbol, ShaderIrStruct> structures,
         IReadOnlyDictionary<IFieldSymbol, string> pushFieldMap,
-        IReadOnlyDictionary<INamedTypeSymbol, string> structNames,
-        IReadOnlyDictionary<IFieldSymbol, string> structFields,
+        Dictionary<INamedTypeSymbol, string> structNames,
+        Dictionary<IFieldSymbol, string> structFields,
+        Dictionary<IPropertySymbol, string> structProperties,
         IReadOnlyCollection<string> storageBufferTargets,
         out IReadOnlyList<string> functions,
         out IReadOnlyDictionary<IMethodSymbol, string> names,
+        out IReadOnlyDictionary<IMethodSymbol, bool> receivers,
         out string? reason)
     {
         var ordered = new List<IMethodSymbol>();
         var states = new Dictionary<IMethodSymbol, int>(SymbolEqualityComparer.Default);
         var helperNames = new Dictionary<IMethodSymbol, string>(SymbolEqualityComparer.Default);
+        var helperReceivers = new Dictionary<IMethodSymbol, bool>(SymbolEqualityComparer.Default);
         var usedNames = new HashSet<string>(StringComparer.Ordinal);
+        receivers = helperReceivers;
         reason = null;
         string? failureReason = null;
+
+        void RefreshStructMaps()
+        {
+            structNames.Clear();
+            structFields.Clear();
+            structProperties.Clear();
+            foreach (var definition in structures)
+            {
+                structNames[definition.Key] = definition.Value.GlslName;
+                foreach (var field in definition.Key.GetMembers().OfType<IFieldSymbol>().Where(field => !field.IsStatic && !field.IsImplicitlyDeclared))
+                {
+                    var member = definition.Value.Members.FirstOrDefault(candidate => candidate.Name == field.Name);
+                    if (member is not null)
+                    {
+                        structFields[field] = member.GlslName;
+                        structFields[field.OriginalDefinition] = member.GlslName;
+                    }
+                }
+
+                foreach (var property in definition.Key.GetMembers().OfType<IPropertySymbol>().Where(property => !property.IsStatic && !property.IsIndexer && property.GetMethod is not null))
+                {
+                    var member = definition.Value.Members.FirstOrDefault(candidate => candidate.Name == property.Name);
+                    if (member is not null)
+                    {
+                        structProperties[property] = member.GlslName;
+                        structProperties[property.OriginalDefinition] = member.GlslName;
+                    }
+                }
+            }
+        }
+
+        bool EnsureStructType(ITypeSymbol type)
+        {
+            if (type is not INamedTypeSymbol namedType ||
+                namedType.TypeKind != TypeKind.Struct ||
+                TryGetGlslType(type, context, structNames, out _) ||
+                ShaderStructSupport.IsStateless(namedType) ||
+                structures.ContainsKey(namedType))
+            {
+                return true;
+            }
+
+            if (!TryBuildStruct(namedType, context, structures,
+                new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default), out _, out failureReason))
+            {
+                return false;
+            }
+
+            RefreshStructMaps();
+            return true;
+        }
+
+        RefreshStructMaps();
 
         bool Visit(IMethodSymbol method)
         {
             var definition = method.OriginalDefinition;
-            if (states.TryGetValue(definition, out var state))
+            if (states.TryGetValue(method, out var state))
             {
                 if (state == 1)
                 {
@@ -565,9 +638,15 @@ internal static class GraphicsEntryPoints
                 return true;
             }
 
-            if (!method.IsStatic || method.Arity != 0 || method.ReturnsVoid || method.Parameters.Any(parameter => parameter.RefKind != RefKind.None))
+            if (!method.IsStatic && method.ContainingType.TypeKind != TypeKind.Struct)
             {
-                failureReason = $"Shader helper '{definition.Name}' must be a static, non-generic value method with a non-void return type.";
+                failureReason = $"Shader helper '{definition.Name}' must be static or an instance method on a value struct.";
+                return false;
+            }
+            if ((method.IsGenericMethod && method.TypeArguments.Any(argument => argument is ITypeParameterSymbol)) ||
+                method.ReturnsVoid || method.Parameters.Any(parameter => parameter.RefKind != RefKind.None && parameter.RefKind != RefKind.Out))
+            {
+                failureReason = $"Shader helper '{definition.Name}' must be a non-generic value method with a non-void return type and only value or out parameters.";
                 return false;
             }
             if (!TryGetHelperSyntax(definition, out var syntax) || syntax is null)
@@ -581,24 +660,48 @@ internal static class GraphicsEntryPoints
                 failureReason = $"Shader helper '{definition.Name}' must have a translatable body.";
                 return false;
             }
-            if (!TryGetGlslType(definition.ReturnType, context, structNames, out _)
-                || definition.Parameters.Any(parameter => !TryGetGlslType(parameter.Type, context, structNames, out _)))
+            var hasReceiver = !method.IsStatic && !ShaderStructSupport.IsStateless(method.ContainingType);
+            if (hasReceiver && !EnsureStructType(method.ContainingType) ||
+                !EnsureStructType(method.ReturnType) ||
+                method.Parameters.Any(parameter => !EnsureStructType(parameter.Type)))
+            {
+                return false;
+            }
+
+            RefreshStructMaps();
+            if (!TryGetGlslType(method.ReturnType, context, structNames, out _)
+                || method.Parameters.Any(parameter => !TryGetGlslType(parameter.Type, context, structNames, out _)) ||
+                (hasReceiver && !TryGetGlslType(method.ContainingType, context, structNames, out _)))
             {
                 failureReason = $"Shader helper '{definition.Name}' has an unsupported parameter or return type.";
                 return false;
             }
 
-            states[definition] = 1;
-            helperNames[definition] = CreateHelperName(definition, usedNames);
+            states[method] = 1;
+            helperNames[method] = CreateHelperName(method, usedNames);
+            helperReceivers[method] = hasReceiver;
             if (!TryGetSemanticModel(context.Compilation, syntax.SyntaxTree, out var model))
             {
                 failureReason = $"Shader helper '{definition.Name}' is not declared in the active shader compilation.";
                 return false;
             }
-            if (helperBody.DescendantNodesAndSelf().OfType<ThisExpressionSyntax>().Any())
+            if (!ShaderBodyTranslator.ValidateOutParameters(syntax, model, method, out failureReason))
             {
-                failureReason = $"Shader helper '{definition.Name}' captures managed instance state.";
                 return false;
+            }
+
+            if (definition.IsStatic && helperBody.DescendantNodesAndSelf().OfType<ThisExpressionSyntax>().Any())
+            {
+                failureReason = $"Static shader helper '{definition.Name}' cannot use an instance receiver.";
+                return false;
+            }
+            foreach (var assignment in helperBody.DescendantNodesAndSelf().OfType<AssignmentExpressionSyntax>())
+            {
+                if (model.GetSymbolInfo(assignment.Left).Symbol is IPropertySymbol)
+                {
+                    failureReason = $"Shader helper '{definition.Name}' cannot mutate a property.";
+                    return false;
+                }
             }
             foreach (var identifier in helperBody.DescendantNodesAndSelf().OfType<IdentifierNameSyntax>())
             {
@@ -612,11 +715,19 @@ internal static class GraphicsEntryPoints
 
                 if (symbol is IFieldSymbol field && !field.HasConstantValue && !pushFieldMap.ContainsKey(field) && !structFields.ContainsKey(field))
                 {
+                    if (!definition.IsStatic && !field.IsStatic &&
+                        SymbolEqualityComparer.Default.Equals(field.ContainingType, definition.ContainingType))
+                    {
+                        continue;
+                    }
+
                     failureReason = $"Shader helper '{definition.Name}' captures managed field '{field.Name}'.";
                     return false;
                 }
 
-                if (symbol is IPropertySymbol)
+                if (symbol is IPropertySymbol property &&
+                    !context.Intrinsics.TryGetIntrinsic(symbol, out _) &&
+                    !IsSupportedShaderProperty(property, definition, structProperties))
                 {
                     failureReason = $"Shader helper '{definition.Name}' uses unsupported property state.";
                     return false;
@@ -639,20 +750,28 @@ internal static class GraphicsEntryPoints
                     }
                     continue;
                 }
-                if (!Visit(called))
+                var target = ShaderHelperSpecialization.ResolveTarget(invocation, called, model, method);
+                if (!Visit(target))
                 {
                     return false;
                 }
+
+                if (!SymbolEqualityComparer.Default.Equals(target, called))
+                {
+                    helperNames[called] = helperNames[target];
+                    helperReceivers[called] = helperReceivers[target];
+                }
             }
 
-            states[definition] = 2;
-            ordered.Add(definition);
+            states[method] = 2;
+            ordered.Add(method);
             return true;
         }
 
         var entryBody = entrySyntax.Body ?? (SyntaxNode?)entrySyntax.ExpressionBody?.Expression;
         if (entryBody is not null)
         {
+            var entryMethod = entryModel.GetDeclaredSymbol(entrySyntax) as IMethodSymbol;
             foreach (var invocation in entryBody.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
             {
                 if (entryModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol called)
@@ -670,12 +789,19 @@ internal static class GraphicsEntryPoints
                     }
                     continue;
                 }
-                if (!Visit(called))
+                var target = ShaderHelperSpecialization.ResolveTarget(invocation, called, entryModel, entryMethod ?? called);
+                if (!Visit(target))
                 {
                     reason = failureReason;
                     functions = [];
                     names = helperNames;
                     return false;
+                }
+
+                if (!SymbolEqualityComparer.Default.Equals(target, called))
+                {
+                    helperNames[called] = helperNames[target];
+                    helperReceivers[called] = helperReceivers[target];
                 }
             }
         }
@@ -708,7 +834,23 @@ internal static class GraphicsEntryPoints
                 return false;
             }
             var parameterMap = new Dictionary<IParameterSymbol, string>(SymbolEqualityComparer.Default);
-            var signature = new List<string>(helper.Parameters.Length);
+            var signature = new List<string>(helper.Parameters.Length + (helper.IsStatic ? 0 : 1));
+            string? instanceReceiver = null;
+            var hasReceiver = helperReceivers.TryGetValue(helper, out var receiver) ? receiver : !helper.IsStatic;
+            if (hasReceiver)
+            {
+                if (!TryGetGlslType(helper.ContainingType, context, structNames, out var receiverType))
+                {
+                    reason = $"Shader helper '{helper.Name}' has an unsupported value-struct receiver type.";
+                    functions = [];
+                    names = helperNames;
+                    return false;
+                }
+
+                instanceReceiver = "self";
+                signature.Add(receiverType + " " + instanceReceiver);
+            }
+
             foreach (var parameter in helper.Parameters)
             {
                 if (!TryGetGlslType(parameter.Type, context, structNames, out var glslType))
@@ -720,7 +862,7 @@ internal static class GraphicsEntryPoints
                 }
                 var parameterName = "arg_" + Sanitize(parameter.Name);
                 parameterMap[parameter] = parameterName;
-                signature.Add(glslType + " " + parameterName);
+                signature.Add((parameter.RefKind == RefKind.Out ? "out " : string.Empty) + glslType + " " + parameterName);
             }
             if (!TryGetGlslType(helper.ReturnType, context, structNames, out var returnType))
             {
@@ -729,7 +871,32 @@ internal static class GraphicsEntryPoints
                 names = helperNames;
                 return false;
             }
-            if (!ShaderBodyTranslator.TryTranslate(helperBody, model, context, stage, parameterMap, pushFieldMap, structNames, structFields, storageBufferTargets, helperNames, out var body, out var bodyReason))
+
+            var helperNameMap = new Dictionary<IMethodSymbol, string>(helperNames, SymbolEqualityComparer.Default);
+            var helperReceiverMap = new Dictionary<IMethodSymbol, bool>(helperReceivers, SymbolEqualityComparer.Default);
+            foreach (var invocation in helperBody.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
+            {
+                if (model.GetSymbolInfo(invocation).Symbol is not IMethodSymbol called ||
+                    context.Intrinsics.TryGetIntrinsic(called, out _))
+                {
+                    continue;
+                }
+
+                var target = ShaderHelperSpecialization.ResolveTarget(invocation, called, model, helper);
+                if (helperNames.TryGetValue(target, out var targetName))
+                {
+                    helperNameMap[called] = targetName;
+                    helperNameMap[called.OriginalDefinition] = targetName;
+                }
+
+                if (helperReceivers.TryGetValue(target, out var targetHasReceiver))
+                {
+                    helperReceiverMap[called] = targetHasReceiver;
+                    helperReceiverMap[called.OriginalDefinition] = targetHasReceiver;
+                }
+            }
+
+            if (!ShaderBodyTranslator.TryTranslate(helperBody, model, context, stage, parameterMap, pushFieldMap, structNames, structFields, storageBufferTargets, helperNameMap, out var body, out var bodyReason, instanceReceiver: instanceReceiver, structProperties: structProperties, helperReceivers: helperReceiverMap))
             {
                 reason = bodyReason ?? $"Unable to translate shader helper '{helper.Name}'.";
                 functions = [];
@@ -768,11 +935,12 @@ internal static class GraphicsEntryPoints
 
     private static bool TryGetGlslType(ITypeSymbol type, ModuleCompilationContext context, IReadOnlyDictionary<INamedTypeSymbol, string> structNames, out string glslType)
     {
-        if (type is INamedTypeSymbol namedType && structNames.TryGetValue(namedType, out glslType))
+        if (TryMapType(type, context, out glslType))
         {
             return true;
         }
-        return TryMapType(type, context, out glslType);
+
+        return type is INamedTypeSymbol namedType && structNames.TryGetValue(namedType, out glslType);
     }
 
     private static string CreateHelperName(IMethodSymbol method, ISet<string> usedNames)
@@ -793,6 +961,37 @@ internal static class GraphicsEntryPoints
     private static bool Same(ITypeSymbol? left, ITypeSymbol? right)
         => left is not null && right is not null && SymbolEqualityComparer.Default.Equals(left, right);
 
+    private static bool IsSupportedShaderProperty(
+        IPropertySymbol property,
+        IMethodSymbol helper,
+        IReadOnlyDictionary<IPropertySymbol, string> structProperties)
+    {
+        if (!property.IsStatic)
+        {
+            return !helper.IsStatic &&
+                property.ContainingType is not null &&
+                SymbolEqualityComparer.Default.Equals(property.ContainingType, helper.ContainingType.OriginalDefinition) &&
+                (structProperties.ContainsKey(property) || IsExpressionBodiedProperty(property));
+        }
+
+        if (property.GetMethod is null || property.SetMethod is not null || property.Parameters.Length != 0)
+        {
+            return false;
+        }
+
+        return property.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is PropertyDeclarationSyntax syntax &&
+            (syntax.ExpressionBody?.Expression is not null ||
+             syntax.AccessorList?.Accessors.Any(accessor =>
+                 accessor.IsKind(SyntaxKind.GetAccessorDeclaration) && accessor.ExpressionBody?.Expression is not null) == true ||
+             syntax.Initializer?.Value is not null);
+    }
+
+    private static bool IsExpressionBodiedProperty(IPropertySymbol property)
+        => property.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is PropertyDeclarationSyntax syntax &&
+           (syntax.ExpressionBody?.Expression is not null ||
+            syntax.AccessorList?.Accessors.Any(accessor =>
+                accessor.IsKind(SyntaxKind.GetAccessorDeclaration) && accessor.ExpressionBody?.Expression is not null) == true);
+
     private static uint GetUIntArg(AttributeData attribute, int index)
         => attribute.ConstructorArguments.Length > index && attribute.ConstructorArguments[index].Value is not null
             ? Convert.ToUInt32(attribute.ConstructorArguments[index].Value)
@@ -800,6 +999,11 @@ internal static class GraphicsEntryPoints
 
     private static bool TryMapType(ITypeSymbol type, ModuleCompilationContext context, out string glslType)
     {
+        if (ShaderEnumSupport.TryMap(type, out glslType))
+        {
+            return true;
+        }
+
         if (context.Intrinsics.TryMapType(type, out glslType))
         {
             return true;
@@ -879,6 +1083,7 @@ internal static class GraphicsEntryPoints
     private static bool TryBuildStruct(INamedTypeSymbol type, ModuleCompilationContext context, Dictionary<INamedTypeSymbol, ShaderIrStruct> definitions, HashSet<INamedTypeSymbol> visiting, out ShaderIrStruct? structure, out string? reason)
     {
         if (definitions.TryGetValue(type, out var existing)) { structure = existing; reason = null; return true; }
+        if (ShaderStructSupport.IsStateless(type)) { structure = null; reason = null; return true; }
         if (!visiting.Add(type)) { structure = null; reason = $"Recursive shader struct '{type.ToDisplayString()}' is not supported."; return false; }
         var layout = type.GetAttributes().FirstOrDefault(attribute => attribute.AttributeClass?.ToDisplayString() == "System.Runtime.InteropServices.StructLayoutAttribute");
         if (layout?.ConstructorArguments.FirstOrDefault().Value is int kind && (kind == 2 || kind == 3))
@@ -887,6 +1092,14 @@ internal static class GraphicsEntryPoints
         uint offset = 0, alignment = 1;
         foreach (var field in type.GetMembers().OfType<IFieldSymbol>().Where(field => !field.IsStatic))
         {
+            if (field.Type is INamedTypeSymbol statelessType &&
+                statelessType.TypeKind == TypeKind.Struct &&
+                !TryMapType(statelessType, context, out _) &&
+                ShaderStructSupport.IsStateless(statelessType))
+            {
+                continue;
+            }
+
             if (!TryMapType(field.Type, context, out var glslType) && field.Type is INamedTypeSymbol nested && nested.TypeKind == TypeKind.Struct)
             {
                 if (!TryBuildStruct(nested, context, definitions, visiting, out var nestedStruct, out reason) || nestedStruct is null) { structure = null; visiting.Remove(type); return false; }

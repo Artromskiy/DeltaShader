@@ -6,6 +6,7 @@ using Delta.Shader.Compiler.Intrinsics;
 using Delta.Shader.Compiler.IR;
 using Delta.Shader.Compiler.Syntax;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Delta.Shader.Compiler;
@@ -111,6 +112,7 @@ public static class ComputeEntryPoints
         string body = string.Empty;
         IReadOnlyList<string> helperFunctions = [];
         IReadOnlyDictionary<IMethodSymbol, string> helperNames = new Dictionary<IMethodSymbol, string>(SymbolEqualityComparer.Default);
+        IReadOnlyDictionary<IMethodSymbol, bool> helperReceivers = new Dictionary<IMethodSymbol, bool>(SymbolEqualityComparer.Default);
         bool usesBuiltinInvocationId = false;
         if (diagnostics.Count == 0)
         {
@@ -132,7 +134,8 @@ public static class ComputeEntryPoints
                     entry.Method.Locations.FirstOrDefault()?.GetLineSpan().Path));
             }
             else if (!TryBuildHelpers(methodSyntax, context.Compilation.GetSemanticModel(methodSyntax.SyntaxTree), context,
-                    out helperFunctions, out helperNames, out helperDiagnosticReason))
+                    structDefinitions,
+                    out helperFunctions, out helperNames, out helperReceivers, out helperDiagnosticReason))
             {
                 diagnostics.Add(new ShaderDiagnostic(
                     ShaderDiagnosticId.DSH008,
@@ -154,7 +157,8 @@ public static class ComputeEntryPoints
                         structProperties,
                         out body,
                         out usesBuiltinInvocationId,
-                        out var bodyDiagnosticReason))
+                        out var bodyDiagnosticReason,
+                        helperReceivers: helperReceivers))
                 {
                     var location = entry.Method.Locations.FirstOrDefault()?.GetLineSpan();
                     diagnostics.Add(new ShaderDiagnostic(
@@ -197,21 +201,45 @@ public static class ComputeEntryPoints
         MethodDeclarationSyntax entrySyntax,
         SemanticModel entryModel,
         ModuleCompilationContext context,
+        Dictionary<INamedTypeSymbol, ShaderIrStruct> structDefinitions,
         out IReadOnlyList<string> functions,
         out IReadOnlyDictionary<IMethodSymbol, string> names,
+        out IReadOnlyDictionary<IMethodSymbol, bool> receivers,
         out string? reason)
     {
+        CreateStructMaps(structDefinitions, out var structNames, out var structFields, out var structProperties);
         var ordered = new List<IMethodSymbol>();
         var states = new Dictionary<IMethodSymbol, int>(SymbolEqualityComparer.Default);
         var helperNames = new Dictionary<IMethodSymbol, string>(SymbolEqualityComparer.Default);
+        var helperReceivers = new Dictionary<IMethodSymbol, bool>(SymbolEqualityComparer.Default);
         var usedNames = new HashSet<string>(StringComparer.Ordinal);
+        receivers = helperReceivers;
         reason = null;
         string? failureReason = null;
+
+        bool EnsureStructType(ITypeSymbol type)
+        {
+            if (type is not INamedTypeSymbol namedType || namedType.TypeKind != TypeKind.Struct ||
+                TryMapComputeType(type, context, structNames, out _) ||
+                ShaderStructSupport.IsStateless(namedType) ||
+                structDefinitions.ContainsKey(namedType))
+            {
+                return true;
+            }
+
+            return TryBuildStructLayout(
+                namedType,
+                context,
+                structDefinitions,
+                new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default),
+                out _,
+                out failureReason);
+        }
 
         bool Visit(IMethodSymbol method)
         {
             var definition = method.OriginalDefinition;
-            if (states.TryGetValue(definition, out var state))
+            if (states.TryGetValue(method, out var state))
             {
                 if (state == 1)
                 {
@@ -222,10 +250,15 @@ public static class ComputeEntryPoints
                 return true;
             }
 
-            if (!definition.IsStatic || definition.Arity != 0 || definition.ReturnsVoid ||
+            if (!definition.IsStatic && definition.ContainingType.TypeKind != TypeKind.Struct)
+            {
+                failureReason = $"Compute shader helper '{definition.Name}' must be static or an instance method on a value struct.";
+                return false;
+            }
+            if ((method.IsGenericMethod && method.TypeArguments.Any(argument => argument is ITypeParameterSymbol)) || method.ReturnsVoid ||
                 definition.Parameters.Any(parameter => parameter.RefKind != RefKind.None && parameter.RefKind != RefKind.Out))
             {
-                failureReason = $"Compute shader helper '{definition.Name}' must be a static, non-generic value method with value or out parameters.";
+                failureReason = $"Compute shader helper '{definition.Name}' must be a non-generic value method with value or out parameters.";
                 return false;
             }
 
@@ -244,20 +277,53 @@ public static class ComputeEntryPoints
                 return false;
             }
 
-            if (!TryMapComputeType(definition.ReturnType, context, out _) ||
-                definition.Parameters.Any(parameter => !TryMapComputeType(parameter.Type, context, out _)))
+            var hasReceiver = !definition.IsStatic && !ShaderStructSupport.IsStateless(method.ContainingType);
+            if (hasReceiver && !EnsureStructType(method.ContainingType))
+            {
+                return false;
+            }
+            if (!EnsureStructType(method.ReturnType))
+            {
+                return false;
+            }
+            foreach (var parameter in method.Parameters)
+            {
+                if (!EnsureStructType(parameter.Type))
+                {
+                    return false;
+                }
+            }
+
+            CreateStructMaps(structDefinitions, out structNames, out structFields, out structProperties);
+            if (!TryMapComputeType(method.ReturnType, context, structNames, out _) ||
+                (hasReceiver && !TryMapComputeType(method.ContainingType, context, structNames, out _)) ||
+                method.Parameters.Any(parameter => !TryMapComputeType(parameter.Type, context, structNames, out _)))
             {
                 failureReason = $"Compute shader helper '{definition.Name}' has an unsupported parameter or return type.";
                 return false;
             }
 
-            if (helperBody.DescendantNodesAndSelf().OfType<ThisExpressionSyntax>().Any())
+            if (definition.IsStatic && helperBody.DescendantNodesAndSelf().OfType<ThisExpressionSyntax>().Any())
             {
-                failureReason = $"Compute shader helper '{definition.Name}' captures managed instance state.";
+                failureReason = $"Static compute shader helper '{definition.Name}' cannot use an instance receiver.";
                 return false;
             }
 
             var model = context.Compilation.GetSemanticModel(syntax.SyntaxTree);
+            if (!ShaderBodyTranslator.ValidateOutParameters(syntax, model, method, out failureReason))
+            {
+                return false;
+            }
+
+            foreach (var assignment in helperBody.DescendantNodesAndSelf().OfType<AssignmentExpressionSyntax>())
+            {
+                if (model.GetSymbolInfo(assignment.Left).Symbol is IPropertySymbol)
+                {
+                    failureReason = $"Compute shader helper '{definition.Name}' cannot mutate a property.";
+                    return false;
+                }
+            }
+
             foreach (var identifier in helperBody.DescendantNodesAndSelf().OfType<IdentifierNameSyntax>())
             {
                 var symbol = model.GetSymbolInfo(identifier).Symbol;
@@ -270,19 +336,29 @@ public static class ComputeEntryPoints
 
                 if (symbol is IFieldSymbol field && !field.HasConstantValue)
                 {
+                    if (!definition.IsStatic && !field.IsStatic &&
+                        SymbolEqualityComparer.Default.Equals(field.ContainingType, definition.ContainingType) &&
+                        (structFields.ContainsKey(field) || IsCompileTimeOnlyMember(field, method)))
+                    {
+                        continue;
+                    }
+
                     failureReason = $"Compute shader helper '{definition.Name}' captures managed field '{field.Name}'.";
                     return false;
                 }
 
-                if (symbol is IPropertySymbol && !context.Intrinsics.TryGetIntrinsic(symbol, out _))
+                if (symbol is IPropertySymbol property &&
+                    !context.Intrinsics.TryGetIntrinsic(symbol, out _) &&
+                    !IsSupportedShaderProperty(property, definition, structProperties))
                 {
                     failureReason = $"Compute shader helper '{definition.Name}' uses unsupported property state.";
                     return false;
                 }
             }
 
-            states[definition] = 1;
-            helperNames[definition] = CreateHelperName(definition, usedNames);
+            states[method] = 1;
+            helperNames[method] = CreateHelperName(method, usedNames);
+            helperReceivers[method] = hasReceiver;
             foreach (var invocation in helperBody.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
             {
                 if (model.GetSymbolInfo(invocation).Symbol is not IMethodSymbol called)
@@ -302,20 +378,28 @@ public static class ComputeEntryPoints
                     continue;
                 }
 
-                if (!Visit(called))
+                var target = ShaderHelperSpecialization.ResolveTarget(invocation, called, model, method);
+                if (!Visit(target))
                 {
                     return false;
                 }
+
+                if (!SymbolEqualityComparer.Default.Equals(target, called))
+                {
+                    helperNames[called] = helperNames[target];
+                    helperReceivers[called] = helperReceivers[target];
+                }
             }
 
-            states[definition] = 2;
-            ordered.Add(definition);
+            states[method] = 2;
+            ordered.Add(method);
             return true;
         }
 
         var entryBody = entrySyntax.Body ?? (SyntaxNode?)entrySyntax.ExpressionBody?.Expression;
         if (entryBody is not null)
         {
+            var entryMethod = entryModel.GetDeclaredSymbol(entrySyntax) as IMethodSymbol;
             foreach (var invocation in entryBody.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
             {
                 if (entryModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol called)
@@ -336,16 +420,24 @@ public static class ComputeEntryPoints
                     continue;
                 }
 
-                if (!Visit(called))
+                var target = ShaderHelperSpecialization.ResolveTarget(invocation, called, entryModel, entryMethod ?? called);
+                if (!Visit(target))
                 {
                     reason = failureReason;
                     functions = [];
                     names = helperNames;
                     return false;
                 }
+
+                if (!SymbolEqualityComparer.Default.Equals(target, called))
+                {
+                    helperNames[called] = helperNames[target];
+                    helperReceivers[called] = helperReceivers[target];
+                }
             }
         }
 
+        CreateStructMaps(structDefinitions, out structNames, out structFields, out structProperties);
         var emitted = new List<string>(ordered.Count);
         foreach (var helper in ordered)
         {
@@ -360,10 +452,26 @@ public static class ComputeEntryPoints
 
             var model = context.Compilation.GetSemanticModel(syntax.SyntaxTree);
             var parameterMap = new Dictionary<IParameterSymbol, string>(SymbolEqualityComparer.Default);
-            var signature = new List<string>(helper.Parameters.Length);
+            var signature = new List<string>(helper.Parameters.Length + (helper.IsStatic ? 0 : 1));
+            string? instanceReceiver = null;
+            var hasReceiver = helperReceivers.TryGetValue(helper, out var receiver) ? receiver : !helper.IsStatic;
+            if (hasReceiver)
+            {
+                if (!TryMapComputeType(helper.ContainingType, context, structNames, out var receiverType))
+                {
+                    reason = $"Compute shader helper '{helper.Name}' has an unsupported value-struct receiver type.";
+                    functions = [];
+                    names = helperNames;
+                    return false;
+                }
+
+                instanceReceiver = "self";
+                signature.Add(receiverType + " " + instanceReceiver);
+            }
+
             foreach (var parameter in helper.Parameters)
             {
-                if (!TryMapComputeType(parameter.Type, context, out var glslType))
+                if (!TryMapComputeType(parameter.Type, context, structNames, out var glslType))
                 {
                     reason = $"Compute shader helper '{helper.Name}' has an unsupported parameter type.";
                     functions = [];
@@ -373,10 +481,14 @@ public static class ComputeEntryPoints
 
                 var parameterName = "arg_" + SanitizeHelperName(parameter.Name);
                 parameterMap[parameter] = parameterName;
+                if (!SymbolEqualityComparer.Default.Equals(parameter, parameter.OriginalDefinition))
+                {
+                    parameterMap[parameter.OriginalDefinition] = parameterName;
+                }
                 signature.Add((parameter.RefKind == RefKind.Out ? "out " : string.Empty) + glslType + " " + parameterName);
             }
 
-            if (!TryMapComputeType(helper.ReturnType, context, out var returnType))
+            if (!TryMapComputeType(helper.ReturnType, context, structNames, out var returnType))
             {
                 reason = $"Compute shader helper '{helper.Name}' has an unsupported return type.";
                 functions = [];
@@ -403,7 +515,12 @@ public static class ComputeEntryPoints
                     helperNames,
                     out translation,
                     out _,
-                    out helperReason);
+                    out helperReason,
+                    instanceReceiver: instanceReceiver,
+                    structNames: structNames,
+                    structFields: structFields,
+                    structProperties: structProperties,
+                    helperReceivers: helperReceivers);
             }
             else
             {
@@ -414,15 +531,17 @@ public static class ComputeEntryPoints
                     null,
                     new Dictionary<ISymbol, uint>(SymbolEqualityComparer.Default),
                     helperNames,
-                    new Dictionary<INamedTypeSymbol, string>(SymbolEqualityComparer.Default),
-                    new Dictionary<IFieldSymbol, string>(SymbolEqualityComparer.Default),
-                    new Dictionary<IPropertySymbol, string>(SymbolEqualityComparer.Default),
+                    structNames,
+                    structFields,
+                    structProperties,
                     out translation,
                     out _,
                     out helperReason,
                     parameterMap,
                     outputParameters,
-                    allowValueReturn: true);
+                    allowValueReturn: true,
+                    instanceReceiver: instanceReceiver,
+                    helperReceivers: helperReceivers);
             }
 
             if (!translationSucceeded)
@@ -455,7 +574,7 @@ public static class ComputeEntryPoints
         {
             if (model.GetTypeInfo(creation).Type is INamedTypeSymbol type &&
                 type.TypeKind == TypeKind.Struct &&
-                !context.Intrinsics.TryMapType(type, out _) &&
+                !TryMapComputeType(type, context, null, out _) &&
                 !TryBuildStructLayout(type, context, structDefinitions,
                     new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default), out _, out reason))
             {
@@ -468,7 +587,24 @@ public static class ComputeEntryPoints
             var type = model.GetTypeInfo(creation).ConvertedType ?? model.GetTypeInfo(creation).Type;
             if (type is INamedTypeSymbol namedType &&
                 namedType.TypeKind == TypeKind.Struct &&
-                !context.Intrinsics.TryMapType(namedType, out _) &&
+                !TryMapComputeType(namedType, context, null, out _) &&
+                !TryBuildStructLayout(namedType, context, structDefinitions,
+                    new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default), out _, out reason))
+            {
+                return false;
+            }
+        }
+
+        foreach (var declaration in methodSyntax.DescendantNodes().OfType<VariableDeclarationSyntax>())
+        {
+            var type = declaration.Type.IsVar
+                ? declaration.Variables.FirstOrDefault()?.Initializer is { } initializer
+                    ? model.GetTypeInfo(initializer.Value).ConvertedType ?? model.GetTypeInfo(initializer.Value).Type
+                    : null
+                : model.GetTypeInfo(declaration.Type).Type;
+            if (type is INamedTypeSymbol namedType &&
+                namedType.TypeKind == TypeKind.Struct &&
+                !TryMapComputeType(namedType, context, null, out _) &&
                 !TryBuildStructLayout(namedType, context, structDefinitions,
                     new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default), out _, out reason))
             {
@@ -495,20 +631,100 @@ public static class ComputeEntryPoints
             {
                 if (member is IFieldSymbol field && !field.IsStatic && !field.IsImplicitlyDeclared)
                 {
-                    structFields[field] = definition.Value.Members.Single(item => item.Name == field.Name).GlslName;
+                    var fieldMember = definition.Value.Members.FirstOrDefault(item => item.Name == field.Name);
+                    if (fieldMember is null)
+                    {
+                        continue;
+                    }
+
+                    var fieldName = fieldMember.GlslName;
+                    structFields[field] = fieldName;
+                    structFields[field.OriginalDefinition] = fieldName;
                 }
                 else if (member is IPropertySymbol property && !property.IsStatic && !property.IsIndexer &&
-                         property.Parameters.Length == 0 && property.GetMethod is not null)
+                         property.Parameters.Length == 0 && property.GetMethod is not null &&
+                         ShaderStructSupport.IsAutoProperty(property))
                 {
-                    structProperties[property] = definition.Value.Members.Single(item => item.Name == property.Name).GlslName;
+                    var propertyMember = definition.Value.Members.FirstOrDefault(item => item.Name == property.Name);
+                    if (propertyMember is null)
+                    {
+                        continue;
+                    }
+
+                    var propertyName = propertyMember.GlslName;
+                    structProperties[property] = propertyName;
+                    structProperties[property.OriginalDefinition] = propertyName;
                 }
             }
         }
     }
 
-    private static bool TryMapComputeType(ITypeSymbol type, ModuleCompilationContext context, out string glslType)
+    private static bool IsSupportedShaderProperty(
+        IPropertySymbol property,
+        IMethodSymbol helper,
+        IReadOnlyDictionary<IPropertySymbol, string> structProperties)
     {
+        if (!property.IsStatic)
+        {
+            return !helper.IsStatic &&
+                property.ContainingType is not null &&
+                SymbolEqualityComparer.Default.Equals(property.ContainingType, helper.ContainingType.OriginalDefinition) &&
+                (structProperties.ContainsKey(property) || IsExpressionBodiedProperty(property));
+        }
+
+        if (property.GetMethod is null || property.SetMethod is not null || property.Parameters.Length != 0)
+        {
+            return false;
+        }
+
+        return property.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is PropertyDeclarationSyntax syntax &&
+            (syntax.ExpressionBody?.Expression is not null ||
+             syntax.AccessorList?.Accessors.Any(accessor =>
+                 accessor.IsKind(SyntaxKind.GetAccessorDeclaration) && accessor.ExpressionBody?.Expression is not null) == true ||
+             syntax.Initializer?.Value is not null);
+    }
+
+    private static bool IsExpressionBodiedProperty(IPropertySymbol property)
+        => property.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is PropertyDeclarationSyntax syntax &&
+           (syntax.ExpressionBody?.Expression is not null ||
+            syntax.AccessorList?.Accessors.Any(accessor =>
+                accessor.IsKind(SyntaxKind.GetAccessorDeclaration) && accessor.ExpressionBody?.Expression is not null) == true);
+
+    private static bool IsCompileTimeOnlyMember(IFieldSymbol field, IMethodSymbol method)
+    {
+        if (field.ContainingType is null || method.ContainingType is null ||
+            !SymbolEqualityComparer.Default.Equals(
+                field.ContainingType.OriginalDefinition,
+                method.ContainingType.OriginalDefinition))
+        {
+            return false;
+        }
+
+        return method.ContainingType.GetMembers(field.Name)
+            .OfType<IFieldSymbol>()
+            .Any(candidate => !candidate.IsStatic &&
+                !candidate.IsImplicitlyDeclared &&
+                candidate.Type is INamedTypeSymbol namedType &&
+                ShaderStructSupport.IsStateless(namedType));
+    }
+
+    private static bool TryMapComputeType(
+        ITypeSymbol type,
+        ModuleCompilationContext context,
+        IReadOnlyDictionary<INamedTypeSymbol, string>? structNames,
+        out string glslType)
+    {
+        if (ShaderEnumSupport.TryMap(type, out glslType))
+        {
+            return true;
+        }
+
         if (context.Intrinsics.TryMapType(type, out glslType))
+        {
+            return true;
+        }
+
+        if (type is INamedTypeSymbol namedType && structNames is not null && structNames.TryGetValue(namedType, out glslType))
         {
             return true;
         }
@@ -846,6 +1062,13 @@ public static class ComputeEntryPoints
         out string reason)
     {
         members = Array.Empty<ShaderIrStructMember>();
+        if (ShaderEnumSupport.TryMap(type, out glslType))
+        {
+            layout = ShaderStd430Layout.ForGlslType(glslType);
+            reason = string.Empty;
+            return true;
+        }
+
         if (context.Intrinsics.TryMapType(type, out glslType))
         {
             layout = ShaderStd430Layout.ForGlslType(glslType);
@@ -912,7 +1135,8 @@ public static class ComputeEntryPoints
                 yield return field;
             }
             else if (member is IPropertySymbol property && !property.IsStatic && !property.IsIndexer &&
-                     property.Parameters.Length == 0 && property.GetMethod is not null)
+                     property.Parameters.Length == 0 && property.GetMethod is not null &&
+                     ShaderStructSupport.IsAutoProperty(property))
             {
                 yield return property;
             }
@@ -930,6 +1154,13 @@ public static class ComputeEntryPoints
         if (structDefinitions.TryGetValue(type, out var existing))
         {
             structure = existing;
+            reason = string.Empty;
+            return true;
+        }
+
+        if (ShaderStructSupport.IsStateless(type))
+        {
+            structure = null;
             reason = string.Empty;
             return true;
         }
@@ -961,6 +1192,14 @@ public static class ComputeEntryPoints
         foreach (var member in GetStructValueMembers(type))
         {
             var memberType = member is IFieldSymbol field ? field.Type : ((IPropertySymbol)member).Type;
+            if (memberType is INamedTypeSymbol nestedType &&
+                nestedType.TypeKind == TypeKind.Struct &&
+                !TryMapComputeType(nestedType, context, null, out _) &&
+                ShaderStructSupport.IsStateless(nestedType))
+            {
+                continue;
+            }
+
             if (memberType is IArrayTypeSymbol arrayType && SymbolEqualityComparer.Default.Equals(arrayType.ElementType, type))
             {
                 visiting.Remove(type);
