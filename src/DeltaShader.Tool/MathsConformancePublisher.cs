@@ -158,6 +158,18 @@ internal static class MathsConformancePublisher
             return 1;
         }
 
+        var mappingMismatches = cases
+            .Where(conformanceCase => manifestFunctions.Single(function => function.Identity == conformanceCase.Operation.Identity).Mapping != conformanceCase.Operation.Mapping)
+            .Select(conformanceCase => conformanceCase.Operation.Identity)
+            .ToArray();
+        if (mappingMismatches.Length != 0)
+        {
+            await Console.Error.WriteLineAsync(
+                "Maths conformance failed: bundle/manifest mapping mismatch for:\n"
+                + string.Join(Environment.NewLine, mappingMismatches)).ConfigureAwait(false);
+            return 1;
+        }
+
         var firstSliceFunctions = manifestFunctions
             .Where(IsFirstSliceFunction)
             .OrderBy(function => function.Identity, StringComparer.Ordinal);
@@ -322,6 +334,11 @@ internal static class MathsConformancePublisher
             UnsupportedManifestCount = bundle.Coverage.UnsupportedManifestCount,
             ExcludedCaseCount = bundle.Coverage.ExcludedCount,
             ArtifactCount = entries.Count(entry => entry.Status == "passed"),
+            CompilerBlockedCount = entries.Count(IsCompilerBlocked),
+            BackendBlockedCount = entries.Count(entry => entry.Status == "glsl-diagnostic"),
+            ExternalValidationBlockedCount = entries.Count(entry => entry.Status is "glslang-diagnostic" or "spirv-validation-diagnostic"),
+            MismatchedCount = 0,
+            AccountedCount = entries.Count(entry => entry.Status.Length != 0),
             Cases = entries
         };
         var indexPath = Path.Combine(outputDirectory, "index.json");
@@ -333,7 +350,8 @@ internal static class MathsConformancePublisher
 
         await Console.Out.WriteLineAsync(
             $"Maths conformance artifacts: {conformanceIndex.ArtifactCount}/{conformanceIndex.SelectedCount} passed; "
-            + $"index: {indexPath}").ConfigureAwait(false);
+            + $"blocked compiler={conformanceIndex.CompilerBlockedCount}, backend={conformanceIndex.BackendBlockedCount}, "
+            + $"external={conformanceIndex.ExternalValidationBlockedCount}; index: {indexPath}").ConfigureAwait(false);
         foreach (var entry in entries.Where(entry => entry.Status != "passed"))
         {
             await Console.Out.WriteLineAsync($"[BLOCKED] {entry.OperationIdentity}: {entry.Status}: {entry.Diagnostic}").ConfigureAwait(false);
@@ -341,6 +359,9 @@ internal static class MathsConformancePublisher
 
         return conformanceIndex.ArtifactCount == conformanceIndex.SelectedCount ? 0 : 1;
     }
+
+    private static bool IsCompilerBlocked(PublishedCase entry)
+        => entry.Status is "roslyn-diagnostic" or "compiler-diagnostic";
 
     private static List<ContractFunction> LoadFunctions(string path)
     {
@@ -551,6 +572,8 @@ internal static class MathsConformancePublisher
             "op_Subtraction" => "-",
             "op_Multiply" => "*",
             "op_Division" => "/",
+            "op_Equality" => "==",
+            "op_Inequality" => "!=",
             "op_UnaryPlus" => "+",
             "op_UnaryNegation" => "-",
             _ => null
@@ -699,6 +722,11 @@ internal static class MathsConformancePublisher
         public int UnsupportedManifestCount { get; init; }
         public int ExcludedCaseCount { get; init; }
         public int ArtifactCount { get; init; }
+        public int CompilerBlockedCount { get; init; }
+        public int BackendBlockedCount { get; init; }
+        public int ExternalValidationBlockedCount { get; init; }
+        public int MismatchedCount { get; init; }
+        public int AccountedCount { get; init; }
         public IReadOnlyList<PublishedCase> Cases { get; init; } = Array.Empty<PublishedCase>();
     }
 

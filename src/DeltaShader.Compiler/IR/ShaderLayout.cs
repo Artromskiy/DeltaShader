@@ -24,9 +24,15 @@ public sealed class ShaderStd430Layout
             "bvec2" or "ivec2" or "uvec2" or "vec2" => Vector(8, 8),
             "bvec3" or "ivec3" or "uvec3" or "vec3" => Vector(16, 12),
             "bvec4" or "ivec4" or "uvec4" or "vec4" => Vector(16, 16),
-            "mat2" => Matrix(8, 16, 8),
-            "mat3" => Matrix(16, 48, 16),
-            "mat4" => Matrix(16, 64, 16),
+            "mat2" or "mat2x2" => Matrix(2, 2),
+            "mat2x3" => Matrix(2, 3),
+            "mat2x4" => Matrix(2, 4),
+            "mat3x2" => Matrix(3, 2),
+            "mat3" or "mat3x3" => Matrix(3, 3),
+            "mat3x4" => Matrix(3, 4),
+            "mat4x2" => Matrix(4, 2),
+            "mat4x3" => Matrix(4, 3),
+            "mat4" or "mat4x4" => Matrix(4, 4),
             _ => throw new ArgumentException($"Unsupported GLSL type '{glslType}'.", nameof(glslType))
         };
     }
@@ -37,8 +43,12 @@ public sealed class ShaderStd430Layout
     private static ShaderStd430Layout Vector(uint alignment, uint size)
         => new() { Alignment = alignment, Size = size, ArrayStride = alignment };
 
-    private static ShaderStd430Layout Matrix(uint alignment, uint size, uint matrixStride)
-        => new() { Alignment = alignment, Size = size, ArrayStride = size, MatrixStride = matrixStride };
+    private static ShaderStd430Layout Matrix(uint columns, uint rows)
+    {
+        var matrixStride = rows == 2 ? 8u : 16u;
+        var size = columns * matrixStride;
+        return new() { Alignment = matrixStride, Size = size, ArrayStride = size, MatrixStride = matrixStride };
+    }
 
     public static ShaderStd430Layout ForStruct(uint alignment, uint size)
         => new() { Alignment = alignment, Size = size, ArrayStride = size };

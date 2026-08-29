@@ -53,8 +53,8 @@ internal static class ShaderBodyTranslator
         {
             rewriter.PredeclareOutLocals(methodBlock);
         }
-        else if (methodSyntax.ExpressionBody?.Expression is { } expression &&
-                 rewriter.ContainsOutLocalDeclaration(expression))
+        else if (methodSyntax.ExpressionBody?.Expression is { } outExpression &&
+                 rewriter.ContainsOutLocalDeclaration(outExpression))
         {
             translated = string.Empty;
             usesBuiltin = false;
@@ -64,8 +64,8 @@ internal static class ShaderBodyTranslator
 
         var rewritten = methodSyntax.Body is { } body
             ? rewriter.Visit(body)
-            : methodSyntax.ExpressionBody?.Expression is { } expression
-                ? rewriter.Visit(expression)
+            : methodSyntax.ExpressionBody?.Expression is { } expressionBody
+                ? rewriter.Visit(expressionBody)
                 : null;
 
         if (rewritten is BlockSyntax block)

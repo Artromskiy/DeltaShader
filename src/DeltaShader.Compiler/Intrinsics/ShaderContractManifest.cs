@@ -51,8 +51,18 @@ public sealed class ShaderContractManifest
 
         using var stream = assembly.GetManifestResourceStream(resourceName)
             ?? throw new InvalidOperationException("The embedded DeltaMaths shader contract could not be opened.");
-        return JsonSerializer.Deserialize<ShaderContractManifest>(stream)
+        var manifest = JsonSerializer.Deserialize<ShaderContractManifest>(stream)
             ?? throw new InvalidOperationException("The embedded DeltaMaths shader contract is empty.");
+        manifest.Validate();
+        return manifest;
+    }
+
+    public void Validate()
+    {
+        foreach (var type in Types)
+        {
+            type.ValidateMatrixMetadata();
+        }
     }
 }
 
@@ -77,8 +87,66 @@ public sealed class ShaderContractType
     [JsonPropertyName("matrixStride")]
     public uint? MatrixStride { get; set; }
 
+    [JsonPropertyName("matrixColumns")]
+    public uint? MatrixColumns { get; set; }
+
+    [JsonPropertyName("matrixRows")]
+    public uint? MatrixRows { get; set; }
+
+    [JsonPropertyName("elementGlslType")]
+    public string? ElementGlslType { get; set; }
+
+    [JsonPropertyName("size")]
+    public uint? Size { get; set; }
+
     [JsonPropertyName("requiredCapability")]
     public string? RequiredCapability { get; set; }
+
+    public void ValidateMatrixMetadata()
+    {
+        if (Mapping == ShaderContractMapping.Unsupported ||
+            GlslName is not { Length: > 0 } glslName ||
+            !glslName.StartsWith("mat", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (!TryGetMatrixDimensions(glslName, out var columns, out var rows))
+        {
+            throw new InvalidOperationException($"Unsupported matrix GLSL type '{glslName}' in the shader contract.");
+        }
+
+        var matrixStride = rows == 2 ? 8u : 16u;
+        var size = columns * matrixStride;
+        if (ColumnMajor != true || Alignment != matrixStride || MatrixStride != matrixStride ||
+            MatrixColumns != columns || MatrixRows != rows ||
+            !string.Equals(ElementGlslType, "float", StringComparison.Ordinal) || Size != size)
+        {
+            throw new InvalidOperationException($"Invalid std430 matrix metadata for '{ClrName}' ({glslName}).");
+        }
+    }
+
+    private static bool TryGetMatrixDimensions(string glslName, out uint columns, out uint rows)
+    {
+        columns = 0;
+        rows = 0;
+        if (glslName.Length == 4 && glslName[3] is >= '2' and <= '4')
+        {
+            columns = (uint)(glslName[3] - '0');
+            rows = columns;
+            return true;
+        }
+
+        if (glslName.Length == 6 && glslName[3] is >= '2' and <= '4' &&
+            glslName[4] == 'x' && glslName[5] is >= '2' and <= '4')
+        {
+            columns = (uint)(glslName[3] - '0');
+            rows = (uint)(glslName[5] - '0');
+            return true;
+        }
+
+        return false;
+    }
 
 }
 

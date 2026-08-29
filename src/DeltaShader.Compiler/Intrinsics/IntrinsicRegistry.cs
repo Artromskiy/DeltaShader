@@ -119,7 +119,7 @@ public sealed class IntrinsicRegistry
 
         RegisterOwnedShaderIntrinsics(methods, compilation);
         RegisterShaderBuiltins(methods, compilation);
-        RegisterDeltaMathsFacadeBuiltins(methods, types, compilation, contract);
+        RegisterDeltaMathsFacadeBuiltins(methods, compilation, contract);
         return new IntrinsicRegistry(methods, types, contract);
     }
 
@@ -139,7 +139,10 @@ public sealed class IntrinsicRegistry
         {
             if (!property.IsIndexer && property.Parameters.Length == 0 && IsKnownSwizzle(property.Name))
             {
-                methods[property] = new IntrinsicBinding(IntrinsicCategory.Swizzle, property.Name);
+                methods[property] = new IntrinsicBinding(
+                    IntrinsicCategory.Swizzle,
+                    property.Name,
+                    ShaderStages: new[] { "compute", "vertex", "fragment" });
             }
         }
 
@@ -147,23 +150,13 @@ public sealed class IntrinsicRegistry
         {
             if (!field.IsStatic && IsKnownSwizzle(field.Name))
             {
-                methods[field] = new IntrinsicBinding(IntrinsicCategory.Swizzle, field.Name);
+                methods[field] = new IntrinsicBinding(
+                    IntrinsicCategory.Swizzle,
+                    field.Name,
+                    ShaderStages: new[] { "compute", "vertex", "fragment" });
             }
         }
 
-        // Vector type rows carry the ABI mapping. Their generated operator rows may remain
-        // Unsupported; keep the source symbols discoverable without claiming a lowering.
-        if (type.Name.Length >= 5 &&
-            (type.Name.EndsWith("2", StringComparison.Ordinal) ||
-             type.Name.EndsWith("3", StringComparison.Ordinal) ||
-             type.Name.EndsWith("4", StringComparison.Ordinal)))
-        {
-            foreach (var op in type.GetMembers().OfType<IMethodSymbol>()
-                         .Where(member => member.MethodKind == MethodKind.UserDefinedOperator))
-            {
-                methods[op] = new IntrinsicBinding(IntrinsicCategory.Operator, op.Name, RequiredCapability: "std430");
-            }
-        }
     }
 
     private static bool Matches(IMethodSymbol method, ShaderContractFunction contract)
@@ -320,7 +313,6 @@ public sealed class IntrinsicRegistry
 
     private static void RegisterDeltaMathsFacadeBuiltins(
         Dictionary<ISymbol, IntrinsicBinding> methods,
-        Dictionary<ITypeSymbol, string> mappedTypes,
         Compilation compilation,
         ShaderContractManifest contract)
     {
@@ -333,33 +325,6 @@ public sealed class IntrinsicRegistry
         var facadeContracts = contract.Functions
             .Where(function => string.Equals(function.TypeClrName, "maths", StringComparison.Ordinal))
             .ToArray();
-        var fallbackNames = new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            ["abs"] = "abs",
-            ["acos"] = "acos",
-            ["asin"] = "asin",
-            ["atan"] = "atan",
-            ["ceil"] = "ceil",
-            ["clamp"] = "clamp",
-            ["cos"] = "cos",
-            ["cross"] = "cross",
-            ["distance"] = "distance",
-            ["dot"] = "dot",
-            ["exp"] = "exp",
-            ["floor"] = "floor",
-            ["length"] = "length",
-            ["max"] = "max",
-            ["min"] = "min",
-            ["normalize"] = "normalize",
-            ["pow"] = "pow",
-            ["round"] = "roundEven",
-            ["sign"] = "sign",
-            ["sin"] = "sin",
-            ["sqrt"] = "sqrt",
-            ["step"] = "step",
-            ["tan"] = "tan",
-            ["smoothstep"] = "smoothstep"
-        };
         foreach (var method in mathsType.GetMembers().OfType<IMethodSymbol>())
         {
             if (!method.IsStatic || method.MethodKind != MethodKind.Ordinary)
@@ -385,22 +350,8 @@ public sealed class IntrinsicRegistry
                 continue;
             }
 
-            if (!fallbackNames.TryGetValue(method.Name, out var fallbackName)
-                || !IsGlslValue(method.ReturnType, mappedTypes)
-                || method.Parameters.Any(parameter => !IsGlslValue(parameter.Type, mappedTypes)))
-            {
-                continue;
-            }
-
-            methods[method] = new IntrinsicBinding(
-                IntrinsicCategory.Function,
-                fallbackName,
-                ShaderStages: new[] { "compute", "vertex", "fragment" });
         }
     }
-
-    private static bool IsGlslValue(ITypeSymbol type, Dictionary<ITypeSymbol, string> mappedTypes)
-        => type.SpecialType == SpecialType.System_Single || mappedTypes.ContainsKey(type);
 
     public IReadOnlyList<string> GetGlslHelperFunctions(
         ShaderStage stage,
