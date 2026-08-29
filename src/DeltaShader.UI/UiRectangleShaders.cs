@@ -1,12 +1,9 @@
-using System.Diagnostics.CodeAnalysis;
 using Delta.Maths;
 using Delta.Shader;
 using static Delta.Maths.maths;
 
 namespace Delta.Shader.Ui;
 
-[SuppressMessage("Design", "CA1051", Justification = "Public fields are the declared shader-visible push-constant payload.")]
-[SuppressMessage("Design", "CA1815", Justification = "Field-only shader ABI record; equality is not part of the serialized layout contract.")]
 public struct SolidRectangleParameters
 {
     public float2 Resolution = default;
@@ -18,8 +15,6 @@ public struct SolidRectangleParameters
     }
 }
 
-[SuppressMessage("Design", "CA1051", Justification = "Public fields are the declared shader-visible interstage payload.")]
-[SuppressMessage("Design", "CA1815", Justification = "Field-only shader ABI record; equality is not part of the serialized layout contract.")]
 [Interstage]
 public struct SolidRectanglePayload
 {
@@ -27,7 +22,6 @@ public struct SolidRectanglePayload
     public float4 Position;
 }
 
-[SuppressMessage("Design", "CA1051", Justification = "Public fields are the declared shader-visible context ABI.")]
 public readonly struct SolidRectangleVertexContext
 {
     [Interstage]
@@ -37,7 +31,6 @@ public readonly struct SolidRectangleVertexContext
     public readonly SolidRectangleParameters Parameters;
 }
 
-[SuppressMessage("Design", "CA1051", Justification = "Public fields are the declared shader-visible context ABI.")]
 public readonly struct SolidRectangleFragmentContext
 {
     [Interstage]
@@ -47,8 +40,6 @@ public readonly struct SolidRectangleFragmentContext
     public readonly SolidRectangleParameters Parameters;
 }
 
-[SuppressMessage("Design", "CA1051", Justification = "Public fields are the declared shader-visible push-constant payload.")]
-[SuppressMessage("Design", "CA1815", Justification = "Field-only shader ABI record; equality is not part of the serialized layout contract.")]
 public struct RoundedRectangleParameters
 {
     public float2 Resolution = default;
@@ -63,8 +54,6 @@ public struct RoundedRectangleParameters
     }
 }
 
-[SuppressMessage("Design", "CA1051", Justification = "Public fields are the declared shader-visible interstage payload.")]
-[SuppressMessage("Design", "CA1815", Justification = "Field-only shader ABI record; equality is not part of the serialized layout contract.")]
 [Interstage]
 public struct RoundedRectanglePayload
 {
@@ -73,7 +62,6 @@ public struct RoundedRectanglePayload
     public float2 Uv;
 }
 
-[SuppressMessage("Design", "CA1051", Justification = "Public fields are the declared shader-visible context ABI.")]
 public readonly struct RoundedRectangleVertexContext
 {
     [Interstage]
@@ -83,7 +71,6 @@ public readonly struct RoundedRectangleVertexContext
     public readonly RoundedRectangleParameters Parameters;
 }
 
-[SuppressMessage("Design", "CA1051", Justification = "Public fields are the declared shader-visible context ABI.")]
 public readonly struct RoundedRectangleFragmentContext
 {
     [Interstage]
