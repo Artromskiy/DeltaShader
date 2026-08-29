@@ -27,3 +27,25 @@
 
 Shared SDF/MSDF and graphics acceptance is tracked in
 [../EDITOR_UI_TODO.md](../EDITOR_UI_TODO.md).
+
+## Selected UI/text shader ownership
+
+The neutral UI paint contract is `DeltaXAML`-owned; shader source and final
+artifacts are `DeltaShader`-owned. This slice must not add Vulkan, SDL,
+DeltaRender or XAML implementation dependencies to shader authoring.
+
+- [ ] Create `src/DeltaShader.Ui/DeltaShader.Ui.csproj` and move the standard
+  UI shader authoring source out of `DeltaRender/tools/DeltaRender.UiShaders`;
+  leave no duplicate active producer after migration.
+- [ ] Keep text shader source in `src/DeltaShader.Text/`; make SDF and MSDF
+  fill/outline semantics explicit and document distance-range/outline-width
+  units without changing existing artifacts silently.
+- [ ] Add validated UI shader entry points for solid/rounded rectangles,
+  borders and the first gradient/image paths using compact push constants or
+  explicit resource bindings. Do not create an all-purpose parameter blob.
+- [ ] Publish only `ShaderArtifact` plus resolved `ShaderAbi` to Render;
+  generated `.spv`, `.glsl` and `.shader.json` remain artifact/package output,
+  not hand-maintained source or a second runtime ABI.
+- [ ] Add compiler/golden tests for descriptor layout, stage visibility,
+  rounded coverage and outline behavior. Animation time/progress stays a
+  host/render parameter, not retained XAML state.
