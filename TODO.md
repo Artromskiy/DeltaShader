@@ -34,15 +34,17 @@ The neutral UI paint contract is `DeltaXAML`-owned; shader source and final
 artifacts are `DeltaShader`-owned. This slice must not add Vulkan, SDL,
 DeltaRender or XAML implementation dependencies to shader authoring.
 
-- [ ] Create `src/DeltaShader.Ui/DeltaShader.Ui.csproj` and move the standard
-  UI shader authoring source out of `DeltaRender/tools/DeltaRender.UiShaders`;
-  leave no duplicate active producer after migration.
+- [x] Create `src/DeltaShader.Ui/DeltaShader.Ui.csproj` as the canonical
+  producer for solid and rounded rectangle authoring. The old
+  `DeltaRender/tools/DeltaRender.UiShaders` source remains untouched because
+  this producer-only slice cannot edit DeltaRender; its removal is still a
+  consumer migration task.
 - [ ] Keep text shader source in `src/DeltaShader.Text/`; make SDF and MSDF
   fill/outline semantics explicit and document distance-range/outline-width
   units without changing existing artifacts silently.
-- [ ] Add validated UI shader entry points for solid/rounded rectangles,
-  borders and the first gradient/image paths using compact push constants or
-  explicit resource bindings. Do not create an all-purpose parameter blob.
+- [x] Add validated UI shader entry points for solid/rounded rectangles and
+  borders using separate compact push-constant blocks. Gradient/image paths
+  remain future work; no all-purpose parameter blob was added.
 - [ ] Publish only `ShaderArtifact` plus resolved `ShaderAbi` to Render;
   generated `.spv`, `.glsl` and `.shader.json` remain artifact/package output,
   not hand-maintained source or a second runtime ABI.

@@ -14,6 +14,7 @@ DeltaShader/
 │   ├── DeltaShader.Backend.Glsl/     GLSL lowering backend
 │   ├── DeltaShader.Tool/             build and artifact tooling
 │   ├── DeltaShader.Text/             reusable text shader authoring
+│   ├── DeltaShader.Ui/               reusable UI shader authoring
 │   └── DeltaShader.ShadertoyGallery/ consumer fixture project
 ├── samples/                          editable sample projects
 │   └── DeltaShader.Playground/       shader authoring playground

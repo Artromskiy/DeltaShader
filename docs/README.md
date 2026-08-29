@@ -26,6 +26,8 @@ Public documentation:
   folder and project-boundary layout.
 - [diagnostics.md](diagnostics.md) lists compiler and analyzer
   diagnostics.
+- [ui-shader-contract.md](ui-shader-contract.md) defines the canonical
+  rectangle shader sources and resolved push-constant ABI.
 
 Developer documentation:
 

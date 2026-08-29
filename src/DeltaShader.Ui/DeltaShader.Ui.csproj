@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Delta.Shader.Ui</RootNamespace>
+    <AssemblyName>DeltaShader.Ui</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DeltaShader.Contract\DeltaShader.Contract.csproj" />
+    <ProjectReference Include="..\DeltaShader\DeltaShader.csproj" />
+    <ProjectReference Include="..\DeltaShader.Analyzers\DeltaShader.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <Analyzer Include="..\DeltaShader.Analyzers\bin\$(Configuration)\netstandard2.0\DeltaShader.Analyzers.dll" />
+    <Analyzer Include="..\DeltaShader\bin\$(Configuration)\netstandard2.0\DeltaShader.dll" />
+    <Analyzer Include="..\DeltaShader.Compiler\bin\$(Configuration)\netstandard2.0\DeltaShader.Compiler.dll" />
+    <Analyzer Include="..\DeltaShader.Backend.Glsl\bin\$(Configuration)\netstandard2.0\DeltaShader.Backend.Glsl.dll" />
+    <ProjectReference Include="..\..\..\DeltaMaths\src\DeltaMaths\DeltaMaths.csproj">
+      <SetTargetFramework>TargetFramework=netstandard2.1</SetTargetFramework>
+    </ProjectReference>
+  </ItemGroup>
+</Project>
