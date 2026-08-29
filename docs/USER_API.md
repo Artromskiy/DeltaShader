@@ -72,6 +72,38 @@ reading the resolved offsets and array stride. Unpack is emitted only for
 writable value payloads; a context containing descriptors is not reconstructed
 from bytes.
 
+### Generated vertex-buffer packing
+
+Vertex data uses the same generated packing path as storage-buffer elements;
+it is not a second hand-written ABI. The canonical producer source is the
+`DeltaShader.Mesh` project at
+`src/DeltaShader.Mesh/DeltaShader.Mesh.csproj`. A consumer references that
+project and gets the generated public
+`Delta.Shader.Mesh.MeshShadersGraphicsShaderProgram` type. Its `Mesh` vertex
+entry point has a payload containing `[Position] float4 Position`,
+`[Layout(1)] float3 Normal` and `[Layout(2)] float2 Uv`, so the generated
+surface is:
+
+```csharp
+int PackMeshVertexElement(in MeshPayload value, Span<byte> destination);
+byte[] PackMeshVertexElement(in MeshPayload value);
+int PackMeshVertexElements(ReadOnlySpan<MeshPayload> values, Span<byte> destination);
+byte[] PackMeshVertexElements(ReadOnlySpan<MeshPayload> values);
+```
+
+The element helper writes one interleaved vertex using the resolved
+`ShaderAbi.VertexInputs` offsets. The array helper repeats the same operation
+using the resolved binding stride, including padding between records. The
+authoring project does not specify byte offsets or stride; `[Layout(location)]`
+declares vertex locations, while the compiler resolves the physical layout.
+Render uploads the returned bytes as a vertex buffer and uses the same
+`MeshShadersGraphicsShaderProgram.VertexAbi` to create the vertex-input state.
+The same generated type exposes `FragmentAbi` and
+`CreateProgram(ReadOnlySpan<byte>, ReadOnlySpan<byte>)`; the SPIR-V bytes come
+from the explicit DeltaShader Tool/package step, not from this authoring
+assembly. The current generated surface supports the resolved binding-0
+stream; multiple vertex-buffer bindings are a separate compiler feature.
+
 Shader execution builtins are static compiler intrinsics, not context fields:
 
 ```csharp
@@ -220,6 +252,25 @@ reflection, virtual/interface dispatch and other unsupported CLR constructs.
 Arbitrary runtime lambdas, delegates and expression-tree transpilation are not
 part of this API. The CLR method is authoring input; it is never invoked by
 the GPU.
+
+### SDF/MSDF text parameters
+
+`Delta.Shader.Text` provides `SdfTextVertex`/`SdfTextFragment` and
+`MsdfTextVertex`/`MsdfTextFragment`. Their `TextParameters` push-constant
+payload uses these units:
+
+- `DistanceRange` is the positive signed-distance range represented by the
+  texture's encoded `[0, 1]` span, measured in atlas distance-field units.
+- `OutlineWidth` is the outer outline width in the same distance-field units.
+  The host converts any UI or logical-pixel width before packing the value.
+- Positive signed distance is inside the glyph. Fill coverage increases with
+  signed distance; outline coverage is the finite band outside the contour and
+  is zero when `OutlineWidth` is zero.
+
+`DistanceRange` must be positive. The SDF path uses the texture alpha channel;
+the MSDF path uses the median of RGB. Both paths use `fwidth` for analytic
+anti-aliasing and expose `TextColor`/`OutlineColor` explicitly in the same
+push-constant block.
 
 ## Build-side publication
 

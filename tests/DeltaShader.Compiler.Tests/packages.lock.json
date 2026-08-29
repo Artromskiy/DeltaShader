@@ -417,6 +417,9 @@
           "DeltaShader": "[1.0.0, )"
         }
       },
+      "deltashader.contract": {
+        "type": "Project"
+      },
       "Microsoft.CodeAnalysis.Analyzers": {
         "type": "CentralTransitive",
         "requested": "[3.11.0, )",

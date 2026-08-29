@@ -19,7 +19,7 @@ is intended to cross from DeltaShader to DeltaRender.
 ### Producers still use compatibility artifact types
 
 The compiler model, source generators, CLI, text factories and current tests
-still reference artifact and manifest types in `DeltaShader.Abstractions`.
+no longer reference the removed compatibility artifact and manifest types.
 Generated manifest JSON and GLSL constants therefore describe the current
 authoring/compiler compatibility path. They are not the canonical renderer
 handoff and must not be documented as one.
@@ -56,3 +56,7 @@ syntax, entry-point, fixture and diagnostic review. Those findings were
 subsequently remediated and are not a current task list. Selected remaining
 work is maintained in [../TODO.md](../TODO.md); build and validation commands
 live in [../WORKFLOW.md](../WORKFLOW.md).
+
+## Historical legacy API
+
+The former compatibility artifact, manifest, and graphics-program surface is obsolete and removed. `Delta.Shader.Contract.GraphicsShaderProgram` is the canonical final artifact program and is not obsolete; no compatibility facade is retained.

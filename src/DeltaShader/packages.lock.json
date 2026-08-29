@@ -43,6 +43,8 @@
         "contentHash": "3TIsJhD1EiiT0w2CcDMN/iSSwnNnsrnbzeVHSKkaEgV85txMprmuO+Yq2AdSbeVGcg28pdNDTPK87tJhX7VFHw=="
       }
     },
-    "net10.0": {}
+    ".NETStandard,Version=v2.0/osx-arm64": {},
+    "net10.0": {},
+    "net10.0/osx-arm64": {}
   }
 }

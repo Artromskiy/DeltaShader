@@ -108,8 +108,9 @@ public sealed class DeltaComputeGenerator : IIncrementalGenerator
 
         return "using System;\nusing Delta.Shader.Contract;\n\n" + ns + "\n\npublic static class " + className + "\n{\n" +
             abiFactory +
+            ArtifactSourceEmitter.EmitAbiAccessor("Abi", "CreateAbi") +
             packingMethods +
-            "\n    public static ShaderArtifact CreateArtifact(ReadOnlySpan<byte> spirv)\n        => new(spirv, \"main\", CreateAbi());\n}\n";
+            "\n    public static ShaderArtifact CreateArtifact(ReadOnlySpan<byte> spirv)\n        => new(spirv, \"main\", Abi);\n}\n";
     }
 
     private static string Sanitize(string name) => string.Concat(name.Select(c => char.IsLetterOrDigit(c) || c == '_' ? c : '_')) is { Length: > 0 } value ? value : "Compute";

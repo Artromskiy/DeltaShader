@@ -1075,6 +1075,7 @@ public class IntrinsicCatalogTests
                     public float4 TextColor;
                     public float4 OutlineColor;
                     public float OutlineWidth;
+                    public float DistanceRange;
                 }
                 [Interstage]
                 public struct TexturePayload
@@ -1106,9 +1107,13 @@ public class IntrinsicCatalogTests
                 {
                     var texel = context.Atlas.Sample<float2, float4>(context.Fragment.Uv);
                     var median = maths.max(maths.min(texel.x, texel.y), maths.min(maths.max(texel.x, texel.y), texel.z));
-                    var edge = ShaderIntrinsics.fwidth(median - 0.5f);
-                    var coverage = 1f - maths.smoothstep(-edge, edge, median - 0.5f);
-                    return context.Parameters.TextColor * coverage + context.Parameters.OutlineColor * (1f - coverage) * context.Parameters.OutlineWidth;
+                    var signedDistance = (median - 0.5f) * context.Parameters.DistanceRange;
+                    var edge = ShaderIntrinsics.fwidth(signedDistance);
+                    var fillCoverage = maths.smoothstep(-edge, edge, signedDistance);
+                    var outlineWidth = maths.max(context.Parameters.OutlineWidth, 0f);
+                    var outerCoverage = maths.smoothstep(-outlineWidth - edge, -outlineWidth + edge, signedDistance);
+                    var outlineContribution = maths.max(outerCoverage - fillCoverage, 0f);
+                    return context.Parameters.TextColor * fillCoverage + context.Parameters.OutlineColor * outlineContribution;
                 }
             }";
 
@@ -1239,6 +1244,7 @@ public class IntrinsicCatalogTests
                     public float4 TextColor;
                     public float4 OutlineColor;
                     public float OutlineWidth;
+                    public float DistanceRange;
                 }
 
                 [Interstage]
@@ -1275,10 +1281,13 @@ public class IntrinsicCatalogTests
                 public static float4 Fragment(in FragmentContext context)
                 {
                     var texel = context.Atlas.Sample<float2, float4>(context.Fragment.Uv);
-                    var distance = texel.x - 0.5f;
-                    var edge = ShaderIntrinsics.fwidth(distance);
-                    var coverage = 1f - maths.smoothstep(-edge, edge, distance);
-                    return context.Parameters.TextColor * context.Fragment.GlyphColor * coverage;
+                    var signedDistance = (texel.x - 0.5f) * context.Parameters.DistanceRange;
+                    var edge = ShaderIntrinsics.fwidth(signedDistance);
+                    var fillCoverage = maths.smoothstep(-edge, edge, signedDistance);
+                    var outlineWidth = maths.max(context.Parameters.OutlineWidth, 0f);
+                    var outerCoverage = maths.smoothstep(-outlineWidth - edge, -outlineWidth + edge, signedDistance);
+                    var outlineContribution = maths.max(outerCoverage - fillCoverage, 0f);
+                    return context.Parameters.TextColor * context.Fragment.GlyphColor * fillCoverage + context.Parameters.OutlineColor * context.Fragment.GlyphColor * outlineContribution;
                 }
             }";
 
@@ -1310,9 +1319,14 @@ public class IntrinsicCatalogTests
 
         ShaderCompilationResult fragment = Assert.Single(results, result => result.Module!.Stage == ShaderStage.Fragment);
         Assert.Equal("sampled-texture", Assert.Single(fragment.BuildManifest!.Resources).Category);
+        ShaderCompilationPushConstant textParameters = Assert.Single(fragment.BuildManifest.PushConstants);
+        Assert.Equal(64u, textParameters.Size);
+        Assert.Equal(52u, Assert.Single(textParameters.Members, member => member.Name == "DistanceRange").Offset);
         var fragmentGlsl = Delta.Shader.Backend.Glsl.GlslEmitter.EmitFromModule(fragment.Module!).Source;
         Assert.Contains("layout(set = 0, binding = 3) uniform sampler2D", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("fwidth", fragmentGlsl, StringComparison.Ordinal);
+        Assert.Contains("smoothstep", fragmentGlsl, StringComparison.Ordinal);
+        Assert.DoesNotContain("1 - smoothstep", fragmentGlsl, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1867,14 +1881,15 @@ public class IntrinsicCatalogTests
                 }
 
                 [ComputeShader(localSizeX: 64)]
-                public static void Compute(in ComputeContext context)
+                internal static void Compute(in ComputeContext context)
                 {
                     uint invocation = ShaderBuiltins.GlobalInvocationId.X;
                     context.Output[invocation] = maths.sin(context.Input[invocation]);
                 }
             }";
 
-        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
+        Compilation compilation = (await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true)).AddReferences(
+            MetadataReference.CreateFromFile(typeof(Delta.Shader.Contract.ShaderArtifact).Assembly.Location));
         var parseOptions = compilation.SyntaxTrees.First().Options as CSharpParseOptions;
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
             new[] { new DeltaComputeGenerator().AsSourceGenerator() },
@@ -1884,6 +1899,7 @@ public class IntrinsicCatalogTests
         Assert.DoesNotContain(generatorDiagnostics, diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
         GeneratedSourceResult generated = Assert.Single(driver.GetRunResult().Results.SelectMany(result => result.GeneratedSources));
         Assert.Contains("CreateAbi", generated.SourceText.ToString(), StringComparison.Ordinal);
+        Assert.Contains("public static Delta.Shader.Contract.ShaderAbi Abi", generated.SourceText.ToString(), StringComparison.Ordinal);
         Assert.Contains("CreateArtifact", generated.SourceText.ToString(), StringComparison.Ordinal);
         Assert.Contains("PackComputeInputElement", generated.SourceText.ToString(), StringComparison.Ordinal);
         Assert.Contains("PackComputeInputElements", generated.SourceText.ToString(), StringComparison.Ordinal);
@@ -1893,6 +1909,157 @@ public class IntrinsicCatalogTests
         Assert.Contains("UnpackComputeOutputElement", generated.SourceText.ToString(), StringComparison.Ordinal);
         Assert.Contains("Delta.Shader.Contract", generated.SourceText.ToString(), StringComparison.Ordinal);
         Assert.DoesNotContain("JsonSerializer.Deserialize", generated.SourceText.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DeltaComputeGenerator_EmitsUnpackForRequiredInitProperties()
+    {
+        const string source = @"
+            using Delta.Shader;
+
+            public struct Parameters
+            {
+                public required uint Count { get; init; }
+            }
+
+            public static class InitOnlyKernel
+            {
+                public readonly struct ComputeContext
+                {
+                    [PushConstant] public readonly Parameters Parameters;
+                }
+
+                [ComputeShader]
+                public static void Compute(in ComputeContext context)
+                {
+                    uint value = context.Parameters.Count;
+                }
+            }";
+
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
+        var parseOptions = compilation.SyntaxTrees.First().Options as CSharpParseOptions;
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            new[] { new DeltaComputeGenerator().AsSourceGenerator() },
+            parseOptions: parseOptions);
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var updatedCompilation, out ImmutableArray<Diagnostic> generatorDiagnostics);
+
+        Assert.DoesNotContain(generatorDiagnostics, diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+        Assert.Empty(driver.GetRunResult().Diagnostics);
+        Compilation generatedCompilation = updatedCompilation.AddReferences(
+            MetadataReference.CreateFromFile(typeof(Delta.Shader.Contract.ShaderArtifact).Assembly.Location));
+        Assert.DoesNotContain(generatedCompilation.GetDiagnostics(), diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+        GeneratedSourceResult generated = Assert.Single(driver.GetRunResult().Results.SelectMany(result => result.GeneratedSources));
+        var generatedText = generated.SourceText.ToString();
+        Assert.Contains("PackComputeParameters", generatedText, StringComparison.Ordinal);
+        Assert.Contains("UnpackComputePushConstants", generatedText, StringComparison.Ordinal);
+        Assert.Contains("new global::Parameters { Count = reader.ReadUInt(0u) }", generatedText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DeltaComputeGenerator_UsesInternalAccessibilityForNonPublicShaderTypes()
+    {
+        const string source = """
+            using Delta.Maths;
+            using Delta.Shader;
+
+            internal static class GeneratedKernel
+            {
+                public readonly struct ComputeContext
+                {
+                    [Layout(0, 0)] public readonly ReadOnlyStorageBuffer<float> Input;
+                    [Layout(0, 1)] public readonly ReadWriteStorageBuffer<float> Output;
+                    [PushConstant] public readonly uint Count;
+                }
+
+                [ComputeShader(localSizeX: 64)]
+                public static void Compute(in ComputeContext context)
+                {
+                    uint invocation = ShaderBuiltins.GlobalInvocationId.X;
+                    context.Output[invocation] = context.Input[invocation];
+                }
+            }
+            """;
+
+        Compilation compilation = (await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true)).AddReferences(
+            MetadataReference.CreateFromFile(typeof(Delta.Shader.Contract.ShaderArtifact).Assembly.Location));
+        var parseOptions = compilation.SyntaxTrees.First().Options as CSharpParseOptions;
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            new[] { new DeltaComputeGenerator().AsSourceGenerator() },
+            parseOptions: parseOptions);
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var updatedCompilation, out ImmutableArray<Diagnostic> generatorDiagnostics);
+
+        Assert.DoesNotContain(generatorDiagnostics, diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+        Assert.DoesNotContain(updatedCompilation.GetDiagnostics(), diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+        GeneratedSourceResult generated = Assert.Single(driver.GetRunResult().Results.SelectMany(result => result.GeneratedSources));
+        var generatedText = generated.SourceText.ToString();
+        Assert.Contains("internal static int PackComputeContext", generatedText, StringComparison.Ordinal);
+        Assert.Contains("internal static byte[] PackComputeContext", generatedText, StringComparison.Ordinal);
+        Assert.DoesNotContain("public static int PackComputeContext", generatedText, StringComparison.Ordinal);
+        Assert.Contains("public static int PackComputeInputElement", generatedText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DeltaGraphicsGenerator_EmitsResolvedVertexBufferPackers()
+    {
+        const string source = """
+            using Delta.Maths;
+            using Delta.Shader;
+
+            public static class MeshShaders
+            {
+                [Interstage]
+                public struct MeshPayload
+                {
+                    [Position]
+                    [Layout(0)]
+                    public float4 Position;
+                    [Layout(1)]
+                    public float3 Normal;
+                    [Layout(2)]
+                    public float2 Uv;
+                }
+
+                public struct VertexContext
+                {
+                    [Interstage]
+                    public MeshPayload Vertex;
+                }
+
+                public struct FragmentContext
+                {
+                    [Interstage]
+                    public MeshPayload Fragment;
+                }
+
+                [VertexShader("MeshVertex")]
+                public static MeshPayload Transform(in VertexContext context) => context.Vertex;
+
+                [FragmentShader("MeshFragment")]
+                public static float4 Fragment(in FragmentContext context) =>
+                    new float4(context.Fragment.Uv, 0.0f, 1.0f);
+            }
+            """;
+
+        Compilation compilation = (await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true)).AddReferences(
+            MetadataReference.CreateFromFile(typeof(Delta.Shader.Contract.ShaderArtifact).Assembly.Location));
+        var parseOptions = compilation.SyntaxTrees.First().Options as CSharpParseOptions;
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            new[] { new DeltaGraphicsGenerator().AsSourceGenerator() },
+            parseOptions: parseOptions);
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var updatedCompilation, out ImmutableArray<Diagnostic> generatorDiagnostics);
+
+        Assert.DoesNotContain(generatorDiagnostics, diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+        Assert.DoesNotContain(updatedCompilation.GetDiagnostics(), diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+        GeneratedSourceResult generated = Assert.Single(driver.GetRunResult().Results.SelectMany(result => result.GeneratedSources));
+        var generatedText = generated.SourceText.ToString();
+        Assert.Contains("PackTransformVertexElement", generatedText, StringComparison.Ordinal);
+        Assert.Contains("PackTransformVertexElements", generatedText, StringComparison.Ordinal);
+        Assert.Contains("UnpackTransformVertexElement", generatedText, StringComparison.Ordinal);
+        Assert.Contains("GetArrayByteLength(values.Length, 36u)", generatedText, StringComparison.Ordinal);
+        Assert.Contains("writer.WriteFloat(0u, value.Position.x)", generatedText, StringComparison.Ordinal);
+        Assert.Contains("writer.WriteFloat(16u, value.Normal.x)", generatedText, StringComparison.Ordinal);
+        Assert.Contains("writer.WriteFloat(28u, value.Uv.x)", generatedText, StringComparison.Ordinal);
+        Assert.DoesNotContain("MeshPayload.x", generatedText, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1935,6 +2102,8 @@ public class IntrinsicCatalogTests
         var generatedText = generated.SourceText.ToString();
         Assert.Contains("GraphicsShaderProgram", generatedText, StringComparison.Ordinal);
         Assert.Contains("CreateProgram", generatedText, StringComparison.Ordinal);
+        Assert.Contains("public static Delta.Shader.Contract.ShaderAbi VertexAbi", generatedText, StringComparison.Ordinal);
+        Assert.Contains("public static Delta.Shader.Contract.ShaderAbi FragmentAbi", generatedText, StringComparison.Ordinal);
         Assert.Contains("Delta.Shader.Contract", generatedText, StringComparison.Ordinal);
         Assert.DoesNotContain("JsonSerializer.Deserialize", generatedText, StringComparison.Ordinal);
     }

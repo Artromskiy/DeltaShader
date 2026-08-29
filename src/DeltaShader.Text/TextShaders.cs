@@ -21,6 +21,7 @@ public struct TextParameters
     public float4 TextColor = default;
     public float4 OutlineColor = default;
     public float OutlineWidth = default;
+    public float DistanceRange = default;
 
     public TextParameters()
     {
@@ -75,7 +76,6 @@ public readonly struct MsdfTextFragmentContext
 public static class TextShaders
 {
     [VertexShader("sdf-text")]
-    [SuppressMessage("Design", "CA1062", Justification = "Shader entry points are compile-time authoring methods; the analyzer lowers context resource fields instead of executing them on the CLR.")]
     public static TextVarying SdfTextVertex(in TextVertexContext context)
     {
         uint instanceIndex = ShaderBuiltins.InstanceIndex;
@@ -144,14 +144,17 @@ public static class TextShaders
     public static float4 SdfTextFragment(in SdfTextFragmentContext context)
     {
         var texel = context.Atlas.Sample<float2, float4>(context.Fragment.Uv);
-        var distance = texel.x - 0.5f;
-        var edge = ShaderIntrinsics.fwidth(distance);
-        var coverage = maths.smoothstep(-edge, edge, distance);
-        return context.Parameters.TextColor * context.Fragment.GlyphColor * coverage;
+        var signedDistance = (texel.x - 0.5f) * context.Parameters.DistanceRange;
+        var edge = ShaderIntrinsics.fwidth(signedDistance);
+        var fillCoverage = maths.smoothstep(-edge, edge, signedDistance);
+        var outlineWidth = maths.max(context.Parameters.OutlineWidth, 0f);
+        var outerCoverage = maths.smoothstep(-outlineWidth - edge, -outlineWidth + edge, signedDistance);
+        var outlineContribution = maths.max(outerCoverage - fillCoverage, 0f);
+        return context.Parameters.TextColor * context.Fragment.GlyphColor * fillCoverage +
+            context.Parameters.OutlineColor * context.Fragment.GlyphColor * outlineContribution;
     }
 
     [VertexShader("msdf-text")]
-    [SuppressMessage("Design", "CA1062", Justification = "Shader entry points are compile-time authoring methods; the analyzer lowers context resource fields instead of executing them on the CLR.")]
     public static TextVarying MsdfTextVertex(in TextVertexContext context)
     {
         uint instanceIndex = ShaderBuiltins.InstanceIndex;
@@ -224,9 +227,11 @@ public static class TextShaders
             maths.min(texel.x, texel.y),
             maths.min(maths.max(texel.x, texel.y), texel.z));
         var signedDistance = median - 0.5f;
+        signedDistance *= context.Parameters.DistanceRange;
         var edge = ShaderIntrinsics.fwidth(signedDistance);
         var fillCoverage = maths.smoothstep(-edge, edge, signedDistance);
-        var outerCoverage = maths.smoothstep(-edge, edge, signedDistance + context.Parameters.OutlineWidth);
+        var outlineWidth = maths.max(context.Parameters.OutlineWidth, 0f);
+        var outerCoverage = maths.smoothstep(-outlineWidth - edge, -outlineWidth + edge, signedDistance);
         var outlineContribution = maths.max(outerCoverage - fillCoverage, 0f);
         return context.Parameters.TextColor * context.Fragment.GlyphColor * fillCoverage +
             context.Parameters.OutlineColor * context.Fragment.GlyphColor * outlineContribution;

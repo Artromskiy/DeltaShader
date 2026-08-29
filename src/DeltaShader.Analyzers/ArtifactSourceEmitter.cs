@@ -13,22 +13,31 @@ internal static class ArtifactSourceEmitter
 {
     public static string EmitAbiFactory(ShaderCompilationManifest manifest)
     {
-        var source = new StringBuilder();
-        source.AppendLine("    private static Delta.Shader.Contract.ShaderAbi CreateAbi()");
-        source.AppendLine("    {");
-        source.AppendLine("        return new Delta.Shader.Contract.ShaderAbi(");
-        source.AppendLine($"            stage: {Stage(manifest.Stage)},");
-        source.AppendLine($"            resources: {Resources(manifest.Resources)},");
-        source.AppendLine($"            pushConstants: {PushConstants(manifest.Stage, manifest.PushConstants)},");
-        source.AppendLine($"            inputs: {Interfaces(manifest.Inputs)},");
-        source.AppendLine($"            outputs: {Interfaces(manifest.Outputs)},");
-        source.AppendLine($"            vertexInputs: {VertexInputs(manifest.VertexInputs)},");
-        source.AppendLine($"            vertexBuffers: {VertexBuffers(manifest.VertexBufferBindings)},");
-        source.AppendLine("            workgroupSize: ");
-        source.AppendLine($"                {(manifest.Stage == ShaderStage.Compute ? Workgroup(manifest) : "default")},");
-        source.AppendLine("            requiredCapabilities: Delta.Shader.Contract.ShaderCapabilities.None);");
-        source.AppendLine("    }");
-        return source.ToString();
+        var workgroupSize = manifest.Stage == ShaderStage.Compute ? Workgroup(manifest) : "default";
+        return $$"""
+            private static Delta.Shader.Contract.ShaderAbi CreateAbi()
+            {
+                return new Delta.Shader.Contract.ShaderAbi(
+                    stage: {{Stage(manifest.Stage)}},
+                    resources: {{Resources(manifest.Resources)}},
+                    pushConstants: {{PushConstants(manifest.Stage, manifest.PushConstants)}},
+                    inputs: {{Interfaces(manifest.Inputs)}},
+                    outputs: {{Interfaces(manifest.Outputs)}},
+                    vertexInputs: {{VertexInputs(manifest.VertexInputs)}},
+                    vertexBuffers: {{VertexBuffers(manifest.VertexBufferBindings)}},
+                    workgroupSize: {{workgroupSize}},
+                    requiredCapabilities: Delta.Shader.Contract.ShaderCapabilities.None);
+            }
+            """;
+    }
+
+    public static string EmitAbiAccessor(string propertyName, string factoryName)
+    {
+        var fieldName = "s_" + char.ToLowerInvariant(propertyName[0]) + propertyName.Substring(1);
+        return $$"""
+                private static readonly Delta.Shader.Contract.ShaderAbi {{fieldName}} = {{factoryName}}();
+                public static Delta.Shader.Contract.ShaderAbi {{propertyName}} => {{fieldName}};
+            """;
     }
 
     public static bool TryEmitPackingMethods(
@@ -56,14 +65,21 @@ internal static class ArtifactSourceEmitter
                 continue;
             }
 
-            if (!TryGetPushRoot(contextType, pushConstant, out var rootExpression, out var rootType, out var rootField))
+            var rootType = (ITypeSymbol)contextType;
+            var rootExpression = "value";
+            ISymbol? rootField = null;
+            var namedPushField = FindValueMember(contextType, pushConstant.ParameterName);
+            if (namedPushField is not null && GetMemberType(namedPushField) is INamedTypeSymbol namedPushType &&
+                pushConstant.Members.Count > 0 &&
+                pushConstant.Members.All(member => FindValueMember(namedPushType, member.Name) is not null))
             {
-                reason = $"Could not resolve the push-constant source for '{method.Name}'.";
-                return false;
+                rootType = namedPushType;
+                rootExpression = "value." + namedPushField.Name;
+                rootField = namedPushField;
             }
 
-            var operations = new StringBuilder();
-            if (!TryEmitMembers(pushConstant.Members, rootType, rootExpression, 0u, operations, out reason))
+            var contextOperations = new StringBuilder();
+            if (!TryEmitMembers(pushConstant.Members, rootType, rootExpression, 0u, contextOperations, out reason))
             {
                 return false;
             }
@@ -71,9 +87,9 @@ internal static class ArtifactSourceEmitter
             AppendPackMethod(
                 methods,
                 "Pack" + stem + "Context",
-                FullyQualifiedType(contextType),
+                contextType,
                 pushConstant.Size,
-                operations);
+                contextOperations);
 
             if (rootField is not null)
             {
@@ -86,19 +102,47 @@ internal static class ArtifactSourceEmitter
                 AppendPackMethod(
                     methods,
                     "Pack" + stem + SanitizeIdentifier(rootField.Name),
-                    FullyQualifiedType(rootType),
+                    rootType,
                     pushConstant.Size,
                     rootOperations);
 
-                var unpackOperations = new StringBuilder();
-                if (TryEmitUnpackMembers(pushConstant.Members, rootType, "value", 0u, unpackOperations, out _))
+                if (TryBuildUnpackMembersExpression(pushConstant.Members, rootType, 0u, out var unpackExpression, out _))
                 {
                     AppendUnpackMethod(
                         methods,
                         "Unpack" + stem + "PushConstants",
-                        FullyQualifiedType(rootType),
+                        rootType,
                         pushConstant.Size,
-                        unpackOperations);
+                        unpackExpression);
+                }
+            }
+            else if (pushConstant.Members.Count == 1 &&
+                     pushConstant.Members[0] is { Offset: 0u } rootMember &&
+                     rootMember.Size == pushConstant.Size &&
+                     FindValueMember(contextType, rootMember.Name) is ISymbol contextRootField &&
+                     GetMemberType(contextRootField) is ITypeSymbol contextRootType)
+            {
+                var directRootOperations = new StringBuilder();
+                if (!TryEmitValue(rootMember, contextRootType, "value", 0u, directRootOperations, out reason))
+                {
+                    return false;
+                }
+
+                AppendPackMethod(
+                    methods,
+                    "Pack" + stem + SanitizeIdentifier(contextRootField.Name),
+                    contextRootType,
+                    pushConstant.Size,
+                    directRootOperations);
+
+                if (TryBuildUnpackValueExpression(rootMember, contextRootType, 0u, out var unpackExpression, out _))
+                {
+                    AppendUnpackMethod(
+                        methods,
+                        "Unpack" + stem + "PushConstants",
+                        contextRootType,
+                        pushConstant.Size,
+                        unpackExpression);
                 }
             }
         }
@@ -137,20 +181,19 @@ internal static class ArtifactSourceEmitter
             }
 
             var elementName = "Pack" + stem + SanitizeIdentifier(resource.Name) + "Element";
-            AppendPackMethod(methods, elementName, FullyQualifiedType(elementType), resource.Size, operations);
-            var unpackOperations = new StringBuilder();
-            var canUnpackElement = TryEmitUnpackValue(elementMember, elementType, "value", 0u, unpackOperations, out _);
+            AppendPackMethod(methods, elementName, elementType, resource.Size, operations);
+            var canUnpackElement = TryBuildUnpackValueExpression(elementMember, elementType, 0u, out var unpackExpression, out _);
             if (canUnpackElement)
             {
                 AppendUnpackMethod(
                     methods,
                     "Unpack" + stem + SanitizeIdentifier(resource.Name) + "Element",
-                    FullyQualifiedType(elementType),
+                    elementType,
                     resource.Size,
-                    unpackOperations);
+                    unpackExpression);
             }
 
-            if (!TryAppendArrayPackMethods(methods, elementName, "Pack" + stem + SanitizeIdentifier(resource.Name) + "Elements", FullyQualifiedType(elementType), resource.ArrayStride, out reason))
+            if (!TryAppendArrayPackMethods(methods, elementName, "Pack" + stem + SanitizeIdentifier(resource.Name) + "Elements", elementType, resource.ArrayStride, out reason))
             {
                 return false;
             }
@@ -159,7 +202,7 @@ internal static class ArtifactSourceEmitter
                     methods,
                     "Unpack" + stem + SanitizeIdentifier(resource.Name) + "Element",
                     "Unpack" + stem + SanitizeIdentifier(resource.Name) + "Elements",
-                    FullyQualifiedType(elementType),
+                    elementType,
                     resource.ArrayStride,
                     out reason))
             {
@@ -174,29 +217,6 @@ internal static class ArtifactSourceEmitter
         }
 
         source = methods.ToString();
-        return true;
-    }
-
-    private static bool TryGetPushRoot(
-        ITypeSymbol contextType,
-        ShaderCompilationPushConstant pushConstant,
-        out string expression,
-        out ITypeSymbol rootType,
-        out ISymbol? rootField)
-    {
-        var namedPushField = FindValueMember(contextType, pushConstant.ParameterName);
-        if (namedPushField is not null && GetMemberType(namedPushField) is INamedTypeSymbol namedPushType &&
-            pushConstant.Members.Count > 0 && pushConstant.Members.All(member => FindValueMember(namedPushType, member.Name) is not null))
-        {
-            expression = "value." + namedPushField.Name;
-            rootType = namedPushType;
-            rootField = namedPushField;
-            return true;
-        }
-
-        expression = "value";
-        rootType = contextType;
-        rootField = null;
         return true;
     }
 
@@ -250,20 +270,20 @@ internal static class ArtifactSourceEmitter
                 return false;
             }
 
-            if (!TryEmitValue(member, payloadMemberType, "value", 0u, operations, out reason))
+            var payloadExpression = "value." + payloadMember.Name;
+            if (!TryEmitValue(member, payloadMemberType, payloadExpression, 0u, operations, out reason))
             {
                 return false;
             }
         }
 
         var elementName = "Pack" + stem + "VertexElement";
-        AppendPackMethod(source, elementName, FullyQualifiedType(varyingType), binding.Stride, operations);
-        if (!TryAppendArrayPackMethods(source, elementName, "Pack" + stem + "VertexElements", FullyQualifiedType(varyingType), binding.Stride, out reason))
+        AppendPackMethod(source, elementName, varyingType, binding.Stride, operations);
+        if (!TryAppendArrayPackMethods(source, elementName, "Pack" + stem + "VertexElements", varyingType, binding.Stride, out reason))
         {
             return false;
         }
 
-        var unpackOperations = new StringBuilder();
         var unpackMembers = manifest.VertexInputs.Select(input => new ShaderCompilationMember
         {
             Name = input.ParameterName,
@@ -273,20 +293,20 @@ internal static class ArtifactSourceEmitter
             Alignment = input.Alignment,
             ArrayStride = input.ByteSize
         }).ToArray();
-        if (TryEmitUnpackMembers(unpackMembers, varyingType, "value", 0u, unpackOperations, out _))
+        if (TryBuildUnpackMembersExpression(unpackMembers, varyingType, 0u, out var unpackExpression, out _))
         {
             AppendUnpackMethod(
                 source,
                 "Unpack" + stem + "VertexElement",
-                FullyQualifiedType(varyingType),
+                varyingType,
                 binding.Stride,
-                unpackOperations);
+                unpackExpression);
 
             return TryAppendArrayUnpackMethods(
                 source,
                 "Unpack" + stem + "VertexElement",
                 "Unpack" + stem + "VertexElements",
-                FullyQualifiedType(varyingType),
+                varyingType,
                 binding.Stride,
                 out reason);
         }
@@ -329,64 +349,65 @@ internal static class ArtifactSourceEmitter
         return true;
     }
 
-    private static bool TryEmitUnpackValue(
+    private static bool TryBuildUnpackValueExpression(
         ShaderCompilationMember member,
         ITypeSymbol valueType,
-        string expression,
         uint baseOffset,
-        StringBuilder operations,
+        out string expression,
         out string? reason)
     {
         if (member.Members.Count > 0)
         {
-            return TryEmitUnpackMembers(member.Members, valueType, expression, baseOffset, operations, out reason);
+            return TryBuildUnpackMembersExpression(member.Members, valueType, baseOffset, out expression, out reason);
         }
 
-        return TryEmitUnpackLeaf(member.GlslType, valueType, expression, baseOffset + member.Offset, member.MatrixStride, operations, out reason);
+        return TryBuildUnpackLeafExpression(
+            member.GlslType,
+            valueType,
+            baseOffset + member.Offset,
+            member.MatrixStride,
+            out expression,
+            out reason);
     }
 
-    private static bool TryEmitUnpackMembers(
+    private static bool TryBuildUnpackMembersExpression(
         IReadOnlyList<ShaderCompilationMember> members,
         ITypeSymbol containingType,
-        string expression,
         uint baseOffset,
-        StringBuilder operations,
+        out string expression,
         out string? reason)
     {
+        var assignments = new List<string>(members.Count);
         foreach (var member in members)
         {
             var symbol = FindWritableMember(containingType, member.Name);
             if (symbol is null || GetMemberType(symbol) is not ITypeSymbol memberType)
             {
-                reason = $"Could not resolve a writable ABI member '{member.Name}' on '{containingType.Name}'.";
+                expression = string.Empty;
+                reason = $"Could not resolve an initializable ABI member '{member.Name}' on '{containingType.Name}'.";
                 return false;
             }
 
-            var memberExpression = expression + "." + member.Name;
-            if (member.Members.Count > 0)
+            if (!TryBuildUnpackValueExpression(member, memberType, baseOffset, out var memberExpression, out reason))
             {
-                if (!TryEmitUnpackMembers(member.Members, memberType, memberExpression, baseOffset + member.Offset, operations, out reason))
-                {
-                    return false;
-                }
-            }
-            else if (!TryEmitUnpackLeaf(member.GlslType, memberType, memberExpression, baseOffset + member.Offset, member.MatrixStride, operations, out reason))
-            {
+                expression = string.Empty;
                 return false;
             }
+
+            assignments.Add(member.Name + " = " + memberExpression);
         }
 
+        expression = "new " + FullyQualifiedType(containingType) + " { " + string.Join(", ", assignments) + " }";
         reason = null;
         return true;
     }
 
-    private static bool TryEmitUnpackLeaf(
+    private static bool TryBuildUnpackLeafExpression(
         string glslType,
         ITypeSymbol valueType,
-        string expression,
         uint offset,
         uint? matrixStride,
-        StringBuilder operations,
+        out string expression,
         out string? reason)
     {
         if (glslType is "bool" or "int" or "uint" or "float")
@@ -405,8 +426,7 @@ internal static class ArtifactSourceEmitter
                 "uint" => "uint",
                 _ => "float"
             };
-            var readExpression = $"reader.{reader}({offset}u)";
-            operations.AppendLine($"        {expression} = {ScalarExpression(readExpression, valueType, castType)};");
+            expression = ScalarExpression($"reader.{reader}({offset}u)", valueType, castType);
             reason = null;
             return true;
         }
@@ -420,13 +440,14 @@ internal static class ArtifactSourceEmitter
                 "WriteUInt" => "ReadUInt",
                 _ => "ReadFloat"
             };
-            var components = new[] { "x", "y", "z", "w" };
+            var components = new string[componentCount];
             for (var index = 0; index < componentCount; index++)
             {
                 var componentOffset = offset + (uint)(index * 4);
-                operations.AppendLine($"        {expression}.{components[index]} = reader.{vectorReader}({componentOffset}u);");
+                components[index] = $"reader.{vectorReader}({componentOffset}u)";
             }
 
+            expression = "new " + FullyQualifiedType(valueType) + "(" + string.Join(", ", components) + ")";
             reason = null;
             return true;
         }
@@ -435,19 +456,35 @@ internal static class ArtifactSourceEmitter
         {
             var stride = matrixStride ?? (rows == 2 ? 8u : 16u);
             var components = new[] { "x", "y", "z", "w" };
+            var assignments = new List<string>(columns);
             for (var column = 0; column < columns; column++)
             {
+                var columnName = "c" + column.ToString(CultureInfo.InvariantCulture);
+                var columnSymbol = FindWritableMember(valueType, columnName);
+                if (columnSymbol is null || GetMemberType(columnSymbol) is not ITypeSymbol columnType)
+                {
+                    expression = string.Empty;
+                    reason = $"Could not resolve an initializable matrix column '{columnName}' on '{valueType.Name}'.";
+                    return false;
+                }
+
+                var values = new string[rows];
                 for (var row = 0; row < rows; row++)
                 {
                     var componentOffset = offset + (uint)column * stride + (uint)(row * 4);
-                    operations.AppendLine($"        {expression}.c{column}.{components[row]} = reader.ReadFloat({componentOffset}u);");
+                    values[row] = $"reader.ReadFloat({componentOffset}u)";
                 }
+
+                var columnTypeName = FullyQualifiedType(columnType);
+                assignments.Add(columnName + " = new " + columnTypeName + "(" + string.Join(", ", values) + ")");
             }
 
+            expression = "new " + FullyQualifiedType(valueType) + " { " + string.Join(", ", assignments) + " }";
             reason = null;
             return true;
         }
 
+        expression = string.Empty;
         reason = $"GLSL value '{glslType}' has no generated std430 unpacking implementation.";
         return false;
     }
@@ -612,11 +649,49 @@ internal static class ArtifactSourceEmitter
             _ => null
         };
 
+    private static string AccessibilityModifier(ITypeSymbol type)
+        => IsPubliclyAccessible(type) ? "public" : "internal";
+
+    private static bool IsPubliclyAccessible(ITypeSymbol type)
+    {
+        if (type is IArrayTypeSymbol arrayType)
+        {
+            return IsPubliclyAccessible(arrayType.ElementType);
+        }
+
+        if (type is IPointerTypeSymbol pointerType)
+        {
+            return IsPubliclyAccessible(pointerType.PointedAtType);
+        }
+
+        if (type is ITypeParameterSymbol)
+        {
+            return true;
+        }
+
+        if (type is not INamedTypeSymbol namedType || namedType.DeclaredAccessibility != Accessibility.Public)
+        {
+            return false;
+        }
+
+        for (var containingType = namedType.ContainingType;
+             containingType is not null;
+             containingType = containingType.ContainingType)
+        {
+            if (containingType.DeclaredAccessibility != Accessibility.Public)
+            {
+                return false;
+            }
+        }
+
+        return namedType.TypeArguments.All(IsPubliclyAccessible);
+    }
+
     private static bool TryAppendArrayPackMethods(
         StringBuilder source,
         string elementName,
         string arrayName,
-        string elementType,
+        ITypeSymbol elementType,
         uint stride,
         out string? reason)
     {
@@ -626,26 +701,30 @@ internal static class ArtifactSourceEmitter
             return false;
         }
 
+        var accessibility = AccessibilityModifier(elementType);
+        var typeName = FullyQualifiedType(elementType);
         var strideText = stride.ToString(CultureInfo.InvariantCulture);
-        source.AppendLine($"    public static int {arrayName}(ReadOnlySpan<{elementType}> values, Span<byte> destination)");
-        source.AppendLine("    {");
-        source.AppendLine($"        int required = Delta.Shader.Packing.Std430Packer.GetArrayByteLength(values.Length, {stride}u);");
-        source.AppendLine("        Delta.Shader.Packing.Std430Packer.RequireCapacity(destination, (uint)required);");
-        source.AppendLine("        destination.Slice(0, required).Clear();");
-        source.AppendLine("        for (int index = 0; index < values.Length; index++)");
-        source.AppendLine("        {");
-        source.AppendLine($"            {elementName}(in values[index], destination.Slice(checked(index * {strideText}), {strideText}));");
-        source.AppendLine("        }");
-        source.AppendLine("        return required;");
-        source.AppendLine("    }");
-        source.AppendLine();
-        source.AppendLine($"    public static byte[] {arrayName}(ReadOnlySpan<{elementType}> values)");
-        source.AppendLine("    {");
-        source.AppendLine($"        var result = new byte[Delta.Shader.Packing.Std430Packer.GetArrayByteLength(values.Length, {stride}u)];");
-        source.AppendLine($"        {arrayName}(values, result);");
-        source.AppendLine("        return result;");
-        source.AppendLine("    }");
-        source.AppendLine();
+        source.Append($$"""
+                {{accessibility}} static int {{arrayName}}(ReadOnlySpan<{{typeName}}> values, Span<byte> destination)
+                {
+                    int required = Delta.Shader.Packing.Std430Packer.GetArrayByteLength(values.Length, {{stride}}u);
+                    Delta.Shader.Packing.Std430Packer.RequireCapacity(destination, (uint)required);
+                    destination.Slice(0, required).Clear();
+                    for (int index = 0; index < values.Length; index++)
+                    {
+                        {{elementName}}(in values[index], destination.Slice(checked(index * {{strideText}}), {{strideText}}));
+                    }
+                    return required;
+                }
+
+                {{accessibility}} static byte[] {{arrayName}}(ReadOnlySpan<{{typeName}}> values)
+                {
+                    var result = new byte[Delta.Shader.Packing.Std430Packer.GetArrayByteLength(values.Length, {{stride}}u)];
+                    {{arrayName}}(values, result);
+                    return result;
+                }
+
+            """);
         reason = null;
         return true;
     }
@@ -654,7 +733,7 @@ internal static class ArtifactSourceEmitter
         StringBuilder source,
         string elementName,
         string arrayName,
-        string elementType,
+        ITypeSymbol elementType,
         uint stride,
         out string? reason)
     {
@@ -664,30 +743,34 @@ internal static class ArtifactSourceEmitter
             return false;
         }
 
+        var accessibility = AccessibilityModifier(elementType);
+        var typeName = FullyQualifiedType(elementType);
         var strideText = stride.ToString(CultureInfo.InvariantCulture);
-        source.AppendLine($"    public static int {arrayName}(ReadOnlySpan<byte> source, Span<{elementType}> values)");
-        source.AppendLine("    {");
-        source.AppendLine($"        int required = Delta.Shader.Packing.Std430Packer.GetArrayByteLength(values.Length, {stride}u);");
-        source.AppendLine("        Delta.Shader.Packing.Std430Packer.RequireCapacity(source, (uint)required);");
-        source.AppendLine("        for (int index = 0; index < values.Length; index++)");
-        source.AppendLine("        {");
-        source.AppendLine($"            values[index] = {elementName}(source.Slice(checked(index * {strideText}), {strideText}));");
-        source.AppendLine("        }");
-        source.AppendLine("        return required;");
-        source.AppendLine("    }");
-        source.AppendLine();
-        source.AppendLine($"    public static {elementType}[] {arrayName}(ReadOnlySpan<byte> source)");
-        source.AppendLine("    {");
-        source.AppendLine($"        const int stride = {strideText};");
-        source.AppendLine("        if (source.Length % stride != 0)");
-        source.AppendLine("        {");
-        source.AppendLine("            throw new ArgumentException(\"The source length must be a multiple of the resolved std430 array stride.\", nameof(source));");
-        source.AppendLine("        }");
-        source.AppendLine($"        var result = new {elementType}[source.Length / stride];");
-        source.AppendLine($"        {arrayName}(source, result);");
-        source.AppendLine("        return result;");
-        source.AppendLine("    }");
-        source.AppendLine();
+        source.Append($$"""
+                {{accessibility}} static int {{arrayName}}(ReadOnlySpan<byte> source, Span<{{typeName}}> values)
+                {
+                    int required = Delta.Shader.Packing.Std430Packer.GetArrayByteLength(values.Length, {{stride}}u);
+                    Delta.Shader.Packing.Std430Packer.RequireCapacity(source, (uint)required);
+                    for (int index = 0; index < values.Length; index++)
+                    {
+                        values[index] = {{elementName}}(source.Slice(checked(index * {{strideText}}), {{strideText}}));
+                    }
+                    return required;
+                }
+
+                {{accessibility}} static {{typeName}}[] {{arrayName}}(ReadOnlySpan<byte> source)
+                {
+                    const int stride = {{strideText}};
+                    if (source.Length % stride != 0)
+                    {
+                        throw new ArgumentException("The source length must be a multiple of the resolved std430 array stride.", nameof(source));
+                    }
+                    var result = new {{typeName}}[source.Length / stride];
+                    {{arrayName}}(source, result);
+                    return result;
+                }
+
+            """);
         reason = null;
         return true;
     }
@@ -695,46 +778,53 @@ internal static class ArtifactSourceEmitter
     private static void AppendPackMethod(
         StringBuilder methods,
         string name,
-        string typeName,
+        ITypeSymbol type,
         uint size,
         StringBuilder operations)
     {
         var sizeText = size.ToString(CultureInfo.InvariantCulture);
-        methods.AppendLine($"    public static int {name}(in {typeName} value, Span<byte> destination)");
-        methods.AppendLine("    {");
-        methods.AppendLine($"        Delta.Shader.Packing.Std430Packer.RequireCapacity(destination, {size}u);");
-        methods.AppendLine($"        destination.Slice(0, {sizeText}).Clear();");
-        methods.AppendLine("        var writer = new Delta.Shader.Packing.Std430Writer(destination);");
-        methods.Append(operations);
-        methods.AppendLine("        return " + sizeText + ";");
-        methods.AppendLine("    }");
-        methods.AppendLine();
-        methods.AppendLine($"    public static byte[] {name}(in {typeName} value)");
-        methods.AppendLine("    {");
-        methods.AppendLine($"        var result = new byte[{sizeText}];");
-        methods.AppendLine($"        {name}(in value, result);");
-        methods.AppendLine("        return result;");
-        methods.AppendLine("    }");
-        methods.AppendLine();
+        var accessibility = AccessibilityModifier(type);
+        var typeName = FullyQualifiedType(type);
+        methods.Append($$"""
+                {{accessibility}} static int {{name}}(in {{typeName}} value, Span<byte> destination)
+                {
+                    Delta.Shader.Packing.Std430Packer.RequireCapacity(destination, {{size}}u);
+                    destination.Slice(0, {{sizeText}}).Clear();
+                    var writer = new Delta.Shader.Packing.Std430Writer(destination);
+                    {{operations}}
+                    return {{sizeText}};
+                }
+
+                {{accessibility}} static byte[] {{name}}(in {{typeName}} value)
+                {
+                    var result = new byte[{{sizeText}}];
+                    {{name}}(in value, result);
+                    return result;
+                }
+
+            """);
     }
 
     private static void AppendUnpackMethod(
         StringBuilder methods,
         string name,
-        string typeName,
+        ITypeSymbol type,
         uint size,
-        StringBuilder operations)
+        string expression)
     {
         var sizeText = size.ToString(CultureInfo.InvariantCulture);
-        methods.AppendLine($"    public static {typeName} {name}(ReadOnlySpan<byte> source)");
-        methods.AppendLine("    {");
-        methods.AppendLine($"        Delta.Shader.Packing.Std430Packer.RequireCapacity(source, {size}u);");
-        methods.AppendLine($"        {typeName} value = default;");
-        methods.AppendLine("        var reader = new Delta.Shader.Packing.Std430Reader(source);");
-        methods.Append(operations);
-        methods.AppendLine("        return value;");
-        methods.AppendLine("    }");
-        methods.AppendLine();
+        var accessibility = AccessibilityModifier(type);
+        var typeName = FullyQualifiedType(type);
+        methods.Append($$"""
+                {{accessibility}} static {{typeName}} {{name}}(ReadOnlySpan<byte> source)
+                {
+                    Delta.Shader.Packing.Std430Packer.RequireCapacity(source, {{size}}u);
+                    var reader = new Delta.Shader.Packing.Std430Reader(source);
+                    {{typeName}} value = {{expression}};
+                    return value;
+                }
+
+            """);
     }
 
     private static string FullyQualifiedType(ITypeSymbol type)

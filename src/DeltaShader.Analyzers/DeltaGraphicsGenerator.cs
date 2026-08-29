@@ -98,8 +98,10 @@ public sealed class DeltaGraphicsGenerator : IIncrementalGenerator
             var source = "using System;\nusing Delta.Shader.Contract;\n\n" + ns + "\n\npublic static class " + name + "\n{\n" +
                 ArtifactSourceEmitter.EmitAbiFactory(vertexResult.BuildManifest) +
                 ArtifactSourceEmitter.EmitAbiFactory(fragmentResult.BuildManifest).Replace("CreateAbi", "CreateFragmentAbi") +
+                ArtifactSourceEmitter.EmitAbiAccessor("VertexAbi", "CreateAbi") +
+                ArtifactSourceEmitter.EmitAbiAccessor("FragmentAbi", "CreateFragmentAbi") +
                 vertexPacking + fragmentPacking +
-                "\n    public static IGraphicsShaderProgram CreateProgram(ReadOnlySpan<byte> vertexSpirv, ReadOnlySpan<byte> fragmentSpirv)\n        => new GraphicsShaderProgram(new ShaderArtifact(vertexSpirv, \"main\", CreateAbi()), new ShaderArtifact(fragmentSpirv, \"main\", CreateFragmentAbi()));\n}\n";
+                "\n    public static IGraphicsShaderProgram CreateProgram(ReadOnlySpan<byte> vertexSpirv, ReadOnlySpan<byte> fragmentSpirv)\n        => new GraphicsShaderProgram(new ShaderArtifact(vertexSpirv, \"main\", VertexAbi), new ShaderArtifact(fragmentSpirv, \"main\", FragmentAbi));\n}\n";
             context.AddSource(name + ".g.cs", SourceText.From(source, Encoding.UTF8));
         }
     }

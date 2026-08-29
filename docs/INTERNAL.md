@@ -67,8 +67,9 @@ The current producer emits packing and typed readback/unpack helpers for
 writable payload values. The Render-side adapter receives packed bytes plus the final artifact. It owns
 resource allocation, upload/readback, descriptors and device-limit checks;
 DeltaShader does not reference Vulkan or DeltaRender. `UiTextDraw` and its
-paint semantics remain producer data in DeltaXAML, while atlas pages, UVs,
-glyph instances and distance-range interpretation remain Render-owned.
+paint semantics remain producer data in DeltaXAML, while atlas pages, UVs and
+glyph instances remain Render-owned. The text shader contract owns the
+distance-range and outline-width units; Render supplies converted values.
 
 `ShaderAbi` already expresses the layout required by this design. No new
 neutral runtime contract type is justified until an actual missing invariant

@@ -175,6 +175,7 @@
           "System.Threading.Tasks.Extensions": "4.6.3"
         }
       }
-    }
+    },
+    ".NETStandard,Version=v2.0/osx-arm64": {}
   }
 }
