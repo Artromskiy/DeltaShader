@@ -27,7 +27,7 @@ internal static class GraphicsEntryPoints
         var diagnostics = new List<ShaderDiagnostic>();
         var entries = frontend.FindShaderEntryPoints()
             .Where(entry => entry.Stage == stage && (entryPointName is null || entry.Method.Name == entryPointName) &&
-                (entryPointIdentity is null || entry.Method.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == entryPointIdentity))
+                (entryPointIdentity is null || ShaderMethodIdentity.Get(entry.Method) == entryPointIdentity))
             .ToArray();
         if (entries.Length == 0)
         {
@@ -50,7 +50,7 @@ internal static class GraphicsEntryPoints
                 Severity: ShaderDiagnosticSeverity.Error));
             return new ShaderCompilationResult(entry.Name, false, diagnostics,
                 sourceMethodName: entry.Method.Name,
-                sourceMethodIdentity: entry.Method.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+                sourceMethodIdentity: ShaderMethodIdentity.Get(entry.Method));
         }
 
         return ValidateAndBuildContextEntryPoint(context, entry, resultOptions);
@@ -83,7 +83,7 @@ internal static class GraphicsEntryPoints
             AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH002,
                 "A graphics shader context must be a single static 'in' struct parameter.", location);
             return new ShaderCompilationResult(entry.Name, false, diagnostics, sourceMethodName: entry.Method.Name,
-                sourceMethodIdentity: entry.Method.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+                sourceMethodIdentity: ShaderMethodIdentity.Get(entry.Method));
         }
 
         var varyingFields = contextType.GetMembers().OfType<IFieldSymbol>()
@@ -94,7 +94,7 @@ internal static class GraphicsEntryPoints
             AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH012,
                 "A graphics context must contain exactly one [Interstage] payload field.", location);
             return new ShaderCompilationResult(entry.Name, false, diagnostics, sourceMethodName: entry.Method.Name,
-                sourceMethodIdentity: entry.Method.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+                sourceMethodIdentity: ShaderMethodIdentity.Get(entry.Method));
         }
 
         if (varyingFields[0].Type is not INamedTypeSymbol varyingType || varyingType.TypeKind != TypeKind.Struct ||
@@ -103,7 +103,7 @@ internal static class GraphicsEntryPoints
             AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH012,
                 "The [Interstage] context field must contain a struct marked [Interstage].", varyingFields[0].Locations.FirstOrDefault()?.GetLineSpan());
             return new ShaderCompilationResult(entry.Name, false, diagnostics, sourceMethodName: entry.Method.Name,
-                sourceMethodIdentity: entry.Method.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+                sourceMethodIdentity: ShaderMethodIdentity.Get(entry.Method));
         }
 
         var varyingMembers = varyingType.GetMembers().OfType<IFieldSymbol>()
@@ -514,7 +514,7 @@ internal static class GraphicsEntryPoints
             Outputs = outputs,
             PushConstants = pushConstants
         };
-        return new ShaderCompilationResult(entry.Name, diagnostics.Count == 0, diagnostics, module, options, entry.Method.Name, entry.Method.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+        return new ShaderCompilationResult(entry.Name, diagnostics.Count == 0, diagnostics, module, options, entry.Method.Name, ShaderMethodIdentity.Get(entry.Method));
     }
 
     private static SyntaxNode GetExecutableBody(MethodDeclarationSyntax syntax)

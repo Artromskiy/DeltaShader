@@ -23,7 +23,7 @@ public static class ComputeEntryPoints
         var diagnostics = new List<ShaderDiagnostic>();
         var entries = frontend.FindComputeEntryPoints()
             .Where(entry => (entryPointName is null || entry.Method.Name == entryPointName) &&
-                (entryPointIdentity is null || entry.Method.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == entryPointIdentity))
+                (entryPointIdentity is null || ShaderMethodIdentity.Get(entry.Method) == entryPointIdentity))
             .ToArray();
 
         if (entries.Length == 0)
@@ -190,7 +190,7 @@ public static class ComputeEntryPoints
             PushConstants = pushConstants
         };
 
-        return new ShaderCompilationResult(entry.Name, diagnostics.Count == 0, diagnostics, module, resultOptions, entry.Method.Name, entry.Method.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+        return new ShaderCompilationResult(entry.Name, diagnostics.Count == 0, diagnostics, module, resultOptions, entry.Method.Name, ShaderMethodIdentity.Get(entry.Method));
     }
 
     private static bool TryBuildHelpers(

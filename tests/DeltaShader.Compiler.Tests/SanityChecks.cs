@@ -1934,6 +1934,71 @@ public class IntrinsicCatalogTests
     }
 
     [Fact]
+    public async Task DeltaGraphicsGenerator_MatchesSameNamedMethodsBySymbolIdentity()
+    {
+        const string source = @"
+            using Delta.Maths;
+            using Delta.Shader;
+
+            public static class FirstGraphics
+            {
+                [Interstage]
+                public struct Payload
+                {
+                    [Position] public float4 Position;
+                }
+
+                public struct VertexContext { [Interstage] public Payload Vertex; }
+                public struct FragmentContext { [Interstage] public Payload Fragment; }
+
+                [VertexShader(""first"")]
+                public static Payload Vertex(in VertexContext context) => new Payload
+                {
+                    Position = new float4((float)ShaderBuiltins.VertexIndex, 0.0f, 0.0f, 1.0f)
+                };
+
+                [FragmentShader(""first"")]
+                public static float4 Fragment(in FragmentContext context) =>
+                    new float4(1.0f, 0.0f, 0.0f, 1.0f);
+            }
+
+            public static class SecondGraphics
+            {
+                [Interstage]
+                public struct Payload
+                {
+                    [Position] public float4 Position;
+                }
+
+                public struct VertexContext { [Interstage] public Payload Vertex; }
+                public struct FragmentContext { [Interstage] public Payload Fragment; }
+
+                [VertexShader(""second"")]
+                public static Payload Vertex(in VertexContext context) => new Payload
+                {
+                    Position = new float4((float)ShaderBuiltins.VertexIndex, 0.0f, 0.0f, 1.0f)
+                };
+
+                [FragmentShader(""second"")]
+                public static float4 Fragment(in FragmentContext context) =>
+                    new float4(0.0f, 0.0f, 1.0f, 1.0f);
+            }";
+
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
+        var parseOptions = compilation.SyntaxTrees.First().Options as CSharpParseOptions;
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            new[] { new DeltaGraphicsGenerator().AsSourceGenerator() },
+            parseOptions: parseOptions);
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out ImmutableArray<Diagnostic> generatorDiagnostics);
+
+        Assert.DoesNotContain(generatorDiagnostics, diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+        var generated = driver.GetRunResult().Results.SelectMany(result => result.GeneratedSources).ToArray();
+        Assert.Equal(2, generated.Length);
+        Assert.Contains(generated, result => result.HintName == "FirstGraphicsShaderProgram.g.cs");
+        Assert.Contains(generated, result => result.HintName == "SecondGraphicsShaderProgram.g.cs");
+    }
+
+    [Fact]
     public async Task CompileTimeShaderAnalyzer_RejectsManagedStateReflectionVirtualCallsAndReferenceLocals()
     {
         const string source = @"

@@ -43,16 +43,18 @@ public sealed class DeltaGraphicsGenerator : IIncrementalGenerator
         var pairNames = singlePair
             ? ["__single_graphics_pair"]
             : vertices.Select(GetShaderName).Concat(fragments.Select(GetShaderName)).Distinct(StringComparer.Ordinal).ToArray();
-        var results = ShaderCompiler.CompileAll(compilation).Where(r => r.Module?.Stage is ShaderStage.Vertex or ShaderStage.Fragment).ToArray();
-        if (results.Any(r => !r.Success || r.BuildManifest is null || r.Module is null))
+        var allResults = ShaderCompiler.CompileAll(compilation).ToArray();
+        if (allResults.Any(r => !r.Success || r.BuildManifest is null || r.Module is null))
         {
-            foreach (var d in results.SelectMany(r => r.Diagnostics))
+            foreach (var d in allResults.SelectMany(r => r.Diagnostics))
             {
                 context.ReportDiagnostic(Diagnostic.Create(Descriptor, methodsInAssembly[0].Locations.FirstOrDefault(), $"{d.Id}: {d.Message}"));
             }
 
             return;
         }
+
+        var results = allResults.Where(r => r.Module?.Stage is ShaderStage.Vertex or ShaderStage.Fragment).ToArray();
         foreach (var pairName in pairNames)
         {
             var pairVertices = singlePair ? vertices : vertices.Where(method => GetShaderName(method) == pairName).ToArray();
@@ -63,12 +65,8 @@ public sealed class DeltaGraphicsGenerator : IIncrementalGenerator
                 continue;
             }
 
-            var resultsByIdentity = results.GroupBy(result => result.SourceMethodIdentity)
-                .ToDictionary(group => group.Key, group => group.ToArray(), StringComparer.Ordinal);
-            var vertexIdentity = pairVertices[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-            var fragmentIdentity = pairFragments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-            var vertexResult = resultsByIdentity.TryGetValue(vertexIdentity, out var vertexMatches) && vertexMatches.Length == 1 ? vertexMatches[0] : null;
-            var fragmentResult = resultsByIdentity.TryGetValue(fragmentIdentity, out var fragmentMatches) && fragmentMatches.Length == 1 ? fragmentMatches[0] : null;
+            var vertexResult = FindResult(results, ShaderStage.Vertex, pairName, singlePair);
+            var fragmentResult = FindResult(results, ShaderStage.Fragment, pairName, singlePair);
             if (vertexResult?.Module is null || vertexResult.BuildManifest is null || fragmentResult?.Module is null || fragmentResult.BuildManifest is null)
             {
                 context.ReportDiagnostic(Diagnostic.Create(Descriptor, pairVertices[0].Locations.FirstOrDefault(), $"DSH017: graphics pair '{pairName}' did not produce both shader modules."));
@@ -97,6 +95,16 @@ public sealed class DeltaGraphicsGenerator : IIncrementalGenerator
     {
         var attribute = method.GetAttributes().First(attribute => attribute.AttributeClass?.ToDisplayString() == typeof(VertexShaderAttribute).FullName || attribute.AttributeClass?.ToDisplayString() == typeof(FragmentShaderAttribute).FullName);
         return attribute.ConstructorArguments.FirstOrDefault().Value?.ToString() ?? method.Name;
+    }
+    private static ShaderCompilationResult? FindResult(
+        ShaderCompilationResult[] results,
+        ShaderStage stage,
+        string pairName,
+        bool singlePair)
+    {
+        var matches = results.Where(result => result.Module?.Stage == stage &&
+            (singlePair || result.Module.SourceEntryPointName == pairName)).ToArray();
+        return matches.Length == 1 ? matches[0] : null;
     }
     private static string Sanitize(string name) => string.Concat(name.Select(c => char.IsLetterOrDigit(c) || c == '_' ? c : '_')) is { Length: > 0 } value ? value : "Graphics";
     private static string Pascalize(string name)

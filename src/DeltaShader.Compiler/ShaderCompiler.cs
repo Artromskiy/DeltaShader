@@ -42,8 +42,8 @@ public static class ShaderCompiler
         }
 
         return entries.Select(entry => entry.Stage == ShaderStage.Compute
-                ? ComputeEntryPoints.ValidateAndBuild(context, frontend, options, entry.Method.Name, entry.Method.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))
-                : GraphicsEntryPoints.ValidateAndBuild(context, frontend, entry.Stage, options, entry.Method.Name, entry.Method.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
+                ? ComputeEntryPoints.ValidateAndBuild(context, frontend, options, entry.Method.Name, ShaderMethodIdentity.Get(entry.Method))
+                : GraphicsEntryPoints.ValidateAndBuild(context, frontend, entry.Stage, options, entry.Method.Name, ShaderMethodIdentity.Get(entry.Method)))
             .ToArray();
     }
 }
