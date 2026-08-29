@@ -15,8 +15,8 @@ runtime-neutral `ShaderArtifact` ABI.
   matrix/layout work. ADRs are decision records, not task lists.
 - [../EDITOR_UI_TODO.md](../EDITOR_UI_TODO.md) is authoritative for shared text
   and editor acceptance.
-- [../HIGH_PRIORITY_TODO.md](../HIGH_PRIORITY_TODO.md) is authoritative for
-  graphics-artifact ownership and consumer migration.
+- [../CONTRACTS.md](../CONTRACTS.md) is authoritative for graphics-artifact
+  ownership and consumer boundaries.
 
 Compiler/abstractions must not depend on Vulkan or DeltaRender. Map DeltaMaths by
 Roslyn symbol identity and generated manifest, never by CLR name guesses.
