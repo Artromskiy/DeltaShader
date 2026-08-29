@@ -1885,6 +1885,12 @@ public class IntrinsicCatalogTests
         GeneratedSourceResult generated = Assert.Single(driver.GetRunResult().Results.SelectMany(result => result.GeneratedSources));
         Assert.Contains("CreateAbi", generated.SourceText.ToString(), StringComparison.Ordinal);
         Assert.Contains("CreateArtifact", generated.SourceText.ToString(), StringComparison.Ordinal);
+        Assert.Contains("PackComputeInputElement", generated.SourceText.ToString(), StringComparison.Ordinal);
+        Assert.Contains("PackComputeInputElements", generated.SourceText.ToString(), StringComparison.Ordinal);
+        Assert.Contains("PackComputeOutputElement", generated.SourceText.ToString(), StringComparison.Ordinal);
+        Assert.Contains("UnpackComputeInputElement", generated.SourceText.ToString(), StringComparison.Ordinal);
+        Assert.Contains("UnpackComputeInputElements", generated.SourceText.ToString(), StringComparison.Ordinal);
+        Assert.Contains("UnpackComputeOutputElement", generated.SourceText.ToString(), StringComparison.Ordinal);
         Assert.Contains("Delta.Shader.Contract", generated.SourceText.ToString(), StringComparison.Ordinal);
         Assert.DoesNotContain("JsonSerializer.Deserialize", generated.SourceText.ToString(), StringComparison.Ordinal);
     }

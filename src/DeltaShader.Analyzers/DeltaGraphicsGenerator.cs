@@ -81,12 +81,24 @@ public sealed class DeltaGraphicsGenerator : IIncrementalGenerator
                 continue;
             }
 
+            var vertexPackingSucceeded = ArtifactSourceEmitter.TryEmitPackingMethods(
+                pairVertices[0], vertexResult.BuildManifest, out var vertexPacking, out var vertexPackingReason);
+            var fragmentPackingSucceeded = ArtifactSourceEmitter.TryEmitPackingMethods(
+                pairFragments[0], fragmentResult.BuildManifest, out var fragmentPacking, out var fragmentPackingReason);
+            if (!vertexPackingSucceeded || !fragmentPackingSucceeded)
+            {
+                var reason = vertexPackingReason ?? fragmentPackingReason ?? "unknown packing error";
+                context.ReportDiagnostic(Diagnostic.Create(Descriptor, pairVertices[0].Locations.FirstOrDefault(), $"Std430 packer generation failed for graphics pair '{pairName}': {reason}"));
+                continue;
+            }
+
             var type = pairVertices[0].ContainingType;
             var name = pairNames.Length == 1 ? Sanitize(type.Name) + "GraphicsShaderProgram" : Pascalize(pairName) + "GraphicsShaderProgram";
             var ns = type.ContainingNamespace.IsGlobalNamespace ? string.Empty : $"namespace {type.ContainingNamespace.ToDisplayString()};";
             var source = "using System;\nusing Delta.Shader.Contract;\n\n" + ns + "\n\npublic static class " + name + "\n{\n" +
                 ArtifactSourceEmitter.EmitAbiFactory(vertexResult.BuildManifest) +
                 ArtifactSourceEmitter.EmitAbiFactory(fragmentResult.BuildManifest).Replace("CreateAbi", "CreateFragmentAbi") +
+                vertexPacking + fragmentPacking +
                 "\n    public static IGraphicsShaderProgram CreateProgram(ReadOnlySpan<byte> vertexSpirv, ReadOnlySpan<byte> fragmentSpirv)\n        => new GraphicsShaderProgram(new ShaderArtifact(vertexSpirv, \"main\", CreateAbi()), new ShaderArtifact(fragmentSpirv, \"main\", CreateFragmentAbi()));\n}\n";
             context.AddSource(name + ".g.cs", SourceText.From(source, Encoding.UTF8));
         }

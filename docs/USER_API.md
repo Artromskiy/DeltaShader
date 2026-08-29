@@ -44,6 +44,34 @@ buffer, texture, push constant, or stage builtin. The compiler flattens those
 fields into resource and layout metadata. Nested managed state, reference
 fields, and arbitrary host services remain invalid.
 
+### Generated std430 packing
+
+The analyzer emits typed packing methods on the generated artifact factory.
+For an entry point named `Compute`, the generated surface includes methods in
+this shape:
+
+```csharp
+int PackComputeContext(in ComputeContext value, Span<byte> destination);
+byte[] PackComputeContext(in ComputeContext value);
+int PackComputeInputElement(in uint value, Span<byte> destination);
+int PackComputeInputElements(ReadOnlySpan<uint> values, Span<byte> destination);
+byte[] PackComputeInputElements(ReadOnlySpan<uint> values);
+```
+
+The exact resource type and method names come from the shader symbols and
+resolved manifest. Methods write explicit std430 offsets and clear the packed
+range before writing, so ordinary CLR sequential layout is never uploaded as
+a substitute. `float3`, matrices and nested shader structs are written
+component-by-component using the resolved padding and column-major matrix
+strides. DeltaRender receives these bytes and owns the actual GPU upload.
+
+For readback, the generated factory also exposes typed methods such as
+`UnpackComputeInputElement(ReadOnlySpan<byte>)` and
+`UnpackComputeInputElements(ReadOnlySpan<byte>)`. They return user values after
+reading the resolved offsets and array stride. Unpack is emitted only for
+writable value payloads; a context containing descriptors is not reconstructed
+from bytes.
+
 Shader execution builtins are static compiler intrinsics, not context fields:
 
 ```csharp

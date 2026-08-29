@@ -63,11 +63,18 @@ public sealed class DeltaComputeGenerator : IIncrementalGenerator
             return;
         }
 
+        if (!ArtifactSourceEmitter.TryEmitPackingMethods(method, result.BuildManifest, out var packingMethods, out var packingReason))
+        {
+            ReportDiagnostic(context, method, $"Std430 packer generation failed: {packingReason}");
+            return;
+        }
+
         var className = Sanitize(method.ContainingType.Name) + Sanitize(method.Name) + "ShaderArtifact";
         var source = BuildArtifactSource(
             method,
             className,
-            ArtifactSourceEmitter.EmitAbiFactory(result.BuildManifest));
+            ArtifactSourceEmitter.EmitAbiFactory(result.BuildManifest),
+            packingMethods);
         context.AddSource(className + ".g.cs", SourceText.From(source, Encoding.UTF8));
     }
 
@@ -93,7 +100,7 @@ public sealed class DeltaComputeGenerator : IIncrementalGenerator
             message));
     }
 
-    private static string BuildArtifactSource(IMethodSymbol method, string className, string abiFactory)
+    private static string BuildArtifactSource(IMethodSymbol method, string className, string abiFactory, string packingMethods)
     {
         var ns = method.ContainingNamespace.IsGlobalNamespace
             ? string.Empty
@@ -101,6 +108,7 @@ public sealed class DeltaComputeGenerator : IIncrementalGenerator
 
         return "using System;\nusing Delta.Shader.Contract;\n\n" + ns + "\n\npublic static class " + className + "\n{\n" +
             abiFactory +
+            packingMethods +
             "\n    public static ShaderArtifact CreateArtifact(ReadOnlySpan<byte> spirv)\n        => new(spirv, \"main\", CreateAbi());\n}\n";
     }
 

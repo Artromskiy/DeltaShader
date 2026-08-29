@@ -57,12 +57,14 @@ and emits direct typed helpers for concrete authoring values:
 - vertex values use the resolved binding stride and attribute offsets;
 - readback helpers decode the same layouts in reverse.
 
-Generated code must make padding and ownership visible, preserve column-major
-matrix semantics, and reject managed/reference fields and ambiguous CLR
+Generated code now exposes `Pack<Method>Context` and typed element/vertex
+array helpers. It makes padding and ownership visible, preserves column-major
+matrix semantics, and rejects managed/reference fields and ambiguous CLR
 representations. It must not infer GPU layout from CLR sequential layout,
 reflection, `Marshal.SizeOf`, raw struct copies or a second manifest.
 
-The Render-side adapter receives packed bytes plus the final artifact. It owns
+The current producer emits packing and typed readback/unpack helpers for
+writable payload values. The Render-side adapter receives packed bytes plus the final artifact. It owns
 resource allocation, upload/readback, descriptors and device-limit checks;
 DeltaShader does not reference Vulkan or DeltaRender. `UiTextDraw` and its
 paint semantics remain producer data in DeltaXAML, while atlas pages, UVs,

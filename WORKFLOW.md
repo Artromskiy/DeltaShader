@@ -128,3 +128,11 @@ For local application run `./eng/format.sh`; for a non-mutating check use
 --folder` to avoid the MSBuild/Roslyn workspace load that can hang on macOS
 with .NET 10. It checks/applies whitespace only; analyzer/style diagnostics
 remain covered by the build and SARIF metrics workflow.
+
+## Generated source style
+
+When an analyzer or source generator emits multiline C# source, prefer C# raw
+string literals (`"""..."""`) over escaped strings, repeated concatenation or
+line-by-line `Append` calls. Use interpolation only for the values that are
+actually dynamic, and keep ordinary escaped strings for short single-line
+fragments.

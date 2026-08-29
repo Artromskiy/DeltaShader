@@ -32,8 +32,8 @@ The authoritative renderer handoff is documented in
 ## Generated host packing
 
 The selected packing design keeps CLR authoring types convenient without
-making their ordinary memory layout a GPU contract. DeltaShader tooling may
-generate plain typed `Pack` and `Unpack` helpers for push constants, storage
+making their ordinary memory layout a GPU contract. DeltaShader tooling
+generates plain typed `Pack` helpers for push constants, storage
 buffer elements and vertex data. Those helpers write explicit ABI offsets,
 padding, array strides and matrix strides from the resolved `ShaderAbi`.
 
@@ -49,6 +49,14 @@ owns the Vulkan allocation, descriptor update, upload and readback; it
 consumes those bytes and `ShaderArtifact.Abi` and does not recalculate the
 layout. DeltaXAML and Engine provide semantic values such as paint and
 placement data and do not know about packing, Vulkan or `std430`.
+
+The generated surface is `Pack<Method>Context`,
+`Pack<Method><Resource>Element/Elements`, and
+`Pack<Method>VertexElement/VertexElements` when the corresponding ABI data is
+present. Writable value payloads also receive matching `Unpack...` helpers
+using the same resolved offsets and strides. A context containing descriptors
+is not reconstructed from bytes; consumers unpack the payload value they read
+back.
 
 This is a tooling/application-side implementation boundary, not a second
 runtime ABI. The existing `ShaderAbi` already carries the required resolved
