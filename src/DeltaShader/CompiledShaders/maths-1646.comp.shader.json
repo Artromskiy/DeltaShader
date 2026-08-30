@@ -1,0 +1,142 @@
+﻿{
+  "Stage": "Compute",
+  "SourceEntryPointName": "Case0000",
+  "EntryPointName": "main",
+  "TargetProfile": "vulkan1.2",
+  "GlslVersion": "460",
+  "SpirvVersion": "1.5",
+  "StorageLayout": "std430",
+  "LocalSizeX": 64,
+  "LocalSizeY": 1,
+  "LocalSizeZ": 1,
+  "Resources": [
+    {
+      "Name": "Input0",
+      "ParameterName": "context.Input0",
+      "Category": "storage-buffer",
+      "Stage": "Compute",
+      "Set": 0,
+      "Binding": 0,
+      "GlslType": "int",
+      "ReadOnly": true,
+      "Access": "ReadOnly",
+      "Layout": "std430",
+      "Offset": 0,
+      "Alignment": 4,
+      "Size": 4,
+      "ArrayStride": 4,
+      "MatrixStride": null,
+      "Members": [],
+      "Packing": {
+        "Scheme": "std430",
+        "Strategy": "std430-explicit-members",
+        "DirectRawUploadAllowed": false,
+        "BoolRepresentation": "uint32",
+        "Stride": 4
+      }
+    },
+    {
+      "Name": "Input1",
+      "ParameterName": "context.Input1",
+      "Category": "storage-buffer",
+      "Stage": "Compute",
+      "Set": 0,
+      "Binding": 1,
+      "GlslType": "int",
+      "ReadOnly": true,
+      "Access": "ReadOnly",
+      "Layout": "std430",
+      "Offset": 0,
+      "Alignment": 4,
+      "Size": 4,
+      "ArrayStride": 4,
+      "MatrixStride": null,
+      "Members": [],
+      "Packing": {
+        "Scheme": "std430",
+        "Strategy": "std430-explicit-members",
+        "DirectRawUploadAllowed": false,
+        "BoolRepresentation": "uint32",
+        "Stride": 4
+      }
+    },
+    {
+      "Name": "Out0",
+      "ParameterName": "context.Out0",
+      "Category": "storage-buffer",
+      "Stage": "Compute",
+      "Set": 0,
+      "Binding": 2,
+      "GlslType": "int",
+      "ReadOnly": false,
+      "Access": "ReadWrite",
+      "Layout": "std430",
+      "Offset": 0,
+      "Alignment": 4,
+      "Size": 4,
+      "ArrayStride": 4,
+      "MatrixStride": null,
+      "Members": [],
+      "Packing": {
+        "Scheme": "std430",
+        "Strategy": "std430-explicit-members",
+        "DirectRawUploadAllowed": false,
+        "BoolRepresentation": "uint32",
+        "Stride": 4
+      }
+    },
+    {
+      "Name": "Out1",
+      "ParameterName": "context.Out1",
+      "Category": "storage-buffer",
+      "Stage": "Compute",
+      "Set": 0,
+      "Binding": 3,
+      "GlslType": "int",
+      "ReadOnly": false,
+      "Access": "ReadWrite",
+      "Layout": "std430",
+      "Offset": 0,
+      "Alignment": 4,
+      "Size": 4,
+      "ArrayStride": 4,
+      "MatrixStride": null,
+      "Members": [],
+      "Packing": {
+        "Scheme": "std430",
+        "Strategy": "std430-explicit-members",
+        "DirectRawUploadAllowed": false,
+        "BoolRepresentation": "uint32",
+        "Stride": 4
+      }
+    }
+  ],
+  "Inputs": [],
+  "VertexInputs": [],
+  "VertexBufferBindings": [],
+  "Outputs": [],
+  "PushConstants": [
+    {
+      "Name": "DeltaPushConstants",
+      "ParameterName": "context",
+      "GlslType": "DeltaPushConstants",
+      "Alignment": 4,
+      "Size": 4,
+      "ArrayStride": 0,
+      "Members": [
+        {
+          "Name": "Count",
+          "GlslName": "member_Count",
+          "GlslType": "uint",
+          "Offset": 0,
+          "Alignment": 4,
+          "Size": 4,
+          "ArrayStride": 4,
+          "MatrixStride": null,
+          "HostRepresentation": "std430",
+          "Members": []
+        }
+      ]
+    }
+  ]
+}

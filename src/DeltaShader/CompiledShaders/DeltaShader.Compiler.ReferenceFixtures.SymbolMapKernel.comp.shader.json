@@ -1,0 +1,69 @@
+{
+  "Stage": 0,
+  "SourceEntryPointName": "SymbolMapKernel",
+  "EntryPointName": "main",
+  "TargetProfile": "vulkan1.2",
+  "GlslVersion": "460",
+  "SpirvVersion": "1.5",
+  "StorageLayout": "std430",
+  "LocalSizeX": 4,
+  "LocalSizeY": 2,
+  "LocalSizeZ": 1,
+  "Resources": [
+    {
+      "Name": "Input",
+      "ParameterName": "context.Input",
+      "Category": "storage-buffer",
+      "Stage": 0,
+      "Set": 0,
+      "Binding": 0,
+      "GlslType": "vec3",
+      "ReadOnly": true,
+      "Access": 0,
+      "Layout": "std430",
+      "Offset": 0,
+      "Alignment": 16,
+      "Size": 12,
+      "ArrayStride": 16,
+      "MatrixStride": null,
+      "Members": [],
+      "Packing": {
+        "Scheme": "std430",
+        "Strategy": "std430-explicit-members",
+        "DirectRawUploadAllowed": false,
+        "BoolRepresentation": "uint32",
+        "Stride": 16
+      }
+    },
+    {
+      "Name": "Output",
+      "ParameterName": "context.Output",
+      "Category": "storage-buffer",
+      "Stage": 0,
+      "Set": 0,
+      "Binding": 1,
+      "GlslType": "vec2",
+      "ReadOnly": false,
+      "Access": 2,
+      "Layout": "std430",
+      "Offset": 0,
+      "Alignment": 8,
+      "Size": 8,
+      "ArrayStride": 8,
+      "MatrixStride": null,
+      "Members": [],
+      "Packing": {
+        "Scheme": "std430",
+        "Strategy": "std430-explicit-members",
+        "DirectRawUploadAllowed": false,
+        "BoolRepresentation": "uint32",
+        "Stride": 8
+      }
+    }
+  ],
+  "Inputs": [],
+  "VertexInputs": [],
+  "VertexBufferBindings": [],
+  "Outputs": [],
+  "PushConstants": []
+}

@@ -1,0 +1,142 @@
+{
+  "Stage": 2,
+  "SourceEntryPointName": "jfa-composite",
+  "EntryPointName": "main",
+  "TargetProfile": "vulkan1.2",
+  "GlslVersion": "460",
+  "SpirvVersion": "1.5",
+  "StorageLayout": "std430",
+  "LocalSizeX": 0,
+  "LocalSizeY": 0,
+  "LocalSizeZ": 0,
+  "Resources": [
+    {
+      "Name": "Seeds",
+      "ParameterName": "Seeds",
+      "Category": "sampled-texture",
+      "Stage": 2,
+      "Set": 0,
+      "Binding": 0,
+      "GlslType": "sampler2D",
+      "ReadOnly": true,
+      "Access": 0,
+      "Layout": "opaque",
+      "Offset": 0,
+      "Alignment": 0,
+      "Size": 0,
+      "ArrayStride": 0,
+      "MatrixStride": null,
+      "Members": [],
+      "Packing": {
+        "Scheme": "none",
+        "Strategy": "opaque-resource",
+        "DirectRawUploadAllowed": false,
+        "BoolRepresentation": "uint32",
+        "Stride": 0
+      }
+    },
+    {
+      "Name": "Silhouette",
+      "ParameterName": "Silhouette",
+      "Category": "sampled-texture",
+      "Stage": 2,
+      "Set": 0,
+      "Binding": 1,
+      "GlslType": "sampler2D",
+      "ReadOnly": true,
+      "Access": 0,
+      "Layout": "opaque",
+      "Offset": 0,
+      "Alignment": 0,
+      "Size": 0,
+      "ArrayStride": 0,
+      "MatrixStride": null,
+      "Members": [],
+      "Packing": {
+        "Scheme": "none",
+        "Strategy": "opaque-resource",
+        "DirectRawUploadAllowed": false,
+        "BoolRepresentation": "uint32",
+        "Stride": 0
+      }
+    }
+  ],
+  "Inputs": [
+    {
+      "Name": "Position",
+      "ParameterName": "Position",
+      "GlslName": "gl_FragCoord",
+      "GlslType": "vec4",
+      "Location": 0,
+      "Builtin": "FragmentPosition"
+    },
+    {
+      "Name": "Uv",
+      "ParameterName": "Uv",
+      "GlslName": "Uv",
+      "GlslType": "vec2",
+      "Location": 0,
+      "Builtin": null
+    }
+  ],
+  "VertexInputs": [],
+  "VertexBufferBindings": [],
+  "Outputs": [
+    {
+      "Name": "FragmentColor",
+      "ParameterName": "return",
+      "GlslName": "fragColor",
+      "GlslType": "vec4",
+      "Location": 0,
+      "Builtin": "FragmentColor"
+    }
+  ],
+  "PushConstants": [
+    {
+      "Name": "DeltaPushConstants",
+      "ParameterName": "Parameters",
+      "GlslType": "DeltaStruct_Delta_Shader_Playground_JfaShaders_JfaCompositeParameters",
+      "Alignment": 16,
+      "Size": 32,
+      "ArrayStride": 32,
+      "Members": [
+        {
+          "Name": "TexelSize",
+          "GlslName": "member_TexelSize",
+          "GlslType": "vec2",
+          "Offset": 0,
+          "Alignment": 8,
+          "Size": 8,
+          "ArrayStride": 8,
+          "MatrixStride": null,
+          "HostRepresentation": "std430",
+          "Members": []
+        },
+        {
+          "Name": "OutlineWidth",
+          "GlslName": "member_OutlineWidth",
+          "GlslType": "float",
+          "Offset": 8,
+          "Alignment": 4,
+          "Size": 4,
+          "ArrayStride": 4,
+          "MatrixStride": null,
+          "HostRepresentation": "std430",
+          "Members": []
+        },
+        {
+          "Name": "Color",
+          "GlslName": "member_Color",
+          "GlslType": "vec4",
+          "Offset": 16,
+          "Alignment": 16,
+          "Size": 16,
+          "ArrayStride": 16,
+          "MatrixStride": null,
+          "HostRepresentation": "std430",
+          "Members": []
+        }
+      ]
+    }
+  ]
+}

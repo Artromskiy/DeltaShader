@@ -1,0 +1,169 @@
+{
+  "Stage": 0,
+  "SourceEntryPointName": "Compute",
+  "EntryPointName": "main",
+  "TargetProfile": "vulkan1.2",
+  "GlslVersion": "460",
+  "SpirvVersion": "1.5",
+  "StorageLayout": "std430",
+  "LocalSizeX": 8,
+  "LocalSizeY": 1,
+  "LocalSizeZ": 1,
+  "Resources": [
+    {
+      "Name": "Input",
+      "ParameterName": "context.Input",
+      "Category": "storage-buffer",
+      "Stage": 0,
+      "Set": 0,
+      "Binding": 0,
+      "GlslType": "DeltaStruct_Delta_Shader_TestShaders_VectorAdd_TransformRecord",
+      "ReadOnly": true,
+      "Access": 0,
+      "Layout": "std430",
+      "Offset": 0,
+      "Alignment": 16,
+      "Size": 96,
+      "ArrayStride": 96,
+      "MatrixStride": null,
+      "Members": [
+        {
+          "Name": "Base",
+          "GlslName": "member_Base",
+          "GlslType": "DeltaStruct_Delta_Shader_TestShaders_VectorAdd_TransformBase",
+          "Offset": 0,
+          "Alignment": 16,
+          "Size": 16,
+          "ArrayStride": 16,
+          "MatrixStride": null,
+          "HostRepresentation": "std430",
+          "Members": [
+            {
+              "Name": "Position",
+              "GlslName": "member_Position",
+              "GlslType": "vec3",
+              "Offset": 0,
+              "Alignment": 16,
+              "Size": 12,
+              "ArrayStride": 16,
+              "MatrixStride": null,
+              "HostRepresentation": "std430",
+              "Members": []
+            }
+          ]
+        },
+        {
+          "Name": "Rotation",
+          "GlslName": "member_Rotation",
+          "GlslType": "vec4",
+          "Offset": 16,
+          "Alignment": 16,
+          "Size": 16,
+          "ArrayStride": 16,
+          "MatrixStride": null,
+          "HostRepresentation": "std430",
+          "Members": []
+        },
+        {
+          "Name": "Transform",
+          "GlslName": "member_Transform",
+          "GlslType": "mat4",
+          "Offset": 32,
+          "Alignment": 16,
+          "Size": 64,
+          "ArrayStride": 64,
+          "MatrixStride": 16,
+          "HostRepresentation": "std430",
+          "Members": []
+        }
+      ],
+      "Packing": {
+        "Scheme": "std430",
+        "Strategy": "std430-explicit-members",
+        "DirectRawUploadAllowed": false,
+        "BoolRepresentation": "uint32",
+        "Stride": 96
+      }
+    },
+    {
+      "Name": "Output",
+      "ParameterName": "context.Output",
+      "Category": "storage-buffer",
+      "Stage": 0,
+      "Set": 0,
+      "Binding": 1,
+      "GlslType": "DeltaStruct_Delta_Shader_TestShaders_VectorAdd_TransformRecord",
+      "ReadOnly": false,
+      "Access": 2,
+      "Layout": "std430",
+      "Offset": 0,
+      "Alignment": 16,
+      "Size": 96,
+      "ArrayStride": 96,
+      "MatrixStride": null,
+      "Members": [
+        {
+          "Name": "Base",
+          "GlslName": "member_Base",
+          "GlslType": "DeltaStruct_Delta_Shader_TestShaders_VectorAdd_TransformBase",
+          "Offset": 0,
+          "Alignment": 16,
+          "Size": 16,
+          "ArrayStride": 16,
+          "MatrixStride": null,
+          "HostRepresentation": "std430",
+          "Members": [
+            {
+              "Name": "Position",
+              "GlslName": "member_Position",
+              "GlslType": "vec3",
+              "Offset": 0,
+              "Alignment": 16,
+              "Size": 12,
+              "ArrayStride": 16,
+              "MatrixStride": null,
+              "HostRepresentation": "std430",
+              "Members": []
+            }
+          ]
+        },
+        {
+          "Name": "Rotation",
+          "GlslName": "member_Rotation",
+          "GlslType": "vec4",
+          "Offset": 16,
+          "Alignment": 16,
+          "Size": 16,
+          "ArrayStride": 16,
+          "MatrixStride": null,
+          "HostRepresentation": "std430",
+          "Members": []
+        },
+        {
+          "Name": "Transform",
+          "GlslName": "member_Transform",
+          "GlslType": "mat4",
+          "Offset": 32,
+          "Alignment": 16,
+          "Size": 64,
+          "ArrayStride": 64,
+          "MatrixStride": 16,
+          "HostRepresentation": "std430",
+          "Members": []
+        }
+      ],
+      "Packing": {
+        "Scheme": "std430",
+        "Strategy": "std430-explicit-members",
+        "DirectRawUploadAllowed": false,
+        "BoolRepresentation": "uint32",
+        "Stride": 96
+      }
+    }
+  ],
+  "Inputs": [],
+  "VertexInputs": [],
+  "VertexBufferBindings": [],
+  "Outputs": [],
+  "PushConstants": []
+}

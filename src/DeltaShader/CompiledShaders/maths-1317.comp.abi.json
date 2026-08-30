@@ -1,0 +1,88 @@
+﻿{
+  "CaseId": "maths-1317",
+  "OperationIdentity": "maths.atan(float2):float2",
+  "EntryPointName": "main",
+  "Stage": "Compute",
+  "ArtifactPath": "cases/maths-1317.comp.spv",
+  "Abi": {
+    "Stage": "Compute",
+    "Resources": [
+      {
+        "Binding": {
+          "Set": 0,
+          "Binding": 0
+        },
+        "Kind": "StorageBuffer",
+        "Access": "Read",
+        "Stages": "Compute",
+        "Layout": {
+          "Size": 8,
+          "Alignment": 8,
+          "ArrayStride": 8,
+          "MatrixStride": 0,
+          "Members": []
+        },
+        "DescriptorCount": 1
+      },
+      {
+        "Binding": {
+          "Set": 0,
+          "Binding": 1
+        },
+        "Kind": "StorageBuffer",
+        "Access": "Write",
+        "Stages": "Compute",
+        "Layout": {
+          "Size": 8,
+          "Alignment": 8,
+          "ArrayStride": 8,
+          "MatrixStride": 0,
+          "Members": []
+        },
+        "DescriptorCount": 1
+      }
+    ],
+    "PushConstants": [
+      {
+        "Offset": 0,
+        "Size": 4,
+        "Stages": "Compute",
+        "Layout": {
+          "Size": 4,
+          "Alignment": 4,
+          "ArrayStride": 0,
+          "MatrixStride": 0,
+          "Members": [
+            {
+              "Type": {
+                "Kind": "UnsignedInteger",
+                "BitWidth": 32,
+                "VectorSize": 1,
+                "Columns": 1,
+                "IsValid": true
+              },
+              "Offset": 0,
+              "Size": 4,
+              "Alignment": 4,
+              "ArrayStride": 4,
+              "MatrixStride": 0,
+              "NestedLayout": null
+            }
+          ]
+        }
+      }
+    ],
+    "Inputs": [],
+    "Outputs": [],
+    "VertexInputs": [],
+    "VertexBuffers": [],
+    "SpecializationConstants": [],
+    "WorkgroupSize": {
+      "X": 64,
+      "Y": 1,
+      "Z": 1,
+      "IsValid": true
+    },
+    "RequiredCapabilities": "None"
+  }
+}

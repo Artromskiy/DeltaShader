@@ -1,0 +1,92 @@
+{
+  "Stage": 0,
+  "SourceEntryPointName": "SequenceMovement",
+  "EntryPointName": "main",
+  "TargetProfile": "vulkan1.2",
+  "GlslVersion": "460",
+  "SpirvVersion": "1.5",
+  "StorageLayout": "std430",
+  "LocalSizeX": 64,
+  "LocalSizeY": 1,
+  "LocalSizeZ": 1,
+  "Resources": [
+    {
+      "Name": "Input",
+      "ParameterName": "context.Input",
+      "Category": "storage-buffer",
+      "Stage": 0,
+      "Set": 0,
+      "Binding": 0,
+      "GlslType": "uint",
+      "ReadOnly": true,
+      "Access": 0,
+      "Layout": "std430",
+      "Offset": 0,
+      "Alignment": 4,
+      "Size": 4,
+      "ArrayStride": 4,
+      "MatrixStride": null,
+      "Members": [],
+      "Packing": {
+        "Scheme": "std430",
+        "Strategy": "std430-explicit-members",
+        "DirectRawUploadAllowed": false,
+        "BoolRepresentation": "uint32",
+        "Stride": 4
+      }
+    },
+    {
+      "Name": "Output",
+      "ParameterName": "context.Output",
+      "Category": "storage-buffer",
+      "Stage": 0,
+      "Set": 0,
+      "Binding": 1,
+      "GlslType": "uint",
+      "ReadOnly": false,
+      "Access": 2,
+      "Layout": "std430",
+      "Offset": 0,
+      "Alignment": 4,
+      "Size": 4,
+      "ArrayStride": 4,
+      "MatrixStride": null,
+      "Members": [],
+      "Packing": {
+        "Scheme": "std430",
+        "Strategy": "std430-explicit-members",
+        "DirectRawUploadAllowed": false,
+        "BoolRepresentation": "uint32",
+        "Stride": 4
+      }
+    }
+  ],
+  "Inputs": [],
+  "VertexInputs": [],
+  "VertexBufferBindings": [],
+  "Outputs": [],
+  "PushConstants": [
+    {
+      "Name": "DeltaPushConstants",
+      "ParameterName": "context",
+      "GlslType": "DeltaPushConstants",
+      "Alignment": 4,
+      "Size": 4,
+      "ArrayStride": 0,
+      "Members": [
+        {
+          "Name": "DeltaTime",
+          "GlslName": "member_DeltaTime",
+          "GlslType": "float",
+          "Offset": 0,
+          "Alignment": 4,
+          "Size": 4,
+          "ArrayStride": 4,
+          "MatrixStride": null,
+          "HostRepresentation": "std430",
+          "Members": []
+        }
+      ]
+    }
+  ]
+}

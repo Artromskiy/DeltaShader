@@ -1,0 +1,42 @@
+﻿#version 460
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+layout(push_constant, std430) uniform DeltaPushConstants
+{
+    layout(offset = 0) uint member_Count;
+} pushConstants;
+
+layout(set = 0, binding = 0, std430) readonly buffer Input0
+{
+    uvec2 data[];
+} Input0_instance;
+
+layout(set = 0, binding = 1, std430) readonly buffer Input1
+{
+    uvec2 data_0[];
+} Input1_instance;
+
+layout(set = 0, binding = 2, std430) readonly buffer Input2
+{
+    int data_1[];
+} Input2_instance;
+
+layout(set = 0, binding = 3, std430) readonly buffer Input3
+{
+    int data_2[];
+} Input3_instance;
+
+layout(set = 0, binding = 4, std430) buffer Output
+{
+    uvec2 data_3[];
+} Output_instance;
+
+
+void main()
+{
+    uint local_index = gl_GlobalInvocationID.x;
+    if (local_index>= pushConstants.member_Count|| local_index>= Input0_instance.data.length())
+    {return;}
+    uvec2 local_result = bitfieldInsert(Input0_instance.data[local_index], Input1_instance.data_0[local_index], Input2_instance.data_1[local_index], Input3_instance.data_2[local_index]);
+    Output_instance.data_3[local_index] = local_result;
+
+}

@@ -1,0 +1,149 @@
+{
+  "Stage": 2,
+  "SourceEntryPointName": "sdf-text",
+  "EntryPointName": "main",
+  "TargetProfile": "vulkan1.2",
+  "GlslVersion": "460",
+  "SpirvVersion": "1.5",
+  "StorageLayout": "std430",
+  "LocalSizeX": 0,
+  "LocalSizeY": 0,
+  "LocalSizeZ": 0,
+  "Resources": [
+    {
+      "Name": "Atlas",
+      "ParameterName": "Atlas",
+      "Category": "sampled-texture",
+      "Stage": 2,
+      "Set": 0,
+      "Binding": 3,
+      "GlslType": "sampler2D",
+      "ReadOnly": true,
+      "Access": 0,
+      "Layout": "opaque",
+      "Offset": 0,
+      "Alignment": 0,
+      "Size": 0,
+      "ArrayStride": 0,
+      "MatrixStride": null,
+      "Members": [],
+      "Packing": {
+        "Scheme": "none",
+        "Strategy": "opaque-resource",
+        "DirectRawUploadAllowed": false,
+        "BoolRepresentation": "uint32",
+        "Stride": 0
+      }
+    }
+  ],
+  "Inputs": [
+    {
+      "Name": "Position",
+      "ParameterName": "Position",
+      "GlslName": "gl_FragCoord",
+      "GlslType": "vec4",
+      "Location": 0,
+      "Builtin": "FragmentPosition"
+    },
+    {
+      "Name": "Uv",
+      "ParameterName": "Uv",
+      "GlslName": "Uv",
+      "GlslType": "vec2",
+      "Location": 0,
+      "Builtin": null
+    },
+    {
+      "Name": "GlyphColor",
+      "ParameterName": "GlyphColor",
+      "GlslName": "GlyphColor",
+      "GlslType": "vec4",
+      "Location": 1,
+      "Builtin": null
+    }
+  ],
+  "VertexInputs": [],
+  "VertexBufferBindings": [],
+  "Outputs": [
+    {
+      "Name": "FragmentColor",
+      "ParameterName": "return",
+      "GlslName": "fragColor",
+      "GlslType": "vec4",
+      "Location": 0,
+      "Builtin": "FragmentColor"
+    }
+  ],
+  "PushConstants": [
+    {
+      "Name": "DeltaPushConstants",
+      "ParameterName": "Parameters",
+      "GlslType": "DeltaStruct_Delta_Shader_Text_TextParameters",
+      "Alignment": 16,
+      "Size": 64,
+      "ArrayStride": 64,
+      "Members": [
+        {
+          "Name": "Resolution",
+          "GlslName": "member_Resolution",
+          "GlslType": "vec2",
+          "Offset": 0,
+          "Alignment": 8,
+          "Size": 8,
+          "ArrayStride": 8,
+          "MatrixStride": null,
+          "HostRepresentation": "std430",
+          "Members": []
+        },
+        {
+          "Name": "TextColor",
+          "GlslName": "member_TextColor",
+          "GlslType": "vec4",
+          "Offset": 16,
+          "Alignment": 16,
+          "Size": 16,
+          "ArrayStride": 16,
+          "MatrixStride": null,
+          "HostRepresentation": "std430",
+          "Members": []
+        },
+        {
+          "Name": "OutlineColor",
+          "GlslName": "member_OutlineColor",
+          "GlslType": "vec4",
+          "Offset": 32,
+          "Alignment": 16,
+          "Size": 16,
+          "ArrayStride": 16,
+          "MatrixStride": null,
+          "HostRepresentation": "std430",
+          "Members": []
+        },
+        {
+          "Name": "OutlineWidth",
+          "GlslName": "member_OutlineWidth",
+          "GlslType": "float",
+          "Offset": 48,
+          "Alignment": 4,
+          "Size": 4,
+          "ArrayStride": 4,
+          "MatrixStride": null,
+          "HostRepresentation": "std430",
+          "Members": []
+        },
+        {
+          "Name": "DistanceRange",
+          "GlslName": "member_DistanceRange",
+          "GlslType": "float",
+          "Offset": 52,
+          "Alignment": 4,
+          "Size": 4,
+          "ArrayStride": 4,
+          "MatrixStride": null,
+          "HostRepresentation": "std430",
+          "Members": []
+        }
+      ]
+    }
+  ]
+}

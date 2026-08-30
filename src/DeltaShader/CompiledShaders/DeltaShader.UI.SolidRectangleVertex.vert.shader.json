@@ -1,0 +1,126 @@
+{
+  "Stage": 1,
+  "SourceEntryPointName": "solid-rectangle",
+  "EntryPointName": "main",
+  "TargetProfile": "vulkan1.2",
+  "GlslVersion": "460",
+  "SpirvVersion": "1.5",
+  "StorageLayout": "std430",
+  "LocalSizeX": 0,
+  "LocalSizeY": 0,
+  "LocalSizeZ": 0,
+  "Resources": [
+    {
+      "Name": "Instances",
+      "ParameterName": "Instances",
+      "Category": "storage-buffer",
+      "Stage": 1,
+      "Set": 0,
+      "Binding": 0,
+      "GlslType": "DeltaStruct_Delta_Shader_UI_SolidRectangleParameters",
+      "ReadOnly": true,
+      "Access": 0,
+      "Layout": "std430",
+      "Offset": 0,
+      "Alignment": 16,
+      "Size": 32,
+      "ArrayStride": 32,
+      "MatrixStride": null,
+      "Members": [
+        {
+          "Name": "Rect",
+          "GlslName": "member_Rect",
+          "GlslType": "vec4",
+          "Offset": 0,
+          "Alignment": 16,
+          "Size": 16,
+          "ArrayStride": 16,
+          "MatrixStride": null,
+          "HostRepresentation": "std430",
+          "Members": []
+        },
+        {
+          "Name": "Color",
+          "GlslName": "member_Color",
+          "GlslType": "vec4",
+          "Offset": 16,
+          "Alignment": 16,
+          "Size": 16,
+          "ArrayStride": 16,
+          "MatrixStride": null,
+          "HostRepresentation": "std430",
+          "Members": []
+        }
+      ],
+      "Packing": {
+        "Scheme": "std430",
+        "Strategy": "std430-explicit-members",
+        "DirectRawUploadAllowed": false,
+        "BoolRepresentation": "uint32",
+        "Stride": 32
+      }
+    }
+  ],
+  "Inputs": [
+    {
+      "Name": "instanceIndex",
+      "ParameterName": "instanceIndex",
+      "GlslName": "gl_InstanceIndex",
+      "GlslType": "uint",
+      "Location": 0,
+      "Builtin": "InstanceIndex"
+    },
+    {
+      "Name": "vertexIndex",
+      "ParameterName": "vertexIndex",
+      "GlslName": "gl_VertexIndex",
+      "GlslType": "uint",
+      "Location": 0,
+      "Builtin": "VertexIndex"
+    }
+  ],
+  "VertexInputs": [],
+  "VertexBufferBindings": [],
+  "Outputs": [
+    {
+      "Name": "Position",
+      "ParameterName": "Position",
+      "GlslName": "gl_Position",
+      "GlslType": "vec4",
+      "Location": 0,
+      "Builtin": "Position"
+    },
+    {
+      "Name": "Color",
+      "ParameterName": "Color",
+      "GlslName": "Color",
+      "GlslType": "vec4",
+      "Location": 0,
+      "Builtin": null
+    }
+  ],
+  "PushConstants": [
+    {
+      "Name": "DeltaPushConstants",
+      "ParameterName": "Frame",
+      "GlslType": "DeltaStruct_Delta_Shader_UI_UiFrameConstants",
+      "Alignment": 8,
+      "Size": 8,
+      "ArrayStride": 8,
+      "Members": [
+        {
+          "Name": "Resolution",
+          "GlslName": "member_Resolution",
+          "GlslType": "vec2",
+          "Offset": 0,
+          "Alignment": 8,
+          "Size": 8,
+          "ArrayStride": 8,
+          "MatrixStride": null,
+          "HostRepresentation": "std430",
+          "Members": []
+        }
+      ]
+    }
+  ]
+}
