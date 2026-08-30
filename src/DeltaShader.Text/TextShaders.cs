@@ -89,7 +89,7 @@ public static class TextShaders
         {
             return new TextVarying
             {
-                Position = new float4((min.x / context.Parameters.Resolution.x) * 2f - 1f, 1f - (min.y / context.Parameters.Resolution.y) * 2f, 0f, 1f),
+                Position = new float4((min.x / context.Parameters.Resolution.x) * 2f - 1f, (min.y / context.Parameters.Resolution.y) * 2f - 1f, 0f, 1f),
                 Uv = uvMin,
                 GlyphColor = glyph.Color
             };
@@ -98,7 +98,7 @@ public static class TextShaders
         {
             return new TextVarying
             {
-                Position = new float4((max.x / context.Parameters.Resolution.x) * 2f - 1f, 1f - (min.y / context.Parameters.Resolution.y) * 2f, 0f, 1f),
+                Position = new float4((max.x / context.Parameters.Resolution.x) * 2f - 1f, (min.y / context.Parameters.Resolution.y) * 2f - 1f, 0f, 1f),
                 Uv = new float2(uvMax.x, uvMin.y),
                 GlyphColor = glyph.Color
             };
@@ -107,7 +107,7 @@ public static class TextShaders
         {
             return new TextVarying
             {
-                Position = new float4((min.x / context.Parameters.Resolution.x) * 2f - 1f, 1f - (max.y / context.Parameters.Resolution.y) * 2f, 0f, 1f),
+                Position = new float4((min.x / context.Parameters.Resolution.x) * 2f - 1f, (max.y / context.Parameters.Resolution.y) * 2f - 1f, 0f, 1f),
                 Uv = new float2(uvMin.x, uvMax.y),
                 GlyphColor = glyph.Color
             };
@@ -116,7 +116,7 @@ public static class TextShaders
         {
             return new TextVarying
             {
-                Position = new float4((min.x / context.Parameters.Resolution.x) * 2f - 1f, 1f - (max.y / context.Parameters.Resolution.y) * 2f, 0f, 1f),
+                Position = new float4((min.x / context.Parameters.Resolution.x) * 2f - 1f, (max.y / context.Parameters.Resolution.y) * 2f - 1f, 0f, 1f),
                 Uv = new float2(uvMin.x, uvMax.y),
                 GlyphColor = glyph.Color
             };
@@ -125,7 +125,7 @@ public static class TextShaders
         {
             return new TextVarying
             {
-                Position = new float4((max.x / context.Parameters.Resolution.x) * 2f - 1f, 1f - (min.y / context.Parameters.Resolution.y) * 2f, 0f, 1f),
+                Position = new float4((max.x / context.Parameters.Resolution.x) * 2f - 1f, (min.y / context.Parameters.Resolution.y) * 2f - 1f, 0f, 1f),
                 Uv = new float2(uvMax.x, uvMin.y),
                 GlyphColor = glyph.Color
             };
@@ -133,7 +133,7 @@ public static class TextShaders
 
         return new TextVarying
         {
-            Position = new float4((max.x / context.Parameters.Resolution.x) * 2f - 1f, 1f - (max.y / context.Parameters.Resolution.y) * 2f, 0f, 1f),
+            Position = new float4((max.x / context.Parameters.Resolution.x) * 2f - 1f, (max.y / context.Parameters.Resolution.y) * 2f - 1f, 0f, 1f),
             Uv = uvMax,
             GlyphColor = glyph.Color
         };
@@ -168,7 +168,7 @@ public static class TextShaders
         {
             return new TextVarying
             {
-                Position = new float4((min.x / context.Parameters.Resolution.x) * 2f - 1f, 1f - (min.y / context.Parameters.Resolution.y) * 2f, 0f, 1f),
+                Position = new float4((min.x / context.Parameters.Resolution.x) * 2f - 1f, (min.y / context.Parameters.Resolution.y) * 2f - 1f, 0f, 1f),
                 Uv = uvMin,
                 GlyphColor = glyph.Color
             };
@@ -177,7 +177,7 @@ public static class TextShaders
         {
             return new TextVarying
             {
-                Position = new float4((max.x / context.Parameters.Resolution.x) * 2f - 1f, 1f - (min.y / context.Parameters.Resolution.y) * 2f, 0f, 1f),
+                Position = new float4((max.x / context.Parameters.Resolution.x) * 2f - 1f, (min.y / context.Parameters.Resolution.y) * 2f - 1f, 0f, 1f),
                 Uv = new float2(uvMax.x, uvMin.y),
                 GlyphColor = glyph.Color
             };
@@ -186,7 +186,7 @@ public static class TextShaders
         {
             return new TextVarying
             {
-                Position = new float4((min.x / context.Parameters.Resolution.x) * 2f - 1f, 1f - (max.y / context.Parameters.Resolution.y) * 2f, 0f, 1f),
+                Position = new float4((min.x / context.Parameters.Resolution.x) * 2f - 1f, (max.y / context.Parameters.Resolution.y) * 2f - 1f, 0f, 1f),
                 Uv = new float2(uvMin.x, uvMax.y),
                 GlyphColor = glyph.Color
             };
@@ -195,7 +195,7 @@ public static class TextShaders
         {
             return new TextVarying
             {
-                Position = new float4((min.x / context.Parameters.Resolution.x) * 2f - 1f, 1f - (max.y / context.Parameters.Resolution.y) * 2f, 0f, 1f),
+                Position = new float4((min.x / context.Parameters.Resolution.x) * 2f - 1f, (max.y / context.Parameters.Resolution.y) * 2f - 1f, 0f, 1f),
                 Uv = new float2(uvMin.x, uvMax.y),
                 GlyphColor = glyph.Color
             };
@@ -204,7 +204,7 @@ public static class TextShaders
         {
             return new TextVarying
             {
-                Position = new float4((max.x / context.Parameters.Resolution.x) * 2f - 1f, 1f - (min.y / context.Parameters.Resolution.y) * 2f, 0f, 1f),
+                Position = new float4((max.x / context.Parameters.Resolution.x) * 2f - 1f, (min.y / context.Parameters.Resolution.y) * 2f - 1f, 0f, 1f),
                 Uv = new float2(uvMax.x, uvMin.y),
                 GlyphColor = glyph.Color
             };
@@ -212,7 +212,7 @@ public static class TextShaders
 
         return new TextVarying
         {
-            Position = new float4((max.x / context.Parameters.Resolution.x) * 2f - 1f, 1f - (max.y / context.Parameters.Resolution.y) * 2f, 0f, 1f),
+            Position = new float4((max.x / context.Parameters.Resolution.x) * 2f - 1f, (max.y / context.Parameters.Resolution.y) * 2f - 1f, 0f, 1f),
             Uv = uvMax,
             GlyphColor = glyph.Color
         };

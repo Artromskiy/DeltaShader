@@ -41,6 +41,10 @@ or dispatch API.
   user structs become structure values with nested `ShaderAbiLayout`;
 - the source entry-point name stays compiler metadata, while final Vulkan
   artifacts use emitted entry point `main`.
+- UI coordinate lowering follows the top-left viewport policy documented in
+  `ui-shader-contract.md`: positive Y is down and `ndcY = 2 * y / height - 1`.
+  The compiler must not inject a second Y inversion, and must keep texture UV
+  orientation independent from framebuffer orientation.
 
 The conversion is intentionally strict. Unknown resource categories or ABI
 types fail publication rather than producing a partially described artifact.

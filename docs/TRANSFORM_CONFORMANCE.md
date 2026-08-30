@@ -39,7 +39,9 @@ transpose them. DeltaRender binds those packed bytes according to the artifact
 ABI. It does not infer layout from the CLR type or GLSL text.
 
 Vulkan projection depth is `0..1`, supplied by the left-handed projection
-helper. Screen Y is renderer viewport policy (negative viewport height where
-supported), not an extra matrix transpose or a field in the shader artifact.
-Camera code supplies Model, View and Projection values; mesh code owns
-vertex/index data; DeltaRender owns Vulkan binding and draw recording.
+helper. Camera/world transforms do not encode a UI screen-space flip. The UI
+authoring path uses a top-left viewport with positive Y down and converts
+pixels with `ndcY = 2 * y / height - 1`; a shader-side Y inversion must not be
+added on top of that viewport policy. Camera code supplies Model, View and
+Projection values; mesh code owns vertex/index data; DeltaRender owns Vulkan
+binding and draw recording.

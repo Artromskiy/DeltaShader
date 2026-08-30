@@ -6,6 +6,33 @@ rectangle graphics programs. The compiler emits the final
 that artifact and the generated packers. Render must not reproduce this layout
 with `Marshal`, `MemoryMarshal`, or a local byte writer.
 
+## Coordinate conventions
+
+The canonical UI coordinate system is:
+
+- origin: top-left;
+- positive X: right;
+- positive Y: down;
+- viewport origin: top-left;
+- depth: `0..1`;
+- texture UV `(0, 0)`: top-left;
+- texture UV `(1, 1)`: bottom-right.
+
+For a positive-viewport UI path, a pixel position is converted to normalized
+device coordinates as follows:
+
+```text
+ndcX = 2 * x / width - 1
+ndcY = 2 * y / height - 1
+```
+
+The shader must not add an arbitrary Y inversion when the viewport is already
+configured for this top-left path. Texture UV orientation is independent from
+framebuffer orientation. A screen-space Y choice does not imply a normal-map
+green-channel flip; normal-map Y direction is explicit asset/material metadata,
+and tangent handedness remains separate metadata. DPI scaling is intentionally
+outside this contract and remains a separate backlog item.
+
 ## Programs
 
 The stable entry-point names and generated program types are:
@@ -113,9 +140,9 @@ The array methods return `count * 32` bytes for solid records and
 6. Bind the buffer and push range, then issue one instanced draw with
    `instanceCount` equal to the number of records.
 
-The vertex shader uses top-left pixel coordinates and converts them to clip
-space with `clip.y = 1 - pixel.y / Resolution.y * 2`. Rounded coverage uses
-the four independent radii and computes a finite border band; a zero
+The vertex shader uses the top-left pixel convention above and converts pixels
+to clip space without a second Y inversion. Rounded coverage uses the four
+independent radii and computes a finite border band; a zero
 `BorderWidth` produces no border contribution.
 
 ## Ownership boundary

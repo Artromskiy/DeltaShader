@@ -18,6 +18,14 @@ The first graphics slice is intentionally small:
   resolved entry point is copied to the final `ShaderArtifact.EntryPoint`;
   source names are not part of the renderer contract.
 
+UI graphics authoring uses a top-left viewport convention: X increases to the
+right, Y increases down, depth is `0..1`, and texture UV `(0, 0)` is the
+texture's top-left corner. For a positive viewport, UI pixel coordinates use
+`ndcX = 2 * x / width - 1` and `ndcY = 2 * y / height - 1`. The graphics
+authoring path must not insert another Y inversion when the viewport already
+uses this convention. UV orientation and framebuffer orientation are separate;
+screen-space Y handling does not alter normal-map green-channel semantics.
+
 The canonical source fixture is `tests/DeltaShader.TestShaders/FullscreenUi.cs`.
 The checked-in fixture project `tests/DeltaShader.FullscreenFixture` links that
 source without duplicating it. It builds a fullscreen triangle from

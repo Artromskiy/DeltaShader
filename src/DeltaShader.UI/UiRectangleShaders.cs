@@ -128,7 +128,7 @@ public static class UiRectangleShaders
             instance.Rect.y + local.y * instance.Rect.w);
         float2 clip = new float2(
             pixel.x / context.Frame.Resolution.x * 2f - 1f,
-            1f - pixel.y / context.Frame.Resolution.y * 2f);
+            pixel.y / context.Frame.Resolution.y * 2f - 1f);
 
         return new SolidRectanglePayload
         {
@@ -162,7 +162,7 @@ public static class UiRectangleShaders
             instance.Rect.y + local.y * instance.Rect.w);
         float2 clip = new float2(
             pixel.x / context.Frame.Resolution.x * 2f - 1f,
-            1f - pixel.y / context.Frame.Resolution.y * 2f);
+            pixel.y / context.Frame.Resolution.y * 2f - 1f);
 
         return new RoundedRectanglePayload
         {
