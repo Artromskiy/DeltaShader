@@ -1,3 +1,4 @@
+using System.Globalization;
 using Compiler = Delta.Shader.Compiler;
 using Final = Delta.Shader.Contract;
 
@@ -5,13 +6,18 @@ namespace Delta.Shader.Tool;
 
 internal static class ShaderArtifactPublisher
 {
-    public static Final.ShaderArtifact Create(ReadOnlySpan<byte> spirv, Compiler.ShaderCompilationManifest manifest)
+    public static Final.ShaderArtifact Create(
+        ReadOnlySpan<byte> spirv,
+        Compiler.ShaderCompilationManifest manifest,
+        Final.ShaderCapabilities requiredCapabilities = Final.ShaderCapabilities.None)
     {
         ArgumentNullException.ThrowIfNull(manifest);
-        return new Final.ShaderArtifact(spirv, manifest.EntryPointName, ToAbi(manifest));
+        return new Final.ShaderArtifact(spirv, manifest.EntryPointName, ToAbi(manifest, requiredCapabilities));
     }
 
-    private static Final.ShaderAbi ToAbi(Compiler.ShaderCompilationManifest manifest)
+    private static Final.ShaderAbi ToAbi(
+        Compiler.ShaderCompilationManifest manifest,
+        Final.ShaderCapabilities requiredCapabilities)
         => new(
             ToStage(manifest.Stage),
             manifest.Resources.Select(ToResource).ToArray(),
@@ -21,7 +27,7 @@ internal static class ShaderArtifactPublisher
             manifest.VertexInputs.Select(ToVertexInput).ToArray(),
             manifest.VertexBufferBindings.Select(ToVertexBuffer).ToArray(),
             workgroupSize: ToWorkgroup(manifest),
-            requiredCapabilities: Final.ShaderCapabilities.None);
+            requiredCapabilities: requiredCapabilities);
 
     private static Final.ShaderResourceBinding ToResource(Compiler.ShaderCompilationResource resource)
     {
@@ -93,19 +99,42 @@ internal static class ShaderArtifactPublisher
             "bool" => new(Final.ShaderValueKind.Boolean, 32u),
             "int" => new(Final.ShaderValueKind.SignedInteger, 32u),
             "uint" => new(Final.ShaderValueKind.UnsignedInteger, 32u),
+            "float16_t" => new(Final.ShaderValueKind.FloatingPoint, 16u),
             "float" => new(Final.ShaderValueKind.FloatingPoint, 32u),
             "double" => new(Final.ShaderValueKind.FloatingPoint, 64u),
+            "f16vec2" or "f16vec3" or "f16vec4" => new(Final.ShaderValueKind.FloatingPoint, 16u, VectorSize(type)),
             "vec2" or "vec3" or "vec4" => new(Final.ShaderValueKind.FloatingPoint, 32u, VectorSize(type)),
             "ivec2" or "ivec3" or "ivec4" => new(Final.ShaderValueKind.SignedInteger, 32u, VectorSize(type)),
             "uvec2" or "uvec3" or "uvec4" => new(Final.ShaderValueKind.UnsignedInteger, 32u, VectorSize(type)),
             "bvec2" or "bvec3" or "bvec4" => new(Final.ShaderValueKind.Boolean, 32u, VectorSize(type)),
             "dvec2" or "dvec3" or "dvec4" => new(Final.ShaderValueKind.FloatingPoint, 64u, VectorSize(type)),
-            "mat2" or "mat3" or "mat4" => new(Final.ShaderValueKind.FloatingPoint, 32u, VectorSize(type), VectorSize(type)),
+            "mat2" or "mat3" or "mat4"
+                or "mat2x3" or "mat2x4" or "mat3x2" or "mat3x4" or "mat4x2" or "mat4x3"
+                => MatrixValueType(type, 32u),
+            "f16mat2" or "f16mat3" or "f16mat4"
+                or "f16mat2x3" or "f16mat2x4" or "f16mat3x2" or "f16mat3x4" or "f16mat4x2" or "f16mat4x3"
+                => MatrixValueType(type, 16u),
+            "dmat2" or "dmat3" or "dmat4"
+                or "dmat2x3" or "dmat2x4" or "dmat3x2" or "dmat3x4" or "dmat4x2" or "dmat4x3"
+                => MatrixValueType(type, 64u),
             _ => throw new ArgumentException($"Unsupported GLSL ABI type '{glslType}'.", nameof(glslType))
         };
     }
 
     private static uint VectorSize(string type) => (uint)(type[type.Length - 1] - '0');
+
+    private static Final.ShaderValueType MatrixValueType(string type, uint bitWidth)
+    {
+        var dimensions = type[(type.LastIndexOf('t') + 1)..];
+        var separator = dimensions.IndexOf('x');
+        var columns = separator < 0
+            ? VectorSize(dimensions)
+            : uint.Parse(dimensions.AsSpan(0, separator), CultureInfo.InvariantCulture);
+        var rows = separator < 0
+            ? columns
+            : uint.Parse(dimensions.AsSpan(separator + 1), CultureInfo.InvariantCulture);
+        return new(Final.ShaderValueKind.FloatingPoint, bitWidth, columns, rows);
+    }
 
     private static Final.ShaderWorkgroupSize ToWorkgroup(Compiler.ShaderCompilationManifest manifest)
         => manifest.Stage == Delta.Shader.ShaderStage.Compute

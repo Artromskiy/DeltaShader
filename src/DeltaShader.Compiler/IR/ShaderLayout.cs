@@ -21,9 +21,17 @@ public sealed class ShaderStd430Layout
         return glslType switch
         {
             "bool" or "int" or "uint" or "float" => Scalar(4),
+            "float16_t" => Scalar(2),
+            "double" => Scalar(8),
             "bvec2" or "ivec2" or "uvec2" or "vec2" => Vector(8, 8),
             "bvec3" or "ivec3" or "uvec3" or "vec3" => Vector(16, 12),
             "bvec4" or "ivec4" or "uvec4" or "vec4" => Vector(16, 16),
+            "f16vec2" => Vector(4, 4),
+            "f16vec3" => Vector(8, 6),
+            "f16vec4" => Vector(8, 8),
+            "dvec2" => Vector(16, 16),
+            "dvec3" => Vector(32, 24),
+            "dvec4" => Vector(32, 32),
             "mat2" or "mat2x2" => Matrix(2, 2),
             "mat2x3" => Matrix(2, 3),
             "mat2x4" => Matrix(2, 4),
@@ -33,6 +41,24 @@ public sealed class ShaderStd430Layout
             "mat4x2" => Matrix(4, 2),
             "mat4x3" => Matrix(4, 3),
             "mat4" or "mat4x4" => Matrix(4, 4),
+            "f16mat2" or "f16mat2x2" => Matrix(2, 2, 2),
+            "f16mat2x3" => Matrix(2, 3, 2),
+            "f16mat2x4" => Matrix(2, 4, 2),
+            "f16mat3x2" => Matrix(3, 2, 2),
+            "f16mat3" or "f16mat3x3" => Matrix(3, 3, 2),
+            "f16mat3x4" => Matrix(3, 4, 2),
+            "f16mat4x2" => Matrix(4, 2, 2),
+            "f16mat4x3" => Matrix(4, 3, 2),
+            "f16mat4" or "f16mat4x4" => Matrix(4, 4, 2),
+            "dmat2" or "dmat2x2" => Matrix(2, 2, 8),
+            "dmat2x3" => Matrix(2, 3, 8),
+            "dmat2x4" => Matrix(2, 4, 8),
+            "dmat3x2" => Matrix(3, 2, 8),
+            "dmat3" or "dmat3x3" => Matrix(3, 3, 8),
+            "dmat3x4" => Matrix(3, 4, 8),
+            "dmat4x2" => Matrix(4, 2, 8),
+            "dmat4x3" => Matrix(4, 3, 8),
+            "dmat4" or "dmat4x4" => Matrix(4, 4, 8),
             _ => throw new ArgumentException($"Unsupported GLSL type '{glslType}'.", nameof(glslType))
         };
     }
@@ -43,9 +69,9 @@ public sealed class ShaderStd430Layout
     private static ShaderStd430Layout Vector(uint alignment, uint size)
         => new() { Alignment = alignment, Size = size, ArrayStride = alignment };
 
-    private static ShaderStd430Layout Matrix(uint columns, uint rows)
+    private static ShaderStd430Layout Matrix(uint columns, uint rows, uint scalarSize = 4)
     {
-        var matrixStride = rows == 2 ? 8u : 16u;
+        var matrixStride = (rows == 2 ? 2u : 4u) * scalarSize;
         var size = columns * matrixStride;
         return new() { Alignment = matrixStride, Size = size, ArrayStride = size, MatrixStride = matrixStride };
     }

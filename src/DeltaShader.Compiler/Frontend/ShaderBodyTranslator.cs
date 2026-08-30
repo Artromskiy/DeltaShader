@@ -1892,6 +1892,13 @@ internal static class ShaderBodyTranslator
             {
                 return true;
             }
+            if (type is INamedTypeSymbol halfType &&
+                halfType.Name == "half" &&
+                halfType.ContainingNamespace.ToDisplayString() == "Delta.Maths")
+            {
+                glslType = "float16_t";
+                return true;
+            }
             if (type is INamedTypeSymbol namedType && _structNames.TryGetValue(namedType, out glslType))
             {
                 return true;
@@ -1906,6 +1913,7 @@ internal static class ShaderBodyTranslator
                 SpecialType.System_Single => "float",
                 SpecialType.System_UInt32 => "uint",
                 SpecialType.System_Int32 => "int",
+                SpecialType.System_Double => "double",
                 _ => string.Empty
             };
             return glslType.Length > 0;

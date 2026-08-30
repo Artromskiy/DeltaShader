@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
 
 namespace Delta.Shader.Packing;
@@ -64,6 +65,23 @@ public ref struct Std430Writer
     public void WriteFloat(uint offset, float value)
         => WriteUInt(offset, Unsafe.As<float, uint>(ref value));
 
+    public void WriteDouble(uint offset, double value)
+        => WriteULong(offset, Unsafe.As<double, ulong>(ref value));
+
+    public void WriteHalf(uint offset, ushort value)
+    {
+        EnsureRange(offset, sizeof(ushort));
+        BinaryPrimitives.WriteUInt16LittleEndian(
+            _destination.Slice(checked((int)offset), sizeof(ushort)), value);
+    }
+
+    private void WriteULong(uint offset, ulong value)
+    {
+        EnsureRange(offset, sizeof(ulong));
+        BinaryPrimitives.WriteUInt64LittleEndian(
+            _destination.Slice(checked((int)offset), sizeof(ulong)), value);
+    }
+
     private void EnsureRange(uint offset, uint size)
     {
         if ((ulong)offset + size > (ulong)_destination.Length)
@@ -101,6 +119,26 @@ public ref struct Std430Reader
     {
         var bits = ReadUInt(offset);
         return Unsafe.As<uint, float>(ref bits);
+    }
+
+    public double ReadDouble(uint offset)
+    {
+        var bits = ReadULong(offset);
+        return Unsafe.As<ulong, double>(ref bits);
+    }
+
+    public ushort ReadHalf(uint offset)
+    {
+        EnsureRange(offset, sizeof(ushort));
+        return BinaryPrimitives.ReadUInt16LittleEndian(
+            _source.Slice(checked((int)offset), sizeof(ushort)));
+    }
+
+    private ulong ReadULong(uint offset)
+    {
+        EnsureRange(offset, sizeof(ulong));
+        return BinaryPrimitives.ReadUInt64LittleEndian(
+            _source.Slice(checked((int)offset), sizeof(ulong)));
     }
 
     private void EnsureRange(uint offset, uint size)

@@ -733,6 +733,12 @@ public static class ComputeEntryPoints
             return true;
         }
 
+        if (IsDeltaMathsHalf(type))
+        {
+            glslType = "float16_t";
+            return true;
+        }
+
         if (type is INamedTypeSymbol namedType && structNames is not null && structNames.TryGetValue(namedType, out glslType))
         {
             return true;
@@ -744,10 +750,16 @@ public static class ComputeEntryPoints
             SpecialType.System_Single => "float",
             SpecialType.System_UInt32 => "uint",
             SpecialType.System_Int32 => "int",
+            SpecialType.System_Double => "double",
             _ => string.Empty
         };
         return glslType.Length != 0;
     }
+
+    private static bool IsDeltaMathsHalf(ITypeSymbol type)
+        => type is INamedTypeSymbol namedType &&
+           namedType.Name == "half" &&
+           namedType.ContainingNamespace.ToDisplayString() == "Delta.Maths";
 
     private static string CreateHelperName(IMethodSymbol method, ISet<string> usedNames)
     {
@@ -1085,6 +1097,14 @@ public static class ComputeEntryPoints
             return true;
         }
 
+        if (IsDeltaMathsHalf(type))
+        {
+            glslType = "float16_t";
+            layout = ShaderStd430Layout.ForGlslType(glslType);
+            reason = string.Empty;
+            return true;
+        }
+
         switch (type.SpecialType)
         {
             case SpecialType.System_Boolean:
@@ -1098,6 +1118,9 @@ public static class ComputeEntryPoints
                 break;
             case SpecialType.System_Single:
                 glslType = "float";
+                break;
+            case SpecialType.System_Double:
+                glslType = "double";
                 break;
             default:
                 if (type is INamedTypeSymbol namedType && namedType.TypeKind == TypeKind.Struct)

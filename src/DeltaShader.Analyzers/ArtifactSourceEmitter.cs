@@ -428,13 +428,15 @@ internal static class ArtifactSourceEmitter
         out string expression,
         out string? reason)
     {
-        if (glslType is "bool" or "int" or "uint" or "float")
+        if (glslType is "bool" or "int" or "uint" or "float" or "double" or "float16_t")
         {
             var reader = glslType switch
             {
                 "bool" => "ReadBool",
                 "int" => "ReadInt",
                 "uint" => "ReadUInt",
+                "double" => "ReadDouble",
+                "float16_t" => "ReadHalf",
                 _ => "ReadFloat"
             };
             var castType = glslType switch
@@ -442,27 +444,34 @@ internal static class ArtifactSourceEmitter
                 "bool" => "bool",
                 "int" => "int",
                 "uint" => "uint",
+                "double" => "double",
                 _ => "float"
             };
-            expression = ScalarExpression($"reader.{reader}({offset}u)", valueType, castType);
+            expression = glslType == "float16_t"
+                ? $"new global::Delta.Maths.half(reader.{reader}({offset}u))"
+                : ScalarExpression($"reader.{reader}({offset}u)", valueType, castType);
             reason = null;
             return true;
         }
 
-        if (TryGetVectorType(glslType, out var vectorWriter, out var componentCount))
+        if (TryGetVectorType(glslType, out var vectorWriter, out var componentCount, out var componentSize))
         {
             var vectorReader = vectorWriter switch
             {
                 "WriteBool" => "ReadBool",
                 "WriteInt" => "ReadInt",
                 "WriteUInt" => "ReadUInt",
+                "WriteDouble" => "ReadDouble",
+                "WriteHalf" => "ReadHalf",
                 _ => "ReadFloat"
             };
             var components = new string[componentCount];
             for (var index = 0; index < componentCount; index++)
             {
-                var componentOffset = offset + (uint)(index * 4);
-                components[index] = $"reader.{vectorReader}({componentOffset}u)";
+                var componentOffset = offset + (uint)index * componentSize;
+                components[index] = glslType.StartsWith("f16vec", StringComparison.Ordinal)
+                    ? $"new global::Delta.Maths.half(reader.{vectorReader}({componentOffset}u))"
+                    : $"reader.{vectorReader}({componentOffset}u)";
             }
 
             expression = "new " + FullyQualifiedType(valueType) + "(" + string.Join(", ", components) + ")";
@@ -489,8 +498,10 @@ internal static class ArtifactSourceEmitter
                 var values = new string[rows];
                 for (var row = 0; row < rows; row++)
                 {
-                    var componentOffset = offset + (uint)column * stride + (uint)(row * 4);
-                    values[row] = $"reader.ReadFloat({componentOffset}u)";
+                    var componentOffset = offset + (uint)column * stride + (uint)row * ScalarByteWidth(glslType);
+                    values[row] = glslType.StartsWith("f16mat", StringComparison.Ordinal)
+                        ? $"new global::Delta.Maths.half(reader.ReadHalf({componentOffset}u))"
+                        : $"reader.{ScalarReader(glslType)}({componentOffset}u)";
                 }
 
                 var columnTypeName = FullyQualifiedType(columnType);
@@ -538,13 +549,15 @@ internal static class ArtifactSourceEmitter
         StringBuilder operations,
         out string? reason)
     {
-        if (glslType is "bool" or "int" or "uint" or "float")
+        if (glslType is "bool" or "int" or "uint" or "float" or "double" or "float16_t")
         {
             var writer = glslType switch
             {
                 "bool" => "WriteBool",
                 "int" => "WriteInt",
                 "uint" => "WriteUInt",
+                "double" => "WriteDouble",
+                "float16_t" => "WriteHalf",
                 _ => "WriteFloat"
             };
             var castType = glslType switch
@@ -552,20 +565,30 @@ internal static class ArtifactSourceEmitter
                 "bool" => "bool",
                 "int" => "int",
                 "uint" => "uint",
+                "double" => "double",
                 _ => "float"
             };
-            operations.AppendLine($"        writer.{writer}({offset}u, {ScalarExpression(expression, valueType, castType)});");
+            var scalarExpression = glslType == "float16_t"
+                ? expression + ".raw"
+                : ScalarExpression(expression, valueType, castType);
+            operations.AppendLine($"        writer.{writer}({offset}u, {scalarExpression});");
             reason = null;
             return true;
         }
 
-        if (TryGetVectorType(glslType, out var vectorWriter, out var componentCount))
+        if (TryGetVectorType(glslType, out var vectorWriter, out var componentCount, out var componentSize))
         {
             var components = new[] { "x", "y", "z", "w" };
             for (var index = 0; index < componentCount; index++)
             {
-                var componentOffset = offset + (uint)(index * 4);
-                operations.AppendLine($"        writer.{vectorWriter}({componentOffset}u, {expression}.{components[index]});");
+                var componentOffset = offset + (uint)index * componentSize;
+                var componentExpression = expression + "." + components[index];
+                if (glslType.StartsWith("f16vec", StringComparison.Ordinal))
+                {
+                    componentExpression += ".raw";
+                }
+
+                operations.AppendLine($"        writer.{vectorWriter}({componentOffset}u, {componentExpression});");
             }
 
             reason = null;
@@ -580,8 +603,14 @@ internal static class ArtifactSourceEmitter
             {
                 for (var row = 0; row < rows; row++)
                 {
-                    var componentOffset = offset + (uint)column * stride + (uint)(row * 4);
-                    operations.AppendLine($"        writer.WriteFloat({componentOffset}u, {expression}.c{column}.{components[row]});");
+                    var componentOffset = offset + (uint)column * stride + (uint)row * ScalarByteWidth(glslType);
+                    var componentExpression = expression + $".c{column}." + components[row];
+                    if (glslType.StartsWith("f16mat", StringComparison.Ordinal))
+                    {
+                        componentExpression += ".raw";
+                    }
+
+                    operations.AppendLine($"        writer.{ScalarWriter(glslType)}({componentOffset}u, {componentExpression});");
                 }
             }
 
@@ -593,14 +622,21 @@ internal static class ArtifactSourceEmitter
         return false;
     }
 
-    private static bool TryGetVectorType(string glslType, out string writer, out int componentCount)
+    private static bool TryGetVectorType(
+        string glslType,
+        out string writer,
+        out int componentCount,
+        out uint componentSize)
     {
         writer = string.Empty;
         componentCount = 0;
+        componentSize = 0;
         var prefixLength = glslType.StartsWith("vec", StringComparison.Ordinal) ? 3 :
             glslType.StartsWith("ivec", StringComparison.Ordinal) ||
             glslType.StartsWith("uvec", StringComparison.Ordinal) ||
-            glslType.StartsWith("bvec", StringComparison.Ordinal) ? 4 : 0;
+            glslType.StartsWith("bvec", StringComparison.Ordinal) ? 4 :
+            glslType.StartsWith("dvec", StringComparison.Ordinal) ? 4 :
+            glslType.StartsWith("f16vec", StringComparison.Ordinal) ? 6 : 0;
         if (prefixLength == 0 || glslType.Length != prefixLength + 1 || glslType[glslType.Length - 1] is < '2' or > '4')
         {
             return false;
@@ -613,8 +649,15 @@ internal static class ArtifactSourceEmitter
             "uvec" => "WriteUInt",
             "bvec" => "WriteBool",
             "vec" => "WriteFloat",
+            "dvec" => "WriteDouble",
+            "f16vec" => "WriteHalf",
             _ => string.Empty
         };
+        componentSize = glslType.StartsWith("dvec", StringComparison.Ordinal)
+            ? 8u
+            : glslType.StartsWith("f16vec", StringComparison.Ordinal)
+                ? 2u
+                : 4u;
         return writer.Length > 0;
     }
 
@@ -622,12 +665,15 @@ internal static class ArtifactSourceEmitter
     {
         columns = 0;
         rows = 0;
-        if (!glslType.StartsWith("mat", StringComparison.Ordinal))
+        var prefixLength = glslType.StartsWith("f16mat", StringComparison.Ordinal) ? 6 :
+            glslType.StartsWith("dmat", StringComparison.Ordinal) ? 4 :
+            glslType.StartsWith("mat", StringComparison.Ordinal) ? 3 : 0;
+        if (prefixLength == 0)
         {
             return false;
         }
 
-        var dimensions = glslType.Substring(3);
+        var dimensions = glslType.Substring(prefixLength);
         if (dimensions.Length == 1 && dimensions[0] is >= '2' and <= '4')
         {
             columns = rows = dimensions[0] - '0';
@@ -639,6 +685,27 @@ internal static class ArtifactSourceEmitter
             int.TryParse(dimensions[0].ToString(), out columns) &&
             int.TryParse(dimensions[2].ToString(), out rows);
     }
+
+    private static uint ScalarByteWidth(string glslType)
+        => glslType.StartsWith("f16", StringComparison.Ordinal)
+            ? 2u
+            : glslType.StartsWith("d", StringComparison.Ordinal)
+                ? 8u
+                : 4u;
+
+    private static string ScalarWriter(string glslType)
+        => glslType.StartsWith("f16", StringComparison.Ordinal)
+            ? "WriteHalf"
+            : glslType.StartsWith("d", StringComparison.Ordinal)
+                ? "WriteDouble"
+                : "WriteFloat";
+
+    private static string ScalarReader(string glslType)
+        => glslType.StartsWith("f16", StringComparison.Ordinal)
+            ? "ReadHalf"
+            : glslType.StartsWith("d", StringComparison.Ordinal)
+                ? "ReadDouble"
+                : "ReadFloat";
 
     private static string ScalarExpression(string expression, ITypeSymbol type, string targetType)
         => type.TypeKind == TypeKind.Enum ? $"({targetType})({expression})" : expression;
@@ -973,13 +1040,25 @@ internal static class ArtifactSourceEmitter
         }
 
         var type = glslType ?? string.Empty;
+        if (TryGetMatrixType(type, out var matrixColumns, out var matrixRows))
+        {
+            var matrixBits = type.StartsWith("f16mat", StringComparison.Ordinal)
+                ? 16u
+                : type.StartsWith("dmat", StringComparison.Ordinal)
+                    ? 64u
+                    : 32u;
+            return $"new Delta.Shader.Contract.ShaderValueType(Delta.Shader.Contract.ShaderValueKind.FloatingPoint, {matrixBits}u, {matrixRows}u, {matrixColumns}u)";
+        }
+
         var (kind, bits, vectorSize, columns) = type switch
         {
             "bool" => ("Boolean", 32u, 1u, 1u),
             "int" => ("SignedInteger", 32u, 1u, 1u),
             "uint" => ("UnsignedInteger", 32u, 1u, 1u),
+            "float16_t" => ("FloatingPoint", 16u, 1u, 1u),
             "float" => ("FloatingPoint", 32u, 1u, 1u),
             "double" => ("FloatingPoint", 64u, 1u, 1u),
+            "f16vec2" or "f16vec3" or "f16vec4" => ("FloatingPoint", 16u, VectorSize(type), 1u),
             "vec2" or "vec3" or "vec4" => ("FloatingPoint", 32u, VectorSize(type), 1u),
             "ivec2" or "ivec3" or "ivec4" => ("SignedInteger", 32u, VectorSize(type), 1u),
             "uvec2" or "uvec3" or "uvec4" => ("UnsignedInteger", 32u, VectorSize(type), 1u),

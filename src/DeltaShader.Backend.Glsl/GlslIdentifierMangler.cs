@@ -95,7 +95,7 @@ public sealed class GlslIdentifierMangler
             "while", "switch", "case", "default", "if", "else", "struct", "void", "true", "false",
 
             // Scalar, vector, matrix and sampler/image types.
-            "bool", "int", "uint", "float", "double", "bvec2", "bvec3", "bvec4", "ivec2", "ivec3",
+            "bool", "int", "uint", "float", "double", "float16_t", "bvec2", "bvec3", "bvec4", "ivec2", "ivec3",
             "ivec4", "uvec2", "uvec3", "uvec4", "vec2", "vec3", "vec4", "dvec2", "dvec3", "dvec4",
             "mat2", "mat3", "mat4", "mat2x2", "mat2x3", "mat2x4", "mat3x2", "mat3x3", "mat3x4",
             "mat4x2", "mat4x3", "mat4x4", "atomic_uint", "sampler", "sampler1D", "sampler2D", "sampler3D",
@@ -112,7 +112,9 @@ public sealed class GlslIdentifierMangler
             "iimage2DMS", "iimage2DMSArray", "uimage1D", "uimage2D", "uimage3D", "uimageCube",
             "uimage1DArray", "uimage2DArray", "uimageCubeArray", "uimage2DRect", "uimageBuffer", "uimage2DMS",
             "uimage2DMSArray", "uint64_t", "int64_t", "f16vec2", "f16vec3", "f16vec4", "f16mat2",
-            "f16mat3", "f16mat4", "i64vec2", "i64vec3", "i64vec4", "u64vec2", "u64vec3", "u64vec4",
+            "f16mat3", "f16mat4", "f16mat2x3", "f16mat2x4", "f16mat3x2", "f16mat3x4", "f16mat4x2",
+            "f16mat4x3", "dmat2", "dmat3", "dmat4", "dmat2x3", "dmat2x4", "dmat3x2", "dmat3x4",
+            "dmat4x2", "dmat4x3", "i64vec2", "i64vec3", "i64vec4", "u64vec2", "u64vec3", "u64vec4",
 
             // Reserved/future GLSL words.
             "asm", "class", "union", "enum", "typedef", "template", "this", "resource", "goto", "inline",

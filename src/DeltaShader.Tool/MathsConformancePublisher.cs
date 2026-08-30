@@ -14,12 +14,6 @@ namespace Delta.Shader.Tool;
 
 internal static class MathsConformancePublisher
 {
-    private static readonly HashSet<string> CompilerBlockedCapabilities = new(StringComparer.Ordinal)
-    {
-        "float16",
-        "float64"
-    };
-
     private static readonly HashSet<string> OperationNames = new(StringComparer.Ordinal)
     {
         "abs",
@@ -221,15 +215,6 @@ internal static class MathsConformancePublisher
             var caseData = casesByIdentity[function.Identity];
             var caseId = $"maths-{caseIndex:0000}";
             var entry = PublishedCase.FromCase(caseData, caseId);
-            if (TryGetCompilerBlockedCapability(caseData, out var blockedCapability))
-            {
-                entry.Status = "capability-blocked";
-                entry.Diagnostic =
-                    $"DeltaShader base profile does not lower the required '{blockedCapability}' capability.";
-                entriesByIndex[caseIndex] = entry;
-                continue;
-            }
-
             entriesByIndex[caseIndex] = entry;
             compileCaseIndices[compileCount] = caseIndex;
             compileFunctions[compileCount] = function;
@@ -340,7 +325,9 @@ internal static class MathsConformancePublisher
                     continue;
                 }
 
-                glslByCaseIndex[caseIndex] = emit.Source;
+                glslByCaseIndex[caseIndex] = AddRequiredExtensions(
+                    emit.Source,
+                    entriesByIndex[caseIndex].RequiredCapabilities);
                 readyByCaseIndex[caseIndex] = true;
             }
         }
@@ -443,7 +430,10 @@ internal static class MathsConformancePublisher
                 return;
             }
 
-            var artifact = ShaderArtifactPublisher.Create(File.ReadAllBytes(spirvPath), result.BuildManifest);
+            var artifact = ShaderArtifactPublisher.Create(
+                File.ReadAllBytes(spirvPath),
+                result.BuildManifest,
+                ResolveCapabilities(entry.RequiredCapabilities));
             var resolvedAbi = new ResolvedAbiDocument
             {
                 CaseId = caseId,
@@ -507,14 +497,59 @@ internal static class MathsConformancePublisher
     private static bool IsCompilerBlocked(PublishedCase entry)
         => entry.Status is "roslyn-diagnostic" or "compiler-diagnostic";
 
-    private static bool TryGetCompilerBlockedCapability(
-        ConformanceCase conformanceCase,
-        out string capability)
+    private static Final.ShaderCapabilities ResolveCapabilities(
+        IReadOnlyList<string> requiredCapabilities)
     {
-        capability = conformanceCase.RequiredCapabilities
-            .FirstOrDefault(CompilerBlockedCapabilities.Contains)
-            ?? string.Empty;
-        return capability.Length != 0;
+        var capabilities = Final.ShaderCapabilities.None;
+        foreach (var requiredCapability in requiredCapabilities)
+        {
+            capabilities |= requiredCapability switch
+            {
+                "float16" => Final.ShaderCapabilities.HalfPrecisionFloatingPoint,
+                "float64" => Final.ShaderCapabilities.DoublePrecisionFloatingPoint,
+                _ => Final.ShaderCapabilities.None
+            };
+        }
+
+        return capabilities;
+    }
+
+    private static string AddRequiredExtensions(
+        string source,
+        IReadOnlyList<string> requiredCapabilities)
+    {
+        var extensions = new List<string>();
+        foreach (var requiredCapability in requiredCapabilities)
+        {
+            var extension = requiredCapability switch
+            {
+                "float16" => "#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require",
+                "float64" => "#extension GL_ARB_gpu_shader_fp64 : require",
+                _ => null
+            };
+
+            if (extension is not null && !extensions.Contains(extension, StringComparer.Ordinal))
+            {
+                extensions.Add(extension);
+            }
+        }
+
+        if (extensions.Count == 0)
+        {
+            return source;
+        }
+
+        var firstNewLine = source.IndexOf('\n');
+        if (firstNewLine < 0)
+        {
+            return source + Environment.NewLine + string.Join(Environment.NewLine, extensions);
+        }
+
+        return string.Concat(
+            source.AsSpan(0, firstNewLine + 1),
+            string.Join(Environment.NewLine, extensions),
+            Environment.NewLine,
+            source.AsSpan(firstNewLine + 1));
     }
 
     private static List<ContractFunction> LoadFunctions(string path)
