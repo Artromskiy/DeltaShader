@@ -7,9 +7,8 @@ namespace Delta.Shader.Playground;
 [Interstage]
 public struct VertexPayload
 {
-    [Position]
-    public float4 Position;
-    public float2 Uv;
+    public Position Position;
+    public Uv0 Uv;
 }
 
 public struct FrameConstants
@@ -141,7 +140,6 @@ public struct Raymarcher<TScene> where TScene : unmanaged, ISdfShape
     {
         float t = 0.0f;
         float maxDist = 20.0f;
-        bool hit = false;
         float glow = 0.0f;
 
         for (int i = 0; i < 48; i++)
@@ -154,10 +152,12 @@ public struct Raymarcher<TScene> where TScene : unmanaged, ISdfShape
 
             if (d < 0.002f)
             {
-                hit = true;
                 break;
             }
-            if (t > maxDist) break;
+            if (t > maxDist)
+            {
+                break;
+            }
 
             t += d;
         }
@@ -189,7 +189,7 @@ public static class GenericShaderPipeline
     [FragmentShader("template")]
     public static float4 GenericSdfFragment(in FragmentContext context)
     {
-        float2 uv = context.Fragment.Uv * 2.0f - 1.0f;
+        float2 uv = context.Fragment.Uv.Value * 2.0f - 1.0f;
         float aspectRatio = context.Constants.Resolution.x / context.Constants.Resolution.y;
         uv.x *= aspectRatio;
 

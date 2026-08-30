@@ -46,7 +46,7 @@ internal static class GraphicsEntryPoints
         if (!IsContextGraphicsEntryPoint(entry, context))
         {
             diagnostics.Add(new ShaderDiagnostic(ShaderDiagnosticId.DSH002,
-                "Graphics shader entry point must use one static in-context parameter with a [Interstage] payload.",
+                "Graphics shader entry point must use one static in-context parameter with a semantic interstage payload.",
                 Severity: ShaderDiagnosticSeverity.Error));
             return new ShaderCompilationResult(entry.Name, false, diagnostics,
                 sourceMethodName: entry.Method.Name,
@@ -87,7 +87,7 @@ internal static class GraphicsEntryPoints
         }
 
         var varyingFields = contextType.GetMembers().OfType<IFieldSymbol>()
-            .Where(field => !field.IsStatic && field.GetAttributes().Any(attribute => Same(attribute.AttributeClass, context.InterstageAttributeType)))
+            .Where(field => !field.IsStatic && IsInterstageField(field, context))
             .ToArray();
         if (varyingFields.Length != 1)
         {
@@ -98,25 +98,39 @@ internal static class GraphicsEntryPoints
         }
 
         if (varyingFields[0].Type is not INamedTypeSymbol varyingType || varyingType.TypeKind != TypeKind.Struct ||
-            !varyingType.GetAttributes().Any(attribute => Same(attribute.AttributeClass, context.InterstageAttributeType)))
+            !IsInterstagePayload(varyingType, context))
         {
             AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH012,
-                "The [Interstage] context field must contain a struct marked [Interstage].", varyingFields[0].Locations.FirstOrDefault()?.GetLineSpan());
+                "The graphics context field must contain a semantic interstage struct.", varyingFields[0].Locations.FirstOrDefault()?.GetLineSpan());
             return new ShaderCompilationResult(entry.Name, false, diagnostics, sourceMethodName: entry.Method.Name,
                 sourceMethodIdentity: ShaderMethodIdentity.Get(entry.Method));
         }
 
-        var varyingMembers = varyingType.GetMembers().OfType<IFieldSymbol>()
-            .Where(field => !field.IsStatic)
+        var varyingLeaves = ShaderInterstageTraversal.Flatten(varyingType, context,
+            (field, message) => AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH013, message,
+                field.Locations.FirstOrDefault()?.GetLineSpan()));
+        var seenLeafSymbols = new HashSet<IFieldSymbol>(SymbolEqualityComparer.Default);
+        foreach (var leaf in varyingLeaves)
+        {
+            if (!seenLeafSymbols.Add(leaf.Field))
+            {
+                AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH013,
+                    $"Interstage semantic field '{leaf.PathName}' is present more than once through nested payloads.",
+                    leaf.Field.Locations.FirstOrDefault()?.GetLineSpan());
+            }
+        }
+
+        var positionLeaves = varyingLeaves
+            .Where(leaf => IsPositionMember(leaf.Field, context))
             .ToArray();
-        var positionMembers = varyingMembers
-            .Where(field => field.GetAttributes().Any(attribute => Same(attribute.AttributeClass, context.PositionAttributeType)))
-            .ToArray();
-        if (positionMembers.Length != 1 || !TryMapType(positionMembers[0].Type, context, out var positionType) || positionType != "vec4")
+        if (positionLeaves.Length != 1 || !TryMapType(positionLeaves[0].Field.Type, context, out var positionType) || positionType != "vec4")
         {
             AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH012,
-                "A [Interstage] payload must contain exactly one [Position] float4 field.", varyingType.Locations.FirstOrDefault()?.GetLineSpan());
+                "A semantic interstage payload must contain exactly one Delta.Shader.Position field.",
+                varyingType.Locations.FirstOrDefault()?.GetLineSpan());
         }
+
+        var positionFields = new HashSet<IFieldSymbol>(positionLeaves.Select(leaf => leaf.Field), SymbolEqualityComparer.Default);
 
         var inputs = new List<ShaderIrInterfaceVariable>();
         var vertexInputs = new List<ShaderIrVertexInput>();
@@ -135,27 +149,29 @@ internal static class GraphicsEntryPoints
         if (entry.Stage == ShaderStage.Vertex)
         {
             var offset = 0u;
-            foreach (var field in varyingMembers)
+            foreach (var leaf in varyingLeaves)
             {
+                var field = leaf.Field;
+                var fieldLabel = leaf.PathName;
                 var fieldLocation = field.GetAttributes().FirstOrDefault(attribute =>
                     Same(attribute.AttributeClass, context.LayoutAttributeType) && attribute.ConstructorArguments.Length == 1);
                 if (!TryMapType(field.Type, context, out var glslType))
                 {
                     AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH013,
-                        $"Vertex payload field '{field.Name}' has an unsupported shader type.", field.Locations.FirstOrDefault()?.GetLineSpan());
+                        $"Vertex payload field '{fieldLabel}' has an unsupported shader type.", field.Locations.FirstOrDefault()?.GetLineSpan());
                     continue;
                 }
 
                 if (fieldLocation is null)
                 {
-                    if (positionMembers.Any(position => SymbolEqualityComparer.Default.Equals(position, field)))
+                    if (positionFields.Contains(field))
                     {
                         directFields[field] = "gl_Position";
                         outputFields[field] = "gl_Position";
                         outputs.Add(new ShaderIrInterfaceVariable
                         {
-                            Name = field.Name,
-                            ParameterName = field.Name,
+                            Name = fieldLabel,
+                            ParameterName = fieldLabel,
                             GlslType = "vec4",
                             GlslName = "gl_Position",
                             Builtin = "Position"
@@ -163,13 +179,13 @@ internal static class GraphicsEntryPoints
                     }
                     else
                     {
-                        var outputName = Sanitize(field.Name);
+                        var outputName = Sanitize(fieldLabel);
                         directFields[field] = outputName;
                         outputFields[field] = outputName;
                         outputs.Add(new ShaderIrInterfaceVariable
                         {
-                            Name = field.Name,
-                            ParameterName = field.Name,
+                            Name = fieldLabel,
+                            ParameterName = fieldLabel,
                             GlslType = glslType,
                             GlslName = outputName,
                             Location = (uint)outputs.Count(output => output.Builtin is null)
@@ -182,11 +198,11 @@ internal static class GraphicsEntryPoints
                 if (!TryGetVertexInputLayout(glslType, out var byteSize, out var alignment, out var formatHint))
                 {
                     AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH013,
-                        $"Vertex payload field '{field.Name}' has an unsupported vertex input type.", field.Locations.FirstOrDefault()?.GetLineSpan());
+                        $"Vertex payload field '{fieldLabel}' has an unsupported vertex input type.", field.Locations.FirstOrDefault()?.GetLineSpan());
                     continue;
                 }
 
-                var fieldName = "vertex_" + Sanitize(field.Name);
+                var fieldName = "vertex_" + Sanitize(fieldLabel);
                 var fieldLocationValue = GetUIntArg(fieldLocation, 0);
                 if (vertexInputs.Any(input => input.Location == fieldLocationValue))
                 {
@@ -211,13 +227,13 @@ internal static class GraphicsEntryPoints
                     FormatHint = formatHint
                 });
                 offset += byteSize;
-                if (positionMembers.Any(position => SymbolEqualityComparer.Default.Equals(position, field)))
+                if (positionFields.Contains(field))
                 {
                     outputFields[field] = "gl_Position";
                     outputs.Add(new ShaderIrInterfaceVariable
                     {
-                        Name = field.Name,
-                        ParameterName = field.Name,
+                        Name = fieldLabel,
+                        ParameterName = fieldLabel,
                         GlslType = "vec4",
                         GlslName = "gl_Position",
                         Builtin = "Position"
@@ -225,12 +241,12 @@ internal static class GraphicsEntryPoints
                 }
                 else
                 {
-                    var outputName = Sanitize(field.Name);
+                    var outputName = Sanitize(fieldLabel);
                     outputFields[field] = outputName;
                     outputs.Add(new ShaderIrInterfaceVariable
                     {
-                        Name = field.Name,
-                        ParameterName = field.Name,
+                        Name = fieldLabel,
+                        ParameterName = fieldLabel,
                         GlslType = glslType,
                         GlslName = outputName,
                         Location = (uint)outputs.Count(output => output.Builtin is null)
@@ -252,15 +268,17 @@ internal static class GraphicsEntryPoints
         else
         {
             var varyingLocation = 0u;
-            foreach (var field in varyingMembers)
+            foreach (var leaf in varyingLeaves)
             {
-                if (positionMembers.Any(position => SymbolEqualityComparer.Default.Equals(position, field)))
+                var field = leaf.Field;
+                var fieldLabel = leaf.PathName;
+                if (positionFields.Contains(field))
                 {
                     directFields[field] = "gl_FragCoord";
                     inputs.Add(new ShaderIrInterfaceVariable
                     {
-                        Name = field.Name,
-                        ParameterName = field.Name,
+                        Name = fieldLabel,
+                        ParameterName = fieldLabel,
                         GlslType = "vec4",
                         GlslName = "gl_FragCoord",
                         Builtin = "FragmentPosition"
@@ -271,16 +289,16 @@ internal static class GraphicsEntryPoints
                 if (!TryMapType(field.Type, context, out var glslType))
                 {
                     AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH012,
-                        $"Interstage field '{field.Name}' has an unsupported shader type.", field.Locations.FirstOrDefault()?.GetLineSpan());
+                        $"Interstage field '{fieldLabel}' has an unsupported shader type.", field.Locations.FirstOrDefault()?.GetLineSpan());
                     continue;
                 }
 
-                var varyingName = Sanitize(field.Name);
+                var varyingName = Sanitize(fieldLabel);
                 directFields[field] = varyingName;
                 inputs.Add(new ShaderIrInterfaceVariable
                 {
-                    Name = field.Name,
-                    ParameterName = field.Name,
+                    Name = fieldLabel,
+                    ParameterName = fieldLabel,
                     GlslType = glslType,
                     GlslName = varyingName,
                     Location = varyingLocation++
@@ -301,7 +319,7 @@ internal static class GraphicsEntryPoints
         foreach (var field in contextType.GetMembers().OfType<IFieldSymbol>().Where(field => !field.IsStatic))
         {
             var attributes = field.GetAttributes();
-            if (attributes.Any(attribute => Same(attribute.AttributeClass, context.InterstageAttributeType)))
+            if (IsInterstageField(field, context))
             {
                 continue;
             }
@@ -443,6 +461,7 @@ internal static class GraphicsEntryPoints
             }
             var structFields = new Dictionary<IFieldSymbol, string>(SymbolEqualityComparer.Default);
             var structProperties = new Dictionary<IPropertySymbol, string>(SymbolEqualityComparer.Default);
+            AddSemanticValueFields(structFields, context);
             foreach (var definition in structures)
             {
                 foreach (var field in definition.Key.GetMembers().OfType<IFieldSymbol>().Where(field => !field.IsStatic))
@@ -577,6 +596,7 @@ internal static class GraphicsEntryPoints
             structNames.Clear();
             structFields.Clear();
             structProperties.Clear();
+            AddSemanticValueFields(structFields, context);
             foreach (var definition in structures)
             {
                 structNames[definition.Key] = definition.Value.GlslName;
@@ -997,8 +1017,13 @@ internal static class GraphicsEntryPoints
             ? Convert.ToUInt32(attribute.ConstructorArguments[index].Value)
             : 0;
 
-    private static bool TryMapType(ITypeSymbol type, ModuleCompilationContext context, out string glslType)
+    internal static bool TryMapType(ITypeSymbol type, ModuleCompilationContext context, out string glslType)
     {
+        if (ShaderSemanticTypeSupport.TryMapType(type, context, out glslType))
+        {
+            return true;
+        }
+
         if (ShaderEnumSupport.TryMap(type, out glslType))
         {
             return true;
@@ -1017,6 +1042,28 @@ internal static class GraphicsEntryPoints
             _ => string.Empty
         };
         return glslType.Length != 0;
+    }
+
+    private static bool IsInterstageField(IFieldSymbol field, ModuleCompilationContext context)
+        => field.GetAttributes().Any(attribute => Same(attribute.AttributeClass, context.InterstageAttributeType)) ||
+            field.Type is INamedTypeSymbol payloadType && IsInterstagePayload(payloadType, context);
+
+    private static bool IsInterstagePayload(INamedTypeSymbol type, ModuleCompilationContext context)
+        => type.GetAttributes().Any(attribute => Same(attribute.AttributeClass, context.InterstageAttributeType)) ||
+            ShaderInterstageTraversal.ContainsSemanticLeaf(type, context);
+
+    private static bool IsPositionMember(IFieldSymbol field, ModuleCompilationContext context)
+        => ShaderSemanticTypeSupport.IsPosition(field.Type, context);
+
+    private static void AddSemanticValueFields(
+        Dictionary<IFieldSymbol, string> structFields,
+        ModuleCompilationContext context)
+    {
+        foreach (var valueField in context.SemanticValueFields.Values)
+        {
+            structFields[valueField] = string.Empty;
+            structFields[valueField.OriginalDefinition] = string.Empty;
+        }
     }
 
     private static void AddVertexBuiltinInputs(

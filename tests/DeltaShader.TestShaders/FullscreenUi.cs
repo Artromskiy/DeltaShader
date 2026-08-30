@@ -18,9 +18,8 @@ internal static class FullscreenUi
     [Interstage]
     public struct UiVarying
     {
-        [Position]
-        public float4 Position;
-        public float2 Uv;
+        public Position Position;
+        public Uv0 Uv;
     }
 
     public readonly struct VertexContext

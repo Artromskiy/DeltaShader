@@ -255,10 +255,11 @@ public static class ComputeEntryPoints
                 failureReason = $"Compute shader helper '{definition.Name}' must be static or an instance method on a value struct.";
                 return false;
             }
-            if ((method.IsGenericMethod && method.TypeArguments.Any(argument => argument is ITypeParameterSymbol)) || method.ReturnsVoid ||
+            if ((method.IsGenericMethod && method.TypeArguments.Any(argument => argument is ITypeParameterSymbol)) ||
+                method.ReturnsVoid && !definition.Parameters.Any(parameter => parameter.RefKind == RefKind.Out) ||
                 definition.Parameters.Any(parameter => parameter.RefKind != RefKind.None && parameter.RefKind != RefKind.Out))
             {
-                failureReason = $"Compute shader helper '{definition.Name}' must be a non-generic value method with value or out parameters.";
+                failureReason = $"Compute shader helper '{definition.Name}' must be a non-generic value method or a void method with out parameters.";
                 return false;
             }
 
@@ -553,7 +554,9 @@ public static class ComputeEntryPoints
             }
 
             emitted.Add(syntax.ExpressionBody is not null
-                ? $"{returnType} {helperNames[helper]}({string.Join(", ", signature)}) {{ return {translation}; }}"
+                ? helper.ReturnsVoid
+                    ? $"{returnType} {helperNames[helper]}({string.Join(", ", signature)}) {{ {translation}; }}"
+                    : $"{returnType} {helperNames[helper]}({string.Join(", ", signature)}) {{ return {translation}; }}"
                 : $"{returnType} {helperNames[helper]}({string.Join(", ", signature)}) {{\n{translation}\n}}");
         }
 
@@ -714,6 +717,12 @@ public static class ComputeEntryPoints
         IReadOnlyDictionary<INamedTypeSymbol, string>? structNames,
         out string glslType)
     {
+        if (type.SpecialType == SpecialType.System_Void)
+        {
+            glslType = "void";
+            return true;
+        }
+
         if (ShaderEnumSupport.TryMap(type, out glslType))
         {
             return true;
@@ -1450,9 +1459,9 @@ public sealed class ModuleCompilationContext
         ReadWriteStorageBufferType = compilation.GetTypeByMetadataName("Delta.Shader.ReadWriteStorageBuffer`1");
         SampledTexture2DType = compilation.GetTypeByMetadataName("Delta.Shader.SampledTexture2D");
         LayoutAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.LayoutAttribute");
-        PositionAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.PositionAttribute");
         InterstageAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.InterstageAttribute");
         PushConstantAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.PushConstantAttribute");
+        SemanticValueFields = BuildSemanticValueFields(compilation);
     }
 
     public Compilation Compilation { get; }
@@ -1461,7 +1470,37 @@ public sealed class ModuleCompilationContext
     public ITypeSymbol? ReadWriteStorageBufferType { get; }
     public ITypeSymbol? SampledTexture2DType { get; }
     public ITypeSymbol? LayoutAttributeType { get; }
-    public ITypeSymbol? PositionAttributeType { get; }
     public ITypeSymbol? InterstageAttributeType { get; }
     public ITypeSymbol? PushConstantAttributeType { get; }
+    public IReadOnlyDictionary<INamedTypeSymbol, IFieldSymbol> SemanticValueFields { get; }
+
+    private static IReadOnlyDictionary<INamedTypeSymbol, IFieldSymbol> BuildSemanticValueFields(Compilation compilation)
+    {
+        var fields = new Dictionary<INamedTypeSymbol, IFieldSymbol>(SymbolEqualityComparer.Default);
+        string[] semanticTypeNames =
+        [
+            "Delta.Shader.Position",
+            "Delta.Shader.Uv0",
+            "Delta.Shader.Uv1",
+            "Delta.Shader.Color",
+            "Delta.Shader.VertexColor",
+            "Delta.Shader.FragmentColor",
+            "Delta.Shader.WorldPosition",
+            "Delta.Shader.WorldNormal",
+            "Delta.Shader.Tangent"
+        ];
+
+        foreach (var typeName in semanticTypeNames)
+        {
+            if (compilation.GetTypeByMetadataName(typeName) is not INamedTypeSymbol type ||
+                type.GetMembers("Value").OfType<IFieldSymbol>().SingleOrDefault() is not IFieldSymbol valueField)
+            {
+                continue;
+            }
+
+            fields[type] = valueField;
+        }
+
+        return fields;
+    }
 }

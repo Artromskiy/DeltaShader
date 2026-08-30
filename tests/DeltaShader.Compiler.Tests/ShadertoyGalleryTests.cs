@@ -59,7 +59,11 @@ public sealed class ShadertoyGalleryTests
         Assert.Equal(catalog.Entries.Count, results.Count);
         foreach (var result in results)
         {
-            Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+            Assert.True(
+                result.Success,
+                result.SourceMethodName + ": " + string.Join(
+                    Environment.NewLine,
+                    result.Diagnostics.Select(diagnostic => diagnostic.Message)));
             Assert.NotNull(result.Module);
             var glsl = GlslEmitter.EmitFromModule(result.Module!).Source;
 

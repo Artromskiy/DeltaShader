@@ -47,3 +47,9 @@ DeltaRender or XAML implementation dependencies to shader authoring.
   renderer without `Marshal.SizeOf`, `MemoryMarshal` or a duplicated ABI
   model. `DeltaRender` remains responsible for device-limit checks and the
   Vulkan upload command; `DeltaShader` owns layout and packing.
+
+## Semantic graphics payload migration
+
+- [x] Production graphics payloads and compiler fixtures use explicit
+  `Delta.Shader` semantic value types (`Position`, `Uv0`, `Color` and related
+  types). The former direct scalar/vector interstage ABI is rejected.

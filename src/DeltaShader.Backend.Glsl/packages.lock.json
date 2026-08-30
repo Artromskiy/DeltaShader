@@ -110,9 +110,16 @@
           "System.Runtime.CompilerServices.Unsafe": "6.1.2"
         }
       },
+      "deltamaths": {
+        "type": "Project",
+        "dependencies": {
+          "System.Runtime.CompilerServices.Unsafe": "[6.1.2, )"
+        }
+      },
       "deltashader": {
         "type": "Project",
         "dependencies": {
+          "DeltaMaths": "[1.0.0, )",
           "System.Memory": "[4.5.5, )"
         }
       },
@@ -175,7 +182,6 @@
           "System.Threading.Tasks.Extensions": "4.6.3"
         }
       }
-    },
-    ".NETStandard,Version=v2.0/osx-arm64": {}
+    }
   }
 }

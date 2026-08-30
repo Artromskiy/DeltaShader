@@ -314,7 +314,7 @@ public class IntrinsicCatalogTests
     }
 
     [Fact]
-    public async Task IntrinsicRegistry_MapsUnlistedScalarOverloadWithoutConfusingVectorOverloads()
+    public async Task IntrinsicRegistry_DoesNotMapUnlistedScalarOverload()
     {
         Compilation compilation = await LoadDeltaMathsCompilationAsync().ConfigureAwait(true);
         var registry = IntrinsicRegistry.Build(compilation, ShaderContractManifest.LoadEmbedded());
@@ -323,8 +323,23 @@ public class IntrinsicCatalogTests
         var scalarAbs = maths.GetMembers("abs").OfType<IMethodSymbol>().Single(method =>
             method.Parameters.Length == 1 && method.Parameters[0].Type.SpecialType == SpecialType.System_Single);
 
-        Assert.True(registry.TryGetIntrinsic(scalarAbs, out IntrinsicBinding? binding));
+        Assert.False(registry.TryGetIntrinsic(scalarAbs, out _));
+    }
+
+    [Fact]
+    public async Task IntrinsicRegistry_MapsDeltaMathsVectorFacadeByFullSignature()
+    {
+        Compilation compilation = await LoadDeltaMathsCompilationAsync().ConfigureAwait(true);
+        var registry = IntrinsicRegistry.Build(compilation, ShaderContractManifest.LoadEmbedded());
+        var maths = compilation.GetTypeByMetadataName("Delta.Maths.maths")
+            ?? throw new InvalidOperationException("Delta.Maths.maths was not found in the test compilation.");
+        var vectorAbs = maths.GetMembers("abs").OfType<IMethodSymbol>().Single(method =>
+            method.Parameters.Length == 1 && method.Parameters[0].Type.Name == "float2");
+
+        Assert.True(registry.TryGetIntrinsic(vectorAbs, out IntrinsicBinding? binding));
         Assert.Equal("abs", binding.GlslName);
+        Assert.Equal(["vec2"], binding.ParameterGlslTypes);
+        Assert.Equal("vec2", binding.ReturnGlslType);
     }
 
     [Fact]
@@ -663,7 +678,7 @@ public class IntrinsicCatalogTests
             public class CpuOnlyHelper { public string Name; }
             public struct Constants { public CpuOnlyHelper Helper; }
             [Interstage]
-            public struct FragmentPayload { [Position] public float4 Position; }
+            public struct FragmentPayload {  public Position Position; }
             public struct FragmentContext
             {
                 [Interstage] public FragmentPayload Fragment;
@@ -706,7 +721,7 @@ public class IntrinsicCatalogTests
             public class CpuOnlyHelper { public string Name; }
             public struct Constants { public CpuOnlyHelper Helper; }
             [Interstage]
-            public struct FragmentPayload { [Position] public float4 Position; }
+            public struct FragmentPayload {  public Position Position; }
             public struct FragmentContext
             {
                 [Interstage] public FragmentPayload Fragment;
@@ -738,8 +753,8 @@ public class IntrinsicCatalogTests
                 [Interstage]
                 public struct GraphicsPayload
                 {
-                    [Position] public float4 Position;
-                    public float2 Uv;
+                     public Position Position;
+                    public Uv0 Uv;
                 }
                 public struct VertexContext { [Interstage] public GraphicsPayload Vertex; }
                 public struct FragmentContext
@@ -781,7 +796,7 @@ public class IntrinsicCatalogTests
                 public float4x4 Projection;
             }
             [Interstage]
-            public struct VertexPayload { [Position] public float4 Position; }
+            public struct VertexPayload {  public Position Position; }
             public struct VertexContext
             {
                 [Interstage] public VertexPayload Vertex;
@@ -861,9 +876,9 @@ public class IntrinsicCatalogTests
             [Interstage]
             public struct CubePayload
             {
-                [Position] [Layout(0)] public float4 Position;
-                [Layout(1)] public float3 Normal;
-                [Layout(2)] public float2 Uv;
+                 [Layout(0)] public Position Position;
+                [Layout(1)] public WorldNormal Normal;
+                [Layout(2)] public Uv0 Uv;
             }
 
             public struct VertexContext
@@ -939,11 +954,11 @@ public class IntrinsicCatalogTests
             }
 
             [Interstage]
-            public struct FragmentPayload { [Position] public float4 Position; }
+            public struct FragmentPayload {  public Position Position; }
             [Interstage]
             public struct VertexPayload
             {
-                [Position] [Layout(0)] public float4 First;
+                 [Layout(0)] public Position First;
                 [Layout(0)] public float2 Duplicate;
                 [Layout(1)] public ManagedData Managed;
             }
@@ -985,7 +1000,7 @@ public class IntrinsicCatalogTests
             using Delta.Maths;
             using Delta.Shader;
             [Interstage]
-            public struct VertexPayload { [Position] public float4 Position; }
+            public struct VertexPayload {  public Position Position; }
             public struct VertexContext { [Interstage] public VertexPayload Vertex; }
             public static class InvalidGraphics
             {
@@ -1006,7 +1021,7 @@ public class IntrinsicCatalogTests
             using Delta.Maths;
             using Delta.Shader;
             [Interstage]
-            public struct VertexPayload { [Position] public float4 Position; }
+            public struct VertexPayload {  public Position Position; }
             public struct VertexContext { [Interstage] public VertexPayload Vertex; }
             public static class FullscreenUi
             {
@@ -1030,7 +1045,7 @@ public class IntrinsicCatalogTests
             using Delta.Maths;
             using Delta.Shader;
             [Interstage]
-            public struct VertexPayload { [Position] public float4 Position; }
+            public struct VertexPayload {  public Position Position; }
             public struct VertexContext { [Interstage] public VertexPayload Vertex; }
             public static class FullscreenVertex
             {
@@ -1080,8 +1095,8 @@ public class IntrinsicCatalogTests
                 [Interstage]
                 public struct TexturePayload
                 {
-                    [Position] public float4 Position;
-                    public float2 Uv;
+                     public Position Position;
+                    public Uv0 Uv;
                 }
                 public struct VertexContext
                 {
@@ -1159,7 +1174,7 @@ public class IntrinsicCatalogTests
             using Delta.Maths;
             using Delta.Shader;
             [Interstage]
-            public struct FragmentPayload { [Position] public float4 Position; }
+            public struct FragmentPayload {  public Position Position; }
             public struct FragmentContext
             {
                 [Interstage] public FragmentPayload Fragment;
@@ -1186,9 +1201,9 @@ public class IntrinsicCatalogTests
             using Delta.Maths;
             using Delta.Shader;
             [Interstage]
-            public struct FragmentPayload { [Position] public float4 Position; }
+            public struct FragmentPayload {  public Position Position; }
             [Interstage]
-            public struct VertexPayload { [Position] public float4 Position; }
+            public struct VertexPayload {  public Position Position; }
             public struct FragmentContext { [Interstage] public FragmentPayload Fragment; }
             public struct VertexContext { [Interstage] public VertexPayload Vertex; }
             public static class DerivativeStages
@@ -1235,7 +1250,7 @@ public class IntrinsicCatalogTests
                     public float2 PixelMin;
                     public float2 PixelMax;
                     public float4 UvRect;
-                    public float4 Color;
+                    public Color Color;
                 }
 
                 public struct TextParameters
@@ -1250,9 +1265,9 @@ public class IntrinsicCatalogTests
                 [Interstage]
                 public struct TextPayload
                 {
-                    [Position] public float4 Position;
-                    public float2 Uv;
-                    public float4 GlyphColor;
+                     public Position Position;
+                    public Uv0 Uv;
+                    public VertexColor GlyphColor;
                 }
 
                 public struct VertexContext
@@ -1339,13 +1354,13 @@ public class IntrinsicCatalogTests
             {
                 public struct Payload
                 {
-                    public float4 Color;
+                    public Color Color;
                 }
 
                 [Interstage]
                 public struct VertexPayload
                 {
-                    [Position] public float4 Position;
+                     public Position Position;
                 }
 
                 public struct VertexContext
@@ -1382,7 +1397,7 @@ public class IntrinsicCatalogTests
             using Delta.Maths;
             using Delta.Shader;
             [Interstage]
-            public struct FragmentPayload { [Position] public float4 Position; }
+            public struct FragmentPayload {  public Position Position; }
             public struct FragmentContext { [Interstage] public FragmentPayload Fragment; }
             public static class InvalidInstanceIndex
             {
@@ -1406,7 +1421,7 @@ public class IntrinsicCatalogTests
             using Delta.Maths;
             using Delta.Shader;
             [Interstage]
-            public struct FragmentPayload { [Position] public float4 Position; }
+            public struct FragmentPayload {  public Position Position; }
             public struct FragmentContext { [Interstage] public FragmentPayload Fragment; }
             public static class HelperShader
             {
@@ -1443,7 +1458,7 @@ public class IntrinsicCatalogTests
             using Delta.Maths;
             using Delta.Shader;
             [Interstage]
-            public struct FragmentPayload { [Position] public float4 Position; }
+            public struct FragmentPayload {  public Position Position; }
             public struct FragmentContext { [Interstage] public FragmentPayload Fragment; }
             public static class ExpressionHelperShader
             {
@@ -1474,7 +1489,7 @@ public class IntrinsicCatalogTests
             using Delta.Maths;
             using Delta.Shader;
             [Interstage]
-            public struct FragmentPayload { [Position] public float4 Position; }
+            public struct FragmentPayload {  public Position Position; }
             public struct FragmentContext { [Interstage] public FragmentPayload Fragment; }
             public static class RecursiveHelperShader
             {
@@ -1510,7 +1525,7 @@ public class IntrinsicCatalogTests
             using Delta.Maths;
             using Delta.Shader;
             [Interstage]
-            public struct FragmentPayload { [Position] public float4 Position; }
+            public struct FragmentPayload {  public Position Position; }
             public struct FragmentContext { [Interstage] public FragmentPayload Fragment; }
             public static class CapturedHelperShader
             {
@@ -1742,7 +1757,7 @@ public class IntrinsicCatalogTests
         IReadOnlyList<ShaderIrResource> resources = result.Module!.Resources;
         Assert.Equal("uint", Assert.Single(resources, resource => resource.ParameterName == "context.Input").GlslType);
         Assert.Equal("uint", Assert.Single(resources, resource => resource.ParameterName == "context.Output").GlslType);
-        Assert.Contains("Output.data[id] = Input.data[id]* 2u + 1u", result.Module.Body, StringComparison.Ordinal);
+        Assert.Contains("Output.data[local_id] = Input.data[local_id]* 2u + 1u", result.Module.Body, StringComparison.Ordinal);
 
         var glsl = Delta.Shader.Backend.Glsl.GlslEmitter.EmitFromModule(result.Module).Source;
         Assert.Contains("#version 460", glsl, StringComparison.Ordinal);
@@ -1829,7 +1844,7 @@ public class IntrinsicCatalogTests
 
         Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
         ShaderIrModule module = Assert.IsType<Delta.Shader.Compiler.IR.ShaderIrModule>(result.Module);
-        Assert.Contains("Output.data[id] = Input.data[id]* 2u + 1u", module.Body, StringComparison.Ordinal);
+        Assert.Contains("Output.data[local_id] = Input.data[local_id]* 2u + 1u", module.Body, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -2010,13 +2025,13 @@ public class IntrinsicCatalogTests
                 [Interstage]
                 public struct MeshPayload
                 {
-                    [Position]
+
                     [Layout(0)]
-                    public float4 Position;
+                    public Position Position;
                     [Layout(1)]
-                    public float3 Normal;
+                    public WorldNormal Normal;
                     [Layout(2)]
-                    public float2 Uv;
+                    public Uv0 Uv;
                 }
 
                 public struct VertexContext
@@ -2074,7 +2089,7 @@ public class IntrinsicCatalogTests
                 [Interstage]
                 public struct Payload
                 {
-                    [Position] public float4 Position;
+                     public Position Position;
                 }
                 public struct VertexContext { [Interstage] public Payload Vertex; }
                 public struct FragmentContext { [Interstage] public Payload Fragment; }
@@ -2120,7 +2135,7 @@ public class IntrinsicCatalogTests
                 [Interstage]
                 public struct Payload
                 {
-                    [Position] public float4 Position;
+                     public Position Position;
                 }
 
                 public struct VertexContext { [Interstage] public Payload Vertex; }
@@ -2142,7 +2157,7 @@ public class IntrinsicCatalogTests
                 [Interstage]
                 public struct Payload
                 {
-                    [Position] public float4 Position;
+                     public Position Position;
                 }
 
                 public struct VertexContext { [Interstage] public Payload Vertex; }
@@ -2622,8 +2637,8 @@ public class IntrinsicCatalogTests
             [Interstage]
             public struct VertexPayload
             {
-                [Position] public float4 Position;
-                public float4 Color;
+                 public Position Position;
+                public Color Color;
             }
             public struct VertexContext
             {
@@ -2655,7 +2670,7 @@ public class IntrinsicCatalogTests
 
     private static async Task<Compilation> LoadDeltaMathsCompilationAsync(string? extraSource = null)
     {
-        var root = Path.Combine(FindRepositoryRoot(), "DeltaMaths", "DeltaMaths.csproj");
+        var root = Path.Combine(FindRepositoryRoot(), "DeltaMaths", "src", "DeltaMaths", "DeltaMaths.csproj");
         using MSBuildWorkspace workspace = CreateWorkspace();
         Project project = await workspace.OpenProjectAsync(root).ConfigureAwait(true);
         Compilation? baseCompilation = await project.GetCompilationAsync().ConfigureAwait(true);

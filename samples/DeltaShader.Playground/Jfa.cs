@@ -8,10 +8,9 @@ public static class JfaShaders
     [Interstage]
     public struct JfaVarying
     {
-        [Position]
-        public float4 Position;
+        public Position Position;
 
-        public float2 Uv;
+        public Uv0 Uv;
     }
 
     public readonly struct JfaInitVertexContext
@@ -113,7 +112,7 @@ public static class JfaShaders
     [FragmentShader("jfa-init")]
     public static float4 JfaInitFragment(in JfaInitFragmentContext context)
     {
-        float2 uv = context.Fragment.Uv;
+        float2 uv = context.Fragment.Uv.Value;
         float4 silhouette = context.Silhouette.Sample<float2, float4>(uv);
         float valid = silhouette.a > 0.001f ? 1f : 0f;
         return new float4(uv.x, uv.y, valid, 1f);
@@ -151,7 +150,7 @@ public static class JfaShaders
     [FragmentShader("jfa-flood")]
     public static float4 JfaFloodFragment(in JfaFloodFragmentContext context)
     {
-        float2 uv = context.Fragment.Uv;
+        float2 uv = context.Fragment.Uv.Value;
         float2 offset = context.Parameters.TexelSize * context.Parameters.Jump;
         float4 center = context.Seeds.Sample<float2, float4>(ClampUv(uv));
         float2 best = center.z > 0.5f ? center.xy : new float2(-1f, -1f);
@@ -201,7 +200,7 @@ public static class JfaShaders
     [FragmentShader("jfa-composite")]
     public static float4 JfaCompositeFragment(in JfaCompositeFragmentContext context)
     {
-        float2 uv = context.Fragment.Uv;
+        float2 uv = context.Fragment.Uv.Value;
         float4 silhouette = context.Silhouette.Sample<float2, float4>(ClampUv(uv));
         if (silhouette.a > 0.001f || context.Parameters.OutlineWidth <= 0f)
         {

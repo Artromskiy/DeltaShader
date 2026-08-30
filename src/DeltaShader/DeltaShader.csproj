@@ -7,4 +7,7 @@
   <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
     <PackageReference Include="System.Memory" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../DeltaMaths/src/DeltaMaths/DeltaMaths.csproj" />
+  </ItemGroup>
 </Project>

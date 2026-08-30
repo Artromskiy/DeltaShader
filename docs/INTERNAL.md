@@ -71,6 +71,22 @@ paint semantics remain producer data in DeltaXAML, while atlas pages, UVs and
 glyph instances remain Render-owned. The text shader contract owns the
 distance-range and outline-width units; Render supplies converted values.
 
+### Numeric semantic lowering
+
+The compiler must preserve the source language semantics explicitly rather than
+assuming that similarly named GLSL operations are interchangeable:
+
+- A remainder operation originating from C# must be lowered to a generated
+  helper with C# remainder semantics. Do not replace it with the native GLSL
+  `mod` function or blindly use GLSL `%` as if the operations were identical.
+  Explicit GLSL `mod` remains a separate operation.
+- `Maths.Round` has ties-to-even semantics. The graphics/compute emitter must
+  lower it to the GLSL `roundEven` equivalent, not to GLSL `round`, whose
+  midpoint direction is implementation-selected.
+- Conformance fixtures must cover negative and positive remainder operands and
+  half-way rounding values. These semantic checks belong to the producer and
+  conformance tests.
+
 `ShaderAbi` already expresses the layout required by this design. No new
 neutral runtime contract type is justified until an actual missing invariant
 is demonstrated and separately approved.
@@ -88,14 +104,25 @@ GLSL and JSON remain explicit build/inspection sidecars. They are not an
 alternate runtime boundary and are not required by a consumer that already
 has final SPIR-V plus `ShaderAbi`.
 
-## Composite compiler model (proposed)
+## Composite compiler model
 
 The composition design is documented in
-[shader-composition.md](shader-composition.md). Its implementation must keep
-layer payloads as compiler-side typed patches and resolve them into one final
-vertex/fragment interface. Full Roslyn symbol identity is used for source
+[shader-composition.md](shader-composition.md). The compiler now recognizes
+the standard semantic value wrappers by full symbol identity and lowers their
+`Value` member to the underlying Delta.Maths type. Direct scalar/vector fields
+in interstage payloads are rejected as the obsolete graphics ABI. Layer payloads remain
+compiler-side typed patches and must resolve into one final vertex/fragment
+interface before publication. Full Roslyn symbol identity is used for source
 resolution; only stable semantic IDs, resolved types and physical locations
 are emitted into the final `ShaderAbi`.
+
+Nested interstage payloads are flattened by `ShaderInterstageTraversal`. It
+walks user-defined value structs recursively, records each semantic leaf's
+Roslyn field path, and derives a collision-resistant GLSL name from that path.
+Mapped Delta.Maths primitives without a Delta.Shader semantic wrapper are
+rejected rather than recursively exposing their implementation fields. The
+same leaf traversal is used by vertex return lowering so ABI and generated
+assignments cannot diverge.
 
 Context merging and interstage merging are separate operations. Context merging
 collects live resources, host inputs and push-constant values for the selected

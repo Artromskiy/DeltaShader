@@ -80,8 +80,8 @@ it is not a second hand-written ABI. The canonical producer source is the
 `src/DeltaShader.Mesh/DeltaShader.Mesh.csproj`. A consumer references that
 project and gets the generated public
 `Delta.Shader.Mesh.MeshShadersGraphicsShaderProgram` type. Its `Mesh` vertex
-entry point has a payload containing `[Position] float4 Position`,
-`[Layout(1)] float3 Normal` and `[Layout(2)] float2 Uv`, so the generated
+entry point has a payload containing `[Layout(0)] Position Position`,
+`[Layout(1)] WorldNormal Normal` and `[Layout(2)] Uv0 Uv`, so the generated
 surface is:
 
 ```csharp
@@ -159,22 +159,24 @@ public static void Compute(in BufferComputeContext ctx)
 ### Graphics context contract
 
 Graphics contexts use the same shape: descriptors and push constants remain
-ordinary context fields, while one `[Interstage]` field contains the stage-data
-payload. The payload must contain one explicit `float4` `[Position]` field.
+ordinary context fields, while one interstage field contains the stage-data
+payload. The canonical payload uses semantic value types. `Position` is the
+required vertex position semantic; `Uv0`, `Color`, `VertexColor`, and
+`FragmentColor` carry their meaning in their full type identity rather than in
+the CLR field name. Direct scalar/vector fields are rejected; migrate the field
+to the `Delta.Shader.Position` semantic type.
 
 ```csharp
 [Interstage]
 public struct InterstageData
 {
-    [Position]
     [Layout(0)]
-    public float4 Position;
+    public Position Position;
 
     [Layout(1)]
-    public float3 Color;
+    public VertexColor VertexColor;
 
-    [Layout(2)]
-    public float2 Uv;
+    public Uv0 Uv;
 }
 
 public readonly struct VertexContext
@@ -204,40 +206,49 @@ public static InterstageData VertexEntry(in VertexContext context)
 [FragmentShader]
 public static float4 FragmentEntry(in FragmentContext context)
 {
-    return new float4(context.Vertex.Color, 1.0f);
+    return context.Vertex.VertexColor.Value;
 }
 ```
 
 `[Layout(location)]` inside the vertex payload describes the physical vertex
-buffer locations. When the same payload is consumed by the fragment stage,
-the compiler automatically assigns interstage locations and emits matching
-GLSL `layout(location = N) in/out` declarations. Users do not write those
+buffer location for a host-provided value. Semantic fields without a location
+are stage outputs and receive an interstage location assigned by the compiler.
+When the same semantic payload is consumed by the fragment stage, the compiler
+matches the full semantic type identity and emits matching GLSL
+`layout(location = N) in/out` declarations. Users do not write those
 interstage locations.
 
-`[Position]` is stage-aware. In the vertex output it lowers to `gl_Position`.
-If a fragment shader needs the vertex clip position, it must also carry it as
-a separate ordinary varying field. Fragment/window position is a different
-semantic and must be explicitly requested; it is never silently introduced as
-a builtin. The compiler must reject a payload without the required
-`[Position] float4` field or with an incompatible position declaration.
+An interstage payload may contain nested user-defined value structs. The
+compiler recursively flattens those structs in declaration order until it
+reaches semantic leaves; only semantic types such as `Position`, `Uv0` and
+`VertexColor` may cross the stage boundary. Nested container fields are not
+physical interface variables. A repeated leaf field symbol or an unwrapped
+mapped type such as `float2` is rejected before lowering.
+
+`Position` is stage-aware. In the vertex output it lowers to `gl_Position`.
+The `Delta.Shader.Position` semantic type defines the vertex position and is
+lowered to `gl_Position`. Fragment/window position is a different semantic and
+is never silently introduced as a builtin. The compiler
+rejects a payload without the required `Position` semantic or with an
+incompatible position declaration.
 
 The vertex payload is intentionally one structure rather than a separate
 `VertexOutput` wrapper. Its fields describe the data that crosses the stage
 boundary, while the surrounding context keeps resources and constants
 separate from that data.
 
-## Composite shaders (proposed)
+## Composite shaders
 
-Typed shader composition is not part of the current stable authoring surface.
-The proposed editor workflow selects ordered vertex and fragment layers, then
+Typed semantic payloads are part of the current graphics authoring surface.
+The editor workflow may select ordered vertex and fragment layers, then
 DeltaShader emits one final artifact and ABI. Semantic fields are matched by
 their full semantic type identity, not by field name; omitted layer fields are
 forwarded unchanged and unused fields are removed from the physical interface.
-The complete design is in [shader-composition.md](shader-composition.md).
+The composition boundary is in [shader-composition.md](shader-composition.md).
 
-This proposal does not add runtime C# composition or several Vulkan entry
-points per draw. Until the compiler slice is implemented, use the current
-single static vertex/fragment entry-point API above.
+Composition is compile-time/tooling work, not runtime C# execution or several
+Vulkan entry points per draw. The current compiler still emits one static
+vertex and one static fragment entry point per generated pair.
 
 Compile-time `const` values remain inlined and do not become context fields or
 bindings. Values supplied by host code must be explicitly annotated as push

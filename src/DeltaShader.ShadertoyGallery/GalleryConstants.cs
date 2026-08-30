@@ -13,8 +13,7 @@ public struct GalleryConstants
 [Interstage]
 public struct GalleryVarying
 {
-    [Position]
-    public float4 Position;
+    public Position Position;
 }
 
 public readonly struct GalleryFragmentContext

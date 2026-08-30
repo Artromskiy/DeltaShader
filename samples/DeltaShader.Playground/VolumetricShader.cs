@@ -6,10 +6,9 @@ namespace Delta.Shader.Playground;
 [Interstage]
 public struct VolumetricVertexPayload
 {
-    [Position]
-    public float4 Position;
+    public Position Position;
 
-    public float2 Uv;
+    public Uv0 Uv;
 }
 
 public struct VolumetricFrameConstants
@@ -57,7 +56,7 @@ public static class VolumetricShader
     public static float4 Fragment(in VolumetricFragmentContext context)
     {
         // 1. Prepare UV coordinates (-1 to 1) with aspect ratio correction.
-        float2 uv = context.Fragment.Uv * 2.0f - 1.0f;
+        float2 uv = context.Fragment.Uv.Value * 2.0f - 1.0f;
         float aspectRatio = context.Constants.Resolution.x / context.Constants.Resolution.y;
         uv.x *= aspectRatio;
 
@@ -118,10 +117,10 @@ public static class VolumetricShader
         finalColor += neonColor * glow * 0.4f;
 
         // 5. Apply a vignette at the screen edges.
-        float vignette = context.Fragment.Uv.x
-            * context.Fragment.Uv.y
-            * (1.0f - context.Fragment.Uv.x)
-            * (1.0f - context.Fragment.Uv.y);
+        float vignette = context.Fragment.Uv.Value.x
+            * context.Fragment.Uv.Value.y
+            * (1.0f - context.Fragment.Uv.Value.x)
+            * (1.0f - context.Fragment.Uv.Value.y);
         vignette = maths.clamp(maths.pow(vignette * 16.0f, 0.25f), 0.0f, 1.0f);
         finalColor *= vignette;
 

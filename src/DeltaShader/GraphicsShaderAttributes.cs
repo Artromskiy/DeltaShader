@@ -28,11 +28,6 @@ public enum VertexInputRate
     Instance = 1
 }
 
-[AttributeUsage(AttributeTargets.Field, Inherited = false, AllowMultiple = false)]
-public sealed class PositionAttribute : Attribute
-{
-}
-
 [AttributeUsage(AttributeTargets.Struct | AttributeTargets.Field, Inherited = false, AllowMultiple = false)]
 public sealed class InterstageAttribute : Attribute
 {
@@ -42,6 +37,7 @@ public sealed class InterstageAttribute : Attribute
 public sealed class ShaderIntrinsicAttribute : Attribute
 {
     public string GlslName { get; }
+    public ShaderStage[] Stages { get; }
     public ShaderStage Stage { get; }
 
     public ShaderIntrinsicAttribute(string glslName, ShaderStage stage)
@@ -51,12 +47,22 @@ public sealed class ShaderIntrinsicAttribute : Attribute
 
     public ShaderIntrinsicAttribute(string glslName, params ShaderStage[] stages)
     {
+#if NET10_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(stages);
+#else
+        if (stages is null)
+        {
+            throw new ArgumentNullException(nameof(stages));
+        }
+#endif
+
         GlslName = glslName;
         if (stages.Length == 0)
         {
             throw new ArgumentException("At least one shader stage is required.", nameof(stages));
         }
 
+        Stages = stages;
         Stage = stages[0];
     }
 }

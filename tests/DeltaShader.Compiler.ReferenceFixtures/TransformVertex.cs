@@ -19,8 +19,7 @@ internal static class TransformVertex
     [Interstage]
     public struct VertexOutput
     {
-        [Position]
-        public float4 Position;
+        public Position Position;
     }
 
     public readonly struct VertexContext

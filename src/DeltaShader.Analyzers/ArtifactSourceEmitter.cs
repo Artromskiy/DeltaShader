@@ -243,7 +243,7 @@ internal static class ArtifactSourceEmitter
 
         var varyingField = contextType is INamedTypeSymbol namedContext
             ? namedContext.GetMembers().OfType<IFieldSymbol>().FirstOrDefault(field =>
-                !field.IsStatic && field.GetAttributes().Any(attribute => attribute.AttributeClass?.ToDisplayString() == typeof(InterstageAttribute).FullName))
+                !field.IsStatic && IsInterstagePayloadField(field))
             : null;
         if (varyingField is null || varyingField.Type is not INamedTypeSymbol varyingType)
         {
@@ -356,6 +356,24 @@ internal static class ArtifactSourceEmitter
         out string expression,
         out string? reason)
     {
+        if (TryGetSemanticValueType(valueType, out var semanticValueType))
+        {
+            if (!TryBuildUnpackLeafExpression(
+                    member.GlslType,
+                    semanticValueType,
+                    baseOffset + member.Offset,
+                    member.MatrixStride,
+                    out var underlyingExpression,
+                    out reason))
+            {
+                expression = string.Empty;
+                return false;
+            }
+
+            expression = "new " + FullyQualifiedType(valueType) + "(" + underlyingExpression + ")";
+            return true;
+        }
+
         if (member.Members.Count > 0)
         {
             return TryBuildUnpackMembersExpression(member.Members, valueType, baseOffset, out expression, out reason);
@@ -497,6 +515,12 @@ internal static class ArtifactSourceEmitter
         StringBuilder operations,
         out string? reason)
     {
+        if (TryGetSemanticValueType(valueType, out var semanticValueType))
+        {
+            expression += ".Value";
+            valueType = semanticValueType;
+        }
+
         if (member.Members.Count > 0)
         {
             return TryEmitMembers(member.Members, valueType, expression, baseOffset, operations, out reason);
@@ -618,6 +642,38 @@ internal static class ArtifactSourceEmitter
 
     private static string ScalarExpression(string expression, ITypeSymbol type, string targetType)
         => type.TypeKind == TypeKind.Enum ? $"({targetType})({expression})" : expression;
+
+    private static bool TryGetSemanticValueType(ITypeSymbol type, out ITypeSymbol valueType)
+    {
+        if (type is INamedTypeSymbol namedType &&
+            IsSemanticType(namedType) &&
+            namedType.GetMembers("Value").OfType<IFieldSymbol>().SingleOrDefault() is IFieldSymbol valueField)
+        {
+            valueType = valueField.Type;
+            return true;
+        }
+
+        valueType = type;
+        return false;
+    }
+
+    private static bool IsSemanticType(ITypeSymbol type)
+        => type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) is
+            "global::Delta.Shader.Position" or
+            "global::Delta.Shader.Uv0" or
+            "global::Delta.Shader.Uv1" or
+            "global::Delta.Shader.Color" or
+            "global::Delta.Shader.VertexColor" or
+            "global::Delta.Shader.FragmentColor" or
+            "global::Delta.Shader.WorldPosition" or
+            "global::Delta.Shader.WorldNormal" or
+            "global::Delta.Shader.Tangent";
+
+    private static bool IsInterstagePayloadField(IFieldSymbol field)
+        => field.GetAttributes().Any(attribute => attribute.AttributeClass?.ToDisplayString() == typeof(InterstageAttribute).FullName) ||
+            field.Type is INamedTypeSymbol payloadType &&
+            payloadType.GetMembers().OfType<IFieldSymbol>().Any(payloadField =>
+                !payloadField.IsStatic && IsSemanticType(payloadField.Type));
 
     private static ISymbol? FindValueMember(ITypeSymbol type, string name)
         => type is INamedTypeSymbol namedType

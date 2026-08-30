@@ -33,13 +33,12 @@ internal static class EditorViewportCube
     [Interstage]
     public struct CubeVarying
     {
-        [Position]
         [Layout(0)]
-        public float4 Position;
+        public Position Position;
         [Layout(1)]
-        public float3 Normal;
+        public WorldNormal Normal;
         [Layout(2)]
-        public float2 Uv;
+        public Uv0 Uv;
     }
 
     public readonly struct VertexContext
@@ -66,11 +65,11 @@ internal static class EditorViewportCube
     [VertexShader("EditorViewportCubeVertex")]
     public static CubeVarying Vertex(in VertexContext context)
     {
-        var modelPosition = context.Scene[0].Model * context.Vertex.Position;
+        var modelPosition = context.Scene[0].Model * context.Vertex.Position.Value;
         return new CubeVarying
         {
             Position = context.Scene[0].Projection * context.Scene[0].View * modelPosition,
-            Normal = maths.normalize((context.Scene[0].Model * new float4(context.Vertex.Normal, 0f)).xyz),
+            Normal = maths.normalize((context.Scene[0].Model * new float4(context.Vertex.Normal.Value, 0f)).xyz),
             Uv = context.Vertex.Uv
         };
     }
@@ -78,9 +77,9 @@ internal static class EditorViewportCube
     [FragmentShader("EditorViewportCubeFragment")]
     public static float4 Fragment(in FragmentContext context)
     {
-        var baseColor = context.Albedo.Sample<float2, float4>(context.Fragment.Uv);
+        var baseColor = context.Albedo.Sample<float2, float4>(context.Fragment.Uv.Value);
         var lightDirection = maths.normalize(-context.Scene[0].LightDirection);
-        var diffuse = maths.max(0f, maths.dot(context.Fragment.Normal, lightDirection));
+        var diffuse = maths.max(0f, maths.dot(context.Fragment.Normal.Value, lightDirection));
         return baseColor * context.Scene[0].LightColor * diffuse;
     }
 }

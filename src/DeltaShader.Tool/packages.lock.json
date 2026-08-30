@@ -295,8 +295,23 @@
         "resolved": "8.0.0",
         "contentHash": "Obg3a90MkOw9mYKxrardLpY2u0axDMrSmy4JCdq2cYbelM2cUwmUir5Bomvd1yxmPL9h5LVHU1tuKBZpUjfASg=="
       },
-      "deltashader": {
+      "deltamaths": {
         "type": "Project"
+      },
+      "deltashader": {
+        "type": "Project",
+        "dependencies": {
+          "DeltaMaths": "[1.0.0, )"
+        }
+      },
+      "deltashader.analyzers": {
+        "type": "Project",
+        "dependencies": {
+          "DeltaShader.Backend.Glsl": "[1.0.0, )",
+          "DeltaShader.Compiler": "[1.0.0, )",
+          "Microsoft.CodeAnalysis.Analyzers": "[3.11.0, )",
+          "Microsoft.CodeAnalysis.CSharp": "[4.13.0, )"
+        }
       },
       "deltashader.backend.glsl": {
         "type": "Project",

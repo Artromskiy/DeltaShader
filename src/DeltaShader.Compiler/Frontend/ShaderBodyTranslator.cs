@@ -385,7 +385,7 @@ internal static class ShaderBodyTranslator
         {
             return false;
         }
-        if (binding.GlslName is "*" or "/" or "+" or "-")
+        if (binding.GlslName is "*" or "/" or "+" or "-" or "%")
         {
             return false;
         }
@@ -975,6 +975,11 @@ internal static class ShaderBodyTranslator
             if (symbol is IFieldSymbol structField && _structFields.TryGetValue(structField, out var structFieldName))
             {
                 var receiver = Visit(node.Expression)?.ToFullString() ?? node.Expression.ToFullString();
+                if (structFieldName.Length == 0)
+                {
+                    return SyntaxFactory.ParseExpression(receiver);
+                }
+
                 return SyntaxFactory.ParseExpression(receiver + "." + structFieldName);
             }
             if (symbol is IPropertySymbol structProperty && _structProperties.TryGetValue(structProperty, out var structPropertyName))
@@ -1190,25 +1195,25 @@ internal static class ShaderBodyTranslator
             }
 
             var assignments = new List<StatementSyntax>();
-            foreach (var field in _returnType.GetMembers().OfType<IFieldSymbol>().Where(field => !field.IsStatic))
+            foreach (var leaf in ShaderInterstageTraversal.Flatten(_returnType, _context))
             {
-                if (!_outputFields.TryGetValue(field, out var outputName))
+                if (!_outputFields.TryGetValue(leaf.Field, out var outputName))
                 {
-                    Reason ??= $"Vertex output field '{field.Name}' has no stage mapping.";
+                    Reason ??= $"Vertex output field '{leaf.PathName}' has no stage mapping.";
                     continue;
                 }
 
-                var value = FindReturnedFieldValue(expression, field);
+                var value = FindReturnedFieldValue(expression, leaf.Path);
                 var translatedExpression = value is not null
                     ? Visit(value)?.ToFullString().Trim()
                     : GetTypeInfo(expression).Type is INamedTypeSymbol expressionType &&
                         SymbolEqualityComparer.Default.Equals(expressionType, _returnType) &&
-                        _directFields.TryGetValue(field, out var directFieldName)
+                        _directFields.TryGetValue(leaf.Field, out var directFieldName)
                         ? directFieldName
                         : null;
                 if (string.IsNullOrWhiteSpace(translatedExpression))
                 {
-                    Reason ??= $"Vertex return value does not initialize field '{field.Name}'.";
+                    Reason ??= $"Vertex return value does not initialize field '{leaf.PathName}'.";
                     continue;
                 }
 
@@ -1219,16 +1224,30 @@ internal static class ShaderBodyTranslator
             return SyntaxFactory.Block(assignments);
         }
 
-        private ExpressionSyntax? FindReturnedFieldValue(ExpressionSyntax expression, IFieldSymbol field)
+        private ExpressionSyntax? FindReturnedFieldValue(ExpressionSyntax expression, IReadOnlyList<IFieldSymbol> path)
         {
-            if (expression is ObjectCreationExpressionSyntax creation && creation.Initializer is { } initializer)
+            ExpressionSyntax current = expression;
+            foreach (var field in path)
             {
-                return initializer.Expressions
+                if (current is not ObjectCreationExpressionSyntax creation || creation.Initializer is not { } initializer)
+                {
+                    return null;
+                }
+
+                var assignment = initializer.Expressions
                     .OfType<AssignmentExpressionSyntax>()
-                    .FirstOrDefault(assignment => string.Equals(assignment.Left.ToString(), field.Name, StringComparison.Ordinal))?.Right;
+                    .FirstOrDefault(candidate =>
+                        GetSymbolInfo(candidate.Left).Symbol is IFieldSymbol assignedField &&
+                        SymbolEqualityComparer.Default.Equals(assignedField, field));
+                if (assignment is null)
+                {
+                    return null;
+                }
+
+                current = assignment.Right;
             }
 
-            return null;
+            return current;
         }
 
         private bool TryTranslateShaderBuiltinMember(
@@ -1309,6 +1328,45 @@ internal static class ShaderBodyTranslator
             return SyntaxFactory.ParseExpression(localName);
         }
 
+        public override SyntaxNode? VisitBinaryExpression(BinaryExpressionSyntax node)
+        {
+            if (!node.IsKind(SyntaxKind.ModuloExpression) ||
+                GetSymbolInfo(node).Symbol is not IMethodSymbol symbol ||
+                !_context.Intrinsics.TryGetIntrinsic(symbol, out var binding) ||
+                !string.Equals(binding.GlslName, "%", StringComparison.Ordinal))
+            {
+                return base.VisitBinaryExpression(node);
+            }
+
+            if (!binding.SupportsStage(_stage))
+            {
+                Reason ??= $"Intrinsic '{symbol.Name}' is not valid in {_stage} stage.";
+                return base.VisitBinaryExpression(node);
+            }
+
+            if (!IsIntegerRemainder(binding))
+            {
+                Reason ??= "C# remainder is supported only for integer shader types.";
+                return base.VisitBinaryExpression(node);
+            }
+
+            if (Visit(node.Left) is not ExpressionSyntax left ||
+                Visit(node.Right) is not ExpressionSyntax right)
+            {
+                Reason ??= "Integer remainder operands could not be translated.";
+                return base.VisitBinaryExpression(node);
+            }
+
+            var operatorExpression = CreateOperatorExpression(binding, [left.ToFullString(), right.ToFullString()]);
+            if (operatorExpression is null)
+            {
+                Reason ??= $"Operator intrinsic '{symbol.Name}' has an unsupported signature.";
+                return base.VisitBinaryExpression(node);
+            }
+
+            return SyntaxFactory.ParseExpression(operatorExpression);
+        }
+
         public override SyntaxNode? VisitInvocationExpression(InvocationExpressionSyntax node)
         {
             var symbol = GetSymbolInfo(node).Symbol as IMethodSymbol;
@@ -1339,12 +1397,14 @@ internal static class ShaderBodyTranslator
                 {
                     Reason ??= $"Intrinsic '{symbol.Name}' is not valid in {_stage} stage.";
                 }
-                if (binding.GlslName is "*" or "/" or "+" or "-")
+                if (binding.GlslName is "*" or "/" or "+" or "-" or "%")
                 {
                     var operatorExpression = CreateOperatorExpression(binding, glslArguments);
                     if (operatorExpression is null)
                     {
-                        Reason ??= $"Operator intrinsic '{symbol.Name}' has an unsupported arity.";
+                        Reason ??= binding.GlslName == "%"
+                            ? "C# remainder is supported only for integer shader types."
+                            : $"Operator intrinsic '{symbol.Name}' has an unsupported arity.";
                         return base.VisitInvocationExpression(node);
                     }
 
@@ -1434,16 +1494,26 @@ internal static class ShaderBodyTranslator
             var operatorToken = binding.GlslName;
             if (values.Length == 2)
             {
+                if (operatorToken == "%" && !IsIntegerRemainder(binding))
+                {
+                    return null;
+                }
+
                 if (binding.ParameterGlslTypes is { Count: 2 } parameterTypes)
                 {
-                    if (IsVectorType(parameterTypes[0]) && parameterTypes[1] == "float")
+                    if (IsVectorType(parameterTypes[0]) && IsScalarType(parameterTypes[1]))
                     {
                         values[1] = parameterTypes[0] + "(" + values[1] + ")";
                     }
-                    else if (parameterTypes[0] == "float" && IsVectorType(parameterTypes[1]))
+                    else if (IsScalarType(parameterTypes[0]) && IsVectorType(parameterTypes[1]))
                     {
                         values[0] = parameterTypes[1] + "(" + values[0] + ")";
                     }
+                }
+
+                if (operatorToken == "%")
+                {
+                    return "(" + values[0] + " - (" + values[0] + " / " + values[1] + ") * " + values[1] + ")";
                 }
 
                 return "(" + values[0] + " " + operatorToken + " " + values[1] + ")";
@@ -1487,6 +1557,21 @@ internal static class ShaderBodyTranslator
                 or "ivec2" or "ivec3" or "ivec4"
                 or "uvec2" or "uvec3" or "uvec4";
         }
+
+        private static bool IsScalarType(string? glslType)
+            => glslType is "float" or "int" or "uint";
+
+        private static bool IsIntegerRemainder(IntrinsicBinding binding)
+        {
+            return string.Equals(binding.GlslName, "%", StringComparison.Ordinal)
+                && binding.ParameterGlslTypes is { Count: 2 } parameterTypes
+                && parameterTypes.All(IsIntegerType);
+        }
+
+        private static bool IsIntegerType(string? glslType)
+            => glslType is "int" or "uint"
+                or "ivec2" or "ivec3" or "ivec4"
+                or "uvec2" or "uvec3" or "uvec4";
 
         private ExpressionSyntax? RebindExpressionToActiveCompilation(ExpressionSyntax expression)
         {
@@ -1594,7 +1679,7 @@ internal static class ShaderBodyTranslator
                 return structExpression;
             }
 
-            if (type is not null && _context.Intrinsics.TryMapType(type, out var glslType))
+            if (type is not null && TryMap(type, out var glslType))
             {
                 var args = node.ArgumentList?.Arguments.Select(argument => Visit(argument.Expression) ?? throw new InvalidOperationException("Shader expression visitor returned no argument node.")).ToArray() ?? Array.Empty<ExpressionSyntax>();
                 return SyntaxFactory.ParseExpression(glslType + "(" + string.Join(", ", args.Select(argument => argument.ToFullString())) + ")");
@@ -1616,7 +1701,7 @@ internal static class ShaderBodyTranslator
                 return structExpression;
             }
 
-            if (type is not null && _context.Intrinsics.TryMapType(type, out var glslType))
+            if (type is not null && TryMap(type, out var glslType))
             {
                 var args = node.ArgumentList.Arguments
                     .Select(argument => Visit(argument.Expression) ?? throw new InvalidOperationException("Shader expression visitor returned no argument node."))
@@ -1798,6 +1883,11 @@ internal static class ShaderBodyTranslator
 
         private bool TryMap(ITypeSymbol type, out string glslType)
         {
+            if (ShaderSemanticTypeSupport.TryMapType(type, _context, out glslType))
+            {
+                return true;
+            }
+
             if (_context.Intrinsics.TryMapType(type, out glslType))
             {
                 return true;

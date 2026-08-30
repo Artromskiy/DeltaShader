@@ -31,10 +31,9 @@ public struct TextParameters
 [Interstage]
 public struct TextVarying
 {
-    [Position]
-    public float4 Position;
-    public float2 Uv;
-    public float4 GlyphColor;
+    public Position Position;
+    public Uv0 Uv;
+    public VertexColor GlyphColor;
 }
 
 public readonly struct TextVertexContext
@@ -143,15 +142,15 @@ public static class TextShaders
     [FragmentShader("sdf-text")]
     public static float4 SdfTextFragment(in SdfTextFragmentContext context)
     {
-        var texel = context.Atlas.Sample<float2, float4>(context.Fragment.Uv);
+        var texel = context.Atlas.Sample<float2, float4>(context.Fragment.Uv.Value);
         var signedDistance = (texel.x - 0.5f) * context.Parameters.DistanceRange;
         var edge = ShaderIntrinsics.fwidth(signedDistance);
         var fillCoverage = maths.smoothstep(-edge, edge, signedDistance);
         var outlineWidth = maths.max(context.Parameters.OutlineWidth, 0f);
         var outerCoverage = maths.smoothstep(-outlineWidth - edge, -outlineWidth + edge, signedDistance);
         var outlineContribution = maths.max(outerCoverage - fillCoverage, 0f);
-        return context.Parameters.TextColor * context.Fragment.GlyphColor * fillCoverage +
-            context.Parameters.OutlineColor * context.Fragment.GlyphColor * outlineContribution;
+        return context.Parameters.TextColor * context.Fragment.GlyphColor.Value * fillCoverage +
+            context.Parameters.OutlineColor * context.Fragment.GlyphColor.Value * outlineContribution;
     }
 
     [VertexShader("msdf-text")]
@@ -222,7 +221,7 @@ public static class TextShaders
     [FragmentShader("msdf-text")]
     public static float4 MsdfTextFragment(in MsdfTextFragmentContext context)
     {
-        var texel = context.Atlas.Sample<float2, float4>(context.Fragment.Uv);
+        var texel = context.Atlas.Sample<float2, float4>(context.Fragment.Uv.Value);
         var median = maths.max(
             maths.min(texel.x, texel.y),
             maths.min(maths.max(texel.x, texel.y), texel.z));
@@ -233,7 +232,7 @@ public static class TextShaders
         var outlineWidth = maths.max(context.Parameters.OutlineWidth, 0f);
         var outerCoverage = maths.smoothstep(-outlineWidth - edge, -outlineWidth + edge, signedDistance);
         var outlineContribution = maths.max(outerCoverage - fillCoverage, 0f);
-        return context.Parameters.TextColor * context.Fragment.GlyphColor * fillCoverage +
-            context.Parameters.OutlineColor * context.Fragment.GlyphColor * outlineContribution;
+        return context.Parameters.TextColor * context.Fragment.GlyphColor.Value * fillCoverage +
+            context.Parameters.OutlineColor * context.Fragment.GlyphColor.Value * outlineContribution;
     }
 }

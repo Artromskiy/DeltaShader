@@ -68,7 +68,7 @@ for stem in "${artifact_stems[@]}"; do
     done
 
     manifest="$output_directory/$stem.shader.json"
-    if ! jq -e 'type == "object" and (.Version | type == "number") and (.EntryPointName | type == "string") and (.Stage | type == "number")' "$manifest" >/dev/null; then
+    if ! jq -e 'type == "object" and (.EntryPointName | type == "string") and (.Stage | type == "number") and (.Resources | type == "array") and (.PushConstants | type == "array") and (.VertexInputs | type == "array")' "$manifest" >/dev/null; then
         echo "Packaging failed: invalid shader manifest '$manifest'." >&2
         exit 1
     fi

@@ -46,7 +46,7 @@ public static class ShaderVisibleTypeValidation
 
         return contextType.GetMembers().OfType<IFieldSymbol>()
             .Where(field => !field.IsStatic)
-            .Any(field => field.GetAttributes().Any(attribute => IsContextAttribute(attribute.AttributeClass)));
+            .Any(field => IsContextField(field, compilation));
     }
 
     public static IReadOnlyList<ShaderVisibleTypeIssue> ValidateContext(
@@ -65,9 +65,19 @@ public static class ShaderVisibleTypeValidation
             var attributes = field.GetAttributes()
                 .Where(attribute => IsContextAttribute(attribute.AttributeClass))
                 .ToArray();
-            if (attributes.Length == 0)
+            if (attributes.Length == 0 && !IsInterstageField(field, compilation))
             {
                 AddIssue(field, $"Shader context field '{field.Name}' must declare a varying payload, storage buffer, push constant, texture, or builtin role.", issues);
+                continue;
+            }
+
+            if (attributes.Length == 0)
+            {
+                foreach (var issue in Validate(field.Type, field))
+                {
+                    issues.Add(issue);
+                }
+
                 continue;
             }
 
@@ -253,6 +263,40 @@ public static class ShaderVisibleTypeValidation
     {
         var name = attributeType?.ToDisplayString();
         return name == PushConstantAttributeName || name == LayoutAttributeName || name == InterstageAttributeName;
+    }
+
+    private static bool IsContextField(IFieldSymbol field, Compilation compilation)
+        => field.GetAttributes().Any(attribute => IsContextAttribute(attribute.AttributeClass)) ||
+            IsInterstageField(field, compilation);
+
+    private static bool IsInterstageField(IFieldSymbol field, Compilation compilation)
+        => field.GetAttributes().Any(attribute => attribute.AttributeClass?.ToDisplayString() == InterstageAttributeName) ||
+            field.Type is INamedTypeSymbol payloadType &&
+            payloadType.GetMembers().OfType<IFieldSymbol>().Any(payloadField =>
+                !payloadField.IsStatic && IsSemanticValueType(payloadField.Type, compilation));
+
+    private static bool IsSemanticValueType(ITypeSymbol type, Compilation compilation)
+    {
+        if (type is not INamedTypeSymbol namedType)
+        {
+            return false;
+        }
+
+        string[] semanticTypeNames =
+        [
+            "Delta.Shader.Position",
+            "Delta.Shader.Uv0",
+            "Delta.Shader.Uv1",
+            "Delta.Shader.Color",
+            "Delta.Shader.VertexColor",
+            "Delta.Shader.FragmentColor",
+            "Delta.Shader.WorldPosition",
+            "Delta.Shader.WorldNormal",
+            "Delta.Shader.Tangent"
+        ];
+
+        return semanticTypeNames.Any(name =>
+            SymbolEqualityComparer.Default.Equals(namedType, compilation.GetTypeByMetadataName(name)));
     }
 
     private static ITypeSymbol? GetBufferElementType(ITypeSymbol type, Compilation compilation)

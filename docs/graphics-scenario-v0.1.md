@@ -5,7 +5,7 @@ intermediate and uses `std430` for structured storage and push-constant data.
 The first graphics slice is intentionally small:
 
 - `[VertexShader]` accepts one `in` context whose `[Interstage]` payload contains
-  one `[Position] float4` field and optional location-based vertex input fields;
+  one `Delta.Shader.Position` field and optional location-based vertex input fields;
   `ShaderBuiltins.VertexIndex` remains available in the body.
 - `[FragmentShader]` accepts one `in` context with the matching `[Interstage]`
   payload and returns one `float4` color. `ShaderBuiltins.FragmentCoord` and

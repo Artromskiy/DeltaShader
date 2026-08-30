@@ -38,6 +38,7 @@ public sealed record IntrinsicBinding(
 public sealed class IntrinsicRegistry
 {
     private readonly Dictionary<ISymbol, IntrinsicBinding> _methodsAndProperties;
+    private readonly Dictionary<string, IntrinsicBinding> _methodIdentities;
     private readonly Dictionary<ITypeSymbol, string> _types;
     private readonly ShaderContractManifest _contract;
 
@@ -47,6 +48,12 @@ public sealed class IntrinsicRegistry
         ShaderContractManifest contract)
     {
         _methodsAndProperties = methodsAndProperties;
+        _methodIdentities = new Dictionary<string, IntrinsicBinding>(StringComparer.Ordinal);
+        foreach (var method in methodsAndProperties.Keys.OfType<IMethodSymbol>())
+        {
+            _methodIdentities[GetMethodIdentity(method)] = methodsAndProperties[method];
+        }
+
         _types = types;
         _contract = contract;
     }
@@ -194,9 +201,21 @@ public sealed class IntrinsicRegistry
             SpecialType.System_Single => "float",
             SpecialType.System_Double => "double",
             SpecialType.System_Decimal => "decimal",
+            SpecialType.System_Void => "void",
             SpecialType.System_String => "string",
             _ => type.Name
         };
+
+    private static string GetMethodIdentity(IMethodSymbol method)
+    {
+        var containingType = method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        var parameters = string.Join(
+            ",",
+            method.Parameters.Select(parameter =>
+                $"{parameter.RefKind}:{parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}"));
+        var returnType = method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        return $"{containingType}.{method.Name}({parameters}):{returnType}";
+    }
 
     private static void RegisterOwnedShaderIntrinsics(
         Dictionary<ISymbol, IntrinsicBinding> methods,
@@ -371,7 +390,9 @@ public sealed class IntrinsicRegistry
     public bool TryGetIntrinsic<TSymbol>(TSymbol symbol, out IntrinsicBinding binding)
         where TSymbol : class, ISymbol
         => _methodsAndProperties.TryGetValue(symbol, out binding) ||
-           symbol is IMethodSymbol method && _methodsAndProperties.TryGetValue(method.OriginalDefinition, out binding);
+           symbol is IMethodSymbol method &&
+           (_methodsAndProperties.TryGetValue(method.OriginalDefinition, out binding) ||
+            _methodIdentities.TryGetValue(GetMethodIdentity(method), out binding));
 
     public bool TryMapType(ITypeSymbol type, out string glslType)
         => _types.TryGetValue(type, out glslType);

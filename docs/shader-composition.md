@@ -1,8 +1,9 @@
 # Shader composition design
 
-This document describes the proposed compile-time shader-composition model. It
-is design documentation, not a claim that the current compiler already accepts
-this surface. The current single-entry-point API remains documented in
+This document describes the compile-time shader-composition model. The current
+compiler accepts the standard semantic value types in individual graphics
+entry points; editor-selected multi-layer chain lowering remains a separate
+implementation milestone. The supported entry-point surface is documented in
 [USER_API.md](USER_API.md).
 
 ## Goal
@@ -25,7 +26,7 @@ editor layer selection
 
 Interstage matching uses the full symbol identity of a semantic value type, not
 the CLR field name and not the underlying scalar/vector shape. Standard types
-are supplied for common meanings:
+are supplied for common meanings by `Delta.Shader`:
 
 ```text
 Position
@@ -114,6 +115,10 @@ in the canonical composite surface; resolved coordinates and byte layout remain
 visible in `ShaderAbi`.
 
 ## Composition and chain behavior
+
+Semantic payloads are now the canonical source form for graphics stages. This
+does not make the current compiler dynamically combine arbitrary methods: the
+editor/tooling layer must select and compile the composite before runtime.
 
 The editor selects layers by their full source symbols and preserves their
 explicit order. A layer can read, write or leave a semantic untouched:

@@ -6,15 +6,14 @@ namespace Delta.Shader.Mesh;
 [Interstage]
 public struct MeshPayload
 {
-    [Position]
     [Layout(0)]
-    public float4 Position;
+    public Position Position;
 
     [Layout(1)]
-    public float3 Normal;
+    public WorldNormal Normal;
 
     [Layout(2)]
-    public float2 Uv;
+    public Uv0 Uv;
 }
 
 public readonly struct MeshVertexContext
@@ -46,5 +45,5 @@ public static class MeshShaders
 
     [FragmentShader("mesh")]
     public static float4 Fragment(in MeshFragmentContext context) =>
-        new float4(context.Fragment.Uv, 0f, 1f);
+        new float4(context.Fragment.Uv.Value, 0f, 1f);
 }
