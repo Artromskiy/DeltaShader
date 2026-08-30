@@ -7,12 +7,19 @@ using Delta.Shader.Backend.Glsl;
 using Delta.Shader.Compiler;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Delta.Shader.Analyzers;
 using Final = Delta.Shader.Contract;
 
 namespace Delta.Shader.Tool;
 
 internal static class MathsConformancePublisher
 {
+    private static readonly HashSet<string> CompilerBlockedCapabilities = new(StringComparer.Ordinal)
+    {
+        "float16",
+        "float64"
+    };
+
     private static readonly HashSet<string> OperationNames = new(StringComparer.Ordinal)
     {
         "abs",
@@ -44,6 +51,7 @@ internal static class MathsConformancePublisher
         "float3",
         "float4"
     };
+
 
     public static async Task<int> PublishAsync(
         string mathsRoot,
@@ -202,75 +210,212 @@ internal static class MathsConformancePublisher
         var casesDirectory = Path.Combine(outputDirectory, "cases");
         Directory.CreateDirectory(casesDirectory);
 
-        var fixtureSource = BuildFixtureSource(functions);
+        var references = CreateReferences(mathsAssemblyPath, typeof(ComputeShaderAttribute).Assembly.Location);
+        var entriesByIndex = new PublishedCase[functions.Length];
+        var compileCaseIndices = new int[functions.Length];
+        var compileFunctions = new ContractFunction[functions.Length];
+        var compileCount = 0;
+        for (var caseIndex = 0; caseIndex < functions.Length; caseIndex++)
+        {
+            var function = functions[caseIndex];
+            var caseData = casesByIdentity[function.Identity];
+            var caseId = $"maths-{caseIndex:0000}";
+            var entry = PublishedCase.FromCase(caseData, caseId);
+            if (TryGetCompilerBlockedCapability(caseData, out var blockedCapability))
+            {
+                entry.Status = "capability-blocked";
+                entry.Diagnostic =
+                    $"DeltaShader base profile does not lower the required '{blockedCapability}' capability.";
+                entriesByIndex[caseIndex] = entry;
+                continue;
+            }
+
+            entriesByIndex[caseIndex] = entry;
+            compileCaseIndices[compileCount] = caseIndex;
+            compileFunctions[compileCount] = function;
+            compileCount++;
+        }
+
+        Array.Resize(ref compileCaseIndices, compileCount);
+        Array.Resize(ref compileFunctions, compileCount);
+        var fixtureSource = BuildFixtureSource(compileFunctions);
         var fixtureSourcePath = Path.Combine(outputDirectory, "MathsConformanceFixtures.cs");
         await File.WriteAllTextAsync(fixtureSourcePath, fixtureSource, Encoding.UTF8).ConfigureAwait(false);
 
-        var entries = new List<PublishedCase>(functions.Length);
-        var references = CreateReferences(mathsAssemblyPath, typeof(ComputeShaderAttribute).Assembly.Location);
-        for (var index = 0; index < functions.Length; index++)
+        var resultsByCaseIndex = new ShaderCompilationResult?[functions.Length];
+        var glslByCaseIndex = new string?[functions.Length];
+        var readyByCaseIndex = new bool[functions.Length];
+        if (compileCount != 0)
         {
-            var function = functions[index];
-            var caseData = casesByIdentity[function.Identity];
-            var caseId = $"maths-{index:0000}";
-            var entry = PublishedCase.FromCase(caseData, caseId);
-            var source = BuildFixtureSource([function]);
-            var compilation = CreateCompilation(source, references, $"DeltaShaderMathsConformance_{index:0000}");
-            var roslynErrors = compilation.GetDiagnostics()
+            const string compilationSeed = """
+                namespace Delta.Shader.MathsConformance.Generated;
+
+                internal static class MathsConformanceBatchSeed
+                {
+                }
+                """;
+            var compilation = CreateCompilation(
+                compilationSeed,
+                references,
+                "DeltaShaderMathsConformanceBatch");
+            GeneratorDriver generatorDriver = CSharpGeneratorDriver.Create(
+                new[] { new MathsConformanceFixtureGenerator(fixtureSource).AsSourceGenerator() },
+                parseOptions: compilation.SyntaxTrees.FirstOrDefault()?.Options as CSharpParseOptions);
+            generatorDriver = generatorDriver.RunGeneratorsAndUpdateCompilation(
+                compilation,
+                out var generatedCompilation,
+                out var generatorDiagnostics);
+            var generatorErrors = generatorDiagnostics
                 .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
                 .Select(diagnostic => diagnostic.ToString())
                 .ToArray();
-            if (roslynErrors.Length != 0)
+            var compilationResults = ShaderCompiler.CompileAll(generatedCompilation, options);
+            var sourceIdentityToCaseIndex = new Dictionary<string, int>(StringComparer.Ordinal);
+            var fixtureType = generatedCompilation.GetTypeByMetadataName(
+                "Delta.Shader.MathsConformance.Generated.MathsConformanceFixtures");
+            if (fixtureType is not null)
             {
-                entry.Status = "roslyn-diagnostic";
-                entry.Diagnostic = string.Join("\n", roslynErrors);
-                entries.Add(entry);
-                continue;
+                foreach (var method in fixtureType.GetMembers().OfType<IMethodSymbol>())
+                {
+                    if (!method.Name.StartsWith("Case", StringComparison.Ordinal)
+                        || !int.TryParse(
+                            method.Name.AsSpan(4),
+                            NumberStyles.None,
+                            CultureInfo.InvariantCulture,
+                            out var fixtureIndex)
+                        || fixtureIndex < 0
+                        || fixtureIndex >= compileCount)
+                    {
+                        continue;
+                    }
+
+                    sourceIdentityToCaseIndex[GetFullSymbolIdentity(method)] =
+                        compileCaseIndices[fixtureIndex];
+                }
             }
 
-            var result = ShaderCompiler.CompileAll(compilation, options).SingleOrDefault();
-            if (result is null)
+            foreach (var result in compilationResults)
             {
-                entry.Status = "compiler-diagnostic";
-                entry.Diagnostic = "No shader entry point was produced.";
-                entries.Add(entry);
-                continue;
+                if (sourceIdentityToCaseIndex.TryGetValue(result.SourceMethodIdentity, out var caseIndex))
+                {
+                    resultsByCaseIndex[caseIndex] = result;
+                }
             }
 
-            if (!result.Success || result.Module is null || result.BuildManifest is null)
+            for (var compileIndex = 0; compileIndex < compileCount; compileIndex++)
             {
-                var diagnostic = string.Join(
-                    Environment.NewLine,
-                    result.Diagnostics.Select(item => $"{item.Id}: {item.Message}"));
-                entry.Status = "compiler-diagnostic";
-                entry.Diagnostic = diagnostic.Length == 0
-                    ? "Shader compilation failed without a diagnostic."
-                    : diagnostic;
-                entries.Add(entry);
-                continue;
+                var caseIndex = compileCaseIndices[compileIndex];
+                if (entriesByIndex[caseIndex] is not { } entry)
+                {
+                    continue;
+                }
+
+                var result = resultsByCaseIndex[caseIndex];
+                if (result is null)
+                {
+                    entry.Status = "compiler-diagnostic";
+                    entry.Diagnostic = generatorErrors.Length == 0
+                        ? "No result matched the full source symbol identity."
+                        : string.Join(Environment.NewLine, generatorErrors);
+                    continue;
+                }
+
+                if (!result.Success || result.Module is null || result.BuildManifest is null)
+                {
+                    var diagnostic = string.Join(
+                        Environment.NewLine,
+                        result.Diagnostics.Select(item => $"{item.Id}: {item.Message}"));
+                    entry.Status = "compiler-diagnostic";
+                    entry.Diagnostic = diagnostic.Length == 0
+                        ? "Shader compilation failed without a diagnostic."
+                        : diagnostic;
+                    continue;
+                }
+
+                var emit = GlslEmitter.EmitFromModule(result.Module);
+                if (!emit.Success)
+                {
+                    entry.Status = "glsl-diagnostic";
+                    entry.Diagnostic = "GLSL emission failed.";
+                    continue;
+                }
+
+                glslByCaseIndex[caseIndex] = emit.Source;
+                readyByCaseIndex[caseIndex] = true;
+            }
+        }
+
+        static string GetFullSymbolIdentity(IMethodSymbol method)
+        {
+            var parameters = string.Join(
+                ",",
+                method.Parameters.Select(parameter =>
+                    parameter.RefKind + ":" + parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
+            return method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+                + "." + method.Name + "`" + method.Arity + "(" + parameters + ")";
+        }
+
+        var workOrder = new int[functions.Length];
+        for (var index = 0; index < workOrder.Length; index++)
+        {
+            workOrder[index] = index;
+        }
+
+        Array.Sort(workOrder, (left, right) =>
+        {
+            var leftFunction = functions[left];
+            var rightFunction = functions[right];
+            var comparison = StringComparer.Ordinal.Compare(leftFunction.ReturnType, rightFunction.ReturnType);
+            if (comparison != 0)
+            {
+                return comparison;
             }
 
-            var emit = GlslEmitter.EmitFromModule(result.Module);
-            if (!emit.Success)
+            comparison = leftFunction.ParameterTypes.Length.CompareTo(rightFunction.ParameterTypes.Length);
+            return comparison != 0
+                ? comparison
+                : StringComparer.Ordinal.Compare(leftFunction.Identity, rightFunction.Identity);
+        });
+        var parallelOptions = new ParallelOptions
+        {
+            MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount)
+        };
+        Parallel.For(0, workOrder.Length, parallelOptions, workIndex =>
+        {
+            var caseIndex = workOrder[workIndex];
+            if (!readyByCaseIndex[caseIndex]
+                || resultsByCaseIndex[caseIndex] is not { BuildManifest: not null } result
+                || glslByCaseIndex[caseIndex] is not { } glsl)
             {
-                entry.Status = "glsl-diagnostic";
-                entry.Diagnostic = "GLSL emission failed.";
-                entries.Add(entry);
-                continue;
+                return;
             }
 
+            var caseId = $"maths-{caseIndex:0000}";
+            var stem = $"{caseId}.comp";
+            var glslPath = Path.Combine(casesDirectory, $"{stem}.glsl");
+            var buildManifestPath = Path.Combine(casesDirectory, $"{stem}.shader.json");
+            File.WriteAllText(glslPath, glsl, Encoding.UTF8);
+            File.WriteAllText(
+                buildManifestPath,
+                JsonSerializer.Serialize(result.BuildManifest, JsonOptions),
+                Encoding.UTF8);
+        });
+
+        Parallel.For(0, workOrder.Length, parallelOptions, workIndex =>
+        {
+            var caseIndex = workOrder[workIndex];
+            if (!readyByCaseIndex[caseIndex]
+                || resultsByCaseIndex[caseIndex] is not { BuildManifest: not null } result
+                || entriesByIndex[caseIndex] is not { } entry)
+            {
+                return;
+            }
+
+            var caseId = $"maths-{caseIndex:0000}";
             var stem = $"{caseId}.comp";
             var glslPath = Path.Combine(casesDirectory, $"{stem}.glsl");
             var spirvPath = Path.Combine(casesDirectory, $"{stem}.spv");
-            var buildManifestPath = Path.Combine(casesDirectory, $"{stem}.shader.json");
             var abiPath = Path.Combine(casesDirectory, $"{stem}.abi.json");
-            await File.WriteAllTextAsync(glslPath, emit.Source, Encoding.UTF8).ConfigureAwait(false);
-            await File.WriteAllTextAsync(
-                    buildManifestPath,
-                    JsonSerializer.Serialize(result.BuildManifest, JsonOptions),
-                    Encoding.UTF8)
-                .ConfigureAwait(false);
-
             var compile = RunTool(
                 glslang,
                 "-V",
@@ -286,8 +431,7 @@ internal static class MathsConformancePublisher
                 entry.Status = "glslang-diagnostic";
                 entry.Diagnostic = compile.Output;
                 entry.ArtifactPath = Path.GetRelativePath(outputDirectory, glslPath);
-                entries.Add(entry);
-                continue;
+                return;
             }
 
             var validation = RunTool(spirvValidator, "--target-env", options.Profile, spirvPath);
@@ -296,31 +440,30 @@ internal static class MathsConformancePublisher
                 entry.Status = "spirv-validation-diagnostic";
                 entry.Diagnostic = validation.Output;
                 entry.ArtifactPath = Path.GetRelativePath(outputDirectory, spirvPath);
-                entries.Add(entry);
-                continue;
+                return;
             }
 
-            var artifact = ShaderArtifactPublisher.Create(await File.ReadAllBytesAsync(spirvPath).ConfigureAwait(false), result.BuildManifest);
+            var artifact = ShaderArtifactPublisher.Create(File.ReadAllBytes(spirvPath), result.BuildManifest);
             var resolvedAbi = new ResolvedAbiDocument
             {
                 CaseId = caseId,
-                OperationIdentity = function.Identity,
+                OperationIdentity = functions[caseIndex].Identity,
                 EntryPointName = artifact.EntryPoint,
                 Stage = artifact.Stage,
                 ArtifactPath = Path.GetRelativePath(outputDirectory, spirvPath),
                 Abi = ResolvedShaderAbi.From(artifact.Abi)
             };
-            await File.WriteAllTextAsync(
-                    abiPath,
-                    JsonSerializer.Serialize(resolvedAbi, JsonOptions),
-                    Encoding.UTF8)
-                .ConfigureAwait(false);
+            File.WriteAllText(
+                abiPath,
+                JsonSerializer.Serialize(resolvedAbi, JsonOptions),
+                Encoding.UTF8);
 
             entry.Status = "passed";
             entry.ArtifactPath = Path.GetRelativePath(outputDirectory, spirvPath);
             entry.AbiPath = Path.GetRelativePath(outputDirectory, abiPath);
-            entries.Add(entry);
-        }
+        });
+
+        var entries = entriesByIndex.ToList();
 
         var conformanceIndex = new ConformanceIndex
         {
@@ -335,6 +478,7 @@ internal static class MathsConformancePublisher
             ExcludedCaseCount = bundle.Coverage.ExcludedCount,
             ArtifactCount = entries.Count(entry => entry.Status == "passed"),
             CompilerBlockedCount = entries.Count(IsCompilerBlocked),
+            CapabilityBlockedCount = entries.Count(entry => entry.Status == "capability-blocked"),
             BackendBlockedCount = entries.Count(entry => entry.Status == "glsl-diagnostic"),
             ExternalValidationBlockedCount = entries.Count(entry => entry.Status is "glslang-diagnostic" or "spirv-validation-diagnostic"),
             MismatchedCount = 0,
@@ -363,6 +507,16 @@ internal static class MathsConformancePublisher
     private static bool IsCompilerBlocked(PublishedCase entry)
         => entry.Status is "roslyn-diagnostic" or "compiler-diagnostic";
 
+    private static bool TryGetCompilerBlockedCapability(
+        ConformanceCase conformanceCase,
+        out string capability)
+    {
+        capability = conformanceCase.RequiredCapabilities
+            .FirstOrDefault(CompilerBlockedCapabilities.Contains)
+            ?? string.Empty;
+        return capability.Length != 0;
+    }
+
     private static List<ContractFunction> LoadFunctions(string path)
     {
         using var document = JsonDocument.Parse(File.ReadAllText(path));
@@ -379,13 +533,18 @@ internal static class MathsConformancePublisher
                 .EnumerateArray()
                 .Select(item => item.GetString() ?? string.Empty)
                 .ToArray();
+            var modifiers = element.TryGetProperty("parameterModifiers", out var modifierElement)
+                ? ReadStrings(modifierElement)
+                : parameters.Select(_ => "none").ToArray();
             functions.Add(new ContractFunction(
                 element.GetProperty("identity").GetString() ?? string.Empty,
                 element.GetProperty("typeClrName").GetString() ?? string.Empty,
                 element.GetProperty("clrName").GetString() ?? string.Empty,
                 parameters,
+                modifiers,
                 element.GetProperty("returnClrName").GetString() ?? string.Empty,
-                element.GetProperty("mapping").GetString() ?? string.Empty));
+                element.GetProperty("mapping").GetString() ?? string.Empty,
+                element.GetProperty("glslName").GetString() ?? string.Empty));
         }
 
         return functions;
@@ -417,8 +576,10 @@ internal static class MathsConformancePublisher
                 RequiredString(operation, "ownerTypeName"),
                 RequiredString(operation, "methodName"),
                 ReadStrings(operation.GetProperty("parameterTypeNames")),
+                operation.GetProperty("parameterTypeNames").EnumerateArray().Select(_ => "none").ToArray(),
                 RequiredString(operation, "returnTypeName"),
-                RequiredString(operation, "mapping"));
+                RequiredString(operation, "mapping"),
+                string.Empty);
             var comparison = element.GetProperty("comparison");
             var dispositions = element.GetProperty("disposition");
             cases.Add(new ConformanceCase(
@@ -505,16 +666,72 @@ internal static class MathsConformancePublisher
     {
         var methodName = $"Case{index:0000}";
         var contextName = methodName + "Context";
-        builder.AppendLine(CultureInfo.InvariantCulture, $"    public readonly struct {contextName}");
-        builder.AppendLine("    {");
-        for (var parameterIndex = 0; parameterIndex < function.ParameterTypes.Length; parameterIndex++)
+        if (function.ParameterModifiers.Length != function.ParameterTypes.Length)
         {
-            builder.AppendLine(CultureInfo.InvariantCulture, $"        [Layout(0, {parameterIndex})]");
-            builder.AppendLine(CultureInfo.InvariantCulture, $"        public readonly ReadOnlyStorageBuffer<{function.ParameterTypes[parameterIndex]}> Input{parameterIndex};");
+            throw new InvalidOperationException(
+                $"Manifest parameter modifier count does not match parameter count for {function.Identity}.");
         }
 
-        builder.AppendLine(CultureInfo.InvariantCulture, $"        [Layout(0, {function.ParameterTypes.Length})]");
-        builder.AppendLine(CultureInfo.InvariantCulture, $"        public readonly ReadWriteStorageBuffer<{function.ReturnType}> Output;");
+        var inputSlotByParameter = new int[function.ParameterTypes.Length];
+        var outSlotByParameter = new int[function.ParameterTypes.Length];
+        Array.Fill(inputSlotByParameter, -1);
+        Array.Fill(outSlotByParameter, -1);
+        var inputCount = 0;
+        var outCount = 0;
+        for (var parameterIndex = 0; parameterIndex < function.ParameterTypes.Length; parameterIndex++)
+        {
+            var modifier = function.ParameterModifiers[parameterIndex];
+            if (modifier is "none" or "ref")
+            {
+                inputSlotByParameter[parameterIndex] = inputCount++;
+            }
+            else if (modifier == "out")
+            {
+                outSlotByParameter[parameterIndex] = outCount++;
+            }
+            else
+            {
+                throw new InvalidOperationException(
+                    $"Unsupported parameter modifier '{modifier}' in {function.Identity}.");
+            }
+        }
+
+        builder.AppendLine(CultureInfo.InvariantCulture, $"    public readonly struct {contextName}");
+        builder.AppendLine("    {");
+        var binding = 0;
+        for (var parameterIndex = 0; parameterIndex < function.ParameterTypes.Length; parameterIndex++)
+        {
+            var inputSlot = inputSlotByParameter[parameterIndex];
+            if (inputSlot < 0)
+            {
+                continue;
+            }
+
+            builder.AppendLine(CultureInfo.InvariantCulture, $"        [Layout(0, {binding})]");
+            builder.AppendLine(CultureInfo.InvariantCulture, $"        public readonly ReadOnlyStorageBuffer<{function.ParameterTypes[parameterIndex]}> Input{inputSlot};");
+            binding++;
+        }
+
+        if (function.ReturnType != "void")
+        {
+            builder.AppendLine(CultureInfo.InvariantCulture, $"        [Layout(0, {binding})]");
+            builder.AppendLine(CultureInfo.InvariantCulture, $"        public readonly ReadWriteStorageBuffer<{function.ReturnType}> Output;");
+            binding++;
+        }
+
+        for (var parameterIndex = 0; parameterIndex < function.ParameterTypes.Length; parameterIndex++)
+        {
+            var outSlot = outSlotByParameter[parameterIndex];
+            if (outSlot < 0)
+            {
+                continue;
+            }
+
+            builder.AppendLine(CultureInfo.InvariantCulture, $"        [Layout(0, {binding})]");
+            builder.AppendLine(CultureInfo.InvariantCulture, $"        public readonly ReadWriteStorageBuffer<{function.ParameterTypes[parameterIndex]}> Out{outSlot};");
+            binding++;
+        }
+
         builder.AppendLine();
         builder.AppendLine("        [PushConstant]");
         builder.AppendLine("        public readonly uint Count;");
@@ -524,7 +741,7 @@ internal static class MathsConformancePublisher
         builder.AppendLine(CultureInfo.InvariantCulture, $"    public static void {methodName}(in {contextName} context)");
         builder.AppendLine("    {");
         builder.AppendLine("        uint index = ShaderBuiltins.GlobalInvocationId.X;");
-        if (function.ParameterTypes.Length == 0)
+        if (inputCount == 0)
         {
             builder.AppendLine("        if (index >= context.Count)");
         }
@@ -535,10 +752,32 @@ internal static class MathsConformancePublisher
         builder.AppendLine("        {");
         builder.AppendLine("            return;");
         builder.AppendLine("        }");
-        var arguments = Enumerable.Range(0, function.ParameterTypes.Length)
-            .Select(parameterIndex => $"context.Input{parameterIndex}[index]")
-            .ToArray();
-        var operatorToken = GetOperatorToken(function.MethodName);
+        var arguments = new string[function.ParameterTypes.Length];
+        for (var parameterIndex = 0; parameterIndex < function.ParameterTypes.Length; parameterIndex++)
+        {
+            var modifier = function.ParameterModifiers[parameterIndex];
+            if (modifier == "out")
+            {
+                arguments[parameterIndex] = $"out out{outSlotByParameter[parameterIndex]}";
+                builder.AppendLine(CultureInfo.InvariantCulture, $"        {function.ParameterTypes[parameterIndex]} out{outSlotByParameter[parameterIndex]};");
+            }
+            else
+            {
+                var inputSlot = inputSlotByParameter[parameterIndex];
+                var inputExpression = $"context.Input{inputSlot}[index]";
+                if (modifier == "ref")
+                {
+                    builder.AppendLine(CultureInfo.InvariantCulture, $"        {function.ParameterTypes[parameterIndex]} ref{inputSlot} = {inputExpression};");
+                    arguments[parameterIndex] = $"ref ref{inputSlot}";
+                }
+                else
+                {
+                    arguments[parameterIndex] = inputExpression;
+                }
+            }
+        }
+
+        var operatorToken = GetOperatorToken(function);
         string expression;
         if (operatorToken is null)
         {
@@ -558,26 +797,61 @@ internal static class MathsConformancePublisher
                 $"Operator {function.Identity} has {arguments.Length} operands.");
         }
 
-        builder.AppendLine(
-            CultureInfo.InvariantCulture,
-            $"        context.Output[index] = {expression};");
+        if (function.ReturnType == "void")
+        {
+            builder.AppendLine(CultureInfo.InvariantCulture, $"        {expression};");
+        }
+        else
+        {
+            builder.AppendLine(CultureInfo.InvariantCulture, $"        {function.ReturnType} result = {expression};");
+            builder.AppendLine("        context.Output[index] = result;");
+        }
+
+        for (var parameterIndex = 0; parameterIndex < function.ParameterTypes.Length; parameterIndex++)
+        {
+            var outSlot = outSlotByParameter[parameterIndex];
+            if (outSlot >= 0)
+            {
+                builder.AppendLine(CultureInfo.InvariantCulture, $"        context.Out{outSlot}[index] = out{outSlot};");
+            }
+        }
+
         builder.AppendLine("    }");
         builder.AppendLine();
     }
 
-    private static string? GetOperatorToken(string methodName)
-        => methodName switch
+    private static string? GetOperatorToken(ContractFunction function)
+    {
+        if (!function.MethodName.StartsWith("op_", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        if (function.Mapping == "Builtin" && function.GlslName.Length != 0)
+        {
+            return function.GlslName;
+        }
+
+        return function.MethodName switch
         {
             "op_Addition" => "+",
             "op_Subtraction" => "-",
             "op_Multiply" => "*",
             "op_Division" => "/",
+            "op_Modulus" => "%",
+            "op_BitwiseAnd" => "&",
+            "op_BitwiseOr" => "|",
+            "op_ExclusiveOr" => "^",
+            "op_LeftShift" => "<<",
+            "op_RightShift" => ">>",
             "op_Equality" => "==",
             "op_Inequality" => "!=",
-            "op_UnaryPlus" => "+",
             "op_UnaryNegation" => "-",
+            "op_UnaryPlus" => "+",
+            "op_OnesComplement" => "~",
             _ => null
         };
+    }
 
     private static PortableExecutableReference[] CreateReferences(params string[] requiredAssemblies)
     {
@@ -673,8 +947,10 @@ internal static class MathsConformancePublisher
         string OwnerType,
         string MethodName,
         string[] ParameterTypes,
+        string[] ParameterModifiers,
         string ReturnType,
-        string Mapping);
+        string Mapping,
+        string GlslName);
 
     private sealed record ConformanceValue(string Type, string[] Words);
 
@@ -723,6 +999,7 @@ internal static class MathsConformancePublisher
         public int ExcludedCaseCount { get; init; }
         public int ArtifactCount { get; init; }
         public int CompilerBlockedCount { get; init; }
+        public int CapabilityBlockedCount { get; init; }
         public int BackendBlockedCount { get; init; }
         public int ExternalValidationBlockedCount { get; init; }
         public int MismatchedCount { get; init; }

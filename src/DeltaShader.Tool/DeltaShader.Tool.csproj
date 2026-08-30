@@ -10,6 +10,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DeltaShader.Contract\DeltaShader.Contract.csproj" />
+    <ProjectReference Include="..\DeltaShader.Analyzers\DeltaShader.Analyzers.csproj" />
     <ProjectReference Include="..\\DeltaShader.Compiler\\DeltaShader.Compiler.csproj" />
     <ProjectReference Include="..\\DeltaShader.Backend.Glsl\\DeltaShader.Backend.Glsl.csproj" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
