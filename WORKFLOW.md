@@ -54,10 +54,31 @@ for shader in "$out_dir"/*.spv; do
 done
 ```
 
+The canonical publication command compiles every DeltaShader-owned shader
+source project and places the validated outputs in one flat catalog. Sources
+remain in their owning projects; only generated `.spv`, `.glsl`, shader
+manifests and `catalog.json` are published here. Project prefixes make names
+collision-safe while preserving the original entry-point filename:
+
+```bash
+./eng/prepare-compiled-shaders.sh
+```
+
+It uses `--optimize performance`. The CLI also accepts
+`--optimize none|performance|size`; `size` passes `-Os` to
+`glslangValidator`, while `performance` passes `-O`. Every SPIR-V result is
+validated after compilation.
+
+The fixed output directory is
+`src/DeltaShader/CompiledShaders`. Build folders, lock files and temporary
+validator output are not publication members. The individual text/fullscreen
+and Maths conformance scripts may still target a temporary directory for a
+bounded check; they are not an alternate canonical shader catalog.
+
 The Stage-1 CPU/GPU Maths producer bundle is generated from the DeltaMaths
-handoff without changing DeltaMaths tests. With no arguments, the publisher
-atomically refreshes the stable ignored catalog at
-`artifacts/maths-conformance`:
+handoff without changing DeltaMaths tests. With no arguments, the test-only
+publisher refreshes its flat `index.json` and case artifacts alongside the
+ordinary shader `catalog.json` at `src/DeltaShader/CompiledShaders`:
 
 ```bash
 ./eng/prepare-maths-conformance-artifacts.sh
@@ -70,7 +91,9 @@ The optional positional arguments remain available for an explicit catalog:
 ```
 
 This emits generated C# fixtures, GLSL 460, SPIR-V, resolved `ShaderAbi`
-(`*.abi.json`) sidecars, source manifests (`*.shader.json`) and `index.json`.
+(`*.abi.json`) sidecars, source manifests (`*.shader.json`) and `index.json`
+without a nested `cases/` directory. The optional positional arguments remain
+available for an explicit temporary catalog:
 The script builds Maths, the DeltaMaths conformance project, and the Tool from
 the current checkout, validates that every supported handoff case has a
 matching artifact/sidecar set, and requires the handoff `shader-contract.json`,

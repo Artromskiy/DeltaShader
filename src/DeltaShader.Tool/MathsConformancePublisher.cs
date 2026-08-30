@@ -403,16 +403,15 @@ internal static class MathsConformancePublisher
             var glslPath = Path.Combine(casesDirectory, $"{stem}.glsl");
             var spirvPath = Path.Combine(casesDirectory, $"{stem}.spv");
             var abiPath = Path.Combine(casesDirectory, $"{stem}.abi.json");
-            var compile = RunTool(
-                glslang,
-                "-V",
-                "--target-env",
-                options.Profile,
-                "-S",
-                "comp",
-                glslPath,
-                "-o",
-                spirvPath);
+            var optimizationFlag = options.Optimization switch
+            {
+                ShaderOptimizationMode.Performance => "-O",
+                ShaderOptimizationMode.Size => "-Os",
+                _ => null
+            };
+            var compile = optimizationFlag is null
+                ? RunTool(glslang, "-V", "--target-env", options.Profile, "-S", "comp", glslPath, "-o", spirvPath)
+                : RunTool(glslang, "-V", "--target-env", options.Profile, optimizationFlag, "-S", "comp", glslPath, "-o", spirvPath);
             if (compile.ExitCode != 0)
             {
                 entry.Status = "glslang-diagnostic";

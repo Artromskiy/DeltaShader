@@ -43,8 +43,9 @@ canonical `Delta.Maths` types directly.
 Open `DeltaShader.slnx` in VS Code, then use `Ctrl+Shift+B`, or run
 `dotnet build samples/DeltaShader.Playground/DeltaShader.Playground.csproj -c Release`. The solution includes
 builds the `AddBias` module. The project references the sibling `DeltaMaths` project,
-so the C# language server resolves `Delta.Maths` in the editor. Generated files are written to the ignored `artifacts/`
-directory as `SequenceMovement.comp.*` and `AddBias.comp.*`.
+so the C# language server resolves `Delta.Maths` in the editor. Generated
+shader files are written to the canonical ignored
+`src/DeltaShader/CompiledShaders` catalog with project-prefixed names.
 
 The production contract is a compile-time static shader method; managed state,
 implicit captures and closures are rejected. See

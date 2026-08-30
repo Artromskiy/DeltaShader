@@ -34,9 +34,11 @@ inspects the
 shader authoring projects and not host code. It has no nested Git repository and
 no project-specific solution; the primary project is part of `DeltaShader.slnx`.
 
-Generated GLSL, SPIR-V, JSON manifests and temporary compiler output belong in
-ignored `artifacts/` directories. They are not checked-in source and are not a
-second contract. The final consumer boundary remains documented in
+Generated GLSL, SPIR-V and shader JSON are published by the canonical shader
+publisher into `src/DeltaShader/CompiledShaders`. The directory is generated
+and ignored; it is not checked-in source and is not a second contract. Build
+output, lock files and temporary validation files remain outside that
+publication directory. The final consumer boundary remains documented in
 [final-artifact-contract.md](final-artifact-contract.md).
 
 The layout gate in `eng/check-layout.sh` validates this project-local shape:

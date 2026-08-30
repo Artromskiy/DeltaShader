@@ -7,7 +7,13 @@ if (($# > 2)); then
   exit 64
 fi
 
-output_dir="${1:-$repo_root/artifacts/maths-conformance}"
+canonical_output=0
+if (($# == 0)); then
+  output_dir="$repo_root/src/DeltaShader/CompiledShaders"
+  canonical_output=1
+else
+  output_dir="$1"
+fi
 maths_root="${2:-$repo_root/../DeltaMaths}"
 
 for command_name in dotnet glslangValidator spirv-val jq; do
@@ -46,7 +52,7 @@ dotnet build "$repo_root/src/DeltaShader.Tool/DeltaShader.Tool.csproj" -c Releas
 publisher_exit=0
 dotnet run --project "$repo_root/src/DeltaShader.Tool/DeltaShader.Tool.csproj" \
   -c Release --no-build --no-restore -- maths-conformance "$maths_root" \
-  --profile vulkan1.2 --spirv 1.5 --glsl 460 --out "$staging_dir" || publisher_exit=$?
+  --profile vulkan1.2 --spirv 1.5 --glsl 460 --optimize performance --out "$staging_dir" || publisher_exit=$?
 
 index_path="$staging_dir/index.json"
 if [[ ! -s "$index_path" ]]; then
@@ -93,8 +99,35 @@ if [[ "$artifact_count" -ne "$spv_count" || "$artifact_count" -ne "$abi_count" |
   exit 65
 fi
 
-rm -rf "$output_dir"
-mv "$staging_dir" "$output_dir"
+if ((canonical_output)); then
+  mkdir -p "$output_dir"
+  if [[ -s "$output_dir/index.json" ]]; then
+    jq -r '.Cases[]? | [.ArtifactPath, .AbiPath][]? | select(type == "string") | split("/") | .[-1]' \
+      "$output_dir/index.json" | while IFS= read -r old_name; do
+      [[ -n "$old_name" ]] || continue
+      rm -f "$output_dir/$old_name"
+    done
+  fi
+
+  while IFS= read -r generated_path; do
+    generated_name="$(basename "$generated_path")"
+    cp "$generated_path" "$output_dir/$generated_name"
+  done < <(find "$staging_dir" -type f ! -name 'index.json' -print | sort)
+
+  jq '
+    def flat_name:
+      if . == null then null else (split("/") | .[-1]) end;
+    .Cases |= map(
+      .ArtifactPath = (.ArtifactPath | flat_name)
+      | .AbiPath = (.AbiPath | flat_name)
+    )
+  ' "$index_path" > "$staging_dir/index.flat.json"
+  mv "$staging_dir/index.flat.json" "$output_dir/index.json"
+  rm -rf "$staging_dir"
+else
+  rm -rf "$output_dir"
+  mv "$staging_dir" "$output_dir"
+fi
 trap - EXIT
 printf 'Published %s validated Maths conformance artifacts to %s\n' \
   "$artifact_count/$selected_count" "$output_dir"

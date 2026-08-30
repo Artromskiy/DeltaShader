@@ -110,7 +110,15 @@ static async Task<int> ExecuteEmitAsync(ProgramOptions options)
             }
 
             var spirvFile = Path.Combine(outputDirectory, $"{fileStem}.spv");
-            var compile = RunTool(glslang, $"-V --target-env {EscapeArgument(options.CompilationOptions.Profile)} -S {stageSuffix} {EscapeArgument(glslFile)} -o {EscapeArgument(spirvFile)}");
+            var optimizationFlag = options.CompilationOptions.Optimization switch
+            {
+                ShaderOptimizationMode.Performance => "-O",
+                ShaderOptimizationMode.Size => "-Os",
+                _ => string.Empty
+            };
+            var compile = RunTool(
+                glslang,
+                $"-V --target-env {EscapeArgument(options.CompilationOptions.Profile)} {optimizationFlag} -S {stageSuffix} {EscapeArgument(glslFile)} -o {EscapeArgument(spirvFile)}");
             if (compile.ExitCode != 0) { Console.WriteLine($"glslangValidator failed:{Environment.NewLine}{compile.Output}"); return 1; }
             var validation = RunTool(spirvValidator, $"--target-env {EscapeArgument(options.CompilationOptions.Profile)} {EscapeArgument(spirvFile)}");
             if (validation.ExitCode != 0) { Console.WriteLine($"spirv-val failed:{Environment.NewLine}{validation.Output}"); return 1; }
@@ -215,6 +223,17 @@ static ProgramOptions ParseOptions(string[] args)
             continue;
         }
 
+        if (arg.Equals("--optimize", StringComparison.OrdinalIgnoreCase) && i + 1 < commandArgs.Length)
+        {
+            if (!TryParseOptimization(commandArgs[++i], out var optimization))
+            {
+                return new ProgramOptions(command, string.Empty, true, compilationOptions, outputDir, backend);
+            }
+
+            compilationOptions = compilationOptions with { Optimization = optimization };
+            continue;
+        }
+
         if (projectPath.Length == 0)
         {
             projectPath = ResolveProjectPath(arg);
@@ -227,6 +246,20 @@ static ProgramOptions ParseOptions(string[] args)
     }
 
     return new ProgramOptions(command, projectPath, false, compilationOptions, outputDir, backend);
+}
+
+static bool TryParseOptimization(string value, out ShaderOptimizationMode optimization)
+{
+    optimization = value.ToLowerInvariant() switch
+    {
+        "none" => ShaderOptimizationMode.None,
+        "performance" => ShaderOptimizationMode.Performance,
+        "size" => ShaderOptimizationMode.Size,
+        _ => ShaderOptimizationMode.None
+    };
+    return value.Equals("none", StringComparison.OrdinalIgnoreCase)
+        || value.Equals("performance", StringComparison.OrdinalIgnoreCase)
+        || value.Equals("size", StringComparison.OrdinalIgnoreCase);
 }
 
 static string ResolveProjectPath(string arg)
@@ -247,6 +280,7 @@ static void PrintUsage()
     Console.WriteLine("  --profile <vulkan1.2|vulkan1.3>   target profile");
     Console.WriteLine("  --spirv <version>     target SPIR-V version");
     Console.WriteLine("  --glsl <version>      target GLSL version");
+    Console.WriteLine("  --optimize <none|performance|size>  GLSL/SPIR-V optimization profile");
     Console.WriteLine("  --out <path>          output directory for emitted artifacts");
     Console.WriteLine("  maths-conformance <DeltaMaths root> --out <path>");
     Console.WriteLine("                         publish test-only CPU/GPU Maths artifacts");

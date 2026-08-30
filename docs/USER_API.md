@@ -303,7 +303,9 @@ The CLI emits GLSL and validates SPIR-V through the pinned target profile:
 ```bash
 dotnet run --project src/DeltaShader.Tool/DeltaShader.Tool.csproj \
   -c Release -- build tests/DeltaShader.TestShaders/DeltaShader.TestShaders.csproj \
-  --profile vulkan1.2 --spirv 1.5 --glsl 460 --out ./artifacts/shaders
+  --profile vulkan1.2 --spirv 1.5 --glsl 460 \
+  --optimize performance \
+  --out ./src/DeltaShader/CompiledShaders
 ```
 
 The command requires `glslangValidator` and `spirv-val` for the SPIR-V backend.

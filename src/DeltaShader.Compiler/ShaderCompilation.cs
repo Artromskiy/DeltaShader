@@ -42,4 +42,12 @@ public sealed record ShaderCompilationOptions
     public string Profile { get; init; } = "vulkan1.2";
     public string Spirv { get; init; } = "1.5";
     public string Glsl { get; init; } = "460";
+    public ShaderOptimizationMode Optimization { get; init; } = ShaderOptimizationMode.None;
+}
+
+public enum ShaderOptimizationMode
+{
+    None,
+    Performance,
+    Size
 }
