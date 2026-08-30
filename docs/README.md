@@ -30,6 +30,8 @@ Public documentation:
   rectangle shader sources and resolved push-constant ABI.
 - [shader-composition.md](shader-composition.md) records the proposed
   compile-time typed layer-composition model.
+- [README.PACKING.md](README.PACKING.md) defines the generated packer boundary
+  for typed, engine, Editor, and composite workflows.
 
 Developer documentation:
 

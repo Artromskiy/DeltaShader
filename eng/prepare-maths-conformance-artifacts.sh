@@ -74,13 +74,17 @@ artifact_count="$(jq -er '.ArtifactCount' "$index_path")"
 selected_count="$(jq -er '.SelectedCount' "$index_path")"
 bundle_case_count="$(jq -er '.BundleCaseCount' "$index_path")"
 supported_case_count="$(jq -er '.SupportedCaseCount' "$index_path")"
+external_validation_count="$(jq -er '.ExternalValidationBlockedCount' "$index_path")"
 blocked_count="$(jq -er '[.Cases[] | select(.Status != "passed")] | length' "$index_path")"
 missing_diagnostics="$(jq -er '[.Cases[] | select(.Status != "passed") | select((.Diagnostic // "") == "")] | length' "$index_path")"
 if [[ "$artifact_count" -ne "$spv_count" || "$artifact_count" -ne "$abi_count" || \
-      "$artifact_count" -ne "$shader_count" || "$selected_count" -ne "$bundle_case_count" || \
+      "$shader_count" -ne "$((artifact_count + external_validation_count))" || \
+      "$selected_count" -ne "$bundle_case_count" || \
       "$selected_count" -ne "$supported_case_count" || "$missing_diagnostics" -ne 0 ]]; then
   printf 'artifact sidecar count mismatch: index=%s spv=%s abi=%s shader=%s\n' \
     "$artifact_count" "$spv_count" "$abi_count" "$shader_count" >&2
+  printf 'shader manifests expected for passed plus external-blocked cases: %s\n' \
+    "$((artifact_count + external_validation_count))" >&2
   printf 'case count mismatch: selected=%s bundle=%s supported=%s\n' \
     "$selected_count" "$bundle_case_count" "$supported_case_count" >&2
   if [[ "$missing_diagnostics" -ne 0 ]]; then
