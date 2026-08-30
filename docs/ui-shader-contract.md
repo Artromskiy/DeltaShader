@@ -1,81 +1,126 @@
-# UI shader contract
+# DeltaShader.UI rectangle contract
 
-`DeltaShader.UI` owns the C# authoring source for the first reusable UI
-rectangle programs. It has no Vulkan, DeltaRender or DeltaXAML dependency.
-The compiler emits GLSL 460 and the final producer boundary remains one
-`ShaderArtifact` plus its resolved `ShaderAbi` per stage.
+`DeltaShader.UI` owns the canonical authoring sources for the solid and rounded
+rectangle graphics programs. The compiler emits the final
+`Delta.Shader.Contract.ShaderArtifact` and resolved `ShaderAbi`; Render consumes
+that artifact and the generated packers. Render must not reproduce this layout
+with `Marshal`, `MemoryMarshal`, or a local byte writer.
 
 ## Programs
 
-The project contains two graphics pairs:
+The stable entry-point names and generated program types are:
 
-```text
-solid-rectangle    SolidRectangleVertex / SolidRectangleFragment
-rounded-rectangle  RoundedRectangleVertex / RoundedRectangleFragment
+| Entry points | Generated program |
+| --- | --- |
+| `solid-rectangle` vertex + fragment | `SolidRectangleGraphicsShaderProgram` |
+| `rounded-rectangle` vertex + fragment | `RoundedRectangleGraphicsShaderProgram` |
+
+Each program is a six-vertex rectangle draw. The vertex stage reads one record
+per instance using `ShaderBuiltins.InstanceIndex`. The fragment stage receives
+the selected record values through the interstage payload. There is no per-
+rectangle push-constant update and no one-draw-per-rectangle requirement.
+
+## Resource ABI
+
+Both programs use one resource in the vertex stage:
+
+| Set | Binding | Kind | Access | Stages | Layout |
+| ---: | ---: | --- | --- | --- | --- |
+| 0 | 0 | storage-buffer | read-only | vertex | std430 |
+
+The resource is named `Instances`. The generated resource type is
+`ReadOnlyStorageBuffer<SolidRectangleParameters>` for the solid program and
+`ReadOnlyStorageBuffer<RoundedRectangleParameters>` for the rounded program.
+
+### SolidRectangleParameters
+
+The record has base alignment `16`, size `32`, and array stride `32` bytes:
+
+| Field | Type | Offset | Size |
+| --- | --- | ---: | ---: |
+| `Rect` | `float4` | 0 | 16 |
+| `Color` | `float4` | 16 | 16 |
+
+### RoundedRectangleParameters
+
+The record has base alignment `16`, size `80`, and array stride `80` bytes:
+
+| Field | Type | Offset | Size |
+| --- | --- | ---: | ---: |
+| `Rect` | `float4` | 0 | 16 |
+| `FillColor` | `float4` | 16 | 16 |
+| `BorderColor` | `float4` | 32 | 16 |
+| `CornerRadii` | `float4` | 48 | 16 |
+| `BorderWidth` | `float` | 64 | 4 |
+| trailing std430 padding | - | 68 | 12 |
+
+`CornerRadii` is ordered top-left, top-right, bottom-right, bottom-left.
+`BorderWidth` and the radii use the same pixel-space units as the rectangle
+record. The trailing 12 bytes are reserved by the struct-size rounding rule;
+the generated packer clears them and does not expose them as CLR fields.
+
+## Push constants
+
+Only frame-wide data is pushed. Both vertex stages expose one push-constant
+range rooted at `Frame` with `UiFrameConstants.Resolution` at offset `0`, size
+`8` bytes, and alignment `8`. The fragment stages have no push-constant range.
+
+The generated program exposes these direct root overloads:
+
+```csharp
+public static int PackSolidRectangleVertexFrame(
+    in UiFrameConstants value,
+    Span<byte> destination);
+
+public static int PackRoundedRectangleVertexFrame(
+    in UiFrameConstants value,
+    Span<byte> destination);
 ```
 
-Each pair is drawn as a six-vertex triangle list with no vertex buffer. The
-vertex shader uses `gl_VertexIndex` and converts top-left pixel coordinates to
-clip space with `x * 2 - 1` and `1 - y * 2`. The emitted Vulkan entry point is
-`main`; the C# names remain compiler metadata only.
+Each also has a `byte[]` overload. The returned byte count is `8`.
 
-## Solid rectangle ABI
+## Generated instance packers
 
-There are no descriptors. Both stages use one push-constant block:
+The resolved ABI is the only source for these methods. Each program exposes
+the following overloads for its instance record:
 
-| Member | Type | Offset | Size |
-|---|---|---:|---:|
-| `Resolution` | `float2` | 0 | 8 |
-| `Rect` | `float4` | 16 | 16 |
-| `Color` | `float4` | 32 | 16 |
+```csharp
+public static int PackSolidRectangleVertexInstancesElement(
+    in SolidRectangleParameters value,
+    Span<byte> destination);
 
-The block alignment is `16` and its size is `48` bytes. The eight-byte gap
-after `Resolution` is part of the resolved ABI.
-
-## Rounded rectangle ABI
-
-There are no descriptors. Both stages use one push-constant block:
-
-| Member | Type | Offset | Size |
-|---|---|---:|---:|
-| `Resolution` | `float2` | 0 | 8 |
-| `Rect` | `float4` | 16 | 16 |
-| `FillColor` | `float4` | 32 | 16 |
-| `BorderColor` | `float4` | 48 | 16 |
-| `CornerRadii` | `float4` | 64 | 16 |
-| `BorderWidth` | `float` | 80 | 4 |
-
-The block alignment is `16` and its size is `96` bytes. `CornerRadii` contains
-pixel-space radii in the order `TopLeft`, `TopRight`, `BottomRight`,
-`BottomLeft`; `BorderWidth` is also a pixel-space value. Each radius must be
-non-negative and no larger than half the rectangle's smaller dimension.
-
-The fragment shader selects the radius from the pixel quadrant, then evaluates
-the same signed-distance and finite inner border band for that corner. This
-keeps the border and fill continuous while allowing all four corners to differ.
-
-The fragment shader computes a pixel-space rounded-rectangle signed distance,
-uses `fwidth` for analytic anti-aliasing, and derives the border as a finite
-inner band:
-
-```text
-fillCoverage   = 1 - smoothstep(-edge, edge, distance)
-innerCoverage  = 1 - smoothstep(-edge, edge, distance + BorderWidth)
-borderCoverage = max(fillCoverage - innerCoverage, 0)
+public static int PackRoundedRectangleVertexInstancesElement(
+    in RoundedRectangleParameters value,
+    Span<byte> destination);
 ```
 
-With `BorderWidth = 0`, the border contribution is zero. Clip regions are not
-shader data: DeltaRender resolves them to renderer clip/scissor state.
+Each element method also has a `byte[]` overload. Array methods are named
+`PackSolidRectangleVertexInstancesElements` and
+`PackRoundedRectangleVertexInstancesElements`; they accept
+`ReadOnlySpan<T>` and write a contiguous array using the resolved stride.
+The array methods return `count * 32` bytes for solid records and
+`count * 80` bytes for rounded records.
 
-## Ownership
+## Consumer flow
 
-DeltaShader owns the shader source, validation, lowering and final artifacts.
-DeltaRender owns descriptor/pipeline creation, push-constant upload, draw
-submission and resource lifetime. DeltaXAML owns UI bounds, paint semantics
-and clip references; it does not know this ABI or Vulkan types.
+1. Load the packaged final artifact for the selected generated program.
+2. Read `VertexAbi`/`FragmentAbi` from the generated program and use them for
+   compatibility checks; do not create a second ABI model.
+3. Allocate one set-0 binding-0 storage buffer with the generated array stride.
+4. Pack all rectangle records with the generated `InstancesElements` helper.
+5. Pack `UiFrameConstants` once per frame with the generated `VertexFrame`
+   helper.
+6. Bind the buffer and push range, then issue one instanced draw with
+   `instanceCount` equal to the number of records.
 
-The older source at
-`DeltaRender/tools/DeltaRender.UIShaders/UiPanel.cs` was inspected but is not
-modified in this producer-only slice. DeltaRender must remove or disable that
-legacy producer in its own migration before the repository can claim there is
-only one active UI shader source.
+The vertex shader uses top-left pixel coordinates and converts them to clip
+space with `clip.y = 1 - pixel.y / Resolution.y * 2`. Rounded coverage uses
+the four independent radii and computes a finite border band; a zero
+`BorderWidth` produces no border contribution.
+
+## Ownership boundary
+
+`DeltaShader.UI` owns these shader sources, resolved ABI metadata, generated
+SPIR-V and generated packers. `DeltaRender` owns buffers, descriptors, pipeline
+creation, device limits and draw submission. `DeltaXAML` or Engine provides
+ordinary CLR value records and does not know std430 offsets or Vulkan types.

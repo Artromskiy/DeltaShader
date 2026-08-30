@@ -45,20 +45,32 @@ public sealed class UiShaderTests
             throw new InvalidOperationException("Rounded rectangle vertex compilation did not produce a manifest.");
         }
 
-        var fragmentPush = Assert.Single(roundedFragment.BuildManifest.PushConstants);
+        var vertexResource = Assert.Single(roundedVertex.BuildManifest.Resources);
+        Assert.Equal("storage-buffer", vertexResource.Category);
+        Assert.Equal(ShaderResourceAccess.ReadOnly, vertexResource.Access);
+        Assert.Equal(ShaderStage.Vertex, vertexResource.Stage);
+        Assert.Equal(0u, vertexResource.Set);
+        Assert.Equal(0u, vertexResource.Binding);
+        Assert.Equal(16u, vertexResource.Alignment);
+        Assert.Equal(80u, vertexResource.Size);
+        Assert.Equal(80u, vertexResource.ArrayStride);
+        Assert.Equal(0u, Assert.Single(vertexResource.Members, member => member.Name == "Rect").Offset);
+        Assert.Equal(16u, Assert.Single(vertexResource.Members, member => member.Name == "FillColor").Offset);
+        Assert.Equal(32u, Assert.Single(vertexResource.Members, member => member.Name == "BorderColor").Offset);
+        Assert.Equal(48u, Assert.Single(vertexResource.Members, member => member.Name == "CornerRadii").Offset);
+        Assert.Equal(64u, Assert.Single(vertexResource.Members, member => member.Name == "BorderWidth").Offset);
+
+        var vertexPush = Assert.Single(roundedVertex.BuildManifest.PushConstants);
         Assert.Equal("main", roundedFragment.BuildManifest.EntryPointName);
         Assert.Empty(roundedFragment.BuildManifest.Resources);
-        Assert.Equal(96u, fragmentPush.Size);
-        Assert.Equal(16u, fragmentPush.Alignment);
-        Assert.Equal(0u, Assert.Single(fragmentPush.Members, member => member.Name == "Resolution").Offset);
-        Assert.Equal(16u, Assert.Single(fragmentPush.Members, member => member.Name == "Rect").Offset);
-        Assert.Equal(32u, Assert.Single(fragmentPush.Members, member => member.Name == "FillColor").Offset);
-        Assert.Equal(48u, Assert.Single(fragmentPush.Members, member => member.Name == "BorderColor").Offset);
-        Assert.Equal(64u, Assert.Single(fragmentPush.Members, member => member.Name == "CornerRadii").Offset);
-        Assert.Equal(80u, Assert.Single(fragmentPush.Members, member => member.Name == "BorderWidth").Offset);
-        Assert.Equal(96u, fragmentPush.Size);
+        Assert.Equal(8u, vertexPush.Size);
+        Assert.Equal(8u, vertexPush.Alignment);
+        Assert.Equal(0u, Assert.Single(vertexPush.Members, member => member.Name == "Resolution").Offset);
+        Assert.Empty(roundedFragment.BuildManifest.PushConstants);
 
         var fragmentGlsl = GlslEmitter.EmitFromModule(fragmentModule).Source;
+        var vertexGlsl = GlslEmitter.EmitFromModule(roundedVertex.Module!).Source;
+        Assert.Contains("gl_InstanceIndex", vertexGlsl, StringComparison.Ordinal);
         Assert.Contains("#version 460", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("fwidth", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("smoothstep", fragmentGlsl, StringComparison.Ordinal);
@@ -69,7 +81,12 @@ public sealed class UiShaderTests
         Assert.Contains("max(fillCoverage - innerCoverage, 0)", fragmentGlsl, StringComparison.Ordinal);
         Assert.Equal("main", vertexManifest.EntryPointName);
         Assert.Single(vertexManifest.Outputs, output => output.Builtin == "Position");
-        Assert.Single(vertexManifest.Outputs, output => output.Name == "Uv");
+        Assert.Contains(vertexManifest.Outputs, output => output.Name == "Uv");
+        Assert.Contains(vertexManifest.Outputs, output => output.Name == "Rect");
+        Assert.Contains(vertexManifest.Outputs, output => output.Name == "FillColor");
+        Assert.Contains(vertexManifest.Outputs, output => output.Name == "BorderColor");
+        Assert.Contains(vertexManifest.Outputs, output => output.Name == "CornerRadii");
+        Assert.Contains(vertexManifest.Outputs, output => output.Name == "BorderWidth");
     }
 
     [Fact]
@@ -84,21 +101,22 @@ public sealed class UiShaderTests
             Environment.NewLine,
             compilation.SyntaxTrees.Select(tree => tree.GetText().ToString()));
 
-        Assert.Contains("PackSolidRectangleVertexParameters", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("PackSolidRectangleFragmentParameters", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("PackSolidRectangleVertexInstancesElement", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("PackSolidRectangleVertexInstancesElements", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("PackRoundedRectangleVertexInstancesElement", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("PackRoundedRectangleVertexInstancesElements", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("PackSolidRectangleVertexFrame", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("PackRoundedRectangleVertexFrame", generatedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("PackSolidRectangleFragmentFrame", generatedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("PackRoundedRectangleFragmentFrame", generatedSource, StringComparison.Ordinal);
         Assert.Contains("WriteFloat(0u, value.Resolution.x)", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("WriteFloat(16u, value.Rect.x)", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("WriteFloat(32u, value.Color.x)", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("PackRoundedRectangleVertexParameters", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("PackRoundedRectangleFragmentParameters", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("WriteFloat(0u, value.Resolution.x)", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("WriteFloat(16u, value.Rect.x)", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("WriteFloat(32u, value.FillColor.x)", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("WriteFloat(64u, value.CornerRadii.x)", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("WriteFloat(68u, value.CornerRadii.y)", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("WriteFloat(72u, value.CornerRadii.z)", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("WriteFloat(76u, value.CornerRadii.w)", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("WriteFloat(80u, value.BorderWidth)", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("WriteFloat(0u, value.Rect.x)", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("WriteFloat(16u, value.FillColor.x)", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("WriteFloat(48u, value.CornerRadii.x)", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("WriteFloat(52u, value.CornerRadii.y)", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("WriteFloat(56u, value.CornerRadii.z)", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("WriteFloat(60u, value.CornerRadii.w)", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("WriteFloat(64u, value.BorderWidth)", generatedSource, StringComparison.Ordinal);
     }
 
     private static async Task<Compilation> LoadUiCompilationAsync()
