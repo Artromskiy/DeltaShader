@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Delta.Shader.Backend.Glsl;
@@ -101,11 +100,11 @@ internal static class MathsConformancePublisher
             return 1;
         }
 
-        var manifestFunctions = LoadFunctions(manifestPath);
+        var manifestFunctions = MathsConformanceBundleReader.LoadFunctions(manifestPath);
         ConformanceBundle bundle;
         try
         {
-            bundle = LoadCaseBundle(bundlePath);
+            bundle = MathsConformanceBundleReader.LoadCaseBundle(bundlePath);
         }
         catch (InvalidOperationException exception)
         {
@@ -222,7 +221,7 @@ internal static class MathsConformancePublisher
 
         Array.Resize(ref compileCaseIndices, compileCount);
         Array.Resize(ref compileFunctions, compileCount);
-        var fixtureSource = BuildFixtureSource(compileFunctions);
+        var fixtureSource = MathsConformanceFixtureBuilder.Build(compileFunctions);
         var fixtureSourcePath = Path.Combine(outputDirectory, "MathsConformanceFixtures.cs");
         await File.WriteAllTextAsync(fixtureSourcePath, fixtureSource, Encoding.UTF8).ConfigureAwait(false);
 
@@ -550,123 +549,6 @@ internal static class MathsConformancePublisher
             source.AsSpan(firstNewLine + 1));
     }
 
-    private static List<ContractFunction> LoadFunctions(string path)
-    {
-        using var document = JsonDocument.Parse(File.ReadAllText(path));
-        var functions = new List<ContractFunction>();
-        foreach (var element in document.RootElement.GetProperty("functions").EnumerateArray())
-        {
-            var mapping = element.GetProperty("mapping").GetString();
-            if (mapping is not ("Builtin" or "Helper"))
-            {
-                continue;
-            }
-
-            var parameters = element.GetProperty("parameterClrNames")
-                .EnumerateArray()
-                .Select(item => item.GetString() ?? string.Empty)
-                .ToArray();
-            var modifiers = element.TryGetProperty("parameterModifiers", out var modifierElement)
-                ? ReadStrings(modifierElement)
-                : parameters.Select(_ => "none").ToArray();
-            functions.Add(new ContractFunction(
-                element.GetProperty("identity").GetString() ?? string.Empty,
-                element.GetProperty("typeClrName").GetString() ?? string.Empty,
-                element.GetProperty("clrName").GetString() ?? string.Empty,
-                parameters,
-                modifiers,
-                element.GetProperty("returnClrName").GetString() ?? string.Empty,
-                element.GetProperty("mapping").GetString() ?? string.Empty,
-                element.GetProperty("glslName").GetString() ?? string.Empty));
-        }
-
-        return functions;
-    }
-
-    private static ConformanceBundle LoadCaseBundle(string path)
-    {
-        using var document = JsonDocument.Parse(File.ReadAllText(path));
-        var root = document.RootElement;
-        if (root.GetProperty("schemaVersion").GetInt32() != 1)
-        {
-            throw new InvalidOperationException("schemaVersion must be 1.");
-        }
-
-        if (!string.Equals(
-                root.GetProperty("protocol").GetString(),
-                "math-cpu-gpu-conformance-v0.1",
-                StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException("protocol is not math-cpu-gpu-conformance-v0.1.");
-        }
-
-        var cases = new List<ConformanceCase>();
-        foreach (var element in root.GetProperty("cases").EnumerateArray())
-        {
-            var operation = element.GetProperty("operation");
-            var contractFunction = new ContractFunction(
-                RequiredString(operation, "identity"),
-                RequiredString(operation, "ownerTypeName"),
-                RequiredString(operation, "methodName"),
-                ReadStrings(operation.GetProperty("parameterTypeNames")),
-                operation.GetProperty("parameterTypeNames").EnumerateArray().Select(_ => "none").ToArray(),
-                RequiredString(operation, "returnTypeName"),
-                RequiredString(operation, "mapping"),
-                string.Empty);
-            var comparison = element.GetProperty("comparison");
-            var dispositions = element.GetProperty("disposition");
-            cases.Add(new ConformanceCase(
-                RequiredString(element, "id"),
-                contractFunction,
-                element.GetProperty("inputs").EnumerateArray().Select(value => ReadValue(value)).ToArray(),
-                ReadValue(element.GetProperty("expected")),
-                new ComparisonProfile(
-                    RequiredString(comparison, "name"),
-                    comparison.GetProperty("absoluteTolerance").GetDouble(),
-                    comparison.GetProperty("relativeTolerance").GetDouble(),
-                    comparison.GetProperty("maxUlps").GetInt32()),
-                ReadStrings(element.GetProperty("requiredCapabilities")),
-                ReadStrings(element.GetProperty("stages")),
-                RequiredString(dispositions, "cpu"),
-                RequiredString(dispositions, "shader"),
-                RequiredString(dispositions, "render")));
-        }
-
-        var coverage = root.GetProperty("coverage");
-        var coverageData = new ConformanceCoverage(
-            coverage.GetProperty("manifestFunctionCount").GetInt32(),
-            coverage.GetProperty("supportedCount").GetInt32(),
-            coverage.GetProperty("caseCount").GetInt32(),
-            coverage.GetProperty("excludedCount").GetInt32(),
-            coverage.GetProperty("unsupportedManifestCount").GetInt32());
-        if (coverageData.CaseCount != cases.Count)
-        {
-            throw new InvalidOperationException("coverage.caseCount does not match cases length.");
-        }
-
-        return new ConformanceBundle(cases.ToArray(), coverageData);
-    }
-
-    private static ConformanceValue ReadValue(JsonElement element)
-    {
-        return new ConformanceValue(
-            RequiredString(element, "type"),
-            ReadStrings(element.GetProperty("words")));
-    }
-
-    private static string[] ReadStrings(JsonElement element)
-    {
-        return element.EnumerateArray()
-            .Select(value => value.GetString() ?? throw new InvalidOperationException("bundle string value is missing."))
-            .ToArray();
-    }
-
-    private static string RequiredString(JsonElement element, string propertyName)
-    {
-        return element.GetProperty(propertyName).GetString()
-            ?? throw new InvalidOperationException($"bundle property '{propertyName}' is missing.");
-    }
-
     private static bool IsFirstSliceFunction(ContractFunction function)
         => OperationNames.Contains(function.MethodName)
             && IsFloatSliceType(function.OwnerType)
@@ -675,218 +557,6 @@ internal static class MathsConformancePublisher
 
     private static bool IsFloatSliceType(string typeName)
         => typeName == "maths" || FloatSliceTypes.Contains(typeName);
-
-    private static string BuildFixtureSource(IReadOnlyList<ContractFunction> functions)
-    {
-        var builder = new StringBuilder(
-            """
-            using Delta.Maths;
-            using Delta.Shader;
-
-            namespace Delta.Shader.MathsConformance.Generated;
-
-            public static class MathsConformanceFixtures
-            {
-            """);
-        for (var index = 0; index < functions.Count; index++)
-        {
-            AppendFixture(builder, functions[index], index);
-        }
-
-        builder.AppendLine("}");
-        return builder.ToString();
-    }
-
-    private static void AppendFixture(StringBuilder builder, ContractFunction function, int index)
-    {
-        var methodName = $"Case{index:0000}";
-        var contextName = methodName + "Context";
-        if (function.ParameterModifiers.Length != function.ParameterTypes.Length)
-        {
-            throw new InvalidOperationException(
-                $"Manifest parameter modifier count does not match parameter count for {function.Identity}.");
-        }
-
-        var inputSlotByParameter = new int[function.ParameterTypes.Length];
-        var outSlotByParameter = new int[function.ParameterTypes.Length];
-        Array.Fill(inputSlotByParameter, -1);
-        Array.Fill(outSlotByParameter, -1);
-        var inputCount = 0;
-        var outCount = 0;
-        for (var parameterIndex = 0; parameterIndex < function.ParameterTypes.Length; parameterIndex++)
-        {
-            var modifier = function.ParameterModifiers[parameterIndex];
-            if (modifier is "none" or "ref")
-            {
-                inputSlotByParameter[parameterIndex] = inputCount++;
-            }
-            else if (modifier == "out")
-            {
-                outSlotByParameter[parameterIndex] = outCount++;
-            }
-            else
-            {
-                throw new InvalidOperationException(
-                    $"Unsupported parameter modifier '{modifier}' in {function.Identity}.");
-            }
-        }
-
-        builder.AppendLine(CultureInfo.InvariantCulture, $"    public readonly struct {contextName}");
-        builder.AppendLine("    {");
-        var binding = 0;
-        for (var parameterIndex = 0; parameterIndex < function.ParameterTypes.Length; parameterIndex++)
-        {
-            var inputSlot = inputSlotByParameter[parameterIndex];
-            if (inputSlot < 0)
-            {
-                continue;
-            }
-
-            builder.AppendLine(CultureInfo.InvariantCulture, $"        [Layout(0, {binding})]");
-            builder.AppendLine(CultureInfo.InvariantCulture, $"        public readonly ReadOnlyStorageBuffer<{function.ParameterTypes[parameterIndex]}> Input{inputSlot};");
-            binding++;
-        }
-
-        if (function.ReturnType != "void")
-        {
-            builder.AppendLine(CultureInfo.InvariantCulture, $"        [Layout(0, {binding})]");
-            builder.AppendLine(CultureInfo.InvariantCulture, $"        public readonly ReadWriteStorageBuffer<{function.ReturnType}> Output;");
-            binding++;
-        }
-
-        for (var parameterIndex = 0; parameterIndex < function.ParameterTypes.Length; parameterIndex++)
-        {
-            var outSlot = outSlotByParameter[parameterIndex];
-            if (outSlot < 0)
-            {
-                continue;
-            }
-
-            builder.AppendLine(CultureInfo.InvariantCulture, $"        [Layout(0, {binding})]");
-            builder.AppendLine(CultureInfo.InvariantCulture, $"        public readonly ReadWriteStorageBuffer<{function.ParameterTypes[parameterIndex]}> Out{outSlot};");
-            binding++;
-        }
-
-        builder.AppendLine();
-        builder.AppendLine("        [PushConstant]");
-        builder.AppendLine("        public readonly uint Count;");
-        builder.AppendLine("    }");
-        builder.AppendLine();
-        builder.AppendLine("    [ComputeShader(localSizeX: 64)]");
-        builder.AppendLine(CultureInfo.InvariantCulture, $"    public static void {methodName}(in {contextName} context)");
-        builder.AppendLine("    {");
-        builder.AppendLine("        uint index = ShaderBuiltins.GlobalInvocationId.X;");
-        if (inputCount == 0)
-        {
-            builder.AppendLine("        if (index >= context.Count)");
-        }
-        else
-        {
-            builder.AppendLine("        if (index >= context.Count || index >= context.Input0.Length)");
-        }
-        builder.AppendLine("        {");
-        builder.AppendLine("            return;");
-        builder.AppendLine("        }");
-        var arguments = new string[function.ParameterTypes.Length];
-        for (var parameterIndex = 0; parameterIndex < function.ParameterTypes.Length; parameterIndex++)
-        {
-            var modifier = function.ParameterModifiers[parameterIndex];
-            if (modifier == "out")
-            {
-                arguments[parameterIndex] = $"out out{outSlotByParameter[parameterIndex]}";
-                builder.AppendLine(CultureInfo.InvariantCulture, $"        {function.ParameterTypes[parameterIndex]} out{outSlotByParameter[parameterIndex]};");
-            }
-            else
-            {
-                var inputSlot = inputSlotByParameter[parameterIndex];
-                var inputExpression = $"context.Input{inputSlot}[index]";
-                if (modifier == "ref")
-                {
-                    builder.AppendLine(CultureInfo.InvariantCulture, $"        {function.ParameterTypes[parameterIndex]} ref{inputSlot} = {inputExpression};");
-                    arguments[parameterIndex] = $"ref ref{inputSlot}";
-                }
-                else
-                {
-                    arguments[parameterIndex] = inputExpression;
-                }
-            }
-        }
-
-        var operatorToken = GetOperatorToken(function);
-        string expression;
-        if (operatorToken is null)
-        {
-            expression = $"Delta.Maths.{function.OwnerType}.{function.MethodName}({string.Join(", ", arguments)})";
-        }
-        else if (arguments.Length == 1)
-        {
-            expression = $"({operatorToken}{arguments[0]})";
-        }
-        else if (arguments.Length == 2)
-        {
-            expression = $"({arguments[0]} {operatorToken} {arguments[1]})";
-        }
-        else
-        {
-            throw new InvalidOperationException(
-                $"Operator {function.Identity} has {arguments.Length} operands.");
-        }
-
-        if (function.ReturnType == "void")
-        {
-            builder.AppendLine(CultureInfo.InvariantCulture, $"        {expression};");
-        }
-        else
-        {
-            builder.AppendLine(CultureInfo.InvariantCulture, $"        {function.ReturnType} result = {expression};");
-            builder.AppendLine("        context.Output[index] = result;");
-        }
-
-        for (var parameterIndex = 0; parameterIndex < function.ParameterTypes.Length; parameterIndex++)
-        {
-            var outSlot = outSlotByParameter[parameterIndex];
-            if (outSlot >= 0)
-            {
-                builder.AppendLine(CultureInfo.InvariantCulture, $"        context.Out{outSlot}[index] = out{outSlot};");
-            }
-        }
-
-        builder.AppendLine("    }");
-        builder.AppendLine();
-    }
-
-    private static string? GetOperatorToken(ContractFunction function)
-    {
-        if (!function.MethodName.StartsWith("op_", StringComparison.Ordinal))
-        {
-            return null;
-        }
-
-        if (function.Mapping == "Builtin" && function.GlslName.Length != 0)
-        {
-            return function.GlslName;
-        }
-
-        return function.MethodName switch
-        {
-            "op_Addition" => "+",
-            "op_Subtraction" => "-",
-            "op_Multiply" => "*",
-            "op_Division" => "/",
-            "op_Modulus" => "%",
-            "op_BitwiseAnd" => "&",
-            "op_BitwiseOr" => "|",
-            "op_ExclusiveOr" => "^",
-            "op_LeftShift" => "<<",
-            "op_RightShift" => ">>",
-            "op_Equality" => "==",
-            "op_Inequality" => "!=",
-            "op_UnaryNegation" => "-",
-            "op_UnaryPlus" => "+",
-            "op_OnesComplement" => "~",
-            _ => null
-        };
-    }
 
     private static PortableExecutableReference[] CreateReferences(params string[] requiredAssemblies)
     {
