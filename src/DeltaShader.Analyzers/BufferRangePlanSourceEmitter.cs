@@ -191,10 +191,10 @@ internal static class BufferRangePlanSourceEmitter
                     int elementCount,
                     Span<Delta.Shader.Packing.ShaderBufferRange> destination)
                 {
-{{capacityValidation}}
+            {{capacityValidation}}
                     var offset = 0u;
-{{rangeAssignments}}
-{{finalLengthExpression}}
+            {{rangeAssignments}}
+            {{finalLengthExpression}}
                 }
             """);
     }
