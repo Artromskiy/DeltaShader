@@ -115,11 +115,11 @@ static async Task<int> ExecuteEmitAsync(ProgramOptions options)
                 ShaderOptimizationMode.Size => "-Os",
                 _ => string.Empty
             };
-            var compile = ProcessRunner.Run(
-                glslang,
-                $"-V --target-env {EscapeArgument(options.CompilationOptions.Profile)} {optimizationFlag} -S {stageSuffix} {EscapeArgument(glslFile)} -o {EscapeArgument(spirvFile)}");
+            var compile = optimizationFlag.Length == 0
+                ? ProcessRunner.Run(glslang, "-V", "--target-env", options.CompilationOptions.Profile, "-S", stageSuffix, glslFile, "-o", spirvFile)
+                : ProcessRunner.Run(glslang, "-V", "--target-env", options.CompilationOptions.Profile, optimizationFlag, "-S", stageSuffix, glslFile, "-o", spirvFile);
             if (compile.ExitCode != 0) { Console.WriteLine($"glslangValidator failed:{Environment.NewLine}{compile.Output}"); return 1; }
-            var validation = ProcessRunner.Run(spirvValidator, $"--target-env {EscapeArgument(options.CompilationOptions.Profile)} {EscapeArgument(spirvFile)}");
+            var validation = ProcessRunner.Run(spirvValidator, "--target-env", options.CompilationOptions.Profile, spirvFile);
             if (validation.ExitCode != 0) { Console.WriteLine($"spirv-val failed:{Environment.NewLine}{validation.Output}"); return 1; }
             var artifact = ShaderArtifactPublisher.Create(
                 await File.ReadAllBytesAsync(spirvFile).ConfigureAwait(false),
@@ -308,7 +308,6 @@ static string? ToolPath(string toolName)
     return null;
 }
 
-static string EscapeArgument(string value) => $"\"{value.Replace("\"", "\\\"", StringComparison.Ordinal)}\"";
 
 internal readonly record struct ProgramOptions(
     string Command,
