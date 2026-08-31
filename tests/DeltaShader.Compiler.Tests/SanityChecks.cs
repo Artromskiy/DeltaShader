@@ -314,7 +314,7 @@ public class IntrinsicCatalogTests
     }
 
     [Fact]
-    public async Task IntrinsicRegistry_DoesNotMapUnlistedScalarOverload()
+    public async Task IntrinsicRegistry_MapsListedScalarOverload()
     {
         Compilation compilation = await LoadDeltaMathsCompilationAsync().ConfigureAwait(true);
         var registry = IntrinsicRegistry.Build(compilation, ShaderContractManifest.LoadEmbedded());
@@ -323,7 +323,10 @@ public class IntrinsicCatalogTests
         var scalarAbs = maths.GetMembers("abs").OfType<IMethodSymbol>().Single(method =>
             method.Parameters.Length == 1 && method.Parameters[0].Type.SpecialType == SpecialType.System_Single);
 
-        Assert.False(registry.TryGetIntrinsic(scalarAbs, out _));
+        Assert.True(registry.TryGetIntrinsic(scalarAbs, out IntrinsicBinding? binding));
+        Assert.Equal("abs", binding.GlslName);
+        Assert.Equal(["float"], binding.ParameterGlslTypes);
+        Assert.Equal("float", binding.ReturnGlslType);
     }
 
     [Fact]
@@ -390,7 +393,7 @@ public class IntrinsicCatalogTests
     }
 
     [Fact]
-    public async Task ComputeEntryPoint_Rejects_Double_AndFixTypes_WithExplicitDiagnostic()
+    public async Task ComputeEntryPoint_Rejects_ManagedType_WithExplicitDiagnostic()
     {
         var source = @"
             using Delta.Maths;
@@ -402,8 +405,7 @@ public class IntrinsicCatalogTests
                 {
                     public readonly struct ComputeContext
                     {
-                        [PushConstant] public readonly double DoubleValue;
-                        [PushConstant] public readonly fix FixValue;
+                        [PushConstant] public readonly string ManagedValue;
                     }
 
                     [ComputeShader]
@@ -415,8 +417,8 @@ public class IntrinsicCatalogTests
         ShaderCompilationResult result = await CompileAndValidateEntryPointAsync(source).ConfigureAwait(true);
         Assert.False(result.Success);
         Assert.Contains(result.Diagnostics, diagnostic =>
-            diagnostic.Id == ShaderDiagnosticId.DSH002 &&
-            diagnostic.Message.Contains("double", StringComparison.OrdinalIgnoreCase));
+            diagnostic.Id == ShaderDiagnosticId.DSH010 &&
+            diagnostic.Message.Contains("string", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -1724,8 +1726,8 @@ public class IntrinsicCatalogTests
         ShaderCompilationResult result = await CompileAndValidateEntryPointAsync(source).ConfigureAwait(true);
 
         Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
-        Assert.Contains("Output.data[invocation]", result.Module!.Body, StringComparison.Ordinal);
-        Assert.Contains("sin(Input.data[invocation])", result.Module.Body, StringComparison.Ordinal);
+        Assert.Contains("Output.data[local_invocation]", result.Module!.Body, StringComparison.Ordinal);
+        Assert.Contains("sin(Input.data[local_invocation])", result.Module.Body, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -2071,9 +2073,9 @@ public class IntrinsicCatalogTests
         Assert.Contains("PackTransformVertexElements", generatedText, StringComparison.Ordinal);
         Assert.Contains("UnpackTransformVertexElement", generatedText, StringComparison.Ordinal);
         Assert.Contains("GetArrayByteLength(values.Length, 36u)", generatedText, StringComparison.Ordinal);
-        Assert.Contains("writer.WriteFloat(0u, value.Position.x)", generatedText, StringComparison.Ordinal);
-        Assert.Contains("writer.WriteFloat(16u, value.Normal.x)", generatedText, StringComparison.Ordinal);
-        Assert.Contains("writer.WriteFloat(28u, value.Uv.x)", generatedText, StringComparison.Ordinal);
+        Assert.Contains("writer.WriteFloat(0u, value.Position.Value.x)", generatedText, StringComparison.Ordinal);
+        Assert.Contains("writer.WriteFloat(16u, value.Normal.Value.x)", generatedText, StringComparison.Ordinal);
+        Assert.Contains("writer.WriteFloat(28u, value.Uv.Value.x)", generatedText, StringComparison.Ordinal);
         Assert.DoesNotContain("MeshPayload.x", generatedText, StringComparison.Ordinal);
     }
 

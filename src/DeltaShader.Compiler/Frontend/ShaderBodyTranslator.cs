@@ -1330,23 +1330,30 @@ internal static class ShaderBodyTranslator
 
         public override SyntaxNode? VisitBinaryExpression(BinaryExpressionSyntax node)
         {
-            if (!node.IsKind(SyntaxKind.ModuloExpression) ||
-                GetSymbolInfo(node).Symbol is not IMethodSymbol symbol ||
-                !_context.Intrinsics.TryGetIntrinsic(symbol, out var binding) ||
-                !string.Equals(binding.GlslName, "%", StringComparison.Ordinal))
+            if (!node.IsKind(SyntaxKind.ModuloExpression))
             {
                 return base.VisitBinaryExpression(node);
             }
 
-            if (!binding.SupportsStage(_stage))
+            var symbol = GetSymbolInfo(node).Symbol as IMethodSymbol;
+            IntrinsicBinding? binding = null;
+            var hasIntrinsicBinding = symbol is not null &&
+                _context.Intrinsics.TryGetIntrinsic(symbol, out binding) &&
+                string.Equals(binding.GlslName, "%", StringComparison.Ordinal);
+            if (!hasIntrinsicBinding && !IsIntegerRemainder(node))
             {
-                Reason ??= $"Intrinsic '{symbol.Name}' is not valid in {_stage} stage.";
                 return base.VisitBinaryExpression(node);
             }
 
-            if (!IsIntegerRemainder(binding))
+            if (hasIntrinsicBinding && !IsIntegerRemainder(binding!))
             {
                 Reason ??= "C# remainder is supported only for integer shader types.";
+                return base.VisitBinaryExpression(node);
+            }
+
+            if (hasIntrinsicBinding && !binding!.SupportsStage(_stage))
+            {
+                Reason ??= $"Intrinsic '{symbol!.Name}' is not valid in {_stage} stage.";
                 return base.VisitBinaryExpression(node);
             }
 
@@ -1357,14 +1364,10 @@ internal static class ShaderBodyTranslator
                 return base.VisitBinaryExpression(node);
             }
 
-            var operatorExpression = CreateOperatorExpression(binding, [left.ToFullString(), right.ToFullString()]);
-            if (operatorExpression is null)
-            {
-                Reason ??= $"Operator intrinsic '{symbol.Name}' has an unsupported signature.";
-                return base.VisitBinaryExpression(node);
-            }
-
-            return SyntaxFactory.ParseExpression(operatorExpression);
+            var leftText = left.ToFullString();
+            var rightText = right.ToFullString();
+            return SyntaxFactory.ParseExpression(
+                $"({leftText} - ({leftText} / {rightText}) * {rightText})");
         }
 
         public override SyntaxNode? VisitInvocationExpression(InvocationExpressionSyntax node)
@@ -1566,6 +1569,16 @@ internal static class ShaderBodyTranslator
             return string.Equals(binding.GlslName, "%", StringComparison.Ordinal)
                 && binding.ParameterGlslTypes is { Count: 2 } parameterTypes
                 && parameterTypes.All(IsIntegerType);
+        }
+
+        private bool IsIntegerRemainder(BinaryExpressionSyntax node)
+        {
+            var leftType = GetTypeInfo(node.Left).ConvertedType ?? GetTypeInfo(node.Left).Type;
+            var rightType = GetTypeInfo(node.Right).ConvertedType ?? GetTypeInfo(node.Right).Type;
+            return leftType is not null && rightType is not null &&
+                TryMap(leftType, out var leftGlslType) &&
+                TryMap(rightType, out var rightGlslType) &&
+                IsIntegerType(leftGlslType) && IsIntegerType(rightGlslType);
         }
 
         private static bool IsIntegerType(string? glslType)
