@@ -1510,7 +1510,11 @@ public sealed class ModuleCompilationContext
             "Delta.Shader.FragmentColor",
             "Delta.Shader.WorldPosition",
             "Delta.Shader.WorldNormal",
-            "Delta.Shader.Tangent"
+            "Delta.Shader.Tangent",
+            "Delta.Shader.Pixel",
+            "Delta.Shader.SegmentRect",
+            "Delta.Shader.CornerData",
+            "Delta.Shader.BorderWidth"
         ];
 
         foreach (var typeName in semanticTypeNames)

@@ -138,4 +138,52 @@ public readonly struct Tangent
 
     public static implicit operator float4(Tangent value) => value.Value;
 }
+
+/// <summary>Absolute pixel position passed from a vertex stage.</summary>
+public readonly struct Pixel
+{
+    public readonly float2 Value;
+
+    public Pixel(float2 value) => Value = value;
+
+    public static implicit operator Pixel(float2 value) => new(value);
+
+    public static implicit operator float2(Pixel value) => value.Value;
+}
+
+/// <summary>Absolute rectangle bounds for a decomposed UI segment.</summary>
+public readonly struct SegmentRect
+{
+    public readonly float4 Value;
+
+    public SegmentRect(float4 value) => Value = value;
+
+    public static implicit operator SegmentRect(float4 value) => new(value);
+
+    public static implicit operator float4(SegmentRect value) => value.Value;
+}
+
+/// <summary>Corner center, radius and corner-region marker.</summary>
+public readonly struct CornerData
+{
+    public readonly float4 Value;
+
+    public CornerData(float4 value) => Value = value;
+
+    public static implicit operator CornerData(float4 value) => new(value);
+
+    public static implicit operator float4(CornerData value) => value.Value;
+}
+
+/// <summary>Border width in UI pixel units.</summary>
+public readonly struct BorderWidth
+{
+    public readonly float Value;
+
+    public BorderWidth(float value) => Value = value;
+
+    public static implicit operator BorderWidth(float value) => new(value);
+
+    public static implicit operator float(BorderWidth value) => value.Value;
+}
 #pragma warning restore CA2225

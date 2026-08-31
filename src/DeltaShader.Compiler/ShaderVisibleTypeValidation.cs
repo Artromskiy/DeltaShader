@@ -292,7 +292,11 @@ public static class ShaderVisibleTypeValidation
             "Delta.Shader.FragmentColor",
             "Delta.Shader.WorldPosition",
             "Delta.Shader.WorldNormal",
-            "Delta.Shader.Tangent"
+            "Delta.Shader.Tangent",
+            "Delta.Shader.Pixel",
+            "Delta.Shader.SegmentRect",
+            "Delta.Shader.CornerData",
+            "Delta.Shader.BorderWidth"
         ];
 
         return semanticTypeNames.Any(name =>

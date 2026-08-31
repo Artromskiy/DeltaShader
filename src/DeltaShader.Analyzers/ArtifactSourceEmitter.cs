@@ -734,7 +734,11 @@ internal static class ArtifactSourceEmitter
             "global::Delta.Shader.FragmentColor" or
             "global::Delta.Shader.WorldPosition" or
             "global::Delta.Shader.WorldNormal" or
-            "global::Delta.Shader.Tangent";
+            "global::Delta.Shader.Tangent" or
+            "global::Delta.Shader.Pixel" or
+            "global::Delta.Shader.SegmentRect" or
+            "global::Delta.Shader.CornerData" or
+            "global::Delta.Shader.BorderWidth";
 
     private static bool IsInterstagePayloadField(IFieldSymbol field)
         => field.GetAttributes().Any(attribute => attribute.AttributeClass?.ToDisplayString() == typeof(InterstageAttribute).FullName) ||

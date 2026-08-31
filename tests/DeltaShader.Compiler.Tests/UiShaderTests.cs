@@ -177,7 +177,8 @@ public sealed class UiShaderTests
         var sliceFragmentGlsl = GlslEmitter.EmitFromModule(sliceFragment.Module!).Source;
         Assert.Contains("CornerData", sliceFragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("Pixel", sliceFragmentGlsl, StringComparison.Ordinal);
-        Assert.DoesNotContain("Uv", sliceFragmentGlsl, StringComparison.Ordinal);
+        Assert.Contains("SegmentRect", sliceFragmentGlsl, StringComparison.Ordinal);
+        Assert.Contains("BorderWidth", sliceFragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("isCorner", sliceFragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("fwidth", sliceFragmentGlsl, StringComparison.Ordinal);
     }
@@ -214,6 +215,7 @@ public sealed class UiShaderTests
         Assert.Contains("WriteFloat(56u, value.CornerRadii.z)", generatedSource, StringComparison.Ordinal);
         Assert.Contains("WriteFloat(60u, value.CornerRadii.w)", generatedSource, StringComparison.Ordinal);
         Assert.Contains("WriteFloat(64u, value.BorderWidth)", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("WriteFloat(80u, value.BorderWidth)", generatedSource, StringComparison.Ordinal);
     }
 
     private static async Task<Compilation> LoadUiCompilationAsync()

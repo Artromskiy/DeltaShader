@@ -282,12 +282,12 @@ public readonly struct RoundedRectangleFragmentContext
 public struct RoundedRectangleSlicePayload
 {
     public Position Position;
-    public Uv0 Pixel;
+    public Pixel Pixel;
     public VertexColor FillColor;
     public FragmentColor BorderColor;
-    public Tangent SegmentRect;
-    public Tangent CornerData;
-    public Uv1 BorderWidth;
+    public SegmentRect SegmentRect;
+    public CornerData CornerData;
+    public BorderWidth BorderWidth;
 }
 
 public readonly struct RoundedRectangleSliceVertexContext
@@ -446,12 +446,12 @@ public static class UiRectangleShaders
         return new RoundedRectangleSlicePayload
         {
             Position = new float4(clip.x, clip.y, 0f, 1f),
-            Pixel = new Uv0(pixel),
+            Pixel = new Pixel(pixel),
             FillColor = new VertexColor(instance.FillColor),
             BorderColor = new FragmentColor(instance.BorderColor),
-            SegmentRect = new Tangent(instance.SegmentRect),
-            CornerData = new Tangent(instance.CornerData),
-            BorderWidth = new Uv1(new float2(instance.BorderWidth, 0f))
+            SegmentRect = new SegmentRect(instance.SegmentRect),
+            CornerData = new CornerData(instance.CornerData),
+            BorderWidth = new BorderWidth(instance.BorderWidth)
         };
     }
 
@@ -460,7 +460,7 @@ public static class UiRectangleShaders
     {
         float4 cornerData = context.Fragment.CornerData.Value;
         float4 segmentRect = context.Fragment.SegmentRect.Value;
-        float borderWidth = context.Fragment.BorderWidth.Value.x;
+        float borderWidth = context.Fragment.BorderWidth.Value;
         float2 pixel = context.Fragment.Pixel.Value;
         float isCorner = cornerData.w;
         float distance = 0f;

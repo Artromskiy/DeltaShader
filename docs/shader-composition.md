@@ -31,11 +31,9 @@ are supplied for common meanings by `Delta.Shader`:
 ```text
 Position
 Uv0
-Uv1
 Color
 WorldPosition
 WorldNormal
-Tangent
 ```
 
 Two user types containing the same `float2` are not implicitly compatible. A
