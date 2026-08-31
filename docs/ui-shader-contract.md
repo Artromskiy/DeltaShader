@@ -41,6 +41,7 @@ The stable entry-point names and generated program types are:
 | --- | --- |
 | `solid-rectangle` vertex + fragment | `SolidRectangleGraphicsShaderProgram` |
 | `rounded-rectangle` vertex + fragment | `RoundedRectangleGraphicsShaderProgram` |
+| `rounded-rectangle-slice` vertex + fragment | `RoundedRectangleSliceGraphicsShaderProgram` |
 
 Each program is a six-vertex rectangle draw. The vertex stage reads one record
 per instance using `ShaderBuiltins.InstanceIndex`. The fragment stage receives
@@ -144,6 +145,52 @@ The vertex shader uses the top-left pixel convention above and converts pixels
 to clip space without a second Y inversion. Rounded coverage uses the four
 independent radii and computes a finite border band; a zero
 `BorderWidth` produces no border contribution.
+
+## Rounded rectangle slice path
+
+`RoundedRectangleSliceGraphicsShaderProgram` is the producer-side fast path for
+large ordered UI batches. The host expands one logical rounded rectangle into
+nine six-vertex instances: center, four straight edges and four corner
+regions. All nine records share one set-0/binding-0 read-only storage buffer
+and use `ShaderBuiltins.InstanceIndex`; Render can submit them as one ordered
+instanced batch rather than nine draw calls per rectangle. Zero-area regions
+may be omitted by the host.
+
+`RoundedRectangleSliceParameters` has base alignment `16`, size `112` and
+array stride `112` bytes:
+
+| Field | Type | Offset | Size |
+| --- | --- | ---: | ---: |
+| `Rect` | `float4` | 0 | 16 |
+| `FillColor` | `float4` | 16 | 16 |
+| `BorderColor` | `float4` | 32 | 16 |
+| `CornerRadii` | `float4` | 48 | 16 |
+| `SegmentRect` | `float4` | 64 | 16 |
+| `CornerData` | `float4` | 80 | 16 |
+| `BorderWidth` | `float` | 96 | 4 |
+| trailing std430 padding | - | 100 | 12 |
+
+`SegmentRect` is the sub-quad in top-left pixel units. `CornerData` stores
+corner-center X/Y, radius and `isCorner` in W (`0` for center/edge regions,
+`1` for corner regions). Corner radii remain ordered TL, TR, BR, BL. The
+corner path evaluates a circle distance only for corner regions; center and
+edge regions use straight-boundary distances. Fill and border remain
+premultiplied-alpha contributions, and Render's existing clip/scissor remains
+the clip authority.
+
+The generated packer is
+`PackRoundedRectangleSliceVertexInstancesElements`; no Render-local byte
+layout or packer is permitted. The decomposition requires a Render batching
+adapter to expand records and preserve painter order; it does not require a
+new frozen `ShaderAbi` contract.
+
+The producer-side `RoundedRectangleSliceBuilder.Build` helper accepts one
+`RoundedRectangleParameters` value and writes up to nine normalized records to
+a caller-owned `Span<RoundedRectangleSliceParameters>`. It clamps negative
+width/height and border width to zero, scales oversized corner radii uniformly
+so adjacent radii fit the rectangle, and omits zero-area regions. Its output
+must then be passed to the generated `InstancesElements` packer; the builder
+does not write bytes or replace the ABI packer.
 
 ## Ownership boundary
 

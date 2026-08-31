@@ -74,6 +74,191 @@ public readonly struct RoundedRectangleParameters
     }
 }
 
+public readonly struct RoundedRectangleSliceParameters
+{
+    public readonly float4 Rect;
+    public readonly float4 FillColor;
+    public readonly float4 BorderColor;
+    public readonly float4 CornerRadii;
+    public readonly float4 SegmentRect;
+    public readonly float4 CornerData;
+    public readonly float BorderWidth;
+
+    public RoundedRectangleSliceParameters(
+        float4 rect,
+        float4 fillColor,
+        float4 borderColor,
+        float4 cornerRadii,
+        float4 segmentRect,
+        float4 cornerData,
+        float borderWidth)
+    {
+        Rect = rect;
+        FillColor = fillColor;
+        BorderColor = borderColor;
+        CornerRadii = cornerRadii;
+        SegmentRect = segmentRect;
+        CornerData = cornerData;
+        BorderWidth = borderWidth;
+    }
+}
+
+public enum RoundedRectangleSliceRegion
+{
+    Center,
+    Top,
+    Right,
+    Bottom,
+    Left,
+    TopLeft,
+    TopRight,
+    BottomRight,
+    BottomLeft
+}
+
+public static class RoundedRectangleSliceBuilder
+{
+    public static int Build(
+        in RoundedRectangleParameters rectangle,
+        Span<RoundedRectangleSliceParameters> destination)
+    {
+        if (destination.Length < 9)
+        {
+            throw new ArgumentException("The destination must hold up to nine rounded rectangle slice records.", nameof(destination));
+        }
+
+        float width = MathF.Max(rectangle.Rect.z, 0f);
+        float height = MathF.Max(rectangle.Rect.w, 0f);
+        if (width <= 0f || height <= 0f)
+        {
+            return 0;
+        }
+
+        float4 rect = new float4(rectangle.Rect.x, rectangle.Rect.y, width, height);
+        float4 radii = NormalizeRadii(rectangle.CornerRadii, width, height);
+        float left = MathF.Max(radii.x, radii.w);
+        float right = MathF.Max(radii.y, radii.z);
+        float top = MathF.Max(radii.x, radii.y);
+        float bottom = MathF.Max(radii.w, radii.z);
+        float x0 = rect.x;
+        float x1 = x0 + left;
+        float x2 = x0 + width - right;
+        float y0 = rect.y;
+        float y1 = y0 + top;
+        float y2 = y0 + height - bottom;
+        int count = 0;
+
+        Append(
+            destination,
+            ref count,
+            rectangle,
+            rect,
+            radii,
+            new float4(x1, y1, x2 - x1, y2 - y1),
+            new float4(0f, 0f, 0f, (float)RoundedRectangleSliceRegion.Center));
+        Append(
+            destination,
+            ref count,
+            rectangle,
+            rect,
+            radii,
+            new float4(x1, y0, x2 - x1, top),
+            new float4(0f, 0f, 0f, (float)RoundedRectangleSliceRegion.Top));
+        Append(
+            destination,
+            ref count,
+            rectangle,
+            rect,
+            radii,
+            new float4(x2, y1, right, y2 - y1),
+            new float4(0f, 0f, 0f, (float)RoundedRectangleSliceRegion.Right));
+        Append(
+            destination,
+            ref count,
+            rectangle,
+            rect,
+            radii,
+            new float4(x1, y2, x2 - x1, bottom),
+            new float4(0f, 0f, 0f, (float)RoundedRectangleSliceRegion.Bottom));
+        Append(
+            destination,
+            ref count,
+            rectangle,
+            rect,
+            radii,
+            new float4(x0, y1, left, y2 - y1),
+            new float4(0f, 0f, 0f, (float)RoundedRectangleSliceRegion.Left));
+        AppendCorner(destination, ref count, rectangle, rect, radii, new float4(x0, y0, left, top), x1, y1, radii.x);
+        AppendCorner(destination, ref count, rectangle, rect, radii, new float4(x2, y0, right, top), x2, y1, radii.y);
+        AppendCorner(destination, ref count, rectangle, rect, radii, new float4(x2, y2, right, bottom), x2, y2, radii.z);
+        AppendCorner(destination, ref count, rectangle, rect, radii, new float4(x0, y2, left, bottom), x1, y2, radii.w);
+        return count;
+    }
+
+    private static float4 NormalizeRadii(float4 radii, float width, float height)
+    {
+        radii = new float4(
+            MathF.Max(radii.x, 0f),
+            MathF.Max(radii.y, 0f),
+            MathF.Max(radii.z, 0f),
+            MathF.Max(radii.w, 0f));
+        float scale = 1f;
+        scale = LimitScale(scale, width, radii.x + radii.y);
+        scale = LimitScale(scale, width, radii.w + radii.z);
+        scale = LimitScale(scale, height, radii.x + radii.w);
+        scale = LimitScale(scale, height, radii.y + radii.z);
+        return radii * scale;
+    }
+
+    private static float LimitScale(float scale, float extent, float sum)
+        => sum > 0f ? MathF.Min(scale, extent / sum) : scale;
+
+    private static void AppendCorner(
+        Span<RoundedRectangleSliceParameters> destination,
+        ref int count,
+        in RoundedRectangleParameters rectangle,
+        float4 rect,
+        float4 radii,
+        float4 segmentRect,
+        float centerX,
+        float centerY,
+        float radius)
+    {
+        Append(
+            destination,
+            ref count,
+            rectangle,
+            rect,
+            radii,
+            segmentRect,
+            new float4(centerX, centerY, radius, radius > 0f ? 1f : 0f));
+    }
+
+    private static void Append(
+        Span<RoundedRectangleSliceParameters> destination,
+        ref int count,
+        in RoundedRectangleParameters rectangle,
+        float4 rect,
+        float4 radii,
+        float4 segmentRect,
+        float4 cornerData)
+    {
+        if (segmentRect.z <= 0f || segmentRect.w <= 0f)
+        {
+            return;
+        }
+
+        destination[count++] = new RoundedRectangleSliceParameters(
+            rect,
+            rectangle.FillColor,
+            rectangle.BorderColor,
+            radii,
+            segmentRect,
+            cornerData,
+            MathF.Max(rectangle.BorderWidth, 0f));
+    }
+}
+
 
 [Interstage]
 public struct RoundedRectanglePayload
@@ -103,6 +288,37 @@ public readonly struct RoundedRectangleFragmentContext
 {
     [Interstage]
     public readonly RoundedRectanglePayload Fragment;
+}
+
+[Interstage]
+public struct RoundedRectangleSlicePayload
+{
+    public Position Position;
+    public Uv0 Uv;
+    public Color Rect;
+    public VertexColor FillColor;
+    public FragmentColor BorderColor;
+    public Tangent SegmentRect;
+    public Tangent CornerData;
+    public Uv1 BorderWidth;
+}
+
+public readonly struct RoundedRectangleSliceVertexContext
+{
+    [Interstage]
+    public readonly RoundedRectangleSlicePayload Vertex;
+
+    [Layout(0, 0)]
+    public readonly ReadOnlyStorageBuffer<RoundedRectangleSliceParameters> Instances;
+
+    [PushConstant]
+    public readonly UiFrameConstants Frame;
+}
+
+public readonly struct RoundedRectangleSliceFragmentContext
+{
+    [Interstage]
+    public readonly RoundedRectangleSlicePayload Fragment;
 }
 
 public static class UiRectangleShaders
@@ -213,6 +429,90 @@ public static class UiRectangleShaders
         float innerCoverage = 1f - smoothstep(-edge, edge, distance + borderWidth);
         float borderCoverage = max(fillCoverage - innerCoverage, 0f);
 
+        return context.Fragment.FillColor.Value * innerCoverage +
+            context.Fragment.BorderColor.Value * borderCoverage;
+    }
+
+    [VertexShader("rounded-rectangle-slice")]
+    public static RoundedRectangleSlicePayload RoundedRectangleSliceVertex(in RoundedRectangleSliceVertexContext context)
+    {
+        RoundedRectangleSliceParameters instance = context.Instances[ShaderBuiltins.InstanceIndex];
+        uint vertexIndex = ShaderBuiltins.VertexIndex;
+        float2 local = new float2(0f, 0f);
+        if (vertexIndex == 1u || vertexIndex == 2u || vertexIndex == 4u)
+        {
+            local = new float2(1f, local.y);
+        }
+
+        if (vertexIndex == 2u || vertexIndex == 4u || vertexIndex == 5u)
+        {
+            local = new float2(local.x, 1f);
+        }
+
+        float2 pixel = new float2(
+            instance.SegmentRect.x + local.x * instance.SegmentRect.z,
+            instance.SegmentRect.y + local.y * instance.SegmentRect.w);
+        float2 clip = new float2(
+            pixel.x / context.Frame.Resolution.x * 2f - 1f,
+            pixel.y / context.Frame.Resolution.y * 2f - 1f);
+
+        return new RoundedRectangleSlicePayload
+        {
+            Position = new float4(clip.x, clip.y, 0f, 1f),
+            Uv = new Uv0(local),
+            Rect = new Color(instance.Rect),
+            FillColor = new VertexColor(instance.FillColor),
+            BorderColor = new FragmentColor(instance.BorderColor),
+            SegmentRect = new Tangent(instance.SegmentRect),
+            CornerData = new Tangent(instance.CornerData),
+            BorderWidth = new Uv1(new float2(instance.BorderWidth, 0f))
+        };
+    }
+
+    [FragmentShader("rounded-rectangle-slice")]
+    public static float4 RoundedRectangleSliceFragment(in RoundedRectangleSliceFragmentContext context)
+    {
+        float4 outerRect = context.Fragment.Rect.Value;
+        float4 segmentRect = context.Fragment.SegmentRect.Value;
+        float4 cornerData = context.Fragment.CornerData.Value;
+        float borderWidth = context.Fragment.BorderWidth.Value.x;
+        float2 pixel = new float2(
+            segmentRect.x + context.Fragment.Uv.Value.x * segmentRect.z,
+            segmentRect.y + context.Fragment.Uv.Value.y * segmentRect.w);
+        float isCorner = cornerData.w;
+        float distance = 0f;
+        if (isCorner > 0.5f)
+        {
+            distance = length(pixel - new float2(cornerData.x, cornerData.y)) - cornerData.z;
+        }
+        else
+        {
+            float left = outerRect.x - pixel.x;
+            float right = pixel.x - (outerRect.x + outerRect.z);
+            float top = outerRect.y - pixel.y;
+            float bottom = pixel.y - (outerRect.y + outerRect.w);
+            distance = max(max(left, right), max(top, bottom));
+        }
+
+        float edge = ShaderIntrinsics.fwidth(distance);
+        float fillCoverage = 1f - smoothstep(-edge, edge, distance);
+        float innerDistance = 0f;
+        if (isCorner > 0.5f)
+        {
+            float innerRadius = max(cornerData.z - borderWidth, 0f);
+            innerDistance = length(pixel - new float2(cornerData.x, cornerData.y)) - innerRadius;
+        }
+        else
+        {
+            float left = outerRect.x + borderWidth - pixel.x;
+            float right = pixel.x - (outerRect.x + outerRect.z - borderWidth);
+            float top = outerRect.y + borderWidth - pixel.y;
+            float bottom = pixel.y - (outerRect.y + outerRect.w - borderWidth);
+            innerDistance = max(max(left, right), max(top, bottom));
+        }
+
+        float innerCoverage = 1f - smoothstep(-edge, edge, innerDistance);
+        float borderCoverage = max(fillCoverage - innerCoverage, 0f);
         return context.Fragment.FillColor.Value * innerCoverage +
             context.Fragment.BorderColor.Value * borderCoverage;
     }
