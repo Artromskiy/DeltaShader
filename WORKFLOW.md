@@ -159,3 +159,16 @@ string literals (`"""..."""`) over escaped strings, repeated concatenation or
 line-by-line `Append` calls. Use interpolation only for the values that are
 actually dynamic, and keep ordinary escaped strings for short single-line
 fragments.
+
+## Shader output ownership
+
+DeltaShader is the sole owner of generated `.spv`, `.glsl`, `*.shader.json`
+and `*.abi.json` outputs. Consumer projects must not check them in beside
+their sources. The cross-repository regression gate is:
+
+```bash
+./eng/check-shader-output-ownership.sh
+```
+
+Build folders, lock files and temporary validator output are not shader
+publication members.
