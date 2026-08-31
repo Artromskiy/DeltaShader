@@ -176,6 +176,8 @@ public sealed class UiShaderTests
         var sliceFragmentGlsl = GlslEmitter.EmitFromModule(sliceFragment.Module!).Source;
         Assert.Contains("CornerData", sliceFragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("SegmentRect", sliceFragmentGlsl, StringComparison.Ordinal);
+        Assert.Contains("segmentRect.x- pixel.x", sliceFragmentGlsl, StringComparison.Ordinal);
+        Assert.Contains("segmentRect.y- pixel.y", sliceFragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("isCorner", sliceFragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("fwidth", sliceFragmentGlsl, StringComparison.Ordinal);
     }

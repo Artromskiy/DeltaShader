@@ -487,10 +487,10 @@ public static class UiRectangleShaders
         }
         else
         {
-            float left = outerRect.x - pixel.x;
-            float right = pixel.x - (outerRect.x + outerRect.z);
-            float top = outerRect.y - pixel.y;
-            float bottom = pixel.y - (outerRect.y + outerRect.w);
+            float left = segmentRect.x - pixel.x;
+            float right = pixel.x - (segmentRect.x + segmentRect.z);
+            float top = segmentRect.y - pixel.y;
+            float bottom = pixel.y - (segmentRect.y + segmentRect.w);
             distance = max(max(left, right), max(top, bottom));
         }
 
@@ -504,10 +504,10 @@ public static class UiRectangleShaders
         }
         else
         {
-            float left = outerRect.x + borderWidth - pixel.x;
-            float right = pixel.x - (outerRect.x + outerRect.z - borderWidth);
-            float top = outerRect.y + borderWidth - pixel.y;
-            float bottom = pixel.y - (outerRect.y + outerRect.w - borderWidth);
+            float left = segmentRect.x + borderWidth - pixel.x;
+            float right = pixel.x - (segmentRect.x + segmentRect.z - borderWidth);
+            float top = segmentRect.y + borderWidth - pixel.y;
+            float bottom = pixel.y - (segmentRect.y + segmentRect.w - borderWidth);
             innerDistance = max(max(left, right), max(top, bottom));
         }
 
