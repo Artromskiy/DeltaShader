@@ -4,7 +4,7 @@ layout(location = 1) in vec4 Rect;
 layout(location = 2) in vec4 FillColor;
 layout(location = 3) in vec4 BorderColor;
 layout(location = 4) in vec4 CornerRadii;
-layout(location = 5) in vec2 BorderWidth;
+layout(location = 5) in float BorderWidth;
 layout(location = 0) out vec4 fragColor;
 
 
@@ -16,7 +16,7 @@ void main()
     
     vec4 cornerRadii = CornerRadii;
     
-    float borderWidth = BorderWidth.x;
+    float borderWidth = BorderWidth;
     
     vec2 pixel = Uv* size;
     

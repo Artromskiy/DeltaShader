@@ -5,7 +5,7 @@
   "spirv": "1.5",
   "glsl": "460",
   "projectCount": 10,
-  "artifactCount": 90,
+  "artifactCount": 92,
   "entries": [
     {
       "project": "DeltaShader.UI",
@@ -14,6 +14,12 @@
         "DeltaShader.UI.RoundedRectangleFragment.frag.glsl",
         "DeltaShader.UI.RoundedRectangleFragment.frag.shader.json",
         "DeltaShader.UI.RoundedRectangleFragment.frag.spv",
+        "DeltaShader.UI.RoundedRectangleSliceFragment.frag.glsl",
+        "DeltaShader.UI.RoundedRectangleSliceFragment.frag.shader.json",
+        "DeltaShader.UI.RoundedRectangleSliceFragment.frag.spv",
+        "DeltaShader.UI.RoundedRectangleSliceVertex.vert.glsl",
+        "DeltaShader.UI.RoundedRectangleSliceVertex.vert.shader.json",
+        "DeltaShader.UI.RoundedRectangleSliceVertex.vert.spv",
         "DeltaShader.UI.RoundedRectangleVertex.vert.glsl",
         "DeltaShader.UI.RoundedRectangleVertex.vert.shader.json",
         "DeltaShader.UI.RoundedRectangleVertex.vert.spv",

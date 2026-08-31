@@ -1,6 +1,6 @@
 {
   "Stage": 2,
-  "SourceEntryPointName": "rounded-rectangle",
+  "SourceEntryPointName": "rounded-rectangle-slice",
   "EntryPointName": "main",
   "TargetProfile": "vulkan1.2",
   "GlslVersion": "460",
@@ -20,19 +20,11 @@
       "Builtin": "FragmentPosition"
     },
     {
-      "Name": "Uv",
-      "ParameterName": "Uv",
-      "GlslName": "Uv",
+      "Name": "Pixel",
+      "ParameterName": "Pixel",
+      "GlslName": "Pixel",
       "GlslType": "vec2",
       "Location": 0,
-      "Builtin": null
-    },
-    {
-      "Name": "Rect",
-      "ParameterName": "Rect",
-      "GlslName": "Rect",
-      "GlslType": "vec4",
-      "Location": 1,
       "Builtin": null
     },
     {
@@ -40,7 +32,7 @@
       "ParameterName": "FillColor",
       "GlslName": "FillColor",
       "GlslType": "vec4",
-      "Location": 2,
+      "Location": 1,
       "Builtin": null
     },
     {
@@ -48,13 +40,21 @@
       "ParameterName": "BorderColor",
       "GlslName": "BorderColor",
       "GlslType": "vec4",
+      "Location": 2,
+      "Builtin": null
+    },
+    {
+      "Name": "SegmentRect",
+      "ParameterName": "SegmentRect",
+      "GlslName": "SegmentRect",
+      "GlslType": "vec4",
       "Location": 3,
       "Builtin": null
     },
     {
-      "Name": "CornerRadii",
-      "ParameterName": "CornerRadii",
-      "GlslName": "CornerRadii",
+      "Name": "CornerData",
+      "ParameterName": "CornerData",
+      "GlslName": "CornerData",
       "GlslType": "vec4",
       "Location": 4,
       "Builtin": null
