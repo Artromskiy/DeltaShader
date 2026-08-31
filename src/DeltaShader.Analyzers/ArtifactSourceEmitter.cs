@@ -184,7 +184,7 @@ internal static partial class ArtifactSourceEmitter
             }
         }
 
-        if (!TryAppendStorageBufferRangeMethods(
+        if (!BufferRangePlanSourceEmitter.TryAppendStorageBufferRangeMethods(
                 methods,
                 stem,
                 storageResources,
@@ -196,7 +196,7 @@ internal static partial class ArtifactSourceEmitter
         if (method.GetAttributes().Any(attribute => attribute.AttributeClass?.ToDisplayString() == typeof(VertexShaderAttribute).FullName))
         {
             if (!TryAppendVertexPackMethods(method, manifest, contextType, methods, stem, out reason) ||
-                !TryAppendVertexBufferRangeMethods(methods, stem, manifest.VertexBufferBindings, out reason))
+                !BufferRangePlanSourceEmitter.TryAppendVertexBufferRangeMethods(methods, stem, manifest.VertexBufferBindings, out reason))
             {
                 return false;
             }
