@@ -350,3 +350,9 @@ Program.PackProgramInputElements(values, resourceBytes);
 The range plan owns offsets, sizes, alignment, and element strides. Multiple
 logical resources may therefore share one physical backing buffer without
 consumer-side std430 arithmetic.
+
+Graphics programs also expose `GetProgramSharedBufferRanges` and
+`GetProgramSharedBufferByteLength` when they have vertex inputs. The shared plan
+lists storage-buffer ranges first and vertex-buffer ranges second, all using one
+non-overlapping offset space. `Program.SharedBufferRangeCount` gives the total
+entry count; the generated ABI remains the source of truth for both groups.

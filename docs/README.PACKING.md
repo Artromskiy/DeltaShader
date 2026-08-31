@@ -567,3 +567,12 @@ The generated range plan is the source of truth for offsets, sizes, alignment,
 and element stride. Consumers must not recompute those values from CLR layout,
 `Marshal.SizeOf`, or `MemoryMarshal`; descriptors and vertex bindings may still
 refer to different ranges of the same allocation.
+
+For a graphics program that uses both storage resources and vertex inputs, the
+generated `Get*SharedBufferRanges` plan places storage ranges first and vertex
+ranges after them in one offset space. `SharedBufferRangeCount` is the total
+number of entries; the first `StorageBufferCount` entries are descriptor ranges
+and the remaining entries are vertex ranges. Allocate the shared backing store
+from `Get*SharedBufferByteLength` and use each returned range for its binding.
+Do not combine the separate storage and vertex plans manually: each individual
+plan starts at offset zero.
