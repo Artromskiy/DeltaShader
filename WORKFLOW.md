@@ -172,3 +172,12 @@ their sources. The cross-repository regression gate is:
 
 Build folders, lock files and temporary validator output are not shader
 publication members.
+## Shader artifact publish parallelism
+
+`eng/prepare-compiled-shaders.sh` compiles independent shader projects in
+bounded batches of four. The tool is built once per publish and each batch job
+invokes that Release binary directly, avoiding repeated MSBuild project
+evaluation. Each project keeps an isolated staging directory and log; results
+are collected in the declared project order before sidecar and SPIR-V
+validation and the atomic catalog swap. This reduces wall time without
+sharing mutable compiler state or making artifact publication nondeterministic.

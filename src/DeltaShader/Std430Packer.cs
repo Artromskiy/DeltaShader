@@ -7,6 +7,41 @@ namespace Delta.Shader.Packing;
 /// <summary>Validates destination storage used by generated std430 packers.</summary>
 public static class Std430Packer
 {
+    public static void RequireCapacity(Span<ShaderBufferRange> destination, int requiredCount)
+    {
+        if (destination.Length < requiredCount)
+        {
+            throw new ArgumentException(
+                $"The destination must contain at least {requiredCount} buffer ranges.",
+                nameof(destination));
+        }
+    }
+
+    public static uint AlignOffset(uint offset, uint alignment)
+    {
+        if (alignment == 0 || (alignment & (alignment - 1)) != 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(alignment));
+        }
+
+        var mask = alignment - 1;
+        return checked((offset + mask) & ~mask);
+    }
+
+    public static Span<byte> GetRange(Span<byte> backing, ShaderBufferRange range)
+    {
+        var end = checked(range.Offset + range.Size);
+        RequireCapacity(backing, end);
+        return backing.Slice(checked((int)range.Offset), checked((int)range.Size));
+    }
+
+    public static ReadOnlySpan<byte> GetRange(ReadOnlySpan<byte> backing, ShaderBufferRange range)
+    {
+        var end = checked(range.Offset + range.Size);
+        RequireCapacity(backing, end);
+        return backing.Slice(checked((int)range.Offset), checked((int)range.Size));
+    }
+
     public static void RequireCapacity(ReadOnlySpan<byte> destination, uint requiredSize)
     {
         if ((ulong)destination.Length < requiredSize)
@@ -36,7 +71,33 @@ public static class Std430Packer
 
         return (int)byteLength;
     }
+
+    public static int GetBackingByteLength(ReadOnlySpan<ShaderBufferRange> ranges)
+    {
+        uint end = 0;
+        foreach (var range in ranges)
+        {
+            var rangeEnd = checked(range.Offset + range.Size);
+            end = Math.Max(end, rangeEnd);
+        }
+
+        if (end > int.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(ranges),
+                "The packed ranges are too large for a single managed buffer.");
+        }
+
+        return (int)end;
+    }
 }
+
+public readonly record struct ShaderBufferRange(
+    uint Set,
+    uint Binding,
+    uint Offset,
+    uint Size,
+    uint ElementStride);
 
 /// <summary>Writes primitive values at offsets resolved by the shader compiler.</summary>
 public ref struct Std430Writer
@@ -55,11 +116,8 @@ public ref struct Std430Writer
     public void WriteUInt(uint offset, uint value)
     {
         EnsureRange(offset, 4u);
-        var index = (int)offset;
-        _destination[index] = (byte)value;
-        _destination[index + 1] = (byte)(value >> 8);
-        _destination[index + 2] = (byte)(value >> 16);
-        _destination[index + 3] = (byte)(value >> 24);
+        BinaryPrimitives.WriteUInt32LittleEndian(
+            _destination.Slice(checked((int)offset), sizeof(uint)), value);
     }
 
     public void WriteFloat(uint offset, float value)
@@ -108,11 +166,8 @@ public ref struct Std430Reader
     public uint ReadUInt(uint offset)
     {
         EnsureRange(offset, 4u);
-        var index = (int)offset;
-        return (uint)(_source[index] |
-            (_source[index + 1] << 8) |
-            (_source[index + 2] << 16) |
-            (_source[index + 3] << 24));
+        return BinaryPrimitives.ReadUInt32LittleEndian(
+            _source.Slice(checked((int)offset), sizeof(uint)));
     }
 
     public float ReadFloat(uint offset)

@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -116,11 +115,11 @@ static async Task<int> ExecuteEmitAsync(ProgramOptions options)
                 ShaderOptimizationMode.Size => "-Os",
                 _ => string.Empty
             };
-            var compile = RunTool(
+            var compile = ProcessRunner.Run(
                 glslang,
                 $"-V --target-env {EscapeArgument(options.CompilationOptions.Profile)} {optimizationFlag} -S {stageSuffix} {EscapeArgument(glslFile)} -o {EscapeArgument(spirvFile)}");
             if (compile.ExitCode != 0) { Console.WriteLine($"glslangValidator failed:{Environment.NewLine}{compile.Output}"); return 1; }
-            var validation = RunTool(spirvValidator, $"--target-env {EscapeArgument(options.CompilationOptions.Profile)} {EscapeArgument(spirvFile)}");
+            var validation = ProcessRunner.Run(spirvValidator, $"--target-env {EscapeArgument(options.CompilationOptions.Profile)} {EscapeArgument(spirvFile)}");
             if (validation.ExitCode != 0) { Console.WriteLine($"spirv-val failed:{Environment.NewLine}{validation.Output}"); return 1; }
             var artifact = ShaderArtifactPublisher.Create(
                 await File.ReadAllBytesAsync(spirvFile).ConfigureAwait(false),
@@ -250,11 +249,11 @@ static ProgramOptions ParseOptions(string[] args)
 
 static bool TryParseOptimization(string value, out ShaderOptimizationMode optimization)
 {
-    optimization = value.ToLowerInvariant() switch
+    optimization = value.ToUpperInvariant() switch
     {
-        "none" => ShaderOptimizationMode.None,
-        "performance" => ShaderOptimizationMode.Performance,
-        "size" => ShaderOptimizationMode.Size,
+        "NONE" => ShaderOptimizationMode.None,
+        "PERFORMANCE" => ShaderOptimizationMode.Performance,
+        "SIZE" => ShaderOptimizationMode.Size,
         _ => ShaderOptimizationMode.None
     };
     return value.Equals("none", StringComparison.OrdinalIgnoreCase)
@@ -307,26 +306,6 @@ static string? ToolPath(string toolName)
     }
 
     return null;
-}
-
-static (int ExitCode, string Output) RunTool(string fileName, string arguments)
-{
-    using var process = new Process();
-    process.StartInfo = new ProcessStartInfo
-    {
-        FileName = fileName,
-        Arguments = arguments,
-        UseShellExecute = false,
-        RedirectStandardOutput = true,
-        RedirectStandardError = true
-    };
-
-    var output = new StringBuilder();
-    process.Start();
-    output.AppendLine(process.StandardOutput.ReadToEnd());
-    output.AppendLine(process.StandardError.ReadToEnd());
-    process.WaitForExit();
-    return (process.ExitCode, output.ToString());
 }
 
 static string EscapeArgument(string value) => $"\"{value.Replace("\"", "\\\"", StringComparison.Ordinal)}\"";

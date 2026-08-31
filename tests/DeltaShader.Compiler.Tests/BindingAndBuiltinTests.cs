@@ -14,6 +14,8 @@ namespace Delta.Shader.Compiler.Tests;
 
 public sealed class BindingAndBuiltinTests
 {
+    private static readonly string[] SurfacePayloadOutputs = ["Surface_Uv", "Surface_Color"];
+
     [Fact]
     public void ContextRoleAttributes_AreFieldOnly()
     {
@@ -520,10 +522,10 @@ public sealed class BindingAndBuiltinTests
         Assert.True(vertex.Success, string.Join(Environment.NewLine, vertex.Diagnostics.Select(diagnostic => diagnostic.Message)));
         Assert.True(fragment.Success, string.Join(Environment.NewLine, fragment.Diagnostics.Select(diagnostic => diagnostic.Message)));
         Assert.Equal(
-            new[] { "Surface_Uv", "Surface_Color" },
+            SurfacePayloadOutputs,
             vertex.Module!.Outputs.Where(output => output.Builtin is null).Select(output => output.GlslName).ToArray());
         Assert.Equal(
-            new[] { "Surface_Uv", "Surface_Color" },
+            SurfacePayloadOutputs,
             fragment.Module!.Inputs.Where(input => input.Builtin is null).Select(input => input.GlslName).ToArray());
         Assert.Equal((0u, 1u), (fragment.Module.Inputs[1].Location, fragment.Module.Inputs[2].Location));
         Assert.Contains("Surface_Uv = vec2", vertex.Module.Body, StringComparison.Ordinal);

@@ -72,6 +72,16 @@ reading the resolved offsets and array stride. Unpack is emitted only for
 writable value payloads; a context containing descriptors is not reconstructed
 from bytes.
 
+For a program with multiple storage-buffer resources, the generated surface also
+exposes `<Method>StorageBufferCount`,
+`Get<Method>StorageBufferByteLength(int)` and
+`Get<Method>StorageBufferRanges(int, Span<Delta.Shader.Packing.ShaderBufferRange>)`. The range plan
+contains the resolved set, binding, offset, size and element stride. A host may
+place all resource ranges in one backing allocation and call each generated
+element packer on `Std430Packer.GetRange(backing, range)`. This reduces physical
+buffer allocations; it does not merge descriptor bindings or change the final
+`ShaderAbi`.
+
 ### Generated vertex-buffer packing
 
 Vertex data uses the same generated packing path as storage-buffer elements;
@@ -98,11 +108,21 @@ authoring project does not specify byte offsets or stride; `[Layout(location)]`
 declares vertex locations, while the compiler resolves the physical layout.
 Render uploads the returned bytes as a vertex buffer and uses the same
 `MeshShadersGraphicsShaderProgram.VertexAbi` to create the vertex-input state.
-The same generated type exposes `FragmentAbi` and
+For an artifact with multiple resolved vertex bindings, the generated type also
+exposes `PackMeshVertexBinding<binding>Element/Elements` methods for each
+binding. The single-binding-0 case keeps the shorter `PackMeshVertexElement`
+names. The same generated type exposes `FragmentAbi` and
 `CreateProgram(ReadOnlySpan<byte>, ReadOnlySpan<byte>)`; the SPIR-V bytes come
 from the explicit DeltaShader Tool/package step, not from this authoring
-assembly. The current generated surface supports the resolved binding-0
-stream; multiple vertex-buffer bindings are a separate compiler feature.
+assembly. Each binding helper uses its own resolved `VertexInputs` subset and
+`VertexBuffers[binding].Stride`; consumers may place those ranges in one
+persistent backing allocation when their Render adapter supports aliased
+bindings.
+The generated surface also exposes `<Method>VertexBufferCount`,
+`Get<Method>VertexBufferByteLength(int)` and
+`Get<Method>VertexBufferRanges(int, Span<Delta.Shader.Packing.ShaderBufferRange>)`
+for allocating one backing vertex buffer while retaining the ABI's binding
+indices.
 
 Shader execution builtins are static compiler intrinsics, not context fields:
 
@@ -312,3 +332,21 @@ The command requires `glslangValidator` and `spirv-val` for the SPIR-V backend.
 Runtime consumption, resource creation, descriptor binding, and dispatch are
 defined by the producer-owned [CONTRACT.md](CONTRACT.md), not by this authoring
 API.
+### Shared backing buffer
+
+Generated range helpers describe logical storage resources inside one backing
+buffer. Allocate that buffer from the resolved plan instead of calculating
+offsets in the consumer:
+
+```csharp
+Span<ShaderBufferRange> ranges = stackalloc ShaderBufferRange[Program.StorageBufferCount];
+Program.GetProgramStorageBufferRanges(elementCount, ranges);
+var backing = new byte[Std430Packer.GetBackingByteLength(ranges)];
+
+var resourceBytes = Std430Packer.GetRange(backing, ranges[0]);
+Program.PackProgramInputElements(values, resourceBytes);
+```
+
+The range plan owns offsets, sizes, alignment, and element strides. Multiple
+logical resources may therefore share one physical backing buffer without
+consumer-side std430 arithmetic.

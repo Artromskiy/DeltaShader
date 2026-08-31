@@ -24,6 +24,12 @@ internal static class FullscreenUi
 
     public readonly struct VertexContext
     {
+        public VertexContext(UiVarying vertex, UiPushConstants constants)
+        {
+            Vertex = vertex;
+            Constants = constants;
+        }
+
         [Interstage]
         public readonly UiVarying Vertex;
 
@@ -33,6 +39,12 @@ internal static class FullscreenUi
 
     public readonly struct FragmentContext
     {
+        public FragmentContext(UiVarying fragment, UiPushConstants constants)
+        {
+            Fragment = fragment;
+            Constants = constants;
+        }
+
         [Interstage]
         public readonly UiVarying Fragment;
 

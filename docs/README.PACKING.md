@@ -303,6 +303,17 @@ the ABI metadata rather than the CLR representation. Unsupported references,
 auto-layout structs, and ambiguous bool representations remain compiler
 diagnostics.
 
+When a shader has multiple storage-buffer bindings, the generated program also
+exposes a range plan such as `Get<Method>StorageBufferRanges`. It returns the
+resolved set/binding, byte offset, byte size, and element stride for every
+resource into a caller-provided span. `Get<Method>StorageBufferByteLength`
+returns the size of one backing allocation. The host may pack each resource with
+its generated element helper into the corresponding range and bind descriptor
+ranges that alias the same GPU buffer. This reduces physical buffer allocation
+and staging ownership without changing descriptor bindings or the final ABI.
+`Std430Packer.GetRange` supplies the checked byte span used by those generated
+helpers, so consumers do not duplicate offset/size slicing logic.
+
 ### Vertex buffers
 
 Vertex packing is the same generated operation applied to a vertex binding.
@@ -323,6 +334,11 @@ Each helper is generated from `ShaderAbi.VertexInputs` and the matching
 byte offset, value format, and the binding stride. The host can keep one
 persistent vertex buffer and update indexed ranges without changing the draw
 count or creating one binding per object.
+
+`Get<Method>VertexBufferRanges` supplies the binding-specific offsets and sizes
+for a shared backing allocation. The descriptor/binding count remains the
+resolved ABI count; the optimization removes per-stream buffer allocations and
+does not invent a new vertex layout.
 
 Vertex inputs and interstage values are still different ABI sections. Their
 shader-visible semantic types can be the same, but only vertex inputs receive
@@ -540,3 +556,14 @@ This design does not:
 - compile or combine arbitrary C# at runtime;
 - turn every composite layer into a separate render pass;
 - create a second validation architecture for shader graphs.
+## Shared physical backing buffers
+
+Generated `Get*StorageBufferRanges` and `Get*VertexBufferRanges` methods describe
+logical descriptor or vertex-input ranges in one physical byte buffer. A
+consumer may allocate that buffer once and obtain each view with
+`Std430Packer.GetRange(backing, range)`.
+
+The generated range plan is the source of truth for offsets, sizes, alignment,
+and element stride. Consumers must not recompute those values from CLR layout,
+`Marshal.SizeOf`, or `MemoryMarshal`; descriptors and vertex bindings may still
+refer to different ranges of the same allocation.

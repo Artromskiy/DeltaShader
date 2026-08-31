@@ -43,6 +43,12 @@ internal static class EditorViewportCube
 
     public readonly struct VertexContext
     {
+        public VertexContext(CubeVarying vertex, ReadOnlyStorageBuffer<SceneParameters> scene)
+        {
+            Vertex = vertex;
+            Scene = scene;
+        }
+
         [Interstage]
         public readonly CubeVarying Vertex;
 
@@ -52,6 +58,16 @@ internal static class EditorViewportCube
 
     public readonly struct FragmentContext
     {
+        public FragmentContext(
+            CubeVarying fragment,
+            ReadOnlyStorageBuffer<SceneParameters> scene,
+            SampledTexture2D albedo)
+        {
+            Fragment = fragment;
+            Scene = scene;
+            Albedo = albedo;
+        }
+
         [Interstage]
         public readonly CubeVarying Fragment;
 

@@ -378,33 +378,53 @@ public sealed class ShaderManifest
         };
 
     private static ShaderCompilationMember ToBuildMember(ShaderIrStructMember member)
-        => new()
-        {
-            Name = member.Name,
-            GlslName = member.GlslName,
-            GlslType = member.GlslType,
-            Offset = member.Offset,
-            Alignment = member.Alignment,
-            Size = member.Size,
-            ArrayStride = member.ArrayStride,
-            MatrixStride = member.MatrixStride,
-            HostRepresentation = member.GlslType.StartsWith("bvec", StringComparison.Ordinal) || member.GlslType == "bool" ? "bool32" : "std430",
-            Members = member.Members.Select(ToBuildMember).ToArray()
-        };
+        => ToBuildMember(
+            member.Name,
+            member.GlslName,
+            member.GlslType,
+            member.Offset,
+            member.Alignment,
+            member.Size,
+            member.ArrayStride,
+            member.MatrixStride,
+            member.Members.Select(ToBuildMember).ToArray());
 
     private static ShaderCompilationMember ToBuildMember(ShaderResourceMemberManifest member)
+        => ToBuildMember(
+            member.Name,
+            member.GlslName,
+            member.GlslType,
+            member.Offset,
+            member.Alignment,
+            member.Size,
+            member.ArrayStride,
+            member.MatrixStride,
+            member.Members.Select(ToBuildMember).ToArray());
+
+    private static ShaderCompilationMember ToBuildMember(
+        string name,
+        string glslName,
+        string glslType,
+        uint offset,
+        uint alignment,
+        uint size,
+        uint arrayStride,
+        uint? matrixStride,
+        IReadOnlyList<ShaderCompilationMember> members)
         => new()
         {
-            Name = member.Name,
-            GlslName = member.GlslName,
-            GlslType = member.GlslType,
-            Offset = member.Offset,
-            Alignment = member.Alignment,
-            Size = member.Size,
-            ArrayStride = member.ArrayStride,
-            MatrixStride = member.MatrixStride,
-            HostRepresentation = member.GlslType.StartsWith("bvec", StringComparison.Ordinal) || member.GlslType == "bool" ? "bool32" : "std430",
-            Members = member.Members.Select(ToBuildMember).ToArray()
+            Name = name,
+            GlslName = glslName,
+            GlslType = glslType,
+            Offset = offset,
+            Alignment = alignment,
+            Size = size,
+            ArrayStride = arrayStride,
+            MatrixStride = matrixStride,
+            HostRepresentation = glslType.StartsWith("bvec", StringComparison.Ordinal) || glslType == "bool"
+                ? "bool32"
+                : "std430",
+            Members = members
         };
 }
 

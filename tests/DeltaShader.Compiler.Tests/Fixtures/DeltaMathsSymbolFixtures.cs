@@ -5,8 +5,16 @@ namespace Delta.Shader.Compiler.Tests.Fixtures;
 
 internal static class DeltaMathsSymbolFixtures
 {
-    public readonly struct FixtureOneContext
+    internal readonly struct FixtureOneContext
     {
+        public FixtureOneContext(
+            ReadOnlyStorageBuffer<float> a,
+            ReadWriteStorageBuffer<float> b)
+        {
+            A = a;
+            B = b;
+        }
+
         [Layout(0, 0)]
         public readonly ReadOnlyStorageBuffer<float> A;
 
@@ -21,8 +29,18 @@ internal static class DeltaMathsSymbolFixtures
         context.B[0u] = maths.dot(left, right);
     }
 
-    public readonly struct FixtureSwizzleContext
+    internal readonly struct FixtureSwizzleContext
     {
+        public FixtureSwizzleContext(
+            ReadOnlyStorageBuffer<float4> values,
+            ReadWriteStorageBuffer<float2> result,
+            uint index)
+        {
+            Values = values;
+            Result = result;
+            Index = index;
+        }
+
         [Layout(0, 0)]
         public readonly ReadOnlyStorageBuffer<float4> Values;
 

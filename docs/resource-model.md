@@ -68,8 +68,10 @@ extension rather than an implicit convention.
 
 This is a tooling/application-side implementation boundary, not a second
 runtime ABI. The existing `ShaderAbi` already carries the required resolved
-layout metadata, so adding a packing-plan type to the frozen artifact contract
-requires a separate contract revision and is not part of this design.
+layout metadata. The generated `ShaderBufferRange` plan remains outside the
+frozen artifact contract and only describes how a host may alias multiple
+descriptor ranges in one backing allocation; it does not replace `ShaderAbi` or
+change descriptor bindings.
 
 Unsupported resource categories are diagnostics until validation, typed IR,
 GLSL lowering, compiler-metadata-to-`ShaderAbi` conversion and SPIR-V tests all

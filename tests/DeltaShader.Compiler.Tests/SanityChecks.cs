@@ -1071,7 +1071,7 @@ public class IntrinsicCatalogTests
         ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
 
         Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
-        var body = result.Module!.Body;
+        var body = result.Module!.Body ?? throw new InvalidOperationException("Vertex compilation did not produce a shader body.");
         Assert.Equal(3, body.Split("gl_Position =", StringSplitOptions.None).Length - 1);
         Assert.Equal(3, body.Split("return;", StringSplitOptions.None).Length - 1);
         Assert.Contains("vec4(-1, -1, 0, 1)", body, StringComparison.Ordinal);

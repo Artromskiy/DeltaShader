@@ -27,6 +27,14 @@ internal static class VectorAdd
 
     public readonly struct ComputeContext
     {
+        public ComputeContext(
+            ReadOnlyStorageBuffer<TransformRecord> input,
+            ReadWriteStorageBuffer<TransformRecord> output)
+        {
+            Input = input;
+            Output = output;
+        }
+
         [Layout(0, 0)]
         public readonly ReadOnlyStorageBuffer<TransformRecord> Input;
 

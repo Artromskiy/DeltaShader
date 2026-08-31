@@ -98,7 +98,8 @@ public sealed class UiShaderTests
                 result.Module?.Stage == ShaderStage.Vertex);
 
         var fragmentModule = roundedFragment.Module;
-        if (fragmentModule is null || roundedFragment.BuildManifest is null)
+        var fragmentManifest = roundedFragment.BuildManifest;
+        if (fragmentModule is null || fragmentManifest is null)
         {
             throw new InvalidOperationException("Rounded rectangle compilation did not produce a module and manifest.");
         }
@@ -109,7 +110,7 @@ public sealed class UiShaderTests
             throw new InvalidOperationException("Rounded rectangle vertex compilation did not produce a manifest.");
         }
 
-        var vertexResource = Assert.Single(roundedVertex.BuildManifest.Resources);
+        var vertexResource = Assert.Single(vertexManifest.Resources);
         Assert.Equal("storage-buffer", vertexResource.Category);
         Assert.Equal(ShaderResourceAccess.ReadOnly, vertexResource.Access);
         Assert.Equal(ShaderStage.Vertex, vertexResource.Stage);
@@ -124,13 +125,13 @@ public sealed class UiShaderTests
         Assert.Equal(48u, Assert.Single(vertexResource.Members, member => member.Name == "CornerRadii").Offset);
         Assert.Equal(64u, Assert.Single(vertexResource.Members, member => member.Name == "BorderWidth").Offset);
 
-        var vertexPush = Assert.Single(roundedVertex.BuildManifest.PushConstants);
-        Assert.Equal("main", roundedFragment.BuildManifest.EntryPointName);
-        Assert.Empty(roundedFragment.BuildManifest.Resources);
+        var vertexPush = Assert.Single(vertexManifest.PushConstants);
+        Assert.Equal("main", fragmentManifest.EntryPointName);
+        Assert.Empty(fragmentManifest.Resources);
         Assert.Equal(8u, vertexPush.Size);
         Assert.Equal(8u, vertexPush.Alignment);
         Assert.Equal(0u, Assert.Single(vertexPush.Members, member => member.Name == "Resolution").Offset);
-        Assert.Empty(roundedFragment.BuildManifest.PushConstants);
+        Assert.Empty(fragmentManifest.PushConstants);
 
         var fragmentGlsl = GlslEmitter.EmitFromModule(fragmentModule).Source;
         var vertexGlsl = GlslEmitter.EmitFromModule(roundedVertex.Module!).Source;

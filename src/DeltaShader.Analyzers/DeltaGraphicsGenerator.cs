@@ -94,14 +94,15 @@ public sealed class DeltaGraphicsGenerator : IIncrementalGenerator
 
             var type = pairVertices[0].ContainingType;
             var name = pairNames.Length == 1 ? Sanitize(type.Name) + "GraphicsShaderProgram" : Pascalize(pairName) + "GraphicsShaderProgram";
-            var ns = type.ContainingNamespace.IsGlobalNamespace ? string.Empty : $"namespace {type.ContainingNamespace.ToDisplayString()};";
-            var source = "using System;\nusing Delta.Shader.Contract;\n\n" + ns + "\n\npublic static class " + name + "\n{\n" +
-                ArtifactSourceEmitter.EmitAbiFactory(vertexResult.BuildManifest) +
-                ArtifactSourceEmitter.EmitAbiFactory(fragmentResult.BuildManifest).Replace("CreateAbi", "CreateFragmentAbi") +
-                ArtifactSourceEmitter.EmitAbiAccessor("VertexAbi", "CreateAbi") +
-                ArtifactSourceEmitter.EmitAbiAccessor("FragmentAbi", "CreateFragmentAbi") +
-                vertexPacking + fragmentPacking +
-                "\n    public static IGraphicsShaderProgram CreateProgram(ReadOnlySpan<byte> vertexSpirv, ReadOnlySpan<byte> fragmentSpirv)\n        => new GraphicsShaderProgram(new ShaderArtifact(vertexSpirv, \"main\", VertexAbi), new ShaderArtifact(fragmentSpirv, \"main\", FragmentAbi));\n}\n";
+            var source = GeneratedArtifactSource.Graphics(
+                pairVertices[0],
+                name,
+                ArtifactSourceEmitter.EmitAbiFactory(vertexResult.BuildManifest),
+                ArtifactSourceEmitter.EmitAbiFactory(fragmentResult.BuildManifest, "CreateFragmentAbi"),
+                ArtifactSourceEmitter.EmitAbiAccessor("VertexAbi", "CreateAbi"),
+                ArtifactSourceEmitter.EmitAbiAccessor("FragmentAbi", "CreateFragmentAbi"),
+                vertexPacking,
+                fragmentPacking);
             context.AddSource(name + ".g.cs", SourceText.From(source, Encoding.UTF8));
         }
     }
@@ -139,5 +140,4 @@ public sealed class DeltaGraphicsGenerator : IIncrementalGenerator
 
         return result.Length == 0 ? "Graphics" : result.ToString();
     }
-    private static string Literal(string value) => "\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "\\r").Replace("\n", "\\n") + "\"";
 }

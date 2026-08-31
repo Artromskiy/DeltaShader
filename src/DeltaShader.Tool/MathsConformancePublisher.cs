@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -410,8 +409,8 @@ internal static class MathsConformancePublisher
                 _ => null
             };
             var compile = optimizationFlag is null
-                ? RunTool(glslang, "-V", "--target-env", options.Profile, "-S", "comp", glslPath, "-o", spirvPath)
-                : RunTool(glslang, "-V", "--target-env", options.Profile, optimizationFlag, "-S", "comp", glslPath, "-o", spirvPath);
+                ? ProcessRunner.Run(glslang, "-V", "--target-env", options.Profile, "-S", "comp", glslPath, "-o", spirvPath)
+                : ProcessRunner.Run(glslang, "-V", "--target-env", options.Profile, optimizationFlag, "-S", "comp", glslPath, "-o", spirvPath);
             if (compile.ExitCode != 0)
             {
                 entry.Status = "glslang-diagnostic";
@@ -420,7 +419,7 @@ internal static class MathsConformancePublisher
                 return;
             }
 
-            var validation = RunTool(spirvValidator, "--target-env", options.Profile, spirvPath);
+            var validation = ProcessRunner.Run(spirvValidator, "--target-env", options.Profile, spirvPath);
             if (validation.ExitCode != 0)
             {
                 entry.Status = "spirv-validation-diagnostic";
@@ -538,7 +537,7 @@ internal static class MathsConformancePublisher
             return source;
         }
 
-        var firstNewLine = source.IndexOf('\n');
+        var firstNewLine = source.IndexOf('\n', StringComparison.Ordinal);
         if (firstNewLine < 0)
         {
             return source + Environment.NewLine + string.Join(Environment.NewLine, extensions);
@@ -679,14 +678,16 @@ internal static class MathsConformancePublisher
 
     private static string BuildFixtureSource(IReadOnlyList<ContractFunction> functions)
     {
-        var builder = new StringBuilder();
-        builder.AppendLine("using Delta.Maths;");
-        builder.AppendLine("using Delta.Shader;");
-        builder.AppendLine();
-        builder.AppendLine("namespace Delta.Shader.MathsConformance.Generated;");
-        builder.AppendLine();
-        builder.AppendLine("public static class MathsConformanceFixtures");
-        builder.AppendLine("{");
+        var builder = new StringBuilder(
+            """
+            using Delta.Maths;
+            using Delta.Shader;
+
+            namespace Delta.Shader.MathsConformance.Generated;
+
+            public static class MathsConformanceFixtures
+            {
+            """);
         for (var index = 0; index < functions.Count; index++)
         {
             AppendFixture(builder, functions[index], index);
@@ -944,32 +945,6 @@ internal static class MathsConformancePublisher
         return null;
     }
 
-    private static ToolResult RunTool(string? fileName, params string[] arguments)
-    {
-        if (fileName is null)
-        {
-            return new ToolResult(1, "External validation tool is not available.");
-        }
-
-        using var process = new Process();
-        process.StartInfo = new ProcessStartInfo
-        {
-            FileName = fileName,
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true
-        };
-        foreach (var argument in arguments)
-        {
-            process.StartInfo.ArgumentList.Add(argument);
-        }
-
-        process.Start();
-        var output = process.StandardOutput.ReadToEnd() + process.StandardError.ReadToEnd();
-        process.WaitForExit();
-        return new ToolResult(process.ExitCode, output);
-    }
-
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
@@ -1017,7 +992,6 @@ internal static class MathsConformancePublisher
         ConformanceCase[] Cases,
         ConformanceCoverage Coverage);
 
-    private sealed record ToolResult(int ExitCode, string Output);
 
     private sealed class ConformanceIndex
     {

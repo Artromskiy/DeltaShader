@@ -7,6 +7,14 @@ internal static class VectorSymbolFixture
 {
     public readonly struct ComputeContext
     {
+        public ComputeContext(
+            ReadOnlyStorageBuffer<float3> input,
+            ReadWriteStorageBuffer<float2> output)
+        {
+            Input = input;
+            Output = output;
+        }
+
         [Layout(0, 0)]
         public readonly ReadOnlyStorageBuffer<float3> Input;
 

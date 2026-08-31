@@ -3,7 +3,7 @@ using Delta.Shader;
 
 namespace Delta.Shader.Playground;
 
-public static class JfaShaders
+internal static class JfaShaders
 {
     [Interstage]
     public struct JfaVarying
@@ -15,12 +15,23 @@ public static class JfaShaders
 
     public readonly struct JfaInitVertexContext
     {
+        public JfaInitVertexContext(JfaVarying vertex)
+        {
+            Vertex = vertex;
+        }
+
         [Interstage]
         public readonly JfaVarying Vertex;
     }
 
     public readonly struct JfaInitFragmentContext
     {
+        public JfaInitFragmentContext(JfaVarying fragment, SampledTexture2D silhouette)
+        {
+            Fragment = fragment;
+            Silhouette = silhouette;
+        }
+
         [Interstage]
         public readonly JfaVarying Fragment;
 
@@ -30,18 +41,39 @@ public static class JfaShaders
 
     public readonly struct JfaFloodParameters
     {
+        public JfaFloodParameters(float2 texelSize, float jump)
+        {
+            TexelSize = texelSize;
+            Jump = jump;
+        }
+
         public readonly float2 TexelSize;
         public readonly float Jump;
     }
 
     public readonly struct JfaFloodVertexContext
     {
+        public JfaFloodVertexContext(JfaVarying vertex)
+        {
+            Vertex = vertex;
+        }
+
         [Interstage]
         public readonly JfaVarying Vertex;
     }
 
     public readonly struct JfaFloodFragmentContext
     {
+        public JfaFloodFragmentContext(
+            JfaVarying fragment,
+            SampledTexture2D seeds,
+            JfaFloodParameters parameters)
+        {
+            Fragment = fragment;
+            Seeds = seeds;
+            Parameters = parameters;
+        }
+
         [Interstage]
         public readonly JfaVarying Fragment;
 
@@ -54,6 +86,13 @@ public static class JfaShaders
 
     public readonly struct JfaCompositeParameters
     {
+        public JfaCompositeParameters(float2 texelSize, float outlineWidth, float4 color)
+        {
+            TexelSize = texelSize;
+            OutlineWidth = outlineWidth;
+            Color = color;
+        }
+
         public readonly float2 TexelSize;
         public readonly float OutlineWidth;
         public readonly float4 Color;
@@ -61,12 +100,29 @@ public static class JfaShaders
 
     public readonly struct JfaCompositeVertexContext
     {
+        public JfaCompositeVertexContext(JfaVarying vertex)
+        {
+            Vertex = vertex;
+        }
+
         [Interstage]
         public readonly JfaVarying Vertex;
     }
 
     public readonly struct JfaCompositeFragmentContext
     {
+        public JfaCompositeFragmentContext(
+            JfaVarying fragment,
+            SampledTexture2D seeds,
+            SampledTexture2D silhouette,
+            JfaCompositeParameters parameters)
+        {
+            Fragment = fragment;
+            Seeds = seeds;
+            Silhouette = silhouette;
+            Parameters = parameters;
+        }
+
         [Interstage]
         public readonly JfaVarying Fragment;
 

@@ -70,11 +70,12 @@ public sealed class DeltaComputeGenerator : IIncrementalGenerator
         }
 
         var className = Sanitize(method.ContainingType.Name) + Sanitize(method.Name) + "ShaderArtifact";
-        var source = BuildArtifactSource(
+        var source = GeneratedArtifactSource.Compute(
             method,
             className,
             result.EntryPointName,
             ArtifactSourceEmitter.EmitAbiFactory(result.BuildManifest),
+            ArtifactSourceEmitter.EmitAbiAccessor("Abi", "CreateAbi"),
             packingMethods);
         context.AddSource(className + ".g.cs", SourceText.From(source, Encoding.UTF8));
     }
@@ -101,27 +102,5 @@ public sealed class DeltaComputeGenerator : IIncrementalGenerator
             message));
     }
 
-    private static string BuildArtifactSource(
-        IMethodSymbol method,
-        string className,
-        string entryPointName,
-        string abiFactory,
-        string packingMethods)
-    {
-        var ns = method.ContainingNamespace.IsGlobalNamespace
-            ? string.Empty
-            : $"namespace {method.ContainingNamespace.ToDisplayString()};";
-
-        return "using System;\nusing Delta.Shader.Contract;\n\n" + ns + "\n\npublic static class " + className + "\n{\n" +
-            abiFactory +
-            ArtifactSourceEmitter.EmitAbiAccessor("Abi", "CreateAbi") +
-            packingMethods +
-            "\n    public static ShaderArtifact CreateArtifact(ReadOnlySpan<byte> spirv)\n        => new(spirv, " + Literal(entryPointName) + ", Abi);\n}\n";
-    }
-
     private static string Sanitize(string name) => string.Concat(name.Select(c => char.IsLetterOrDigit(c) || c == '_' ? c : '_')) is { Length: > 0 } value ? value : "Compute";
-
-    private static string Literal(string value)
-        => "\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "\\r").Replace("\n", "\\n") + "\"";
-
 }

@@ -24,7 +24,7 @@ public static class GlslEmitter
             throw new ArgumentNullException(nameof(module));
         }
 
-        var sb = new StringBuilder();
+        var sb = new StringBuilder(256 + (module.Body?.Length ?? 0));
         sb.AppendLine("#version 460");
         if (module.Stage == ShaderStage.Compute)
         {
@@ -187,19 +187,23 @@ public static class GlslEmitter
 
     private static string RewriteIdentifiers(string body, Dictionary<string, string> identifierMap)
     {
-        var rewritten = body;
-        foreach (var entry in identifierMap.OrderByDescending(entry => entry.Key.Length))
+        if (identifierMap.Count == 0)
         {
-            if (entry.Key.EndsWith(".data", StringComparison.Ordinal))
-            {
-                rewritten = rewritten.Replace(entry.Key, entry.Value);
-            }
-            else
-            {
-                rewritten = Regex.Replace(rewritten, $"\\b{Regex.Escape(entry.Key)}\\b", entry.Value, RegexOptions.None);
-            }
+            return body;
         }
-        return rewritten;
+
+        var pattern = "(?<![A-Za-z0-9_])(?:" +
+            string.Join(
+                "|",
+                identifierMap.Keys
+                    .OrderByDescending(key => key.Length)
+                    .Select(Regex.Escape)) +
+            ")(?![A-Za-z0-9_])";
+        return Regex.Replace(
+            body,
+            pattern,
+            match => identifierMap[match.Value],
+            RegexOptions.CultureInvariant);
     }
 
     private static IReadOnlyList<ShaderIrStruct> OrderStructs(IReadOnlyList<ShaderIrStruct> structures)
@@ -225,7 +229,9 @@ public static class GlslEmitter
                     Visit(dependency);
                 }
             }
-            active.Remove(structure.GlslName); visited.Add(structure.GlslName); ordered.Add(structure);
+            active.Remove(structure.GlslName);
+            visited.Add(structure.GlslName);
+            ordered.Add(structure);
         }
         foreach (var structure in structures.OrderBy(structure => structure.GlslName, StringComparer.Ordinal))
         {

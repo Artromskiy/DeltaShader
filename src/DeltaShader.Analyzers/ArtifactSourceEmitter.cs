@@ -9,37 +9,8 @@ using Microsoft.CodeAnalysis;
 
 namespace Delta.Shader.Analyzers;
 
-internal static class ArtifactSourceEmitter
+internal static partial class ArtifactSourceEmitter
 {
-    public static string EmitAbiFactory(ShaderCompilationManifest manifest)
-    {
-        var workgroupSize = manifest.Stage == ShaderStage.Compute ? Workgroup(manifest) : "default";
-        return $$"""
-            private static Delta.Shader.Contract.ShaderAbi CreateAbi()
-            {
-                return new Delta.Shader.Contract.ShaderAbi(
-                    stage: {{Stage(manifest.Stage)}},
-                    resources: {{Resources(manifest.Resources)}},
-                    pushConstants: {{PushConstants(manifest.Stage, manifest.PushConstants)}},
-                    inputs: {{Interfaces(manifest.Inputs)}},
-                    outputs: {{Interfaces(manifest.Outputs)}},
-                    vertexInputs: {{VertexInputs(manifest.VertexInputs)}},
-                    vertexBuffers: {{VertexBuffers(manifest.VertexBufferBindings)}},
-                    workgroupSize: {{workgroupSize}},
-                    requiredCapabilities: Delta.Shader.Contract.ShaderCapabilities.None);
-            }
-            """;
-    }
-
-    public static string EmitAbiAccessor(string propertyName, string factoryName)
-    {
-        var fieldName = "s_" + char.ToLowerInvariant(propertyName[0]) + propertyName.Substring(1);
-        return $$"""
-                private static readonly Delta.Shader.Contract.ShaderAbi {{fieldName}} = {{factoryName}}();
-                public static Delta.Shader.Contract.ShaderAbi {{propertyName}} => {{fieldName}};
-            """;
-    }
-
     public static bool TryEmitPackingMethods(
         IMethodSymbol method,
         ShaderCompilationManifest manifest,
@@ -57,6 +28,9 @@ internal static class ArtifactSourceEmitter
         var contextType = method.Parameters[0].Type;
         var methods = new StringBuilder();
         var stem = SanitizeIdentifier(method.Name);
+        var storageResources = manifest.Resources
+            .Where(resource => resource.Category == "storage-buffer")
+            .ToArray();
 
         foreach (var pushConstant in manifest.PushConstants)
         {
@@ -147,7 +121,7 @@ internal static class ArtifactSourceEmitter
             }
         }
 
-        foreach (var resource in manifest.Resources.Where(resource => resource.Category == "storage-buffer"))
+        foreach (var resource in storageResources)
         {
             if (resource.Size == 0 || resource.ArrayStride == 0)
             {
@@ -210,10 +184,22 @@ internal static class ArtifactSourceEmitter
             }
         }
 
-        if (method.GetAttributes().Any(attribute => attribute.AttributeClass?.ToDisplayString() == typeof(VertexShaderAttribute).FullName) &&
-            !TryAppendVertexPackMethods(method, manifest, contextType, methods, stem, out reason))
+        if (!TryAppendStorageBufferRangeMethods(
+                methods,
+                stem,
+                storageResources,
+                out reason))
         {
             return false;
+        }
+
+        if (method.GetAttributes().Any(attribute => attribute.AttributeClass?.ToDisplayString() == typeof(VertexShaderAttribute).FullName))
+        {
+            if (!TryAppendVertexPackMethods(method, manifest, contextType, methods, stem, out reason) ||
+                !TryAppendVertexBufferRangeMethods(methods, stem, manifest.VertexBufferBindings, out reason))
+            {
+                return false;
+            }
         }
 
         source = methods.ToString();
@@ -234,10 +220,9 @@ internal static class ArtifactSourceEmitter
             return true;
         }
 
-        var binding = manifest.VertexBufferBindings.SingleOrDefault(candidate => candidate.Binding == 0u);
-        if (binding is null || binding.Stride == 0 || binding.Stride > int.MaxValue)
+        if (manifest.VertexBufferBindings.Count == 0)
         {
-            reason = $"Vertex shader '{method.Name}' has no resolved binding-0 stride.";
+            reason = $"Vertex shader '{method.Name}' has vertex inputs but no resolved buffer bindings.";
             return false;
         }
 
@@ -251,10 +236,69 @@ internal static class ArtifactSourceEmitter
             return false;
         }
 
-        var operations = new StringBuilder();
-        foreach (var input in manifest.VertexInputs)
+        var bindings = manifest.VertexBufferBindings
+            .OrderBy(binding => binding.Binding)
+            .ToArray();
+        for (var bindingIndex = 0; bindingIndex < bindings.Length; bindingIndex++)
         {
-            var member = new ShaderCompilationMember
+            var binding = bindings[bindingIndex];
+            if (binding.Stride == 0 || binding.Stride > int.MaxValue)
+            {
+                reason = $"Vertex shader '{method.Name}' has no valid stride for binding {binding.Binding}.";
+                return false;
+            }
+
+            var bindingInputs = manifest.VertexInputs
+                .Where(input => input.Binding == binding.Binding)
+                .ToArray();
+            if (bindingInputs.Length == 0)
+            {
+                continue;
+            }
+
+            var operations = new StringBuilder();
+            foreach (var input in bindingInputs)
+            {
+                var member = new ShaderCompilationMember
+                {
+                    Name = input.ParameterName,
+                    GlslType = input.GlslType,
+                    Offset = input.ByteOffset,
+                    Size = input.ByteSize,
+                    Alignment = input.Alignment,
+                    ArrayStride = input.ByteSize
+                };
+                var payloadMember = FindValueMember(varyingType, input.ParameterName);
+                if (payloadMember is null || GetMemberType(payloadMember) is not ITypeSymbol payloadMemberType)
+                {
+                    reason = $"Could not resolve vertex input field '{input.ParameterName}'.";
+                    return false;
+                }
+
+                var payloadExpression = "value." + payloadMember.Name;
+                if (!TryEmitValue(member, payloadMemberType, payloadExpression, 0u, operations, out reason))
+                {
+                    return false;
+                }
+            }
+
+            var suffix = bindings.Length == 1 && binding.Binding == 0u
+                ? "Vertex"
+                : "VertexBinding" + binding.Binding.ToString(CultureInfo.InvariantCulture);
+            var elementName = "Pack" + stem + suffix + "Element";
+            AppendPackMethod(source, elementName, varyingType, binding.Stride, operations);
+            if (!TryAppendArrayPackMethods(
+                    source,
+                    elementName,
+                    "Pack" + stem + suffix + "Elements",
+                    varyingType,
+                    binding.Stride,
+                    out reason))
+            {
+                return false;
+            }
+
+            var unpackMembers = bindingInputs.Select(input => new ShaderCompilationMember
             {
                 Name = input.ParameterName,
                 GlslType = input.GlslType,
@@ -262,53 +306,27 @@ internal static class ArtifactSourceEmitter
                 Size = input.ByteSize,
                 Alignment = input.Alignment,
                 ArrayStride = input.ByteSize
-            };
-            var payloadMember = FindValueMember(varyingType, input.ParameterName);
-            if (payloadMember is null || GetMemberType(payloadMember) is not ITypeSymbol payloadMemberType)
+            }).ToArray();
+            if (TryBuildUnpackMembersExpression(unpackMembers, varyingType, 0u, out var unpackExpression, out _))
             {
-                reason = $"Could not resolve vertex input field '{input.ParameterName}'.";
-                return false;
+                AppendUnpackMethod(
+                    source,
+                    "Unpack" + stem + suffix + "Element",
+                    varyingType,
+                    binding.Stride,
+                    unpackExpression);
+
+                if (!TryAppendArrayUnpackMethods(
+                        source,
+                        "Unpack" + stem + suffix + "Element",
+                        "Unpack" + stem + suffix + "Elements",
+                        varyingType,
+                        binding.Stride,
+                        out reason))
+                {
+                    return false;
+                }
             }
-
-            var payloadExpression = "value." + payloadMember.Name;
-            if (!TryEmitValue(member, payloadMemberType, payloadExpression, 0u, operations, out reason))
-            {
-                return false;
-            }
-        }
-
-        var elementName = "Pack" + stem + "VertexElement";
-        AppendPackMethod(source, elementName, varyingType, binding.Stride, operations);
-        if (!TryAppendArrayPackMethods(source, elementName, "Pack" + stem + "VertexElements", varyingType, binding.Stride, out reason))
-        {
-            return false;
-        }
-
-        var unpackMembers = manifest.VertexInputs.Select(input => new ShaderCompilationMember
-        {
-            Name = input.ParameterName,
-            GlslType = input.GlslType,
-            Offset = input.ByteOffset,
-            Size = input.ByteSize,
-            Alignment = input.Alignment,
-            ArrayStride = input.ByteSize
-        }).ToArray();
-        if (TryBuildUnpackMembersExpression(unpackMembers, varyingType, 0u, out var unpackExpression, out _))
-        {
-            AppendUnpackMethod(
-                source,
-                "Unpack" + stem + "VertexElement",
-                varyingType,
-                binding.Stride,
-                unpackExpression);
-
-            return TryAppendArrayUnpackMethods(
-                source,
-                "Unpack" + stem + "VertexElement",
-                "Unpack" + stem + "VertexElements",
-                varyingType,
-                binding.Stride,
-                out reason);
         }
 
         return true;
@@ -963,143 +981,4 @@ internal static class ArtifactSourceEmitter
             ? value
             : "Value";
 
-    private static string Resources(IReadOnlyList<ShaderCompilationResource> resources)
-        => ArrayExpression(resources, "Delta.Shader.Contract.ShaderResourceBinding", RenderResource);
-
-    private static string PushConstants(ShaderStage stage, IReadOnlyList<ShaderCompilationPushConstant> pushConstants)
-        => ArrayExpression(pushConstants, "Delta.Shader.Contract.ShaderPushConstantRange", push => RenderPushConstant(stage, push));
-
-    private static string Interfaces(IReadOnlyList<ShaderCompilationInterfaceVariable> variables)
-        => ArrayExpression(variables, "Delta.Shader.Contract.ShaderInterfaceVariable", RenderInterface);
-
-    private static string VertexInputs(IReadOnlyList<ShaderCompilationVertexInput> inputs)
-        => ArrayExpression(inputs, "Delta.Shader.Contract.ShaderVertexInput", RenderVertexInput);
-
-    private static string VertexBuffers(IReadOnlyList<ShaderCompilationVertexBufferBinding> buffers)
-        => ArrayExpression(buffers, "Delta.Shader.Contract.ShaderVertexBufferLayout", RenderVertexBuffer);
-
-    private static string Workgroup(ShaderCompilationManifest manifest)
-        => $"new Delta.Shader.Contract.ShaderWorkgroupSize({manifest.LocalSizeX}u, {manifest.LocalSizeY}u, {manifest.LocalSizeZ}u)";
-
-    private static string RenderResource(ShaderCompilationResource resource)
-    {
-        var kind = resource.Category switch
-        {
-            "storage-buffer" => "StorageBuffer",
-            "sampled-texture" or "sampled-texture-2d" => "SampledTexture",
-            "combined-texture-sampler" => "CombinedTextureSampler",
-            _ => "Unknown"
-        };
-        var layout = kind is "SampledTexture" or "CombinedTextureSampler"
-            ? "Delta.Shader.Contract.ShaderAbiLayout.Empty"
-            : RenderLayout(resource.Size, resource.Alignment, resource.ArrayStride, resource.MatrixStride ?? 0u, resource.Members);
-        var access = resource.Access == 0
-            ? (resource.ReadOnly ? "Read" : "ReadWrite")
-            : resource.Access.ToString();
-        return $"new Delta.Shader.Contract.ShaderResourceBinding(new Delta.Shader.Contract.ShaderBinding({resource.Set}u, {resource.Binding}u), Delta.Shader.Contract.ShaderResourceKind.{kind}, Delta.Shader.Contract.ShaderResourceAccess.{access}, {StageMask(resource.Stage)}, layout: {layout}, descriptorCount: 1u)";
-    }
-
-    private static string RenderPushConstant(ShaderStage stage, ShaderCompilationPushConstant pushConstant)
-        => $"new Delta.Shader.Contract.ShaderPushConstantRange(0u, {pushConstant.Size}u, {StageMask(stage)}, {RenderLayout(pushConstant.Size, pushConstant.Alignment, pushConstant.ArrayStride, 0u, pushConstant.Members)})";
-
-    private static string RenderInterface(ShaderCompilationInterfaceVariable variable)
-    {
-        var location = IsBuiltin(variable.Builtin) ? "null" : variable.Location.ToString(CultureInfo.InvariantCulture) + "u";
-        return $"new Delta.Shader.Contract.ShaderInterfaceVariable({ValueType(variable.GlslType)}, Location: {location}, Builtin: {Builtin(variable.Builtin)})";
-    }
-
-    private static string RenderVertexInput(ShaderCompilationVertexInput input)
-        => $"new Delta.Shader.Contract.ShaderVertexInput({input.Location}u, {input.Binding}u, {input.ByteOffset}u, {ValueType(input.GlslType)}, Delta.Shader.Contract.ShaderVertexInputRate.{input.InputRate})";
-
-    private static string RenderVertexBuffer(ShaderCompilationVertexBufferBinding buffer)
-        => $"new Delta.Shader.Contract.ShaderVertexBufferLayout({buffer.Binding}u, {buffer.Stride}u, Delta.Shader.Contract.ShaderVertexInputRate.{buffer.InputRate})";
-
-    private static string RenderLayout(uint size, uint alignment, uint arrayStride, uint matrixStride, IReadOnlyList<ShaderCompilationMember> members)
-        => $"new Delta.Shader.Contract.ShaderAbiLayout({size}u, {alignment}u, arrayStride: {arrayStride}u, matrixStride: {matrixStride}u, members: {ArrayExpression(members, "Delta.Shader.Contract.ShaderAbiMember", RenderMember)})";
-
-    private static string RenderMember(ShaderCompilationMember member)
-    {
-        var nested = IsStructure(member.GlslType)
-            ? RenderLayout(member.Size, member.Alignment, member.ArrayStride, member.MatrixStride ?? 0u, member.Members)
-            : "null";
-        return $"new Delta.Shader.Contract.ShaderAbiMember({ValueType(member.GlslType)}, {member.Offset}u, {member.Size}u, {member.Alignment}u, arrayStride: {member.ArrayStride}u, matrixStride: {member.MatrixStride ?? 0u}u, nestedLayout: {nested})";
-    }
-
-    private static string ArrayExpression<T>(IEnumerable<T>? values, string typeName, Func<T, string> render)
-    {
-        var items = values?.ToArray() ?? Array.Empty<T>();
-        if (items.Length == 0)
-        {
-            return $"Array.Empty<{typeName}>()";
-        }
-
-        var rendered = items.Select(value => "                " + render(value));
-        return $"new {typeName}[]\n            {{\n{string.Join(",\n", rendered)}\n            }}";
-    }
-
-    private static string ValueType(string? glslType)
-    {
-        if (IsStructure(glslType))
-        {
-            return "Delta.Shader.Contract.ShaderValueType.Structure";
-        }
-
-        var type = glslType ?? string.Empty;
-        if (TryGetMatrixType(type, out var matrixColumns, out var matrixRows))
-        {
-            var matrixBits = type.StartsWith("f16mat", StringComparison.Ordinal)
-                ? 16u
-                : type.StartsWith("dmat", StringComparison.Ordinal)
-                    ? 64u
-                    : 32u;
-            return $"new Delta.Shader.Contract.ShaderValueType(Delta.Shader.Contract.ShaderValueKind.FloatingPoint, {matrixBits}u, {matrixRows}u, {matrixColumns}u)";
-        }
-
-        var (kind, bits, vectorSize, columns) = type switch
-        {
-            "bool" => ("Boolean", 32u, 1u, 1u),
-            "int" => ("SignedInteger", 32u, 1u, 1u),
-            "uint" => ("UnsignedInteger", 32u, 1u, 1u),
-            "float16_t" => ("FloatingPoint", 16u, 1u, 1u),
-            "float" => ("FloatingPoint", 32u, 1u, 1u),
-            "double" => ("FloatingPoint", 64u, 1u, 1u),
-            "f16vec2" or "f16vec3" or "f16vec4" => ("FloatingPoint", 16u, VectorSize(type), 1u),
-            "vec2" or "vec3" or "vec4" => ("FloatingPoint", 32u, VectorSize(type), 1u),
-            "ivec2" or "ivec3" or "ivec4" => ("SignedInteger", 32u, VectorSize(type), 1u),
-            "uvec2" or "uvec3" or "uvec4" => ("UnsignedInteger", 32u, VectorSize(type), 1u),
-            "bvec2" or "bvec3" or "bvec4" => ("Boolean", 32u, VectorSize(type), 1u),
-            "dvec2" or "dvec3" or "dvec4" => ("FloatingPoint", 64u, VectorSize(type), 1u),
-            "mat2" or "mat3" or "mat4" => ("FloatingPoint", 32u, VectorSize(type), VectorSize(type)),
-            _ => ("Unknown", 0u, 0u, 0u)
-        };
-        return $"new Delta.Shader.Contract.ShaderValueType(Delta.Shader.Contract.ShaderValueKind.{kind}, {bits}u, {vectorSize}u, {columns}u)";
-    }
-
-    private static uint VectorSize(string type) => (uint)(type[type.Length - 1] - '0');
-
-    private static string Stage(ShaderStage stage) => $"Delta.Shader.Contract.ShaderStage.{stage}";
-
-    private static string StageMask(ShaderStage stage) => stage switch
-    {
-        ShaderStage.Compute => "Delta.Shader.Contract.ShaderStageMask.Compute",
-        ShaderStage.Vertex => "Delta.Shader.Contract.ShaderStageMask.Vertex",
-        ShaderStage.Fragment => "Delta.Shader.Contract.ShaderStageMask.Fragment",
-        _ => "Delta.Shader.Contract.ShaderStageMask.None"
-    };
-
-    private static string Builtin(string? builtin) => builtin switch
-    {
-        "FragmentCoord" => "Delta.Shader.Contract.ShaderBuiltin.FragmentCoordinate",
-        "Position" => "Delta.Shader.Contract.ShaderBuiltin.Position",
-        "VertexIndex" => "Delta.Shader.Contract.ShaderBuiltin.VertexIndex",
-        "InstanceIndex" => "Delta.Shader.Contract.ShaderBuiltin.InstanceIndex",
-        "FragmentColor" => "Delta.Shader.Contract.ShaderBuiltin.None",
-        null or "" => "Delta.Shader.Contract.ShaderBuiltin.None",
-        _ => "Delta.Shader.Contract.ShaderBuiltin.Unknown"
-    };
-
-    private static bool IsBuiltin(string? builtin) => !string.IsNullOrWhiteSpace(builtin) && builtin != "FragmentColor";
-
-    private static bool IsStructure(string? glslType)
-        => glslType is not null && glslType.Length > 0 && glslType.StartsWith("DeltaStruct_", StringComparison.Ordinal);
 }

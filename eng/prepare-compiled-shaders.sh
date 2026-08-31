@@ -38,8 +38,58 @@ entries_path="$staging_dir/entries.ndjson"
 dotnet build "$tool_project" -c Release \
   --disable-build-servers -m:1 /p:UseSharedCompilation=false -v:minimal
 
+tool_binaries=("$repo_root"/src/DeltaShader.Tool/bin/Release/*/DeltaShader.Tool.dll)
+if ((${#tool_binaries[@]} != 1)); then
+  printf 'expected exactly one Release DeltaShader.Tool binary, found %s\n' "${#tool_binaries[@]}" >&2
+  exit 66
+fi
+tool_binary="${tool_binaries[0]}"
+
 artifact_count=0
 project_count=0
+compile_project() {
+  local project="$1"
+  local project_path="$repo_root/$project"
+  local project_name="${project##*/}"
+  project_name="${project_name%.csproj}"
+  local project_output="$staging_dir/$project_name"
+  local log_path="$staging_dir/logs/$project_name.log"
+
+  mkdir -p "$project_output"
+  dotnet "$tool_binary" \
+    build "$project_path" --profile vulkan1.2 --spirv 1.5 --glsl 460 --optimize performance \
+    --out "$project_output" > "$log_path" 2>&1
+}
+
+wait_for_compile_batch() {
+  local failed=0
+  local index
+  for index in "${!compile_pids[@]}"; do
+    if ! wait "${compile_pids[$index]}"; then
+      printf 'shader project compilation failed: %s\n' "${compile_projects[$index]}" >&2
+      cat "${compile_logs[$index]}" >&2
+      failed=1
+    fi
+  done
+
+  for index in "${!compile_logs[@]}"; do
+    cat "${compile_logs[$index]}"
+  done
+
+  compile_pids=()
+  compile_projects=()
+  compile_logs=()
+  if ((failed != 0)); then
+    exit 1
+  fi
+}
+
+mkdir -p "$staging_dir/logs"
+compile_pids=()
+compile_projects=()
+compile_logs=()
+max_parallel=4
+
 for project in "${projects[@]}"; do
   project_path="$repo_root/$project"
   if [[ ! -f "$project_path" ]]; then
@@ -49,14 +99,27 @@ for project in "${projects[@]}"; do
 
   project_name="${project##*/}"
   project_name="${project_name%.csproj}"
-  project_output="$staging_dir/$project_name"
-  mkdir -p "$project_output"
 
   printf 'Compiling %s\n' "$project"
-  dotnet run --project "$tool_project" -c Release --no-build --no-restore -- \
-    build "$project_path" --profile vulkan1.2 --spirv 1.5 --glsl 460 --optimize performance \
-    --out "$project_output"
+  compile_project "$project" &
+  compile_pids+=("$!")
+  compile_projects+=("$project")
+  compile_logs+=("$staging_dir/logs/$project_name.log")
 
+  if ((${#compile_pids[@]} >= max_parallel)); then
+    wait_for_compile_batch
+  fi
+
+done
+
+if ((${#compile_pids[@]} > 0)); then
+  wait_for_compile_batch
+fi
+
+for project in "${projects[@]}"; do
+  project_name="${project##*/}"
+  project_name="${project_name%.csproj}"
+  project_output="$staging_dir/$project_name"
   project_files=()
   for generated_path in "$project_output"/*; do
     [[ -f "$generated_path" ]] || continue

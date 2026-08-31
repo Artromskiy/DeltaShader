@@ -24,6 +24,12 @@ internal static class TransformVertex
 
     public readonly struct VertexContext
     {
+        public VertexContext(VertexOutput vertex, TransformConstants constants)
+        {
+            Vertex = vertex;
+            Constants = constants;
+        }
+
         [Interstage]
         public readonly VertexOutput Vertex;
 
