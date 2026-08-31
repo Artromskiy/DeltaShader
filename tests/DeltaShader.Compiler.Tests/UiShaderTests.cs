@@ -161,24 +161,23 @@ public sealed class UiShaderTests
             result => result.EntryPointName == "rounded-rectangle-slice" &&
                 result.Module?.Stage == ShaderStage.Fragment);
         var sliceResource = Assert.Single(sliceVertex.BuildManifest!.Resources);
-        Assert.Equal(112u, sliceResource.Size);
-        Assert.Equal(112u, sliceResource.ArrayStride);
-        Assert.Equal(0u, Assert.Single(sliceResource.Members, member => member.Name == "Rect").Offset);
-        Assert.Equal(16u, Assert.Single(sliceResource.Members, member => member.Name == "FillColor").Offset);
-        Assert.Equal(32u, Assert.Single(sliceResource.Members, member => member.Name == "BorderColor").Offset);
-        Assert.Equal(48u, Assert.Single(sliceResource.Members, member => member.Name == "CornerRadii").Offset);
-        Assert.Equal(64u, Assert.Single(sliceResource.Members, member => member.Name == "SegmentRect").Offset);
-        Assert.Equal(80u, Assert.Single(sliceResource.Members, member => member.Name == "CornerData").Offset);
-        Assert.Equal(96u, Assert.Single(sliceResource.Members, member => member.Name == "BorderWidth").Offset);
+        Assert.Equal(96u, sliceResource.Size);
+        Assert.Equal(96u, sliceResource.ArrayStride);
+        Assert.DoesNotContain(sliceResource.Members, member => member.Name == "Rect");
+        Assert.Equal(0u, Assert.Single(sliceResource.Members, member => member.Name == "FillColor").Offset);
+        Assert.Equal(16u, Assert.Single(sliceResource.Members, member => member.Name == "BorderColor").Offset);
+        Assert.Equal(32u, Assert.Single(sliceResource.Members, member => member.Name == "CornerRadii").Offset);
+        Assert.Equal(48u, Assert.Single(sliceResource.Members, member => member.Name == "SegmentRect").Offset);
+        Assert.Equal(64u, Assert.Single(sliceResource.Members, member => member.Name == "CornerData").Offset);
+        Assert.Equal(80u, Assert.Single(sliceResource.Members, member => member.Name == "BorderWidth").Offset);
         Assert.Equal(8u, Assert.Single(sliceVertex.BuildManifest.PushConstants).Size);
         Assert.Empty(sliceFragment.BuildManifest!.Resources);
         Assert.Empty(sliceFragment.BuildManifest.PushConstants);
 
         var sliceFragmentGlsl = GlslEmitter.EmitFromModule(sliceFragment.Module!).Source;
         Assert.Contains("CornerData", sliceFragmentGlsl, StringComparison.Ordinal);
-        Assert.Contains("SegmentRect", sliceFragmentGlsl, StringComparison.Ordinal);
-        Assert.Contains("segmentRect.x- pixel.x", sliceFragmentGlsl, StringComparison.Ordinal);
-        Assert.Contains("segmentRect.y- pixel.y", sliceFragmentGlsl, StringComparison.Ordinal);
+        Assert.Contains("Pixel", sliceFragmentGlsl, StringComparison.Ordinal);
+        Assert.DoesNotContain("Uv", sliceFragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("isCorner", sliceFragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("fwidth", sliceFragmentGlsl, StringComparison.Ordinal);
     }
@@ -208,6 +207,7 @@ public sealed class UiShaderTests
         Assert.DoesNotContain("PackRoundedRectangleFragmentFrame", generatedSource, StringComparison.Ordinal);
         Assert.Contains("WriteFloat(0u, value.Resolution.x)", generatedSource, StringComparison.Ordinal);
         Assert.Contains("WriteFloat(0u, value.Rect.x)", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("WriteFloat(0u, value.FillColor.x)", generatedSource, StringComparison.Ordinal);
         Assert.Contains("WriteFloat(16u, value.FillColor.x)", generatedSource, StringComparison.Ordinal);
         Assert.Contains("WriteFloat(48u, value.CornerRadii.x)", generatedSource, StringComparison.Ordinal);
         Assert.Contains("WriteFloat(52u, value.CornerRadii.y)", generatedSource, StringComparison.Ordinal);

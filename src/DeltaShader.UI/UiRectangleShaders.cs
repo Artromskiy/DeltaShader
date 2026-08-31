@@ -76,7 +76,6 @@ public readonly struct RoundedRectangleParameters
 
 public readonly struct RoundedRectangleSliceParameters
 {
-    public readonly float4 Rect;
     public readonly float4 FillColor;
     public readonly float4 BorderColor;
     public readonly float4 CornerRadii;
@@ -85,7 +84,6 @@ public readonly struct RoundedRectangleSliceParameters
     public readonly float BorderWidth;
 
     public RoundedRectangleSliceParameters(
-        float4 rect,
         float4 fillColor,
         float4 borderColor,
         float4 cornerRadii,
@@ -93,7 +91,6 @@ public readonly struct RoundedRectangleSliceParameters
         float4 cornerData,
         float borderWidth)
     {
-        Rect = rect;
         FillColor = fillColor;
         BorderColor = borderColor;
         CornerRadii = cornerRadii;
@@ -152,7 +149,6 @@ public static class RoundedRectangleSliceBuilder
             destination,
             ref count,
             rectangle,
-            rect,
             radii,
             new float4(x1, y1, x2 - x1, y2 - y1),
             new float4(0f, 0f, 0f, 0f));
@@ -160,7 +156,6 @@ public static class RoundedRectangleSliceBuilder
             destination,
             ref count,
             rectangle,
-            rect,
             radii,
             new float4(x1, y0, x2 - x1, top),
             new float4(0f, 0f, 0f, 0f));
@@ -168,7 +163,6 @@ public static class RoundedRectangleSliceBuilder
             destination,
             ref count,
             rectangle,
-            rect,
             radii,
             new float4(x2, y1, right, y2 - y1),
             new float4(0f, 0f, 0f, 0f));
@@ -176,7 +170,6 @@ public static class RoundedRectangleSliceBuilder
             destination,
             ref count,
             rectangle,
-            rect,
             radii,
             new float4(x1, y2, x2 - x1, bottom),
             new float4(0f, 0f, 0f, 0f));
@@ -184,14 +177,13 @@ public static class RoundedRectangleSliceBuilder
             destination,
             ref count,
             rectangle,
-            rect,
             radii,
             new float4(x0, y1, left, y2 - y1),
             new float4(0f, 0f, 0f, 0f));
-        AppendCorner(destination, ref count, rectangle, rect, radii, new float4(x0, y0, left, top), x1, y1, radii.x);
-        AppendCorner(destination, ref count, rectangle, rect, radii, new float4(x2, y0, right, top), x2, y1, radii.y);
-        AppendCorner(destination, ref count, rectangle, rect, radii, new float4(x2, y2, right, bottom), x2, y2, radii.z);
-        AppendCorner(destination, ref count, rectangle, rect, radii, new float4(x0, y2, left, bottom), x1, y2, radii.w);
+        AppendCorner(destination, ref count, rectangle, radii, new float4(x0, y0, left, top), x1, y1, radii.x);
+        AppendCorner(destination, ref count, rectangle, radii, new float4(x2, y0, right, top), x2, y1, radii.y);
+        AppendCorner(destination, ref count, rectangle, radii, new float4(x2, y2, right, bottom), x2, y2, radii.z);
+        AppendCorner(destination, ref count, rectangle, radii, new float4(x0, y2, left, bottom), x1, y2, radii.w);
         return count;
     }
 
@@ -217,7 +209,6 @@ public static class RoundedRectangleSliceBuilder
         Span<RoundedRectangleSliceParameters> destination,
         ref int count,
         in RoundedRectangleParameters rectangle,
-        float4 rect,
         float4 radii,
         float4 segmentRect,
         float centerX,
@@ -228,7 +219,6 @@ public static class RoundedRectangleSliceBuilder
             destination,
             ref count,
             rectangle,
-            rect,
             radii,
             segmentRect,
             new float4(centerX, centerY, radius, radius > 0f ? 1f : 0f));
@@ -238,7 +228,6 @@ public static class RoundedRectangleSliceBuilder
         Span<RoundedRectangleSliceParameters> destination,
         ref int count,
         in RoundedRectangleParameters rectangle,
-        float4 rect,
         float4 radii,
         float4 segmentRect,
         float4 cornerData)
@@ -249,7 +238,6 @@ public static class RoundedRectangleSliceBuilder
         }
 
         destination[count++] = new RoundedRectangleSliceParameters(
-            rect,
             rectangle.FillColor,
             rectangle.BorderColor,
             radii,
@@ -294,8 +282,7 @@ public readonly struct RoundedRectangleFragmentContext
 public struct RoundedRectangleSlicePayload
 {
     public Position Position;
-    public Uv0 Uv;
-    public Color Rect;
+    public Uv0 Pixel;
     public VertexColor FillColor;
     public FragmentColor BorderColor;
     public Tangent SegmentRect;
@@ -459,8 +446,7 @@ public static class UiRectangleShaders
         return new RoundedRectangleSlicePayload
         {
             Position = new float4(clip.x, clip.y, 0f, 1f),
-            Uv = new Uv0(local),
-            Rect = new Color(instance.Rect),
+            Pixel = new Uv0(pixel),
             FillColor = new VertexColor(instance.FillColor),
             BorderColor = new FragmentColor(instance.BorderColor),
             SegmentRect = new Tangent(instance.SegmentRect),
@@ -472,13 +458,10 @@ public static class UiRectangleShaders
     [FragmentShader("rounded-rectangle-slice")]
     public static float4 RoundedRectangleSliceFragment(in RoundedRectangleSliceFragmentContext context)
     {
-        float4 outerRect = context.Fragment.Rect.Value;
-        float4 segmentRect = context.Fragment.SegmentRect.Value;
         float4 cornerData = context.Fragment.CornerData.Value;
+        float4 segmentRect = context.Fragment.SegmentRect.Value;
         float borderWidth = context.Fragment.BorderWidth.Value.x;
-        float2 pixel = new float2(
-            segmentRect.x + context.Fragment.Uv.Value.x * segmentRect.z,
-            segmentRect.y + context.Fragment.Uv.Value.y * segmentRect.w);
+        float2 pixel = context.Fragment.Pixel.Value;
         float isCorner = cornerData.w;
         float distance = 0f;
         if (isCorner > 0.5f)
