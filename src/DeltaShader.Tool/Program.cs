@@ -118,9 +118,15 @@ static async Task<int> ExecuteEmitAsync(ProgramOptions options)
             var compile = optimizationFlag.Length == 0
                 ? ProcessRunner.Run(glslang, "-V", "--target-env", options.CompilationOptions.Profile, "-S", stageSuffix, glslFile, "-o", spirvFile)
                 : ProcessRunner.Run(glslang, "-V", "--target-env", options.CompilationOptions.Profile, optimizationFlag, "-S", stageSuffix, glslFile, "-o", spirvFile);
-            if (compile.ExitCode != 0) { Console.WriteLine($"glslangValidator failed:{Environment.NewLine}{compile.Output}"); return 1; }
+            if (!ReportProcessFailure(compile, "glslangValidator"))
+            {
+                return 1;
+            }
             var validation = ProcessRunner.Run(spirvValidator, "--target-env", options.CompilationOptions.Profile, spirvFile);
-            if (validation.ExitCode != 0) { Console.WriteLine($"spirv-val failed:{Environment.NewLine}{validation.Output}"); return 1; }
+            if (!ReportProcessFailure(validation, "spirv-val"))
+            {
+                return 1;
+            }
             var artifact = ShaderArtifactPublisher.Create(
                 await File.ReadAllBytesAsync(spirvFile).ConfigureAwait(false),
                 manifest);
@@ -245,6 +251,17 @@ static ProgramOptions ParseOptions(string[] args)
     }
 
     return new ProgramOptions(command, projectPath, false, compilationOptions, outputDir, backend);
+}
+
+static bool ReportProcessFailure(ProcessResult result, string toolName)
+{
+    if (result.ExitCode == 0)
+    {
+        return true;
+    }
+
+    Console.WriteLine($"{toolName} failed:{Environment.NewLine}{result.Output}");
+    return false;
 }
 
 static bool TryParseOptimization(string value, out ShaderOptimizationMode optimization)
