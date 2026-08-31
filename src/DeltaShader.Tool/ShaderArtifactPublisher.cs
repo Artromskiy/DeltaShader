@@ -126,7 +126,7 @@ internal static class ShaderArtifactPublisher
     private static Final.ShaderValueType MatrixValueType(string type, uint bitWidth)
     {
         var dimensions = type[(type.LastIndexOf('t') + 1)..];
-        var separator = dimensions.IndexOf('x');
+        var separator = dimensions.IndexOf('x', StringComparison.Ordinal);
         var columns = separator < 0
             ? VectorSize(dimensions)
             : uint.Parse(dimensions.AsSpan(0, separator), CultureInfo.InvariantCulture);

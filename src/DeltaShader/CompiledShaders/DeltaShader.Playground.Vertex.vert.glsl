@@ -16,13 +16,12 @@ layout(location = 0) out vec2 Uv;
 void main()
 {
     ;
-    gl_Position= gl_Position;
-    
-    Uv= Uv;
-    
-    {gl_Position = gl_Position;
-    Uv = Uv;
-    return;
-    }
+        gl_Position = gl_Position;
+        Uv = Uv;
+        {
+            gl_Position = gl_Position;
+            Uv = Uv;
+            return;
+        }
 
 }

@@ -22,15 +22,15 @@
     {
       "Name": "Pixel",
       "ParameterName": "Pixel",
-      "GlslName": "Pixel",
-      "GlslType": "vec2",
+      "GlslName": "interstage_slot_0",
+      "GlslType": "vec4",
       "Location": 0,
       "Builtin": null
     },
     {
       "Name": "FillColor",
       "ParameterName": "FillColor",
-      "GlslName": "FillColor",
+      "GlslName": "interstage_slot_1",
       "GlslType": "vec4",
       "Location": 1,
       "Builtin": null
@@ -38,7 +38,7 @@
     {
       "Name": "BorderColor",
       "ParameterName": "BorderColor",
-      "GlslName": "BorderColor",
+      "GlslName": "interstage_slot_2",
       "GlslType": "vec4",
       "Location": 2,
       "Builtin": null
@@ -46,7 +46,7 @@
     {
       "Name": "SegmentRect",
       "ParameterName": "SegmentRect",
-      "GlslName": "SegmentRect",
+      "GlslName": "interstage_slot_3",
       "GlslType": "vec4",
       "Location": 3,
       "Builtin": null
@@ -54,17 +54,9 @@
     {
       "Name": "CornerData",
       "ParameterName": "CornerData",
-      "GlslName": "CornerData",
+      "GlslName": "interstage_slot_4",
       "GlslType": "vec4",
       "Location": 4,
-      "Builtin": null
-    },
-    {
-      "Name": "BorderWidth",
-      "ParameterName": "BorderWidth",
-      "GlslName": "BorderWidth",
-      "GlslType": "float",
-      "Location": 5,
       "Builtin": null
     }
   ],

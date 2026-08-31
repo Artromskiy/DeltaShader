@@ -148,7 +148,7 @@ internal static class GraphicsEntryPoints
 
         if (entry.Stage == ShaderStage.Vertex)
         {
-            var offset = 0u;
+            var vertexInputCandidates = new List<VertexInputCandidate>();
             foreach (var leaf in varyingLeaves)
             {
                 var field = leaf.Field;
@@ -202,31 +202,27 @@ internal static class GraphicsEntryPoints
                     continue;
                 }
 
-                var fieldName = "vertex_" + Sanitize(fieldLabel);
-                var fieldLocationValue = GetUIntArg(fieldLocation, 0);
-                if (vertexInputs.Any(input => input.Location == fieldLocationValue))
+                if (!TryGetVertexInputShape(glslType, out var scalarType, out var componentCount))
                 {
                     AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH013,
-                        $"Vertex input location {fieldLocationValue} is declared more than once.", field.Locations.FirstOrDefault()?.GetLineSpan());
+                        $"Vertex payload field '{fieldLabel}' has an unsupported vertex input shape.", field.Locations.FirstOrDefault()?.GetLineSpan());
                     continue;
                 }
 
-                directFields[field] = fieldName;
-                vertexInputs.Add(new ShaderIrVertexInput
+                vertexInputCandidates.Add(new VertexInputCandidate
                 {
-                    Name = fieldName,
+                    Field = field,
+                    FieldLabel = fieldLabel,
+                    FieldName = "vertex_" + Sanitize(fieldLabel),
                     ParameterName = field.Name,
-                    GlslName = fieldName,
                     GlslType = glslType,
-                    Location = fieldLocationValue,
-                    Binding = 0,
-                    ByteOffset = offset,
-                    InputRate = VertexInputRate.Vertex,
+                    Location = GetUIntArg(fieldLocation, 0),
                     ByteSize = byteSize,
                     Alignment = alignment,
-                    FormatHint = formatHint
+                    FormatHint = formatHint,
+                    ScalarType = scalarType,
+                    ComponentCount = componentCount
                 });
-                offset += byteSize;
                 if (positionFields.Contains(field))
                 {
                     outputFields[field] = "gl_Position";
@@ -254,6 +250,8 @@ internal static class GraphicsEntryPoints
                 }
             }
 
+            var logicalVertexInputs = new List<ShaderIrVertexInput>();
+            ResolveVertexInputSlots(vertexInputCandidates, vertexInputs, logicalVertexInputs, directFields, diagnostics, out var offset);
             if (vertexInputs.Count > 0)
             {
                 vertexBuffers.Add(new ShaderIrVertexBufferBinding
@@ -261,7 +259,7 @@ internal static class GraphicsEntryPoints
                     Binding = 0,
                     Stride = AlignUp(offset, 4),
                     InputRate = VertexInputRate.Vertex,
-                    Attributes = vertexInputs
+                    Attributes = logicalVertexInputs
                 });
             }
         }
@@ -1125,6 +1123,165 @@ internal static class GraphicsEntryPoints
         };
 
         return byteSize != 0;
+    }
+
+    private static bool TryGetVertexInputShape(string glslType, out string scalarType, out uint componentCount)
+    {
+        (scalarType, componentCount) = glslType switch
+        {
+            "float" => ("float", 1u),
+            "vec2" => ("float", 2u),
+            "vec3" => ("float", 3u),
+            "vec4" => ("float", 4u),
+            "int" => ("int", 1u),
+            "ivec2" => ("int", 2u),
+            "ivec3" => ("int", 3u),
+            "ivec4" => ("int", 4u),
+            "uint" => ("uint", 1u),
+            "uvec2" => ("uint", 2u),
+            "uvec3" => ("uint", 3u),
+            "uvec4" => ("uint", 4u),
+            _ => (string.Empty, 0u)
+        };
+
+        return componentCount != 0;
+    }
+
+    private static void ResolveVertexInputSlots(
+        IReadOnlyList<VertexInputCandidate> candidates,
+        List<ShaderIrVertexInput> physicalInputs,
+        List<ShaderIrVertexInput> logicalInputs,
+        Dictionary<IFieldSymbol, string> directFields,
+        List<ShaderDiagnostic> diagnostics,
+        out uint byteLength)
+    {
+        var slots = new List<VertexInputSlot>();
+        var slotsByLocation = new Dictionary<uint, VertexInputSlot>();
+        foreach (var candidate in candidates)
+        {
+            if (!slotsByLocation.TryGetValue(candidate.Location, out var slot))
+            {
+                slot = new VertexInputSlot
+                {
+                    Location = candidate.Location,
+                    FieldName = candidate.FieldName,
+                    ScalarType = candidate.ScalarType
+                };
+                slotsByLocation.Add(candidate.Location, slot);
+                slots.Add(slot);
+            }
+            else if (!string.Equals(slot.ScalarType, candidate.ScalarType, StringComparison.Ordinal))
+            {
+                AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH013,
+                    $"Vertex input location {candidate.Location} cannot merge '{candidate.GlslType}' with a {slot.ScalarType} input.",
+                    candidate.Field.Locations.FirstOrDefault()?.GetLineSpan());
+                continue;
+            }
+
+            if (slot.ComponentCount + candidate.ComponentCount > 4)
+            {
+                AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH013,
+                    $"Vertex input location {candidate.Location} exceeds its four-component slot.",
+                    candidate.Field.Locations.FirstOrDefault()?.GetLineSpan());
+                continue;
+            }
+
+            candidate.ComponentOffset = slot.ComponentCount;
+            slot.ComponentCount += candidate.ComponentCount;
+            slot.Members.Add(candidate);
+        }
+
+        byteLength = 0;
+        foreach (var slot in slots)
+        {
+            if (slot.Members.Count == 0)
+            {
+                continue;
+            }
+
+            var merged = slot.Members.Count > 1;
+            var physicalType = merged ? slot.ScalarType switch
+            {
+                "float" => "vec4",
+                "int" => "ivec4",
+                "uint" => "uvec4",
+                _ => string.Empty
+            } : slot.Members[0].GlslType;
+            if (!TryGetVertexInputLayout(physicalType, out var physicalByteSize, out var physicalAlignment, out var physicalFormatHint))
+            {
+                continue;
+            }
+
+            slot.ByteOffset = byteLength;
+            byteLength += physicalByteSize;
+            physicalInputs.Add(new ShaderIrVertexInput
+            {
+                Name = slot.FieldName,
+                ParameterName = slot.Members[0].ParameterName,
+                GlslName = slot.FieldName,
+                GlslType = physicalType,
+                Location = slot.Location,
+                Binding = 0,
+                ByteOffset = slot.ByteOffset,
+                InputRate = VertexInputRate.Vertex,
+                ByteSize = physicalByteSize,
+                Alignment = physicalAlignment,
+                FormatHint = physicalFormatHint
+            });
+
+            foreach (var member in slot.Members)
+            {
+                member.ByteOffset = slot.ByteOffset + member.ComponentOffset * 4u;
+                directFields[member.Field] = slot.FieldName + (merged ? CreateSwizzle(member.ComponentOffset, member.ComponentCount) : string.Empty);
+                logicalInputs.Add(new ShaderIrVertexInput
+                {
+                    Name = member.FieldName,
+                    ParameterName = member.ParameterName,
+                    GlslName = member.FieldName,
+                    GlslType = member.GlslType,
+                    Location = member.Location,
+                    Binding = 0,
+                    ByteOffset = member.ByteOffset,
+                    InputRate = VertexInputRate.Vertex,
+                    ByteSize = member.ByteSize,
+                    Alignment = member.Alignment,
+                    FormatHint = member.FormatHint
+                });
+            }
+        }
+    }
+
+    private static string CreateSwizzle(uint componentOffset, uint componentCount)
+    {
+        const string components = "xyzw";
+        return "." + components.Substring((int)componentOffset, (int)componentCount);
+    }
+
+    private sealed class VertexInputCandidate
+    {
+        public IFieldSymbol Field { get; init; } = null!;
+        public string FieldLabel { get; init; } = string.Empty;
+        public string FieldName { get; init; } = string.Empty;
+        public string ParameterName { get; init; } = string.Empty;
+        public string GlslType { get; init; } = string.Empty;
+        public uint Location { get; init; }
+        public uint ByteSize { get; init; }
+        public uint Alignment { get; init; }
+        public string FormatHint { get; init; } = string.Empty;
+        public string ScalarType { get; init; } = string.Empty;
+        public uint ComponentCount { get; init; }
+        public uint ComponentOffset { get; set; }
+        public uint ByteOffset { get; set; }
+    }
+
+    private sealed class VertexInputSlot
+    {
+        public string FieldName { get; init; } = string.Empty;
+        public string ScalarType { get; init; } = string.Empty;
+        public uint Location { get; init; }
+        public uint ComponentCount { get; set; }
+        public uint ByteOffset { get; set; }
+        public List<VertexInputCandidate> Members { get; } = [];
     }
 
     private static bool TryBuildStruct(INamedTypeSymbol type, ModuleCompilationContext context, Dictionary<INamedTypeSymbol, ShaderIrStruct> definitions, HashSet<INamedTypeSymbol> visiting, out ShaderIrStruct? structure, out string? reason)

@@ -19,45 +19,39 @@ layout(set = 0, binding = 0, std430) readonly buffer Instances
     DeltaStruct_Delta_Shader_UI_RoundedRectangleSliceParameters data[];
 } Instances_instance;
 
-layout(location = 0) out vec2 Pixel;
-layout(location = 1) out vec4 FillColor;
-layout(location = 2) out vec4 BorderColor;
-layout(location = 3) out vec4 SegmentRect;
-layout(location = 4) out vec4 CornerData;
-layout(location = 5) out float BorderWidth;
+layout(location = 0) out vec4 interstage_slot_0;
+layout(location = 1) out vec4 interstage_slot_1;
+layout(location = 2) out vec4 interstage_slot_2;
+layout(location = 3) out vec4 interstage_slot_3;
+layout(location = 4) out vec4 interstage_slot_4;
 
 
 void main()
 {
     DeltaStruct_Delta_Shader_UI_RoundedRectangleSliceParameters instance = Instances_instance.data[gl_InstanceIndex];
+        uint vertexIndex = gl_VertexIndex;
+        vec2 local = vec2(0, 0);
+        if (vertexIndex == 1u || vertexIndex == 2u || vertexIndex == 4u)
+        {
+            local = vec2(1, local.y);
+        }
     
-    uint vertexIndex = gl_VertexIndex;
+        if (vertexIndex == 2u || vertexIndex == 4u || vertexIndex == 5u)
+        {
+            local = vec2(local.x, 1);
+        }
     
-    vec2 local = vec2(0, 0);
-    
-            if (vertexIndex == 1u || vertexIndex == 2u || vertexIndex == 4u)
-            {
-                local = vec2(1, local.y);
-    
-            }
-    
-            if (vertexIndex == 2u || vertexIndex == 4u || vertexIndex == 5u)
-            {
-                local = vec2(local.x, 1);
-    
-            }
-    vec2 pixel = vec2(            instance.member_SegmentRect.x+ local.x* instance.member_SegmentRect.z,             instance.member_SegmentRect.y+ local.y* instance.member_SegmentRect.w);
-    
-    vec2 clip = vec2(            pixel.x/ pushConstants.member_Resolution.x* 2 - 1,             pixel.y/ pushConstants.member_Resolution.y* 2 - 1);
-    
-    {gl_Position = vec4(clip.x, clip.y, 0, 1);
-    Pixel = vec2(pixel);
-    FillColor = vec4(instance.member_FillColor);
-    BorderColor = vec4(instance.member_BorderColor);
-    SegmentRect = vec4(instance.member_SegmentRect);
-    CornerData = vec4(instance.member_CornerData);
-    BorderWidth = float(instance.member_BorderWidth);
-    return;
-    }
+        vec2 pixel = vec2(instance.member_SegmentRect.x + local.x * instance.member_SegmentRect.z, instance.member_SegmentRect.y + local.y * instance.member_SegmentRect.w);
+        vec2 clip = vec2(pixel.x / pushConstants.member_Resolution.x * 2 - 1, pixel.y / pushConstants.member_Resolution.y * 2 - 1);
+        {
+            gl_Position = vec4(clip.x, clip.y, 0, 1);
+            interstage_slot_0.xy = vec2(pixel);
+            interstage_slot_1 = vec4(instance.member_FillColor);
+            interstage_slot_2 = vec4(instance.member_BorderColor);
+            interstage_slot_3 = vec4(instance.member_SegmentRect);
+            interstage_slot_4 = vec4(instance.member_CornerData);
+            interstage_slot_0.z = float (instance.member_BorderWidth);
+            return;
+        }
 
 }

@@ -14,39 +14,38 @@ layout(location = 0) in vec2 Uv;
 layout(location = 0) out vec4 fragColor;
 
 vec2 delta_helper_ClampUv(vec2 arg_uv) {
-        return clamp(arg_uv, vec2(0, 0), vec2(1, 1));
-
-    }
+    return clamp(arg_uv, vec2(0, 0), vec2(1, 1));
+}
 
 
 void main()
 {
     vec2 uv = Uv;
-    
-    vec4 silhouette = texture(Silhouette, delta_helper_ClampUv(uv));
-    
-            if (silhouette.a> 0.001 || pushConstants.member_OutlineWidth<= 0)
+        vec4 silhouette = texture(Silhouette, delta_helper_ClampUv(uv));
+        if (silhouette.a > 0.001 || pushConstants.member_OutlineWidth <= 0)
+        {
             {
-    {fragColor = vec4(0, 0, 0, 0);
-    return;
-    }        }
-    vec4 seed = texture(Seeds, delta_helper_ClampUv(uv));
+                fragColor = vec4(0, 0, 0, 0);
+                return;
+            }
+        }
     
-            if (seed.z<= 0.5)
+        vec4 seed = texture(Seeds, delta_helper_ClampUv(uv));
+        if (seed.z <= 0.5)
+        {
             {
-    {fragColor = vec4(0, 0, 0, 0);
-    return;
-    }        }
-    float texel = max(pushConstants.member_TexelSize.x, pushConstants.member_TexelSize.y);
+                fragColor = vec4(0, 0, 0, 0);
+                return;
+            }
+        }
     
-    float distanceInPixels = distance(uv, seed.xy)/ texel;
-    
-    float aa = fwidth(distanceInPixels);
-    
-    float coverage = 1 - smoothstep(pushConstants.member_OutlineWidth- aa, pushConstants.member_OutlineWidth+ aa,             distanceInPixels);
-    
-    {fragColor = pushConstants.member_Color* coverage;
-    return;
-    }
+        float texel = max(pushConstants.member_TexelSize.x, pushConstants.member_TexelSize.y);
+        float distanceInPixels = distance(uv, seed.xy) / texel;
+        float aa = fwidth(distanceInPixels);
+        float coverage = 1 - smoothstep(pushConstants.member_OutlineWidth - aa, pushConstants.member_OutlineWidth + aa, distanceInPixels);
+        {
+            fragColor = pushConstants.member_Color * coverage;
+            return;
+        }
 
 }

@@ -11,9 +11,9 @@ layout(push_constant, std430) uniform DeltaPushConstants
 void main()
 {
     vec3 vertex = vec3(1, 2, 3);
-    
-    {gl_Position = pushConstants.member_Projection* pushConstants.member_View* pushConstants.member_Model* vec4(vertex, 1);
-    return;
-    }
+        {
+            gl_Position = pushConstants.member_Projection * pushConstants.member_View * pushConstants.member_Model * vec4(vertex, 1);
+            return;
+        }
 
 }

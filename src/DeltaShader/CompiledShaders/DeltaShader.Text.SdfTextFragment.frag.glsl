@@ -18,22 +18,15 @@ layout(location = 0) out vec4 fragColor;
 void main()
 {
     vec4 texel = texture(Atlas, Uv);
-    
-    float signedDistance = (texel.x- 0.5) * pushConstants.member_DistanceRange;
-    
-    float edge = fwidth(signedDistance);
-    
-    float fillCoverage = smoothstep(-edge, edge, signedDistance);
-    
-    float outlineWidth = max(pushConstants.member_OutlineWidth, 0);
-    
-    float outerCoverage = smoothstep(-outlineWidth - edge, -outlineWidth + edge, signedDistance);
-    
-    float outlineContribution = max(outerCoverage - fillCoverage, 0);
-    
-    {fragColor = pushConstants.member_TextColor* GlyphColor* fillCoverage +
-    pushConstants.member_OutlineColor* GlyphColor* outlineContribution;
-    return;
-    }
+        float signedDistance = (texel.x - 0.5) * pushConstants.member_DistanceRange;
+        float edge = fwidth(signedDistance);
+        float fillCoverage = smoothstep(-edge, edge, signedDistance);
+        float outlineWidth = max(pushConstants.member_OutlineWidth, 0);
+        float outerCoverage = smoothstep(-outlineWidth - edge, -outlineWidth + edge, signedDistance);
+        float outlineContribution = max(outerCoverage - fillCoverage, 0);
+        {
+            fragColor = pushConstants.member_TextColor * GlyphColor * fillCoverage + pushConstants.member_OutlineColor * GlyphColor * outlineContribution;
+            return;
+        }
 
 }

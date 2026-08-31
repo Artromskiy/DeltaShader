@@ -18,26 +18,17 @@ layout(location = 0) out vec4 fragColor;
 void main()
 {
     vec4 texel = texture(Atlas, Uv);
-    
-    float median = max(min(texel.x, texel.y), min(max(texel.x, texel.y), texel.z));
-    
-    float signedDistance = median - 0.5;
-    
-            signedDistance *= pushConstants.member_DistanceRange;
-    
-    float edge = fwidth(signedDistance);
-    
-    float fillCoverage = smoothstep(-edge, edge, signedDistance);
-    
-    float outlineWidth = max(pushConstants.member_OutlineWidth, 0);
-    
-    float outerCoverage = smoothstep(-outlineWidth - edge, -outlineWidth + edge, signedDistance);
-    
-    float outlineContribution = max(outerCoverage - fillCoverage, 0);
-    
-    {fragColor = pushConstants.member_TextColor* GlyphColor* fillCoverage +
-    pushConstants.member_OutlineColor* GlyphColor* outlineContribution;
-    return;
-    }
+        float median = max(min(texel.x, texel.y), min(max(texel.x, texel.y), texel.z));
+        float signedDistance = median - 0.5;
+        signedDistance *= pushConstants.member_DistanceRange;
+        float edge = fwidth(signedDistance);
+        float fillCoverage = smoothstep(-edge, edge, signedDistance);
+        float outlineWidth = max(pushConstants.member_OutlineWidth, 0);
+        float outerCoverage = smoothstep(-outlineWidth - edge, -outlineWidth + edge, signedDistance);
+        float outlineContribution = max(outerCoverage - fillCoverage, 0);
+        {
+            fragColor = pushConstants.member_TextColor * GlyphColor * fillCoverage + pushConstants.member_OutlineColor * GlyphColor * outlineContribution;
+            return;
+        }
 
 }

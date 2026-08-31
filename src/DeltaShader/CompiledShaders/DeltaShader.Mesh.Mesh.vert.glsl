@@ -10,8 +10,8 @@ layout(location = 1) out vec2 Uv;
 void main()
 {
     gl_Position = vertex_Position;
-    Normal = vertex_Normal;
-    Uv = vertex_Uv;
-    return;
+        Normal = vertex_Normal;
+        Uv = vertex_Uv;
+        return;
 
 }

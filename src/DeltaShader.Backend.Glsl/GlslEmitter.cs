@@ -182,7 +182,20 @@ public static class GlslEmitter
         {
             normalized = normalized.Substring(1, normalized.Length - 2).Trim();
         }
-        return normalized;
+
+        var lines = normalized.Split('\n');
+        var indentation = lines
+            .Where(line => line.Trim().Length > 0)
+            .Select(line => line.Length - line.TrimStart().Length)
+            .DefaultIfEmpty(0)
+            .Min();
+        if (indentation == 0)
+        {
+            return string.Join("\n", lines.Select(line => line.TrimEnd()));
+        }
+
+        return string.Join("\n", lines.Select(line =>
+            line.Length >= indentation ? line.Substring(indentation).TrimEnd() : string.Empty));
     }
 
     private static string RewriteIdentifiers(string body, Dictionary<string, string> identifierMap)

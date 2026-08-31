@@ -273,7 +273,7 @@ internal static class ShaderBodyTranslator
         var rewritten = body is ExpressionSyntax expression && lowerReturns
             ? rewriter.TranslateExpressionBody(expression)
             : rewriter.Visit(body);
-        translated = rewritten?.ToFullString().Trim() ?? string.Empty;
+        translated = rewritten?.NormalizeWhitespace(indentation: "    ", eol: "\n").ToFullString().Trim() ?? string.Empty;
         if (rewriter.OutDeclarations.Count != 0)
         {
             translated = string.Join("\n", rewriter.OutDeclarations) + "\n" + translated;
@@ -318,12 +318,7 @@ internal static class ShaderBodyTranslator
                 translated = Regex.Replace(translated, $"\\b{Regex.Escape(glslType)}(?=[A-Za-z_]\\w*\\s*=)", glslType + " ", RegexOptions.None);
             }
         }
-        translated = translated.Replace(";", ";\n").Replace("\r\n", "\n").Replace("\r", "\n");
-        translated = Regex.Replace(translated, @"\b(vec[234]|ivec[234]|uvec[234]|bvec[234]|mat[234]|float|int|uint|bool)([A-Za-z_]\w*)\s*=", "$1 $2 =", RegexOptions.None);
-        foreach (var structName in structNames.Values)
-        {
-            translated = Regex.Replace(translated, $@"\b({Regex.Escape(structName)})([A-Za-z_]\w*)\s*=", "$1 $2 =", RegexOptions.None);
-        }
+        translated = translated.Replace("\r\n", "\n").Replace("\r", "\n");
         translated = System.Text.RegularExpressions.Regex.Replace(translated, @"(?<=\d)f\b", string.Empty);
         reason = rewriter.Reason;
         return reason is null;

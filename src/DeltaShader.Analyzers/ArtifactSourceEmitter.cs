@@ -254,9 +254,11 @@ internal static partial class ArtifactSourceEmitter
                 return false;
             }
 
-            var bindingInputs = manifest.VertexInputs
-                .Where(input => input.Binding == binding.Binding)
-                .ToArray();
+            var bindingInputs = binding.Attributes.Count > 0
+                ? binding.Attributes.ToArray()
+                : manifest.VertexInputs
+                    .Where(input => input.Binding == binding.Binding)
+                    .ToArray();
             if (bindingInputs.Length == 0)
             {
                 continue;

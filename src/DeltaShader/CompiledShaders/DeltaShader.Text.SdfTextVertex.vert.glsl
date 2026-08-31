@@ -28,59 +28,63 @@ layout(location = 1) out vec4 GlyphColor;
 void main()
 {
     uint instanceIndex = gl_InstanceIndex;
-    
-    uint vertexIndex = gl_VertexIndex;
-    
-    DeltaStruct_Delta_Shader_Text_GlyphInstance glyph = Glyphs_instance.data[instanceIndex];
-    
-    vec2 min = glyph.member_PixelMin;
-    
-    vec2 max = glyph.member_PixelMax;
-    
-    vec2 uvMin = vec2(glyph.member_UvRect.x, glyph.member_UvRect.y);
-    
-    vec2 uvMax = vec2(glyph.member_UvRect.z, glyph.member_UvRect.w);
-    
-    
-            if (vertexIndex == 0u)
+        uint vertexIndex = gl_VertexIndex;
+        DeltaStruct_Delta_Shader_Text_GlyphInstance glyph = Glyphs_instance.data[instanceIndex];
+        vec2 min = glyph.member_PixelMin;
+        vec2 max = glyph.member_PixelMax;
+        vec2 uvMin = vec2(glyph.member_UvRect.x, glyph.member_UvRect.y);
+        vec2 uvMax = vec2(glyph.member_UvRect.z, glyph.member_UvRect.w);
+        if (vertexIndex == 0u)
+        {
             {
-    {gl_Position = vec4((min.x/ pushConstants.member_Resolution.x) * 2 - 1, (min.y/ pushConstants.member_Resolution.y) * 2 - 1, 0, 1);
-    Uv = uvMin;
-    GlyphColor = glyph.member_Color;
-    return;
-    }        }
-            else if (vertexIndex == 1u)
+                gl_Position = vec4((min.x / pushConstants.member_Resolution.x) * 2 - 1, (min.y / pushConstants.member_Resolution.y) * 2 - 1, 0, 1);
+                Uv = uvMin;
+                GlyphColor = glyph.member_Color;
+                return;
+            }
+        }
+        else if (vertexIndex == 1u)
+        {
             {
-    {gl_Position = vec4((max.x/ pushConstants.member_Resolution.x) * 2 - 1, (min.y/ pushConstants.member_Resolution.y) * 2 - 1, 0, 1);
-    Uv = vec2(uvMax.x, uvMin.y);
-    GlyphColor = glyph.member_Color;
-    return;
-    }        }
-            else if (vertexIndex == 2u)
+                gl_Position = vec4((max.x / pushConstants.member_Resolution.x) * 2 - 1, (min.y / pushConstants.member_Resolution.y) * 2 - 1, 0, 1);
+                Uv = vec2(uvMax.x, uvMin.y);
+                GlyphColor = glyph.member_Color;
+                return;
+            }
+        }
+        else if (vertexIndex == 2u)
+        {
             {
-    {gl_Position = vec4((min.x/ pushConstants.member_Resolution.x) * 2 - 1, (max.y/ pushConstants.member_Resolution.y) * 2 - 1, 0, 1);
-    Uv = vec2(uvMin.x, uvMax.y);
-    GlyphColor = glyph.member_Color;
-    return;
-    }        }
-            else if (vertexIndex == 3u)
+                gl_Position = vec4((min.x / pushConstants.member_Resolution.x) * 2 - 1, (max.y / pushConstants.member_Resolution.y) * 2 - 1, 0, 1);
+                Uv = vec2(uvMin.x, uvMax.y);
+                GlyphColor = glyph.member_Color;
+                return;
+            }
+        }
+        else if (vertexIndex == 3u)
+        {
             {
-    {gl_Position = vec4((min.x/ pushConstants.member_Resolution.x) * 2 - 1, (max.y/ pushConstants.member_Resolution.y) * 2 - 1, 0, 1);
-    Uv = vec2(uvMin.x, uvMax.y);
-    GlyphColor = glyph.member_Color;
-    return;
-    }        }
-            else if (vertexIndex == 4u)
+                gl_Position = vec4((min.x / pushConstants.member_Resolution.x) * 2 - 1, (max.y / pushConstants.member_Resolution.y) * 2 - 1, 0, 1);
+                Uv = vec2(uvMin.x, uvMax.y);
+                GlyphColor = glyph.member_Color;
+                return;
+            }
+        }
+        else if (vertexIndex == 4u)
+        {
             {
-    {gl_Position = vec4((max.x/ pushConstants.member_Resolution.x) * 2 - 1, (min.y/ pushConstants.member_Resolution.y) * 2 - 1, 0, 1);
-    Uv = vec2(uvMax.x, uvMin.y);
-    GlyphColor = glyph.member_Color;
-    return;
-    }        }
-    {gl_Position = vec4((max.x/ pushConstants.member_Resolution.x) * 2 - 1, (max.y/ pushConstants.member_Resolution.y) * 2 - 1, 0, 1);
-    Uv = uvMax;
-    GlyphColor = glyph.member_Color;
-    return;
-    }
+                gl_Position = vec4((max.x / pushConstants.member_Resolution.x) * 2 - 1, (min.y / pushConstants.member_Resolution.y) * 2 - 1, 0, 1);
+                Uv = vec2(uvMax.x, uvMin.y);
+                GlyphColor = glyph.member_Color;
+                return;
+            }
+        }
+    
+        {
+            gl_Position = vec4((max.x / pushConstants.member_Resolution.x) * 2 - 1, (max.y / pushConstants.member_Resolution.y) * 2 - 1, 0, 1);
+            Uv = uvMax;
+            GlyphColor = glyph.member_Color;
+            return;
+        }
 
 }
