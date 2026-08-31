@@ -155,7 +155,7 @@ public static class RoundedRectangleSliceBuilder
             rect,
             radii,
             new float4(x1, y1, x2 - x1, y2 - y1),
-            new float4(0f, 0f, 0f, (float)RoundedRectangleSliceRegion.Center));
+            new float4(0f, 0f, 0f, 0f));
         Append(
             destination,
             ref count,
@@ -163,7 +163,7 @@ public static class RoundedRectangleSliceBuilder
             rect,
             radii,
             new float4(x1, y0, x2 - x1, top),
-            new float4(0f, 0f, 0f, (float)RoundedRectangleSliceRegion.Top));
+            new float4(0f, 0f, 0f, 0f));
         Append(
             destination,
             ref count,
@@ -171,7 +171,7 @@ public static class RoundedRectangleSliceBuilder
             rect,
             radii,
             new float4(x2, y1, right, y2 - y1),
-            new float4(0f, 0f, 0f, (float)RoundedRectangleSliceRegion.Right));
+            new float4(0f, 0f, 0f, 0f));
         Append(
             destination,
             ref count,
@@ -179,7 +179,7 @@ public static class RoundedRectangleSliceBuilder
             rect,
             radii,
             new float4(x1, y2, x2 - x1, bottom),
-            new float4(0f, 0f, 0f, (float)RoundedRectangleSliceRegion.Bottom));
+            new float4(0f, 0f, 0f, 0f));
         Append(
             destination,
             ref count,
@@ -187,7 +187,7 @@ public static class RoundedRectangleSliceBuilder
             rect,
             radii,
             new float4(x0, y1, left, y2 - y1),
-            new float4(0f, 0f, 0f, (float)RoundedRectangleSliceRegion.Left));
+            new float4(0f, 0f, 0f, 0f));
         AppendCorner(destination, ref count, rectangle, rect, radii, new float4(x0, y0, left, top), x1, y1, radii.x);
         AppendCorner(destination, ref count, rectangle, rect, radii, new float4(x2, y0, right, top), x2, y1, radii.y);
         AppendCorner(destination, ref count, rectangle, rect, radii, new float4(x2, y2, right, bottom), x2, y2, radii.z);

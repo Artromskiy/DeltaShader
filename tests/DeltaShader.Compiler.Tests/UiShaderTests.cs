@@ -32,6 +32,7 @@ public sealed class UiShaderTests
         Assert.Equal(1f, slices[5].CornerData.w);
         Assert.Equal(40f, slices[0].SegmentRect.z);
         Assert.Equal(20f, slices[0].SegmentRect.w);
+        Assert.All(slices.Take(5), slice => Assert.Equal(0f, slice.CornerData.w));
         Assert.Equal(4f, slices[0].BorderWidth);
     }
 
