@@ -738,6 +738,7 @@ internal static class ArtifactSourceEmitter
             "global::Delta.Shader.Pixel" or
             "global::Delta.Shader.SegmentRect" or
             "global::Delta.Shader.CornerData" or
+            "global::Delta.Shader.CornerRadii" or
             "global::Delta.Shader.BorderWidth";
 
     private static bool IsInterstagePayloadField(IFieldSymbol field)

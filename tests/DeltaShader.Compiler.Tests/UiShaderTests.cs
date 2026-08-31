@@ -140,6 +140,7 @@ public sealed class UiShaderTests
         Assert.Contains("smoothstep", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("BorderColor", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("FillColor", fragmentGlsl, StringComparison.Ordinal);
+        Assert.Contains("CornerRadii", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("1 - smoothstep(-edge, edge, distance)", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("1 - smoothstep(-edge, edge, distance +", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("max(fillCoverage - innerCoverage, 0)", fragmentGlsl, StringComparison.Ordinal);

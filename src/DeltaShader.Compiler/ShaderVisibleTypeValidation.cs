@@ -296,6 +296,7 @@ public static class ShaderVisibleTypeValidation
             "Delta.Shader.Pixel",
             "Delta.Shader.SegmentRect",
             "Delta.Shader.CornerData",
+            "Delta.Shader.CornerRadii",
             "Delta.Shader.BorderWidth"
         ];
 

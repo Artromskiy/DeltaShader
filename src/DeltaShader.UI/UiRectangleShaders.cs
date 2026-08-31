@@ -256,8 +256,8 @@ public struct RoundedRectanglePayload
     public Color Rect;
     public VertexColor FillColor;
     public FragmentColor BorderColor;
-    public Tangent CornerRadii;
-    public Uv1 BorderWidth;
+    public CornerRadii CornerRadii;
+    public BorderWidth BorderWidth;
 }
 
 public readonly struct RoundedRectangleVertexContext
@@ -374,8 +374,8 @@ public static class UiRectangleShaders
             Rect = new Color(instance.Rect),
             FillColor = new VertexColor(instance.FillColor),
             BorderColor = new FragmentColor(instance.BorderColor),
-            CornerRadii = new Tangent(instance.CornerRadii),
-            BorderWidth = new Uv1(new float2(instance.BorderWidth, 0f))
+            CornerRadii = new CornerRadii(instance.CornerRadii),
+            BorderWidth = new BorderWidth(instance.BorderWidth)
         };
     }
 
@@ -385,7 +385,7 @@ public static class UiRectangleShaders
         float4 rect = context.Fragment.Rect.Value;
         float2 size = new float2(rect.z, rect.w);
         float4 cornerRadii = context.Fragment.CornerRadii.Value;
-        float borderWidth = context.Fragment.BorderWidth.Value.x;
+        float borderWidth = context.Fragment.BorderWidth.Value;
         float2 pixel = context.Fragment.Uv.Value * size;
         float2 halfSize = size * 0.5f;
         float2 centered = pixel - halfSize;

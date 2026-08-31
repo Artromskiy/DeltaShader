@@ -175,6 +175,18 @@ public readonly struct CornerData
     public static implicit operator float4(CornerData value) => value.Value;
 }
 
+/// <summary>Independent top-left, top-right, bottom-right and bottom-left radii.</summary>
+public readonly struct CornerRadii
+{
+    public readonly float4 Value;
+
+    public CornerRadii(float4 value) => Value = value;
+
+    public static implicit operator CornerRadii(float4 value) => new(value);
+
+    public static implicit operator float4(CornerRadii value) => value.Value;
+}
+
 /// <summary>Border width in UI pixel units.</summary>
 public readonly struct BorderWidth
 {
