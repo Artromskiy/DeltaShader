@@ -17,6 +17,10 @@
   </PropertyGroup>
 
   <ItemGroup Condition="'$(DeltaShaderEnabled)' == 'true' and '@(DeltaShaderSource)' == ''">
+    <DeltaShaderSource Include="Shaders/**/*.cs" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(DeltaShaderEnabled)' == 'true' and '@(DeltaShaderSource)' == ''">
     <DeltaShaderSource Include="@(Compile)" />
   </ItemGroup>
 </Project>

@@ -20,9 +20,10 @@ Install the `DeltaShader.Tool` package and opt in from the project file:
 ```
 
 `DeltaShaderSource` is optional for discovery. When it is omitted, the build
-target uses the project's normal `Compile` items as incremental inputs. The
-tool still receives the complete project so Roslyn resolves all source and
-project references normally. Entry points are selected by the existing
+target first discovers `Shaders/**/*.cs`; projects without that directory
+fall back to their normal `Compile` items as incremental inputs. The tool
+still receives the complete project so Roslyn resolves all source and project
+references normally. Entry points are selected by the existing
 `ComputeShader`, `VertexShader` and `FragmentShader` attributes.
 
 The solution does not need a shader-specific entry. A normal project in the
