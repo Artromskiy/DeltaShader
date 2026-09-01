@@ -39,10 +39,10 @@ public static void Compute(in ComputeParametersContext ctx)
 }
 ```
 
-Every shader-visible field must be explicitly role-annotated as a storage
-buffer, texture, push constant, or stage builtin. The compiler flattens those
-fields into resource and layout metadata. Nested managed state, reference
-fields, and arbitrary host services remain invalid.
+Every shader-visible field must explicitly declare its role as an interstage
+payload, storage buffer, texture, push constant, or stage builtin. The compiler
+flattens those fields into resource and layout metadata. Nested managed state,
+reference fields, and arbitrary host services remain invalid.
 
 ### Generated std430 packing
 
@@ -51,8 +51,8 @@ For an entry point named `Compute`, the generated surface includes methods in
 this shape:
 
 ```csharp
-int PackComputeContext(in ComputeContext value, Span<byte> destination);
-byte[] PackComputeContext(in ComputeContext value);
+int PackComputeContext(in ComputeParametersContext value, Span<byte> destination);
+byte[] PackComputeContext(in ComputeParametersContext value);
 int PackComputeInputElement(in uint value, Span<byte> destination);
 int PackComputeInputElements(ReadOnlySpan<uint> values, Span<byte> destination);
 byte[] PackComputeInputElements(ReadOnlySpan<uint> values);

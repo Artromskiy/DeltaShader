@@ -24,6 +24,34 @@ public sealed class ShaderIrModule
     public IReadOnlyList<ShaderIrVertexBufferBinding> VertexBuffers { get; init; } = [];
     public IReadOnlyList<ShaderIrInterfaceVariable> Outputs { get; init; } = [];
     public IReadOnlyList<ShaderIrPushConstant> PushConstants { get; init; } = [];
+    public IReadOnlyList<ShaderIrContextField> ContextFields { get; init; } = [];
+}
+
+public enum ShaderIrContextFieldKind
+{
+    Interstage,
+    Resource,
+    PushConstant
+}
+
+public sealed class ShaderIrContextField
+{
+    public string TypeIdentity { get; init; } = string.Empty;
+    public string SourcePath { get; init; } = string.Empty;
+    public string ReadGlslName { get; init; } = string.Empty;
+    public string WriteGlslName { get; init; } = string.Empty;
+    public string GlslType { get; init; } = string.Empty;
+    public ShaderIrContextFieldKind Kind { get; init; }
+    public ShaderStage Stage { get; init; }
+    public bool HostProvided { get; init; }
+    public uint? Location { get; init; }
+    public ShaderResourceKind ResourceKind { get; init; } = ShaderResourceKind.None;
+    public ShaderResourceAccess Access { get; init; } = ShaderResourceAccess.ReadWrite;
+    public uint? Set { get; init; }
+    public uint? Binding { get; init; }
+    public uint Alignment { get; init; }
+    public uint Size { get; init; }
+    public uint ArrayStride { get; init; }
 }
 
 public sealed class ShaderIrInterfaceVariable
@@ -63,6 +91,7 @@ public sealed class ShaderIrPushConstant
 {
     public string Name { get; init; } = string.Empty;
     public string ParameterName { get; init; } = string.Empty;
+    public string TypeIdentity { get; init; } = string.Empty;
     public string GlslType { get; init; } = string.Empty;
     public uint Alignment { get; init; }
     public uint Size { get; init; }
@@ -74,6 +103,7 @@ public sealed class ShaderIrResource
 {
     public string Name { get; init; } = string.Empty;
     public string ParameterName { get; init; } = string.Empty;
+    public string TypeIdentity { get; init; } = string.Empty;
     public ShaderResourceKind Category { get; init; } = ShaderResourceKind.Unknown;
     public ShaderStage Stage { get; init; }
     public uint Set { get; init; }

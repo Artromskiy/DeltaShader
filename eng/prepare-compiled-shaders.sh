@@ -18,7 +18,7 @@ projects=(
   "samples/DeltaShader.Playground/DeltaShader.Playground.AddBias.csproj"
 )
 
-for command_name in dotnet glslangValidator spirv-val jq; do
+for command_name in dotnet glslangValidator spirv-opt spirv-val jq; do
   if ! command -v "$command_name" >/dev/null 2>&1; then
     printf 'required command not found: %s\n' "$command_name" >&2
     exit 127

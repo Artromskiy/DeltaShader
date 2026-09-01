@@ -11,8 +11,8 @@ runtime-neutral `ShaderArtifact` ABI.
 - [WORKFLOW.md](WORKFLOW.md) — fast build, tests, CLI and SPIR-V checks.
 - Read [docs/diagnostics.md](docs/diagnostics.md) for analyzer changes,
   [docs/graphics-scenario-v0.1.md](docs/graphics-scenario-v0.1.md) for graphics
-  artifacts, and [TRANSFORM_CONFORMANCE.md](TRANSFORM_CONFORMANCE.md) for
-  matrix/layout work. ADRs are decision records, not task lists.
+  artifacts, and [docs/TRANSFORM_CONFORMANCE.md](docs/TRANSFORM_CONFORMANCE.md)
+  for matrix/layout work. ADRs are decision records, not task lists.
 - [../EDITOR_UI_TODO.md](../EDITOR_UI_TODO.md) is authoritative for shared text
   and editor acceptance.
 - [../CONTRACTS.md](../CONTRACTS.md) is authoritative for graphics-artifact

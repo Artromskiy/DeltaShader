@@ -23,10 +23,10 @@ descriptor updates, sampler state, and flood-pass sequencing. The shader
 source does not own Vulkan objects or execute a compute dispatch. The source
 being recreated is `JFAOutlineShader.shader` in the CozyKitchen project.
 
-They are two small shader modules because the current compiler contract allows
-one compute entry point per module. `ComputeContext.cs` is shared by both
-modules; the playground remains one user-facing folder and one VS Code build
-task.
+The compute examples are two small shader modules because the current compiler
+contract allows one compute entry point per module. `ComputeContext.cs` is
+shared by both modules; the playground remains one user-facing folder and one
+VS Code build task.
 
 The playground is intentionally nested in the DeltaShader repository but has a
 separate project boundary, so the analyzer does not inspect host code. The
@@ -41,8 +41,8 @@ Both shader modules reference the sibling `DeltaMaths` project and can use its
 canonical `Delta.Maths` types directly.
 
 Open `DeltaShader.slnx` in VS Code, then use `Ctrl+Shift+B`, or run
-`dotnet build samples/DeltaShader.Playground/DeltaShader.Playground.csproj -c Release`. The solution includes
-builds the `AddBias` module. The project references the sibling `DeltaMaths` project,
+`dotnet build samples/DeltaShader.Playground/DeltaShader.Playground.csproj -c Release`.
+The solution build includes the `AddBias` module. The project references the sibling `DeltaMaths` project,
 so the C# language server resolves `Delta.Maths` in the editor. Generated
 shader files are written to the canonical ignored
 `src/DeltaShader/CompiledShaders` catalog with project-prefixed names.

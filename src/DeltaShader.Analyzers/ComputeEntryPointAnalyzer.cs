@@ -135,9 +135,17 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
                         .Select(candidate => (Stage: candidate.AttributeClass?.ToDisplayString() == typeof(VertexShaderAttribute).FullName ? "vertex" : "fragment",
                             Name: candidate.ConstructorArguments.FirstOrDefault().Value as string ?? method.Name)))
                         .ToArray();
-                    var singlePair = entries.Count(entry => entry.Stage == "vertex") == 1 && entries.Count(entry => entry.Stage == "fragment") == 1;
+                    var vertexCount = entries.Count(entry => entry.Stage == "vertex");
+                    var fragmentCount = entries.Count(entry => entry.Stage == "fragment");
+                    var singlePair = vertexCount == 1 && fragmentCount == 1;
+                    var sharedVertex = vertexCount == 1 && fragmentCount > 1;
+                    var sharedFragment = vertexCount > 1 && fragmentCount == 1;
                     foreach (var pair in entries.GroupBy(entry => entry.Name, StringComparer.Ordinal)
-                        .Where(group => !singlePair && (group.Count(entry => entry.Stage == "vertex") != 1 || group.Count(entry => entry.Stage == "fragment") != 1)))
+                        .Where(group => !singlePair && !IsValidSharedGraphicsPair(
+                            group.Count(entry => entry.Stage == "vertex"),
+                            group.Count(entry => entry.Stage == "fragment"),
+                            sharedVertex,
+                            sharedFragment)))
                     {
                         context.ReportDiagnostic(Diagnostic.Create(_graphicsPairDescriptor, methodSymbol.Locations[0], pair.Key));
                     }
@@ -250,6 +258,17 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
     private static bool IsShaderValueType(ITypeSymbol type)
         => type.IsValueType ||
            type.SpecialType is SpecialType.System_UInt32 or SpecialType.System_Int32 or SpecialType.System_Single or SpecialType.System_Boolean;
+
+    private static bool IsValidSharedGraphicsPair(
+        int vertexCount,
+        int fragmentCount,
+        bool sharedVertex,
+        bool sharedFragment)
+        => vertexCount == 1 && fragmentCount == 1 ||
+           sharedVertex && ((vertexCount == 1 && fragmentCount == 0) ||
+                            (vertexCount == 0 && fragmentCount == 1)) ||
+           sharedFragment && ((vertexCount == 1 && fragmentCount == 0) ||
+                              (vertexCount == 0 && fragmentCount == 1));
 
     private static void Report(Action<Diagnostic> reportDiagnostic, Location location, string message)
         => reportDiagnostic(Diagnostic.Create(_unsupportedConstructDescriptor, location, message));

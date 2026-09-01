@@ -385,7 +385,10 @@
         "type": "Project"
       },
       "deltashader": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "DeltaMaths": "[1.0.0, )"
+        }
       },
       "deltashader.analyzers": {
         "type": "Project",
@@ -419,6 +422,14 @@
       },
       "deltashader.contract": {
         "type": "Project"
+      },
+      "deltashader.ui": {
+        "type": "Project",
+        "dependencies": {
+          "DeltaMaths": "[1.0.0, )",
+          "DeltaShader": "[1.0.0, )",
+          "DeltaShader.Contract": "[1.0.0, )"
+        }
       },
       "Microsoft.CodeAnalysis.Analyzers": {
         "type": "CentralTransitive",

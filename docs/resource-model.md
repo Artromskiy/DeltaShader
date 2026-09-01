@@ -59,12 +59,12 @@ is not reconstructed from bytes; consumers unpack the payload value they read
 back.
 
 The vertex helpers are the vertex-buffer equivalent of SSBO element helpers.
-They pack one interleaved binding-0 record or an array of records from
-`ShaderAbi.VertexInputs` and `ShaderAbi.VertexBuffers[0].Stride`. They do not
-copy ordinary CLR struct memory and do not require consumers to repeat offsets,
-alignment or stride. The current generated contract intentionally covers one
-resolved vertex stream; additional bindings require an explicit compiler
-extension rather than an implicit convention.
+They pack one interleaved record or an array of records for each resolved
+binding from `ShaderAbi.VertexInputs` and the matching
+`ShaderAbi.VertexBuffers[binding].Stride`. They do not copy ordinary CLR
+struct memory and do not require consumers to repeat offsets, alignment or
+stride. A single binding-0 program keeps the short helper names; programs with
+multiple bindings receive binding-specific generated helpers.
 
 This is a tooling/application-side implementation boundary, not a second
 runtime ABI. The existing `ShaderAbi` already carries the required resolved

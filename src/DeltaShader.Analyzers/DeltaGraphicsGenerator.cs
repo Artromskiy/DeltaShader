@@ -17,13 +17,16 @@ public sealed class DeltaGraphicsGenerator : IIncrementalGenerator
     private static readonly DiagnosticDescriptor Descriptor = new(ShaderDiagnosticId.DSH019, "Compile-time graphics generation failed", "{0}", "DeltaShader", DiagnosticSeverity.Error, true);
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        var methods = context.SyntaxProvider.CreateSyntaxProvider(static (node, _) => node is MethodDeclarationSyntax,
-            static (syntaxContext, _) =>
-            {
-                var method = syntaxContext.SemanticModel.GetDeclaredSymbol(syntaxContext.Node) as IMethodSymbol;
-                return method is not null && method.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == typeof(VertexShaderAttribute).FullName || a.AttributeClass?.ToDisplayString() == typeof(FragmentShaderAttribute).FullName) ? method : null;
-            }).Where(static method => method is not null).Collect();
-        context.RegisterSourceOutput(context.CompilationProvider.Combine(methods), static (sourceContext, input) => Execute(input.Left, input.Right, sourceContext));
+        var methods = context.SyntaxProvider
+            .CreateSyntaxProvider(
+                static (node, _) => node is MethodDeclarationSyntax,
+                static (syntaxContext, _) => GetShaderMethod(syntaxContext))
+            .Where(static method => method is not null)
+            .Collect();
+
+        context.RegisterSourceOutput(
+            context.CompilationProvider.Combine(methods),
+            static (sourceContext, input) => Execute(input.Left, input.Right, sourceContext));
     }
     private static void Execute(Compilation compilation, ImmutableArray<IMethodSymbol?> methods, SourceProductionContext context)
     {
@@ -37,12 +40,15 @@ public sealed class DeltaGraphicsGenerator : IIncrementalGenerator
             return;
         }
 
-        var vertices = methodsInAssembly.Where(m => m.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == typeof(VertexShaderAttribute).FullName)).ToArray();
-        var fragments = methodsInAssembly.Where(m => m.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == typeof(FragmentShaderAttribute).FullName)).ToArray();
+        var vertices = methodsInAssembly.Where(IsVertexShader).ToArray();
+        var fragments = methodsInAssembly.Where(IsFragmentShader).ToArray();
         var singlePair = vertices.Length == 1 && fragments.Length == 1;
+        var sharedVertex = vertices.Length == 1 && fragments.Length > 1;
         var pairNames = singlePair
             ? ["__single_graphics_pair"]
-            : vertices.Select(GetShaderName).Concat(fragments.Select(GetShaderName)).Distinct(StringComparer.Ordinal).ToArray();
+            : sharedVertex
+                ? fragments.Select(GetShaderName).Distinct(StringComparer.Ordinal).ToArray()
+                : vertices.Select(GetShaderName).Concat(fragments.Select(GetShaderName)).Distinct(StringComparer.Ordinal).ToArray();
         var allResults = ShaderCompiler.CompileAll(compilation).ToArray();
         if (allResults.Any(r => !r.Success || r.BuildManifest is null || r.Module is null))
         {
@@ -57,7 +63,7 @@ public sealed class DeltaGraphicsGenerator : IIncrementalGenerator
         var results = allResults.Where(r => r.Module?.Stage is ShaderStage.Vertex or ShaderStage.Fragment).ToArray();
         foreach (var pairName in pairNames)
         {
-            var pairVertices = singlePair ? vertices : vertices.Where(method => GetShaderName(method) == pairName).ToArray();
+            var pairVertices = singlePair || sharedVertex ? vertices : vertices.Where(method => GetShaderName(method) == pairName).ToArray();
             var pairFragments = singlePair ? fragments : fragments.Where(method => GetShaderName(method) == pairName).ToArray();
             if (pairVertices.Length != 1 || pairFragments.Length != 1)
             {
@@ -65,8 +71,8 @@ public sealed class DeltaGraphicsGenerator : IIncrementalGenerator
                 continue;
             }
 
-            var vertexResult = FindResult(results, ShaderStage.Vertex, pairName, singlePair);
-            var fragmentResult = FindResult(results, ShaderStage.Fragment, pairName, singlePair);
+            var vertexResult = FindResult(results, ShaderStage.Vertex, pairName, sharedVertex, singlePair);
+            var fragmentResult = FindResult(results, ShaderStage.Fragment, pairName, false, singlePair);
             if (vertexResult?.Module is null || vertexResult.BuildManifest is null || fragmentResult?.Module is null || fragmentResult.BuildManifest is null)
             {
                 context.ReportDiagnostic(Diagnostic.Create(Descriptor, pairVertices[0].Locations.FirstOrDefault(), $"DSH017: graphics pair '{pairName}' did not produce both shader modules."));
@@ -106,19 +112,43 @@ public sealed class DeltaGraphicsGenerator : IIncrementalGenerator
             context.AddSource(name + ".g.cs", SourceText.From(source, Encoding.UTF8));
         }
     }
+    private static IMethodSymbol? GetShaderMethod(GeneratorSyntaxContext syntaxContext)
+    {
+        var method = syntaxContext.SemanticModel.GetDeclaredSymbol(syntaxContext.Node) as IMethodSymbol;
+        return method is not null && IsShaderMethod(method) ? method : null;
+    }
+
+    private static bool IsShaderMethod(IMethodSymbol method)
+        => IsVertexShader(method) || IsFragmentShader(method);
+
+    private static bool IsVertexShader(IMethodSymbol method)
+        => HasAttribute(method, typeof(VertexShaderAttribute));
+
+    private static bool IsFragmentShader(IMethodSymbol method)
+        => HasAttribute(method, typeof(FragmentShaderAttribute));
+
+    private static bool HasAttribute(IMethodSymbol method, Type attributeType)
+        => method.GetAttributes().Any(attribute =>
+            attribute.AttributeClass?.ToDisplayString() == attributeType.FullName);
+
     private static string GetShaderName(IMethodSymbol method)
     {
-        var attribute = method.GetAttributes().First(attribute => attribute.AttributeClass?.ToDisplayString() == typeof(VertexShaderAttribute).FullName || attribute.AttributeClass?.ToDisplayString() == typeof(FragmentShaderAttribute).FullName);
+        var attribute = method.GetAttributes().First(attribute =>
+            attribute.AttributeClass?.ToDisplayString() == typeof(VertexShaderAttribute).FullName ||
+            attribute.AttributeClass?.ToDisplayString() == typeof(FragmentShaderAttribute).FullName);
         return attribute.ConstructorArguments.FirstOrDefault().Value?.ToString() ?? method.Name;
     }
     private static ShaderCompilationResult? FindResult(
         ShaderCompilationResult[] results,
         ShaderStage stage,
         string pairName,
+        bool sharedVertex,
         bool singlePair)
     {
         var matches = results.Where(result => result.Module?.Stage == stage &&
-            (singlePair || result.Module.SourceEntryPointName == pairName)).ToArray();
+            (singlePair ||
+             (sharedVertex && stage == ShaderStage.Vertex) ||
+             result.Module.SourceEntryPointName == pairName)).ToArray();
         return matches.Length == 1 ? matches[0] : null;
     }
     private static string Sanitize(string name) => string.Concat(name.Select(c => char.IsLetterOrDigit(c) || c == '_' ? c : '_')) is { Length: > 0 } value ? value : "Graphics";

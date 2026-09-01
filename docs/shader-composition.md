@@ -204,3 +204,67 @@ The compiler work needed to make this design real is bounded to:
 
 No second runtime ABI, Vulkan-specific authoring type or runtime compiler is
 needed.
+## Current implementation status
+
+The first compiler slice is now present. `ShaderIrModule.ContextFields` keeps
+logical context declarations alongside, but separately from, the physical
+interstage locations. `ShaderCompiler.ResolveCompositeContext` consumes the
+successful layer results and produces a deterministic compiler-side plan for
+interstage semantic values, resources and push constants. The selected stack
+can then be passed to `ShaderCompiler.ComposeGraphics`, which returns one
+compiler IR module for each graphics stage with canonical names and concatenated
+layer bodies.
+
+The resolver keys interstage fields by the full semantic value type identity,
+and resources/push constants by their full declared type identity. Source field
+names are display-only and are never used as composition keys. Different layer
+names can therefore contribute the same `Position`, `Uv0` or `VertexColor`
+semantic without requiring identical C# member names. Incompatible GLSL type,
+resource access or push-constant layout produces a compiler diagnostic.
+
+The result is still compiler IR, not a final composite artifact. Producer/
+consumer liveness for omitted fields, final artifact publication and the
+generated composite packer remain the next bounded compiler slices. The editor
+can already use the resolver to reject missing producers and incompatible
+layouts before requesting those outputs.
+
+The reference layer set is
+`samples/DeltaShader.GrassComposite/GrassComposite.cs`: it covers transform and
+instance data, textured/solid color, Lambert, Phong, toon, PBR and fake
+translucent candidates without introducing runtime compilation.
+
+## Compiler composition API
+
+```csharp
+ShaderCompositeCompilationResult composite = ShaderCompiler.ComposeGraphics(
+    vertexLayers,
+    fragmentLayers);
+```
+
+The layer lists contain successful `ShaderCompilationResult` values in editor
+order. `composite.Context` contains the merged declaration plan;
+`composite.Vertex` and `composite.Fragment` contain the compiler IR modules
+that can be passed to `Delta.Shader.Backend.Glsl.GlslEmitter`. The compiler
+rewrites layer-local semantic names to canonical interstage names, preserves
+host vertex-input reads, and keeps resources/push constants in the compiler
+side plan. These are tooling representations only; no runtime C# compilation,
+delegates or reflection are introduced.
+
+`ShaderCompositeCompilationResult.GetBuildManifest(stage)` materializes the
+existing build-time manifest for a selected stage. Resource declarations are
+stage-specific: a vertex-only instance buffer is not emitted into the fragment
+module, and a fragment-only texture is not emitted into the vertex module. A
+producer tool can pass these manifests and externally compiled SPIR-V to
+`Delta.Shader.Tool.ShaderCompositeArtifactPublisher.Create`; it returns the
+existing `GraphicsShaderProgram` and therefore the existing final
+`ShaderArtifact`/`ShaderAbi` boundary. It does not introduce a second ABI or
+runtime compilation path.
+
+For an editor-selected stack, `ShaderCompositeSourceGenerator.TryGenerate`
+accepts the selected vertex and fragment Roslyn method symbols plus that
+composition result. It emits one generated graphics program with
+`VertexAbi`/`FragmentAbi`, `CreateProgram`, and uniquely prefixed typed packers
+for the selected source contexts. The packers continue to accept the original
+CLR context/root types, so the editor does not need to invent a CLR type for
+the merged context. The generated program still consumes externally produced
+SPIR-V and remains a tooling/build-time output.

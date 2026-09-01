@@ -94,10 +94,14 @@ internal static class MathsConformancePublisher
 
         var glslang = FindTool("glslangValidator");
         var spirvValidator = FindTool("spirv-val");
-        if (glslang is null || spirvValidator is null)
+        var spirvOptimizer = options.Optimization == ShaderOptimizationMode.None
+            ? null
+            : FindTool("spirv-opt");
+        if (glslang is null || spirvValidator is null ||
+            (options.Optimization != ShaderOptimizationMode.None && spirvOptimizer is null))
         {
             await Console.Error.WriteLineAsync(
-                "Maths conformance failed: both glslangValidator and spirv-val must be installed in PATH.").ConfigureAwait(false);
+                "Maths conformance failed: glslangValidator, spirv-opt and spirv-val must be installed in PATH.").ConfigureAwait(false);
             return 1;
         }
 
@@ -419,6 +423,19 @@ internal static class MathsConformancePublisher
                 return;
             }
 
+            var optimization = SpirvOptimizer.Run(
+                spirvOptimizer,
+                options.Profile,
+                options.Optimization,
+                spirvPath);
+            if (optimization.ExitCode != 0)
+            {
+                entry.Status = "spirv-optimization-diagnostic";
+                entry.Diagnostic = optimization.Output;
+                entry.ArtifactPath = Path.GetRelativePath(outputDirectory, spirvPath);
+                return;
+            }
+
             var validation = ProcessRunner.Run(spirvValidator, "--target-env", options.Profile, spirvPath);
             if (validation.ExitCode != 0)
             {
@@ -468,7 +485,7 @@ internal static class MathsConformancePublisher
             CompilerBlockedCount = entries.Count(IsCompilerBlocked),
             CapabilityBlockedCount = entries.Count(entry => entry.Status == "capability-blocked"),
             BackendBlockedCount = entries.Count(entry => entry.Status == "glsl-diagnostic"),
-            ExternalValidationBlockedCount = entries.Count(entry => entry.Status is "glslang-diagnostic" or "spirv-validation-diagnostic"),
+            ExternalValidationBlockedCount = entries.Count(entry => entry.Status is "glslang-diagnostic" or "spirv-optimization-diagnostic" or "spirv-validation-diagnostic"),
             MismatchedCount = 0,
             AccountedCount = entries.Count(entry => entry.Status.Length != 0),
             Cases = entries

@@ -46,3 +46,15 @@ Not active work:
   - Keep missing producers, ambiguous writers, cycles and type conflicts as
     compiler diagnostics. This remains deferred compile-time work, not runtime
     shader composition.
+## Composite shader implementation status
+
+Composite shaders are no longer only a deferred idea. The compiler now exposes
+a tooling-only context resolver that merges logical interstage, resource and
+push-constant declarations by full type identity while preserving the physical
+ABI boundary. The grass layer sample is the reference source. Final chained
+body lowering and editor stack materialization are active bounded work. The
+selected compiler result exposes stage-specific build manifests, the tooling
+publisher materializes them with external SPIR-V as the existing final artifact
+contract, and `ShaderCompositeSourceGenerator` emits one selected composite
+program with uniquely prefixed typed packers over the original CLR contexts.
+Runtime composition remains out of scope.

@@ -138,6 +138,7 @@ internal static class GraphicsEntryPoints
         var outputs = new List<ShaderIrInterfaceVariable>();
         var pushConstants = new List<ShaderIrPushConstant>();
         var resources = new List<ShaderIrResource>();
+        var contextFields = new List<ShaderIrContextField>();
         var storageBufferTargets = new HashSet<string>(StringComparer.Ordinal);
         var seenBindings = new HashSet<(uint Set, uint Binding)>();
         var structures = new Dictionary<INamedTypeSymbol, ShaderIrStruct>(SymbolEqualityComparer.Default);
@@ -314,6 +315,31 @@ internal static class GraphicsEntryPoints
             });
         }
 
+        foreach (var leaf in varyingLeaves)
+        {
+            if (!TryMapType(leaf.Field.Type, context, out var glslType))
+            {
+                continue;
+            }
+
+            var locationAttribute = entry.Stage == ShaderStage.Vertex
+                ? leaf.Field.GetAttributes().FirstOrDefault(attribute =>
+                    Same(attribute.AttributeClass, context.LayoutAttributeType) && attribute.ConstructorArguments.Length == 1)
+                : null;
+            contextFields.Add(new ShaderIrContextField
+            {
+                TypeIdentity = leaf.Field.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                SourcePath = leaf.PathName,
+                ReadGlslName = directFields.TryGetValue(leaf.Field, out var readName) ? readName : string.Empty,
+                WriteGlslName = outputFields.TryGetValue(leaf.Field, out var writeName) ? writeName : string.Empty,
+                GlslType = glslType,
+                Kind = ShaderIrContextFieldKind.Interstage,
+                Stage = entry.Stage,
+                HostProvided = locationAttribute is not null,
+                Location = locationAttribute is null ? null : GetUIntArg(locationAttribute, 0)
+            });
+        }
+
         foreach (var field in contextType.GetMembers().OfType<IFieldSymbol>().Where(field => !field.IsStatic))
         {
             var attributes = field.GetAttributes();
@@ -352,6 +378,7 @@ internal static class GraphicsEntryPoints
                     {
                         Name = field.Name,
                         ParameterName = field.Name,
+                        TypeIdentity = field.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                         Category = ShaderResourceKind.SampledTexture2D,
                         Stage = entry.Stage,
                         Set = set,
@@ -382,6 +409,7 @@ internal static class GraphicsEntryPoints
                         {
                             Name = field.Name,
                             ParameterName = field.Name,
+                            TypeIdentity = field.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                             Category = ShaderResourceKind.StorageBuffer,
                             Stage = entry.Stage,
                             Set = set,
@@ -423,6 +451,7 @@ internal static class GraphicsEntryPoints
                     {
                         Name = "DeltaPushConstants",
                         ParameterName = field.Name,
+                        TypeIdentity = pushType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                         GlslType = pushStruct.GlslName,
                         Alignment = pushStruct.Alignment,
                         Size = pushStruct.Size,
@@ -444,6 +473,39 @@ internal static class GraphicsEntryPoints
 
             AddDiagnostic(diagnostics, ShaderDiagnosticId.DSH002,
                 $"Graphics context field '{field.Name}' must use [Interstage], [Layout(set, binding)], or [PushConstant].", field.Locations.FirstOrDefault()?.GetLineSpan());
+        }
+
+        foreach (var resource in resources)
+        {
+            contextFields.Add(new ShaderIrContextField
+            {
+                TypeIdentity = resource.TypeIdentity,
+                SourcePath = resource.ParameterName,
+                GlslType = resource.GlslType ?? string.Empty,
+                Kind = ShaderIrContextFieldKind.Resource,
+                Stage = resource.Stage,
+                HostProvided = true,
+                ResourceKind = resource.Category,
+                Access = resource.Access,
+                Set = resource.Set,
+                Binding = resource.Binding
+            });
+        }
+
+        foreach (var pushConstant in pushConstants)
+        {
+            contextFields.Add(new ShaderIrContextField
+            {
+                TypeIdentity = pushConstant.TypeIdentity,
+                SourcePath = pushConstant.ParameterName,
+                GlslType = pushConstant.GlslType,
+                Kind = ShaderIrContextFieldKind.PushConstant,
+                Stage = entry.Stage,
+                HostProvided = true,
+                Alignment = pushConstant.Alignment,
+                Size = pushConstant.Size,
+                ArrayStride = pushConstant.ArrayStride
+            });
         }
 
         string body = string.Empty;
@@ -544,7 +606,8 @@ internal static class GraphicsEntryPoints
             VertexInputs = vertexInputs,
             VertexBuffers = vertexBuffers,
             Outputs = outputs,
-            PushConstants = pushConstants
+            PushConstants = pushConstants,
+            ContextFields = contextFields
         };
         return new ShaderCompilationResult(entry.Name, diagnostics.Count == 0, diagnostics, module, options, entry.Method.Name, ShaderMethodIdentity.Get(entry.Method));
     }

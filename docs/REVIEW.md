@@ -1,32 +1,27 @@
 # DeltaShader review
 
-Review date: 2026-08-25.
+Review date: 2026-09-01.
 
-This is a contract-boundary review, not a claim that the producer/consumer
-migration is complete. The normative final handoff is
+This is a contract-boundary status note. The normative final handoff is
 [final-artifact-contract.md](final-artifact-contract.md) together
 with `src/DeltaShader.Contract`.
 
-## Current findings
+## Current status
 
-### Canonical final contract exists
+### Canonical final contract
 
 `DeltaShader.Contract` defines the immutable final `ShaderArtifact`, concrete
 binary `ShaderAbi` and validated vertex/fragment `GraphicsShaderProgram`. This
 assembly has no Roslyn, compiler, GLSL or Vulkan dependency. Only this artifact
 is intended to cross from DeltaShader to DeltaRender.
 
-### Producers still use compatibility artifact types
+### Producer status
 
-The compiler model, source generators, CLI, text factories and current tests
-no longer reference the removed compatibility artifact and manifest types.
-Generated manifest JSON and GLSL constants therefore describe the current
-authoring/compiler compatibility path. They are not the canonical renderer
-handoff and must not be documented as one.
-
-This is the active migration blocker: producers need to construct the contract
-ABI after all source-language types are resolved, and consumers need to accept
-that contract before the duplicate abstraction types are removed.
+Within DeltaShader, the compiler, source generators, CLI, text factories and
+tests publish the final contract types after source-language resolution. The
+former compatibility artifact, manifest and graphics-program models are not
+part of the producer or runtime path. Generated JSON and GLSL remain explicit
+build/inspection sidecars; they are not an alternate renderer API.
 
 ### Tool outputs and runtime inputs are distinct
 
@@ -36,10 +31,9 @@ files are build outputs. GLSL and compatibility JSON remain useful for
 inspection and packaging checks, but DeltaRender must receive the canonical
 `ShaderArtifact`, not parse those sidecars as an alternative public API.
 
-Generated typed packers may prepare packed bytes and renderer handles on the
-application side. No final artifact may retain `System.Type`, generic resource
-objects, delegates, reflection state, syntax trees, Roslyn symbols or compiler
-IR.
+Generated typed packers may prepare packed bytes on the application side. No
+final artifact may retain `System.Type`, generic resource objects, delegates,
+reflection state, syntax trees, Roslyn symbols or compiler IR.
 
 ### Binary layout is consumer-facing; source types are not
 
@@ -59,4 +53,7 @@ live in [../WORKFLOW.md](../WORKFLOW.md).
 
 ## Historical legacy API
 
-The former compatibility artifact, manifest, and graphics-program surface is obsolete and removed. `Delta.Shader.Contract.GraphicsShaderProgram` is the canonical final artifact program and is not obsolete; no compatibility facade is retained.
+The former compatibility artifact, manifest, and graphics-program surface is
+obsolete and removed. `Delta.Shader.Contract.GraphicsShaderProgram` is the
+canonical final artifact program and is not obsolete; no compatibility facade
+is retained.

@@ -198,4 +198,16 @@ public readonly struct BorderWidth
 
     public static implicit operator float(BorderWidth value) => value.Value;
 }
+
+/// <summary>Top-left pixel clip rectangle in x, y, width, height form.</summary>
+public readonly struct ClipRect
+{
+    public readonly float4 Value;
+
+    public ClipRect(float4 value) => Value = value;
+
+    public static implicit operator ClipRect(float4 value) => new(value);
+
+    public static implicit operator float4(ClipRect value) => value.Value;
+}
 #pragma warning restore CA2225

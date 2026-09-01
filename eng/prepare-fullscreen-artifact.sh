@@ -14,7 +14,7 @@ if [[ "$output_directory" == "/" || "$output_directory" == "." ]]; then
     exit 2
 fi
 
-for tool in glslangValidator spirv-val jq; do
+for tool in glslangValidator spirv-opt spirv-val jq; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         echo "Missing required tool '$tool'. Install it before preparing the fullscreen artifact." >&2
         exit 127
@@ -47,6 +47,7 @@ dotnet run \
     --profile vulkan1.2 \
     --spirv 1.5 \
     --glsl 460 \
+    --optimize performance \
     --out "$output_directory"
 
 for stem in Vertex.vert Fragment.frag; do

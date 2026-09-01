@@ -1409,6 +1409,11 @@ internal static class ShaderBodyTranslator
                     return SyntaxFactory.ParseExpression(operatorExpression);
                 }
 
+                if (string.Equals(binding.GlslName, "discard", StringComparison.Ordinal))
+                {
+                    return SyntaxFactory.ParseExpression("discard");
+                }
+
                 var intrinsicArguments = GetIntrinsicArguments(binding, glslArguments);
                 var glslName = string.Equals(binding.GlslName, "round", StringComparison.Ordinal)
                     ? "roundEven"

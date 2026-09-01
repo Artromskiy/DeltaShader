@@ -98,8 +98,18 @@ internal static class GraphicsInterstageResolver
 
         var vertexBody = RewriteBody(vertexModule.Body, pairs, stage: ShaderStage.Vertex);
         var fragmentBody = RewriteBody(fragmentModule.Body, pairs, stage: ShaderStage.Fragment);
-        var resolvedVertex = CloneModule(vertexModule, vertexBody, inputs: vertexModule.Inputs, outputs: ReplaceOutputs(vertexModule.Outputs, slots));
-        var resolvedFragment = CloneModule(fragmentModule, fragmentBody, inputs: ReplaceInputs(fragmentModule.Inputs, slots), outputs: fragmentModule.Outputs);
+        var resolvedVertex = CloneModule(
+            vertexModule,
+            vertexBody,
+            inputs: vertexModule.Inputs,
+            outputs: ReplaceOutputs(vertexModule.Outputs, slots),
+            contextFields: ReplaceContextFields(vertexModule, pairs, ShaderStage.Vertex));
+        var resolvedFragment = CloneModule(
+            fragmentModule,
+            fragmentBody,
+            inputs: ReplaceInputs(fragmentModule.Inputs, slots),
+            outputs: fragmentModule.Outputs,
+            contextFields: ReplaceContextFields(fragmentModule, pairs, ShaderStage.Fragment));
 
         results[vertex.index] = CloneResult(vertex.result, resolvedVertex, options);
         results[fragment.index] = CloneResult(fragment.result, resolvedFragment, options);
@@ -205,7 +215,8 @@ internal static class GraphicsInterstageResolver
         ShaderIrModule module,
         string? body,
         IReadOnlyList<ShaderIrInterfaceVariable> inputs,
-        IReadOnlyList<ShaderIrInterfaceVariable> outputs)
+        IReadOnlyList<ShaderIrInterfaceVariable> outputs,
+        IReadOnlyList<ShaderIrContextField> contextFields)
         => new()
         {
             Stage = module.Stage,
@@ -226,8 +237,52 @@ internal static class GraphicsInterstageResolver
             VertexInputs = module.VertexInputs,
             VertexBuffers = module.VertexBuffers,
             Outputs = outputs,
-            PushConstants = module.PushConstants
+            PushConstants = module.PushConstants,
+            ContextFields = contextFields
         };
+
+    private static IReadOnlyList<ShaderIrContextField> ReplaceContextFields(
+        ShaderIrModule module,
+        IReadOnlyList<InterstagePair> pairs,
+        ShaderStage stage)
+        => module.ContextFields.Select(field =>
+        {
+            var pair = pairs.FirstOrDefault(candidate =>
+                string.Equals(
+                    stage == ShaderStage.Vertex ? candidate.Vertex.Name : candidate.Fragment.Name,
+                    field.SourcePath,
+                    StringComparison.Ordinal));
+            if (pair?.Slot is null)
+            {
+                return field;
+            }
+
+            var source = stage == ShaderStage.Vertex ? pair.Vertex : pair.Fragment;
+            var replacement = pair.Slot.PhysicalName + CreateSwizzle(pair.ComponentOffset, pair.ComponentCount);
+            return new ShaderIrContextField
+            {
+                TypeIdentity = field.TypeIdentity,
+                SourcePath = field.SourcePath,
+                ReadGlslName = stage == ShaderStage.Fragment && field.ReadGlslName == source.GlslName
+                    ? replacement
+                    : field.ReadGlslName,
+                WriteGlslName = stage == ShaderStage.Vertex && field.WriteGlslName == source.GlslName
+                    ? replacement
+                    : field.WriteGlslName,
+                GlslType = field.GlslType,
+                Kind = field.Kind,
+                Stage = field.Stage,
+                HostProvided = field.HostProvided,
+                Location = field.Location,
+                ResourceKind = field.ResourceKind,
+                Access = field.Access,
+                Set = field.Set,
+                Binding = field.Binding,
+                Alignment = field.Alignment,
+                Size = field.Size,
+                ArrayStride = field.ArrayStride
+            };
+        }).ToArray();
 
     private static ShaderCompilationResult CloneResult(
         ShaderCompilationResult result,

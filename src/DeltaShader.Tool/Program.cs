@@ -103,7 +103,11 @@ static async Task<int> ExecuteEmitAsync(ProgramOptions options)
         {
             var glslang = ToolPath("glslangValidator");
             var spirvValidator = ToolPath("spirv-val");
-            if (glslang is null || spirvValidator is null)
+            var spirvOptimizer = options.CompilationOptions.Optimization == ShaderOptimizationMode.None
+                ? null
+                : ToolPath("spirv-opt");
+            if (glslang is null || spirvValidator is null ||
+                (options.CompilationOptions.Optimization != ShaderOptimizationMode.None && spirvOptimizer is null))
             {
                 return 1;
             }
@@ -119,6 +123,15 @@ static async Task<int> ExecuteEmitAsync(ProgramOptions options)
                 ? ProcessRunner.Run(glslang, "-V", "--target-env", options.CompilationOptions.Profile, "-S", stageSuffix, glslFile, "-o", spirvFile)
                 : ProcessRunner.Run(glslang, "-V", "--target-env", options.CompilationOptions.Profile, optimizationFlag, "-S", stageSuffix, glslFile, "-o", spirvFile);
             if (!ReportProcessFailure(compile, "glslangValidator"))
+            {
+                return 1;
+            }
+            var optimization = SpirvOptimizer.Run(
+                spirvOptimizer,
+                options.CompilationOptions.Profile,
+                options.CompilationOptions.Optimization,
+                spirvFile);
+            if (!ReportProcessFailure(optimization, "spirv-opt"))
             {
                 return 1;
             }
@@ -292,7 +305,7 @@ static string ResolveProjectPath(string arg)
 static void PrintUsage()
 {
     Console.WriteLine("dotnet delta-shader <check|emit|build> <project>");
-    Console.WriteLine("  --backend <glsl|spirv> output backend; spirv uses glslangValidator + spirv-val");
+    Console.WriteLine("  --backend <glsl|spirv> output backend; spirv uses glslangValidator + spirv-opt + spirv-val");
     Console.WriteLine("  --profile <vulkan1.2|vulkan1.3>   target profile");
     Console.WriteLine("  --spirv <version>     target SPIR-V version");
     Console.WriteLine("  --glsl <version>      target GLSL version");

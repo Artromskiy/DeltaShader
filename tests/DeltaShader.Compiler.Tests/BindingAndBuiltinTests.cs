@@ -723,6 +723,243 @@ public sealed class BindingAndBuiltinTests
         Assert.Contains(result.Module!.HelperFunctions, helper => helper.Contains(".z", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task CompositeContextResolver_MergesSemanticFieldsWithoutFieldNames()
+    {
+        const string source = """
+            using Delta.Maths;
+            using Delta.Shader;
+
+            [Interstage]
+            public struct VertexPayload
+            {
+                public Position Position;
+                public Uv0 VertexUv;
+                public VertexColor Tint;
+            }
+
+            [Interstage]
+            public struct FragmentPayload
+            {
+                public Position ScreenPosition;
+                public Uv0 FragmentUv;
+                public VertexColor ColorInput;
+            }
+
+            public struct Frame
+            {
+                public float4 Color;
+            }
+
+            public struct VertexContext
+            {
+                [Interstage]
+                public VertexPayload Input;
+                [Layout(0, 0)]
+                public ReadOnlyStorageBuffer<float4> InstanceData;
+                [PushConstant]
+                public Frame Constants;
+            }
+
+            public struct FragmentContext
+            {
+                [Interstage]
+                public FragmentPayload Input;
+                [Layout(0, 1)]
+                public SampledTexture2D FragmentTexture;
+                [PushConstant]
+                public Frame Constants;
+            }
+
+            public static class GrassLayers
+            {
+                [VertexShader("grass-vertex")]
+                public static VertexPayload Vertex(in VertexContext context) => new VertexPayload
+                {
+                    Position = new float4(0f, 0f, 0f, 1f),
+                    VertexUv = new float2(0f, 0f),
+                    Tint = new float4(1f, 1f, 1f, 1f)
+                };
+
+                [FragmentShader("grass-fragment")]
+                public static float4 Fragment(in FragmentContext context) =>
+                    context.Input.ColorInput.Value * context.Constants.Color;
+            }
+            """;
+
+        Compilation compilation = await LoadCompilationAsync(source).ConfigureAwait(true);
+        IReadOnlyList<ShaderCompilationResult> results = ShaderCompiler.CompileAll(compilation);
+        Assert.All(results, result =>
+            Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message))));
+
+        ShaderCompositeContextResolution resolution = ShaderCompiler.ResolveCompositeContext(results);
+
+        Assert.True(resolution.Success, string.Join(Environment.NewLine, resolution.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        Assert.Equal(6, resolution.Fields.Count);
+        ShaderCompositeContextField position = Assert.Single(resolution.Fields,
+            field => field.TypeIdentity.EndsWith("Delta.Shader.Position", StringComparison.Ordinal));
+        Assert.False(position.HostProvided);
+        ShaderCompositeContextField vertexResource = Assert.Single(resolution.Fields,
+            field => field.Kind == ShaderCompositeContextFieldKind.Resource && field.SourcePath == "InstanceData");
+        Assert.True(vertexResource.HostProvided);
+        Assert.Equal((uint?)0, vertexResource.Set);
+        Assert.Equal((uint?)0, vertexResource.Binding);
+        ShaderCompositeContextField fragmentResource = Assert.Single(resolution.Fields,
+            field => field.Kind == ShaderCompositeContextFieldKind.Resource && field.SourcePath == "FragmentTexture");
+        Assert.True(fragmentResource.HostProvided);
+        Assert.Equal((uint?)0, fragmentResource.Set);
+        Assert.Equal((uint?)1, fragmentResource.Binding);
+        ShaderCompositeContextField push = Assert.Single(resolution.Fields,
+            field => field.Kind == ShaderCompositeContextFieldKind.PushConstant);
+        Assert.Equal(2, push.Stages.Count);
+
+        ShaderCompositeCompilationResult composite = ShaderCompiler.ComposeGraphics(
+            results.Where(result => result.Module?.Stage == ShaderStage.Vertex).ToArray(),
+            results.Where(result => result.Module?.Stage == ShaderStage.Fragment).ToArray());
+
+        Assert.True(composite.Success, string.Join(Environment.NewLine, composite.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        Assert.NotNull(composite.Vertex);
+        Assert.NotNull(composite.Fragment);
+        Assert.Contains("composite_field_1", composite.Vertex!.Body, StringComparison.Ordinal);
+        Assert.Contains("composite_field_1", composite.Fragment!.Body, StringComparison.Ordinal);
+        string vertexGlsl = Delta.Shader.Backend.Glsl.GlslEmitter.EmitFromModule(composite.Vertex).Source;
+        string fragmentGlsl = Delta.Shader.Backend.Glsl.GlslEmitter.EmitFromModule(composite.Fragment).Source;
+        Assert.Contains("layout(location = 1) out vec4 composite_field_1;", vertexGlsl, StringComparison.Ordinal);
+        Assert.Contains("layout(location = 1) in vec4 composite_field_1;", fragmentGlsl, StringComparison.Ordinal);
+
+        ShaderCompilationManifest vertexManifest = composite.GetBuildManifest(ShaderStage.Vertex);
+        ShaderCompilationManifest fragmentManifest = composite.GetBuildManifest(ShaderStage.Fragment);
+        Assert.Contains(vertexManifest.Resources, resource => resource.ParameterName == "InstanceData");
+        Assert.DoesNotContain(vertexManifest.Resources, resource => resource.ParameterName == "FragmentTexture");
+        Assert.Contains(fragmentManifest.Resources, resource => resource.ParameterName == "FragmentTexture");
+        Assert.DoesNotContain(fragmentManifest.Resources, resource => resource.ParameterName == "InstanceData");
+        Assert.Single(vertexManifest.PushConstants);
+        Assert.Single(fragmentManifest.PushConstants);
+    }
+
+    [Fact]
+    public async Task CompositeContextResolver_RejectsFragmentFieldWithoutVertexProducer()
+    {
+        const string source = """
+            using Delta.Maths;
+            using Delta.Shader;
+
+            [Interstage]
+            public struct VertexPayload
+            {
+                public Position Position;
+            }
+
+            [Interstage]
+            public struct FragmentPayload
+            {
+                public Position Position;
+                public Uv0 MissingUv;
+            }
+
+            public struct VertexContext
+            {
+                [Interstage]
+                public VertexPayload Input;
+            }
+
+            public struct FragmentContext
+            {
+                [Interstage]
+                public FragmentPayload Input;
+            }
+
+            public static class InvalidComposite
+            {
+                [VertexShader("producer")]
+                public static VertexPayload Vertex(in VertexContext context) => default;
+
+                [FragmentShader("consumer")]
+                public static float4 Fragment(in FragmentContext context) =>
+                    new float4(context.Input.MissingUv.Value, 0f, 1f);
+            }
+            """;
+
+        Compilation compilation = await LoadCompilationAsync(source).ConfigureAwait(true);
+        IReadOnlyList<ShaderCompilationResult> results = ShaderCompiler.CompileAll(compilation);
+        ShaderCompositeContextResolution resolution = ShaderCompiler.ResolveCompositeContext(results);
+
+        Assert.False(resolution.Success);
+        Assert.Contains(resolution.Diagnostics, diagnostic =>
+            diagnostic.Id == ShaderDiagnosticId.DSH013 &&
+            diagnostic.Message.Contains("has no vertex producer", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task GrassCompositeSample_ComposesEveryFragmentVariant()
+    {
+        if (!MSBuildLocator.IsRegistered)
+        {
+            MSBuildLocator.RegisterDefaults();
+        }
+
+        string projectPath = Path.Combine(
+            FindRepositoryRoot(),
+            "DeltaShader",
+            "samples",
+            "DeltaShader.GrassComposite",
+            "DeltaShader.GrassComposite.csproj");
+        using MSBuildWorkspace workspace = MSBuildWorkspace.Create();
+        Project project = await workspace.OpenProjectAsync(projectPath).ConfigureAwait(true);
+        Compilation? compilation = await project.GetCompilationAsync().ConfigureAwait(true);
+        Assert.NotNull(compilation);
+
+        IReadOnlyList<ShaderCompilationResult> results = ShaderCompiler.CompileAll(compilation!);
+        ShaderCompilationResult vertex = Assert.Single(results,
+            result => result.Module?.Stage == ShaderStage.Vertex);
+        ShaderCompilationResult[] fragments = results
+            .Where(result => result.Module?.Stage == ShaderStage.Fragment)
+            .ToArray();
+
+        Assert.Equal(7, fragments.Length);
+        Assert.All(fragments, fragment =>
+        {
+            ShaderCompositeCompilationResult composite = ShaderCompiler.ComposeGraphics(
+                [vertex],
+                [fragment]);
+            Assert.True(composite.Success,
+                string.Join(Environment.NewLine, composite.Diagnostics.Select(diagnostic => diagnostic.Message)));
+            Assert.NotNull(composite.Vertex);
+            Assert.NotNull(composite.Fragment);
+            Assert.True(Delta.Shader.Backend.Glsl.GlslEmitter.EmitFromModule(composite.Vertex!).Success);
+            Assert.True(Delta.Shader.Backend.Glsl.GlslEmitter.EmitFromModule(composite.Fragment!).Success);
+
+            Assert.Equal("main", composite.GetBuildManifest(ShaderStage.Vertex).EntryPointName);
+            Assert.Equal("main", composite.GetBuildManifest(ShaderStage.Fragment).EntryPointName);
+        });
+
+        ShaderCompilationResult fragmentLayer = fragments[0];
+        ShaderCompositeCompilationResult selectedComposite = ShaderCompiler.ComposeGraphics(
+            [vertex],
+            [fragmentLayer]);
+        INamedTypeSymbol layerType = compilation!.GetTypeByMetadataName(
+            "Delta.Shader.GrassComposite.GrassCompositeLayers")!;
+        IMethodSymbol vertexMethod = Assert.Single(layerType.GetMembers("TransformAndInstance").OfType<IMethodSymbol>());
+        IMethodSymbol fragmentMethod = Assert.Single(layerType.GetMembers("TexturedLambert").OfType<IMethodSymbol>());
+        Assert.True(Delta.Shader.Analyzers.ShaderCompositeSourceGenerator.TryGenerate(
+            "GrassSelectedComposite",
+            vertexMethod,
+            fragmentMethod,
+            selectedComposite,
+            out string generatedSource,
+            out string? generationReason), generationReason);
+        Assert.Contains("class GrassSelectedComposite", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("PackGrassSelectedCompositeVertex", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("PackGrassSelectedCompositeFragment", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("public static Delta.Shader.Contract.ShaderAbi VertexAbi", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("public static Delta.Shader.Contract.ShaderAbi FragmentAbi", generatedSource, StringComparison.Ordinal);
+        CSharpParseOptions parseOptions = compilation.SyntaxTrees.First().Options as CSharpParseOptions
+            ?? CSharpParseOptions.Default;
+        Compilation generatedCompilation = compilation.AddSyntaxTrees(
+            CSharpSyntaxTree.ParseText(generatedSource, parseOptions));
+        Assert.Empty(generatedCompilation.GetDiagnostics().Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
+    }
+
     private static async Task<Compilation> LoadCompilationAsync(string source)
     {
         if (!MSBuildLocator.IsRegistered)

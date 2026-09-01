@@ -78,4 +78,7 @@ public static class ShaderIntrinsics
     [ShaderIntrinsic("dFdy", ShaderStage.Fragment)]
     public static T dFdy<T>(T value) => throw new NotSupportedException();
 
+    [ShaderIntrinsic("discard", ShaderStage.Fragment)]
+    public static void Discard() => throw new NotSupportedException();
+
 }

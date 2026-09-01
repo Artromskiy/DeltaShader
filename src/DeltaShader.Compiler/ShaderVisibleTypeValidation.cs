@@ -297,7 +297,8 @@ public static class ShaderVisibleTypeValidation
             "Delta.Shader.SegmentRect",
             "Delta.Shader.CornerData",
             "Delta.Shader.CornerRadii",
-            "Delta.Shader.BorderWidth"
+            "Delta.Shader.BorderWidth",
+            "Delta.Shader.ClipRect"
         ];
 
         return semanticTypeNames.Any(name =>

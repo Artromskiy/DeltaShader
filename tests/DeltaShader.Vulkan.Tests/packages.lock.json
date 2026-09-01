@@ -406,7 +406,19 @@
         }
       },
       "deltashader": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "DeltaMaths": "[1.0.0, )"
+        }
+      },
+      "deltashader.analyzers": {
+        "type": "Project",
+        "dependencies": {
+          "DeltaShader.Backend.Glsl": "[1.0.0, )",
+          "DeltaShader.Compiler": "[1.0.0, )",
+          "Microsoft.CodeAnalysis.Analyzers": "[3.11.0, )",
+          "Microsoft.CodeAnalysis.CSharp": "[4.13.0, )"
+        }
       },
       "deltashader.backend.glsl": {
         "type": "Project",
@@ -436,6 +448,7 @@
       "deltashader.tool": {
         "type": "Project",
         "dependencies": {
+          "DeltaShader.Analyzers": "[1.0.0, )",
           "DeltaShader.Backend.Glsl": "[1.0.0, )",
           "DeltaShader.Compiler": "[1.0.0, )",
           "DeltaShader.Contract": "[1.0.0, )",

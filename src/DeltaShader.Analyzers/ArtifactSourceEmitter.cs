@@ -15,7 +15,8 @@ internal static partial class ArtifactSourceEmitter
         IMethodSymbol method,
         ShaderCompilationManifest manifest,
         out string source,
-        out string? reason)
+        out string? reason,
+        string? stemOverride = null)
     {
         source = string.Empty;
         reason = null;
@@ -27,7 +28,7 @@ internal static partial class ArtifactSourceEmitter
 
         var contextType = method.Parameters[0].Type;
         var methods = new StringBuilder();
-        var stem = SanitizeIdentifier(method.Name);
+        var stem = stemOverride is null ? SanitizeIdentifier(method.Name) : SanitizeIdentifier(stemOverride);
         var storageResources = manifest.Resources
             .Where(resource => resource.Category == "storage-buffer")
             .ToArray();
@@ -765,7 +766,8 @@ internal static partial class ArtifactSourceEmitter
             "global::Delta.Shader.SegmentRect" or
             "global::Delta.Shader.CornerData" or
             "global::Delta.Shader.CornerRadii" or
-            "global::Delta.Shader.BorderWidth";
+            "global::Delta.Shader.BorderWidth" or
+            "global::Delta.Shader.ClipRect";
 
     private static bool IsInterstagePayloadField(IFieldSymbol field)
         => field.GetAttributes().Any(attribute => attribute.AttributeClass?.ToDisplayString() == typeof(InterstageAttribute).FullName) ||

@@ -1515,7 +1515,8 @@ public sealed class ModuleCompilationContext
             "Delta.Shader.SegmentRect",
             "Delta.Shader.CornerData",
             "Delta.Shader.CornerRadii",
-            "Delta.Shader.BorderWidth"
+            "Delta.Shader.BorderWidth",
+            "Delta.Shader.ClipRect"
         ];
 
         foreach (var typeName in semanticTypeNames)

@@ -101,8 +101,14 @@
           "xunit.extensibility.core": "[2.9.2]"
         }
       },
-      "deltashader": {
+      "deltamaths": {
         "type": "Project"
+      },
+      "deltashader": {
+        "type": "Project",
+        "dependencies": {
+          "DeltaMaths": "[1.0.0, )"
+        }
       },
       "deltashader.backend.glsl": {
         "type": "Project",

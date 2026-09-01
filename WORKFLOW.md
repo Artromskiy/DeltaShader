@@ -64,10 +64,11 @@ collision-safe while preserving the original entry-point filename:
 ./eng/prepare-compiled-shaders.sh
 ```
 
-It uses `--optimize performance`. The CLI also accepts
-`--optimize none|performance|size`; `size` passes `-Os` to
-`glslangValidator`, while `performance` passes `-O`. Every SPIR-V result is
-validated after compilation.
+It uses `--optimize performance`: `glslangValidator -O` is followed by
+`spirv-opt -O`, and every resulting SPIR-V module is then validated by
+`spirv-val`. The CLI also accepts `--optimize none|performance|size`; `size`
+uses `-Os` in both compiler stages. Every SPIR-V result is validated after
+optimization.
 
 The fixed output directory is
 `src/DeltaShader/CompiledShaders`. Build folders, lock files and temporary
@@ -93,7 +94,6 @@ The optional positional arguments remain available for an explicit catalog:
 This emits generated C# fixtures, GLSL 460, SPIR-V, resolved `ShaderAbi`
 (`*.abi.json`) sidecars, source manifests (`*.shader.json`) and `index.json`
 without a nested `cases/` directory. The optional positional arguments remain
-available for an explicit temporary catalog:
 The script builds Maths, the DeltaMaths conformance project, and the Tool from
 the current checkout, validates that every supported handoff case has a
 matching artifact/sidecar set, and requires the handoff `shader-contract.json`,

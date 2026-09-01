@@ -48,4 +48,13 @@ public static class ShaderCompiler
 
         return GraphicsInterstageResolver.ResolvePairs(results, options ?? ShaderCompilationOptions.Default);
     }
+
+    public static ShaderCompositeContextResolution ResolveCompositeContext(
+        IReadOnlyList<ShaderCompilationResult> layers)
+        => ShaderCompositeContextResolver.Resolve(layers);
+
+    public static ShaderCompositeCompilationResult ComposeGraphics(
+        IReadOnlyList<ShaderCompilationResult> vertexLayers,
+        IReadOnlyList<ShaderCompilationResult> fragmentLayers)
+        => ShaderCompositeCompiler.Compose(vertexLayers, fragmentLayers);
 }
