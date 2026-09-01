@@ -15,9 +15,14 @@ Install the `DeltaShader.Tool` package and opt in from the project file:
 </PropertyGroup>
 
 <ItemGroup>
+  <PackageReference Include="DeltaShader.Tool" Version="0.0.1" PrivateAssets="all" />
   <DeltaShaderSource Include="Shaders/**/*.cs" />
 </ItemGroup>
 ```
+
+The same package is also a `dotnet` tool and exposes the `delta-shader`
+command for explicit compilation. A project normally uses the package
+reference so the build target and the CLI stay on the same version.
 
 `DeltaShaderSource` is optional for discovery. When it is omitted, the build
 target first discovers `Shaders/**/*.cs`; projects without that directory

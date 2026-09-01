@@ -3,12 +3,18 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Delta.Shader.Tool</RootNamespace>
+    <AssemblyName>DeltaShader.Tool</AssemblyName>
+    <PackageId>DeltaShader.Tool</PackageId>
+    <Description>Roslyn-based C# shader compiler and MSBuild integration for GLSL/SPIR-V artifact generation.</Description>
+    <PackageTags>shader;glsl;spirv;vulkan;roslyn;msbuild;dotnet-tool</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>delta-shader</ToolCommandName>
     <NoWarn>$(NoWarn);NU1301</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="README.md" />
     <None Include="build/DeltaShader.props" Pack="true" PackagePath="buildTransitive/DeltaShader.props" />
     <None Include="build/DeltaShader.targets" Pack="true" PackagePath="buildTransitive/DeltaShader.targets" />
     <ProjectReference Include="..\DeltaShader.Contract\DeltaShader.Contract.csproj" />
