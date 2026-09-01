@@ -360,30 +360,6 @@
         "DeltaShader.Playground.AddBias.Vertex.vert.shader.json",
         "DeltaShader.Playground.AddBias.Vertex.vert.spv"
       ]
-    },
-    {
-      "project": "DeltaShader.ComputerPbr",
-      "projectPath": "samples/DeltaShader.ComputerPbr/DeltaShader.ComputerPbr.csproj",
-      "files": [
-        "DeltaShader.ComputerPbr.Fragment.frag.glsl",
-        "DeltaShader.ComputerPbr.Fragment.frag.shader.json",
-        "DeltaShader.ComputerPbr.Fragment.frag.spv",
-        "DeltaShader.ComputerPbr.Vertex.vert.glsl",
-        "DeltaShader.ComputerPbr.Vertex.vert.shader.json",
-        "DeltaShader.ComputerPbr.Vertex.vert.spv"
-      ]
-    },
-    {
-      "project": "DeltaShader.ComputerPbrModel",
-      "projectPath": "samples/DeltaShader.ComputerPbrModel/DeltaShader.ComputerPbrModel.csproj",
-      "files": [
-        "DeltaShader.ComputerPbrModel.Mesh.vert.glsl",
-        "DeltaShader.ComputerPbrModel.Mesh.vert.shader.json",
-        "DeltaShader.ComputerPbrModel.Mesh.vert.spv",
-        "DeltaShader.ComputerPbrModel.MeshFragment.frag.glsl",
-        "DeltaShader.ComputerPbrModel.MeshFragment.frag.shader.json",
-        "DeltaShader.ComputerPbrModel.MeshFragment.frag.spv"
-      ]
     }
   ]
 }
