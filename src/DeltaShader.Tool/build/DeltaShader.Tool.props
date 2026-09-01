@@ -1,0 +1,13 @@
+<Project>
+  <PropertyGroup>
+    <DeltaShaderEnabled Condition="'$(DeltaShaderEnabled)' == ''">false</DeltaShaderEnabled>
+    <DeltaShaderSkipValidation Condition="'$(DeltaShaderSkipValidation)' == ''">false</DeltaShaderSkipValidation>
+    <DeltaShaderProfile Condition="'$(DeltaShaderProfile)' == ''">vulkan1.2</DeltaShaderProfile>
+    <DeltaShaderSpirv Condition="'$(DeltaShaderSpirv)' == ''">1.5</DeltaShaderSpirv>
+    <DeltaShaderGlsl Condition="'$(DeltaShaderGlsl)' == ''">460</DeltaShaderGlsl>
+    <DeltaShaderOptimization Condition="'$(DeltaShaderOptimization)' == ''">performance</DeltaShaderOptimization>
+    <DeltaShaderDotNetPath Condition="'$(DeltaShaderDotNetPath)' == ''">dotnet</DeltaShaderDotNetPath>
+    <DeltaShaderToolPath Condition="'$(DeltaShaderToolPath)' == ''">$(MSBuildThisFileDirectory)..\tools\net10.0\any\DeltaShader.Tool.dll</DeltaShaderToolPath>
+  </PropertyGroup>
+
+</Project>

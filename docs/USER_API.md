@@ -111,19 +111,23 @@ Render uploads the returned bytes as a vertex buffer and uses the same
 For an artifact with multiple resolved vertex bindings, the generated type also
 exposes `PackMeshVertexBinding<binding>Element/Elements` methods for each
 binding. The single-binding-0 case keeps the shorter `PackMeshVertexElement`
-names. The same generated type exposes `FragmentAbi` and
-`CreateProgram(ReadOnlySpan<byte>, ReadOnlySpan<byte>)`; the SPIR-V bytes come
-from the explicit DeltaShader Tool/package step, not from this authoring
-assembly. Each binding helper uses its own resolved `VertexInputs` subset and
+names. The generated type also exposes parameterless `CreateProgram()`. It
+resolves producer-owned sidecars from the `DeltaShader` output directory and
+keeps the path and file loading out of user code. The overload
+`CreateProgram(ReadOnlySpan<byte>, ReadOnlySpan<byte>)` remains available for
+tooling and external artifact caches. Each binding helper uses its own resolved
+`VertexInputs` subset and
 `VertexBuffers[binding].Stride`; consumers may place those ranges in one
 persistent backing allocation when their Render adapter supports aliased
 bindings.
-For a shorter ABI lookup, the generator also exposes
-`ShaderAbis.<ShaderContainer>.<EntryPoint>` for compute shaders and
-`ShaderAbis.<ShaderContainer>.Vertex`/`Fragment` for a single graphics pair.
-For multiple graphics pairs, the pair name prefixes those two properties.
-This facade is generated tooling surface; the values are the same resolved
-`ShaderAbi` objects exposed by the generated artifact/program types.
+For a short generated lookup, the facade exposes
+`Shaders.Abi.<ShaderContainer>.<EntryPoint>()` and
+`Shaders.Spv.<ShaderContainer>.<EntryPoint>()` for compute shaders, plus
+`Shaders.Abi.<ShaderContainer>.Vertex()`/`Fragment()` and the matching
+`Shaders.Spv` methods for a single graphics pair. For multiple graphics pairs,
+the pair is an additional nested type. These methods return the same cached
+resolved ABI and producer-owned sidecar bytes used by the generated program;
+they do not calculate layout or inspect manifests.
 The generated surface also exposes `<Method>VertexBufferCount`,
 `Get<Method>VertexBufferByteLength(int)` and
 `Get<Method>VertexBufferRanges(int, Span<Delta.Shader.Packing.ShaderBufferRange>)`
@@ -322,24 +326,15 @@ the MSDF path uses the median of RGB. Both paths use `fwidth` for analytic
 anti-aliasing and expose `TextColor`/`OutlineColor` explicitly in the same
 push-constant block.
 
-## Build-side publication
+## Build-side generation
 
-The CLI emits GLSL and validates SPIR-V through the pinned target profile:
-
-```bash
-out_dir="$(mktemp -d)"
-trap 'rm -rf "$out_dir"' EXIT
-dotnet run --project src/DeltaShader.Tool/DeltaShader.Tool.csproj \
-  -c Release -- build tests/DeltaShader.TestShaders/DeltaShader.TestShaders.csproj \
-  --profile vulkan1.2 --spirv 1.5 --glsl 460 \
-  --optimize performance \
-  --out "$out_dir"
-```
-
-The command requires `glslangValidator` and `spirv-val` for the SPIR-V backend.
-Runtime consumption, resource creation, descriptor binding, and dispatch are
-defined by the producer-owned [CONTRACT.md](CONTRACT.md), not by this authoring
-API.
+Normal shader projects reference the private `DeltaShader.Tool` NuGet package
+with `DeltaShaderEnabled=true`. Their build discovers `Shaders/**/*.cs` and
+generates the program/factory API, final `ShaderArtifact`/`ShaderAbi`, stage ABI
+accessors and typed pack/unpack helpers under the project build output. Runtime
+consumers use that generated API and do not parse `.shader.json` sidecars or
+recalculate ABI layout. The explicit CLI is reserved for DeltaShader tooling
+and the separate Maths conformance workflow.
 ### Shared backing buffer
 
 Generated range helpers describe logical storage resources inside one backing

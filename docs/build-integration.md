@@ -15,14 +15,15 @@ Install the `DeltaShader.Tool` package and opt in from the project file:
 </PropertyGroup>
 
 <ItemGroup>
-  <PackageReference Include="DeltaShader.Tool" Version="0.0.1" PrivateAssets="all" />
+  <PackageReference Include="DeltaShader.Tool" Version="0.0.11" PrivateAssets="all" />
   <DeltaShaderSource Include="Shaders/**/*.cs" />
 </ItemGroup>
 ```
 
-The same package is also a `dotnet` tool and exposes the `delta-shader`
-command for explicit compilation. A project normally uses the package
-reference so the build target and the CLI stay on the same version.
+The package is consumed through `PackageReference`; a project normally uses
+the package reference so the build target and the checked-in producer sources
+stay on the same version. For explicit compilation from a source checkout,
+use `dotnet run --project src/DeltaShader.Tool/DeltaShader.Tool.csproj`.
 
 `DeltaShaderSource` is optional for discovery. When it is omitted, the build
 target first discovers `Shaders/**/*.cs`; projects without that directory
@@ -41,7 +42,7 @@ validated GLSL, SPIR-V and shader manifests. The default paths are:
 
 ```text
 obj/<Configuration>/<TargetFramework>/DeltaShader/<configuration-key>/
-bin/<Configuration>/<TargetFramework>/DeltaShader/
+bin/<Configuration>/<TargetFramework>/DeltaShader/<AssemblyName>/
 ```
 
 The first path is staging/intermediate output. The second path is the exact
@@ -77,8 +78,8 @@ the tool path explicitly and import the same build files from the checkout:
   <DeltaShaderToolPath>$(MSBuildThisFileDirectory)..\..\src\DeltaShader.Tool\bin\Release\net10.0\DeltaShader.Tool.dll</DeltaShaderToolPath>
 </PropertyGroup>
 
-<Import Project="$(MSBuildThisFileDirectory)..\..\src\DeltaShader.Tool\build\DeltaShader.props" />
-<Import Project="$(MSBuildThisFileDirectory)..\..\src\DeltaShader.Tool\build\DeltaShader.targets" />
+<Import Project="$(MSBuildThisFileDirectory)..\..\src\DeltaShader.Tool\build\DeltaShader.Tool.props" />
+<Import Project="$(MSBuildThisFileDirectory)..\..\src\DeltaShader.Tool\build\DeltaShader.Tool.targets" />
 ```
 
 The tool must be built before the shader project. In a normal application,

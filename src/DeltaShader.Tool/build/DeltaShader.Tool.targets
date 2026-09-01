@@ -9,9 +9,17 @@
 
   <Target Name="DeltaShaderCompile"
           AfterTargets="Build"
-          Inputs="@(Compile);@(DeltaShaderSource);$(MSBuildProjectFullPath);$(ProjectAssetsFile);$(DeltaShaderToolPath)"
-          Outputs="$(DeltaShaderStamp);$(DeltaShaderPublishMarker)"
           Condition="'$(DeltaShaderEnabled)' == 'true' and '$(DesignTimeBuild)' != 'true' and '$(DeltaShaderSkipValidation)' != 'true'">
+    <PropertyGroup>
+      <DeltaShaderConfigurationKey Condition="'$(DeltaShaderConfigurationKey)' == ''">$(Configuration)-$(TargetFramework)-$(DeltaShaderProfile)-$(DeltaShaderSpirv)-$(DeltaShaderGlsl)-$(DeltaShaderOptimization)</DeltaShaderConfigurationKey>
+      <DeltaShaderOutputPath Condition="'$(DeltaShaderOutputPath)' == ''">$(IntermediateOutputPath)DeltaShader\$(DeltaShaderConfigurationKey)\</DeltaShaderOutputPath>
+      <DeltaShaderPublishRootPath Condition="'$(DeltaShaderPublishRootPath)' == ''">$(TargetDir)DeltaShader\</DeltaShaderPublishRootPath>
+      <DeltaShaderPublishPath Condition="'$(DeltaShaderPublishPath)' == ''">$(DeltaShaderPublishRootPath)$(AssemblyName)\</DeltaShaderPublishPath>
+      <DeltaShaderPublishStagingPath Condition="'$(DeltaShaderPublishStagingPath)' == ''">$(IntermediateOutputPath)DeltaShader\publish\$(DeltaShaderConfigurationKey)\</DeltaShaderPublishStagingPath>
+      <DeltaShaderStamp Condition="'$(DeltaShaderStamp)' == ''">$(DeltaShaderOutputPath).complete</DeltaShaderStamp>
+      <DeltaShaderPublishMarker Condition="'$(DeltaShaderPublishMarker)' == ''">$(DeltaShaderPublishPath).complete</DeltaShaderPublishMarker>
+    </PropertyGroup>
+
     <Error Condition="!Exists('$(DeltaShaderToolPath)')"
            Text="DeltaShader.Tool was not found at '$(DeltaShaderToolPath)'. Set DeltaShaderToolPath for a local checkout or restore the DeltaShader.Tool package." />
 
@@ -29,7 +37,7 @@
     <RemoveDir Directories="$(DeltaShaderPublishStagingPath)" />
     <MakeDir Directories="$(DeltaShaderPublishStagingPath)" />
     <Copy SourceFiles="@(_DeltaShaderGenerated)"
-          DestinationFiles="@(_DeltaShaderGenerated->'$(DeltaShaderPublishStagingPath)%(RecursiveDir)%(Filename)%(Extension)')"
+          DestinationFiles="@(_DeltaShaderGenerated-&gt;'$(DeltaShaderPublishStagingPath)%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="false" />
     <RemoveDir Directories="$(DeltaShaderPublishPath)" />
     <MakeDir Directories="$(DeltaShaderPublishPath)" />
@@ -38,7 +46,7 @@
       <_DeltaShaderPublishStaged Include="$(DeltaShaderPublishStagingPath)**\*.spv;$(DeltaShaderPublishStagingPath)**\*.glsl;$(DeltaShaderPublishStagingPath)**\*.shader.json;$(DeltaShaderPublishStagingPath)**\*.abi.json" />
     </ItemGroup>
     <Move SourceFiles="@(_DeltaShaderPublishStaged)"
-          DestinationFiles="@(_DeltaShaderPublishStaged->'$(DeltaShaderPublishPath)%(RecursiveDir)%(Filename)%(Extension)')" />
+          DestinationFiles="@(_DeltaShaderPublishStaged-&gt;'$(DeltaShaderPublishPath)%(RecursiveDir)%(Filename)%(Extension)')" />
     <WriteLinesToFile File="$(DeltaShaderStamp)"
                       Lines="DeltaShader artifacts generated for $(MSBuildProjectFullPath) with $(DeltaShaderProfile)/SPIR-V $(DeltaShaderSpirv)/GLSL $(DeltaShaderGlsl)/$(DeltaShaderOptimization)."
                       Overwrite="true" />

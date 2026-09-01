@@ -18,3 +18,9 @@ does not perform runtime C# composition or contain generated artifacts.
 are host-provided vertex inputs; the remaining semantic fields are produced by
 the vertex layer and are available to downstream fragment layers. The resolved
 compiler plan is available through `ShaderCompiler.ResolveCompositeContext`.
+
+The producer project references `DeltaShader.Tool` as a private NuGet package.
+Build it normally to discover `Shaders/**/*.cs` and generate the final
+program/factory API, `ShaderArtifact`, `ShaderAbi` and typed packers. Consumers
+do not parse shader sidecars or recalculate layout. Composite layer selection
+is a build/editor preparation step, not runtime CLI or C# composition.

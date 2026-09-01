@@ -99,7 +99,8 @@ without a nested `cases/` directory. The optional positional arguments remain
 
 An ordinary shader project can opt into automatic compilation by restoring the
 `DeltaShader.Tool` package and setting `DeltaShaderEnabled=true`. The package
-imports `buildTransitive/DeltaShader.props` and `DeltaShader.targets`; a normal
+imports `buildTransitive/DeltaShader.Tool.props` and
+`DeltaShader.Tool.targets`; a normal
 project build then invokes the existing CLI once after `Build`, publishes
 validated outputs under `bin/.../DeltaShader`, and exposes
 `@(DeltaShaderArtifact)` items with exact manifest/SPIR-V/GLSL paths. Sources
@@ -190,3 +191,20 @@ Each producer check owns an isolated temporary directory and invokes the
 Release `DeltaShader.Tool` directly. Persistent catalogs and atomic catalog
 swaps are intentionally not part of the workflow, so a later check cannot
 consume artifacts from an earlier run.
+
+## Contract release versioning
+
+Unless the change explicitly says otherwise, every change to a public shader
+authoring contract, `ShaderAbi`/`ShaderArtifact` shape, generated pack/unpack
+API, or frozen DeltaShader-to-consumer semantics must increment the repository
+version tag and the `DeltaShader.Tool` NuGet package version together. The tag
+uses the `v` prefix (`v0.0.11`); the NuGet package uses the same SemVer without
+that prefix (`0.0.11`). Update package references and release documentation to
+the same version in the same change.
+
+Internal implementation fixes, diagnostics, tests and documentation-only
+changes do not require a version bump unless they change the public contract.
+Any deliberate exception to this rule must be stated explicitly in the task
+or release change. Before publishing, confirm that the package version and
+repository tag identify the same contract revision; do not publish a contract
+package under the previous version.

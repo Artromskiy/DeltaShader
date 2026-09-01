@@ -5,19 +5,20 @@
     <RootNamespace>Delta.Shader.Tool</RootNamespace>
     <AssemblyName>DeltaShader.Tool</AssemblyName>
     <PackageId>DeltaShader.Tool</PackageId>
-    <Version>0.0.1</Version>
+    <!-- Synchronized with the latest DeltaShader repository tag: v0.0.11. -->
+    <Version>0.0.11</Version>
     <Description>Roslyn-based C# shader compiler and MSBuild integration for GLSL/SPIR-V artifact generation.</Description>
-    <PackageTags>shader;glsl;spirv;vulkan;roslyn;msbuild;dotnet-tool</PackageTags>
+    <PackageTags>shader;glsl;spirv;vulkan;roslyn;msbuild</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackAsTool>true</PackAsTool>
-    <ToolCommandName>delta-shader</ToolCommandName>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <NoWarn>$(NoWarn);NU1301</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="README.md" />
-    <None Include="build/DeltaShader.props" Pack="true" PackagePath="buildTransitive/DeltaShader.props" />
-    <None Include="build/DeltaShader.targets" Pack="true" PackagePath="buildTransitive/DeltaShader.targets" />
+    <None Include="build/DeltaShader.Tool.props" Pack="true" PackagePath="buildTransitive/DeltaShader.Tool.props" />
+    <None Include="build/DeltaShader.Tool.targets" Pack="true" PackagePath="buildTransitive/DeltaShader.Tool.targets" />
     <ProjectReference Include="..\DeltaShader.Contract\DeltaShader.Contract.csproj" />
     <ProjectReference Include="..\DeltaShader.Analyzers\DeltaShader.Analyzers.csproj" />
     <ProjectReference Include="..\\DeltaShader.Compiler\\DeltaShader.Compiler.csproj" />
@@ -26,4 +27,17 @@
     <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" />
     <PackageReference Include="Microsoft.Build.Locator" />
   </ItemGroup>
+
+  <PropertyGroup>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);CollectDeltaShaderToolPackageFiles</TargetsForTfmSpecificContentInPackage>
+  </PropertyGroup>
+
+  <Target Name="CollectDeltaShaderToolPackageFiles" Returns="@(TfmSpecificPackageFile)">
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="$(TargetDir)**">
+        <PackagePath>tools/net10.0/any/%(RecursiveDir)%(Filename)%(Extension)</PackagePath>
+      </TfmSpecificPackageFile>
+    </ItemGroup>
+  </Target>
+
 </Project>

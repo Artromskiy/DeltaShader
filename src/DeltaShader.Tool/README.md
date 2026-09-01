@@ -1,18 +1,8 @@
 # DeltaShader.Tool
 
 `DeltaShader.Tool` compiles C# shader projects into validated GLSL, SPIR-V and
-`ShaderAbi` sidecars. The package can be installed as a `dotnet` tool or added
-as a private `PackageReference` to enable automatic shader compilation during a
-project build.
-
-## Install as a dotnet tool
-
-```bash
-dotnet tool install --global DeltaShader.Tool
-delta-shader build path/to/ShaderProject.csproj \
-  --profile vulkan1.2 --spirv 1.5 --glsl 460 \
-  --optimize performance --out path/to/artifacts
-```
+`ShaderAbi` sidecars. It is a build package: add it as a private
+`PackageReference` to the project that owns the shader source.
 
 ## Enable MSBuild integration
 
@@ -22,7 +12,7 @@ delta-shader build path/to/ShaderProject.csproj \
 </PropertyGroup>
 
 <ItemGroup>
-  <PackageReference Include="DeltaShader.Tool" Version="0.0.1" PrivateAssets="all" />
+  <PackageReference Include="DeltaShader.Tool" Version="0.0.11" PrivateAssets="all" />
   <DeltaShaderSource Include="Shaders/**/*.cs" />
 </ItemGroup>
 ```
@@ -33,9 +23,15 @@ discovers `Shaders/**/*.cs` and then falls back to the project's normal
 references and shader symbols normally.
 
 The build target publishes validated shader output below
-`bin/<Configuration>/<TargetFramework>/DeltaShader/`. It publishes only
+`bin/<Configuration>/<TargetFramework>/DeltaShader/<AssemblyName>/`. It publishes only
 `.spv`, `.glsl`, `.shader.json` and `.abi.json`; lock files and temporary files
-are not package or runtime artifact members.
+are not runtime inputs. The generated C# program/factory surface is the normal
+consumer path: use its final `ShaderArtifact`, `ShaderAbi`, cached stage ABI
+accessors and typed pack/unpack helpers. Do not parse sidecars or duplicate
+layout calculations in a consumer. The direct CLI output path is reserved for
+bounded validation and Maths conformance bundles.
+Generated shader files are not package or runtime artifact members of the tool
+package.
 
 The package contains no Vulkan runtime dependency. Render and Engine consume
 the final `ShaderArtifact`/`ShaderAbi` boundary and do not compile C# or

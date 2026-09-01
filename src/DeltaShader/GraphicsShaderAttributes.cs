@@ -3,29 +3,29 @@ namespace Delta.Shader;
 [AttributeUsage(AttributeTargets.Method, Inherited = false, AllowMultiple = false)]
 public sealed class VertexShaderAttribute : Attribute
 {
-    public string? EntryPointName { get; }
+	public string? EntryPointName { get; }
 
-    public VertexShaderAttribute(string? entryPointName = null)
-    {
-        EntryPointName = entryPointName;
-    }
+	public VertexShaderAttribute(string? entryPointName = null)
+	{
+		EntryPointName = entryPointName;
+	}
 }
 
 [AttributeUsage(AttributeTargets.Method, Inherited = false, AllowMultiple = false)]
 public sealed class FragmentShaderAttribute : Attribute
 {
-    public string? EntryPointName { get; }
+	public string? EntryPointName { get; }
 
-    public FragmentShaderAttribute(string? entryPointName = null)
-    {
-        EntryPointName = entryPointName;
-    }
+	public FragmentShaderAttribute(string? entryPointName = null)
+	{
+		EntryPointName = entryPointName;
+	}
 }
 
 public enum VertexInputRate
 {
-    Vertex = 0,
-    Instance = 1
+	Vertex = 0,
+	Instance = 1
 }
 
 [AttributeUsage(AttributeTargets.Struct | AttributeTargets.Field, Inherited = false, AllowMultiple = false)]
@@ -36,19 +36,19 @@ public sealed class InterstageAttribute : Attribute
 [AttributeUsage(AttributeTargets.Method, Inherited = false, AllowMultiple = false)]
 public sealed class ShaderIntrinsicAttribute : Attribute
 {
-    public string GlslName { get; }
-    public ShaderStage[] Stages { get; }
-    public ShaderStage Stage { get; }
+	public string GlslName { get; }
+	public ShaderStage[] Stages { get; }
+	public ShaderStage Stage { get; }
 
-    public ShaderIntrinsicAttribute(string glslName, ShaderStage stage)
-        : this(glslName, new[] { stage })
-    {
-    }
+	public ShaderIntrinsicAttribute(string glslName, ShaderStage stage)
+		: this(glslName, new[] { stage })
+	{
+	}
 
-    public ShaderIntrinsicAttribute(string glslName, params ShaderStage[] stages)
-    {
+	public ShaderIntrinsicAttribute(string glslName, params ShaderStage[] stages)
+	{
 #if NET10_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(stages);
+		ArgumentNullException.ThrowIfNull(stages);
 #else
         if (stages is null)
         {
@@ -56,29 +56,28 @@ public sealed class ShaderIntrinsicAttribute : Attribute
         }
 #endif
 
-        GlslName = glslName;
-        if (stages.Length == 0)
-        {
-            throw new ArgumentException("At least one shader stage is required.", nameof(stages));
-        }
+		GlslName = glslName;
+		if (stages.Length == 0)
+		{
+			throw new ArgumentException("At least one shader stage is required.", nameof(stages));
+		}
 
-        Stages = stages;
-        Stage = stages[0];
-    }
+		Stages = stages;
+		Stage = stages[0];
+	}
 }
 
-public static class ShaderIntrinsics
+public static class intrinsics
 {
-    [ShaderIntrinsic("fwidth", ShaderStage.Fragment)]
-    public static float fwidth(float value) => throw new NotSupportedException();
+	[ShaderIntrinsic("fwidth", ShaderStage.Fragment)]
+	public static float fwidth(float value) => throw new NotSupportedException();
 
-    [ShaderIntrinsic("dFdx", ShaderStage.Fragment)]
-    public static T dFdx<T>(T value) => throw new NotSupportedException();
+	[ShaderIntrinsic("dFdx", ShaderStage.Fragment)]
+	public static T dFdx<T>(T value) => throw new NotSupportedException();
 
-    [ShaderIntrinsic("dFdy", ShaderStage.Fragment)]
-    public static T dFdy<T>(T value) => throw new NotSupportedException();
+	[ShaderIntrinsic("dFdy", ShaderStage.Fragment)]
+	public static T dFdy<T>(T value) => throw new NotSupportedException();
 
-    [ShaderIntrinsic("discard", ShaderStage.Fragment)]
-    public static void Discard() => throw new NotSupportedException();
-
+	[ShaderIntrinsic("discard", ShaderStage.Fragment)]
+	public static byte discard => throw new NotSupportedException();
 }

@@ -109,7 +109,13 @@ public sealed class DeltaGraphicsGenerator : IIncrementalGenerator
                 ArtifactSourceEmitter.EmitAbiAccessor("FragmentAbi", "CreateFragmentAbi"),
                 vertexPacking,
                 fragmentPacking,
+                pairVertices[0].Name + ".vert.spv",
+                pairFragments[0].Name + ".frag.spv",
                 GeneratedArtifactSource.GraphicsAbiProjection(
+                    pairVertices[0],
+                    name,
+                    pairNames.Length == 1 ? string.Empty : pairName),
+                GeneratedArtifactSource.GraphicsFacadeProjection(
                     pairVertices[0],
                     name,
                     pairNames.Length == 1 ? string.Empty : pairName));

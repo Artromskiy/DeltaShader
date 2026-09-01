@@ -1,6 +1,7 @@
 using Delta.Maths;
 using Delta.Shader;
 using static Delta.Maths.maths;
+using static Delta.Shader.intrinsics;
 
 namespace Delta.Shader.UI;
 
@@ -124,8 +125,8 @@ public static class RoundedRectangleSliceBuilder
 			throw new ArgumentException("The destination must hold up to nine rounded rectangle slice records.", nameof(destination));
 		}
 
-		float width = MathF.Max(rectangle.Rect.z, 0f);
-		float height = MathF.Max(rectangle.Rect.w, 0f);
+		float width = Maths.Max(rectangle.Rect.z, 0f);
+		float height = Maths.Max(rectangle.Rect.w, 0f);
 		if (width <= 0f || height <= 0f)
 		{
 			return 0;
@@ -133,10 +134,10 @@ public static class RoundedRectangleSliceBuilder
 
 		float4 rect = new float4(rectangle.Rect.x, rectangle.Rect.y, width, height);
 		float4 radii = NormalizeRadii(rectangle.CornerRadii, width, height);
-		float left = MathF.Max(radii.x, radii.w);
-		float right = MathF.Max(radii.y, radii.z);
-		float top = MathF.Max(radii.x, radii.y);
-		float bottom = MathF.Max(radii.w, radii.z);
+		float left = Maths.Max(radii.x, radii.w);
+		float right = Maths.Max(radii.y, radii.z);
+		float top = Maths.Max(radii.x, radii.y);
+		float bottom = Maths.Max(radii.w, radii.z);
 		float x0 = rect.x;
 		float x1 = x0 + left;
 		float x2 = x0 + width - right;
@@ -218,10 +219,10 @@ public static class RoundedRectangleSliceBuilder
 	private static float4 NormalizeRadii(float4 radii, float width, float height)
 	{
 		radii = new float4(
-			MathF.Max(radii.x, 0f),
-			MathF.Max(radii.y, 0f),
-			MathF.Max(radii.z, 0f),
-			MathF.Max(radii.w, 0f));
+			Maths.Max(radii.x, 0f),
+			Maths.Max(radii.y, 0f),
+			Maths.Max(radii.z, 0f),
+			Maths.Max(radii.w, 0f));
 		float scale = 1f;
 		scale = LimitScale(scale, width, radii.x + radii.y);
 		scale = LimitScale(scale, width, radii.w + radii.z);
@@ -231,7 +232,7 @@ public static class RoundedRectangleSliceBuilder
 	}
 
 	private static float LimitScale(float scale, float extent, float sum)
-		=> sum > 0f ? MathF.Min(scale, extent / sum) : scale;
+		=> sum > 0f ? Maths.Min(scale, extent / sum) : scale;
 
 	private static void AppendCorner(
 		Span<RoundedRectangleSliceParameters> destination,
@@ -271,7 +272,7 @@ public static class RoundedRectangleSliceBuilder
 			radii,
 			segmentRect,
 			cornerData,
-			MathF.Max(rectangle.BorderWidth, 0f));
+			Maths.Max(rectangle.BorderWidth, 0f));
 	}
 }
 
@@ -606,11 +607,11 @@ public static class UiRectangleShaders
 		float outsideDistance = length(outside);
 		float insideDistance = min(max(q.x, q.y), 0f);
 		float distance = outsideDistance + insideDistance - radius;
-		float edge = ShaderIntrinsics.fwidth(distance);
+		float edge = fwidth(distance);
 		float fillCoverage = 1f - smoothstep(-edge, edge, distance);
 		if (fillCoverage <= 0f)
 		{
-			ShaderIntrinsics.Discard();
+			discard();
 		}
 		float innerCoverage = 1f - smoothstep(-edge, edge, distance + borderWidth);
 		float borderCoverage = max(fillCoverage - innerCoverage, 0f);
@@ -676,11 +677,11 @@ public static class UiRectangleShaders
 			distance = max(max(left, right), max(top, bottom));
 		}
 
-		float edge = ShaderIntrinsics.fwidth(distance);
+		float edge = fwidth(distance);
 		float fillCoverage = 1f - smoothstep(-edge, edge, distance);
 		if (fillCoverage <= 0f)
 		{
-			ShaderIntrinsics.Discard();
+			discard();
 		}
 		float innerDistance = 0f;
 		if (isCorner > 0.5f)
@@ -739,7 +740,7 @@ public static class UiRectangleShaders
 	{
 		if (!IsInsideClip(context.Fragment.ClipRect))
 		{
-			ShaderIntrinsics.Discard();
+			discard();
 		}
 
 		return context.Fragment.Color.Value;
@@ -786,7 +787,7 @@ public static class UiRectangleShaders
 	{
 		if (!IsInsideClip(context.Fragment.ClipRect))
 		{
-			ShaderIntrinsics.Discard();
+			discard();
 		}
 
 		float4 rect = context.Fragment.Rect.Value;
@@ -818,11 +819,11 @@ public static class UiRectangleShaders
 		float outsideDistance = length(outside);
 		float insideDistance = min(max(q.x, q.y), 0f);
 		float distance = outsideDistance + insideDistance - radius;
-		float edge = ShaderIntrinsics.fwidth(distance);
+		float edge = fwidth(distance);
 		float fillCoverage = 1f - smoothstep(-edge, edge, distance);
 		if (fillCoverage <= 0f)
 		{
-			ShaderIntrinsics.Discard();
+			discard();
 		}
 		float innerCoverage = 1f - smoothstep(-edge, edge, distance + borderWidth);
 		float borderCoverage = max(fillCoverage - innerCoverage, 0f);
@@ -872,7 +873,7 @@ public static class UiRectangleShaders
 	{
 		if (!IsInsideClip(context.Fragment.ClipRect))
 		{
-			ShaderIntrinsics.Discard();
+			discard();
 		}
 
 		float4 cornerData = context.Fragment.CornerData.Value;
@@ -894,11 +895,11 @@ public static class UiRectangleShaders
 			distance = max(max(left, right), max(top, bottom));
 		}
 
-		float edge = ShaderIntrinsics.fwidth(distance);
+		float edge = fwidth(distance);
 		float fillCoverage = 1f - smoothstep(-edge, edge, distance);
 		if (fillCoverage <= 0f)
 		{
-			ShaderIntrinsics.Discard();
+			discard();
 		}
 		float innerDistance = 0f;
 		if (isCorner > 0.5f)
