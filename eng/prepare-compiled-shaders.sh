@@ -16,6 +16,8 @@ projects=(
   "tests/DeltaShader.FullscreenFixture/DeltaShader.FullscreenFixture.csproj"
   "samples/DeltaShader.Playground/DeltaShader.Playground.csproj"
   "samples/DeltaShader.Playground/DeltaShader.Playground.AddBias.csproj"
+  "samples/DeltaShader.ComputerPbr/DeltaShader.ComputerPbr.csproj"
+  "samples/DeltaShader.ComputerPbrModel/DeltaShader.ComputerPbrModel.csproj"
 )
 
 for command_name in dotnet glslangValidator spirv-opt spirv-val jq; do

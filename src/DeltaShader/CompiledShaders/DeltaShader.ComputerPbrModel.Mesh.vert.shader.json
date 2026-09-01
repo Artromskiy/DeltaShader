@@ -1,0 +1,231 @@
+{
+  "Stage": 1,
+  "SourceEntryPointName": "computer-pbr-model",
+  "EntryPointName": "main",
+  "TargetProfile": "vulkan1.2",
+  "GlslVersion": "460",
+  "SpirvVersion": "1.5",
+  "StorageLayout": "std430",
+  "LocalSizeX": 0,
+  "LocalSizeY": 0,
+  "LocalSizeZ": 0,
+  "Resources": [],
+  "Inputs": [],
+  "VertexInputs": [
+    {
+      "Name": "vertex_Position",
+      "ParameterName": "Position",
+      "GlslName": "vertex_Position",
+      "GlslType": "vec4",
+      "Location": 0,
+      "Binding": 0,
+      "ByteOffset": 0,
+      "InputRate": 0,
+      "ByteSize": 16,
+      "Alignment": 4,
+      "FormatHint": "VK_FORMAT_R32G32B32A32_SFLOAT"
+    },
+    {
+      "Name": "vertex_WorldNormal",
+      "ParameterName": "WorldNormal",
+      "GlslName": "vertex_WorldNormal",
+      "GlslType": "vec3",
+      "Location": 1,
+      "Binding": 0,
+      "ByteOffset": 16,
+      "InputRate": 0,
+      "ByteSize": 12,
+      "Alignment": 4,
+      "FormatHint": "VK_FORMAT_R32G32B32_SFLOAT"
+    },
+    {
+      "Name": "vertex_Uv",
+      "ParameterName": "Uv",
+      "GlslName": "vertex_Uv",
+      "GlslType": "vec2",
+      "Location": 2,
+      "Binding": 0,
+      "ByteOffset": 28,
+      "InputRate": 0,
+      "ByteSize": 8,
+      "Alignment": 4,
+      "FormatHint": "VK_FORMAT_R32G32_SFLOAT"
+    },
+    {
+      "Name": "vertex_Tangent",
+      "ParameterName": "Tangent",
+      "GlslName": "vertex_Tangent",
+      "GlslType": "vec4",
+      "Location": 3,
+      "Binding": 0,
+      "ByteOffset": 36,
+      "InputRate": 0,
+      "ByteSize": 16,
+      "Alignment": 4,
+      "FormatHint": "VK_FORMAT_R32G32B32A32_SFLOAT"
+    }
+  ],
+  "VertexBufferBindings": [
+    {
+      "Binding": 0,
+      "Stride": 52,
+      "InputRate": 0,
+      "Attributes": [
+        {
+          "Name": "vertex_Position",
+          "ParameterName": "Position",
+          "GlslName": "vertex_Position",
+          "GlslType": "vec4",
+          "Location": 0,
+          "Binding": 0,
+          "ByteOffset": 0,
+          "InputRate": 0,
+          "ByteSize": 16,
+          "Alignment": 4,
+          "FormatHint": "VK_FORMAT_R32G32B32A32_SFLOAT"
+        },
+        {
+          "Name": "vertex_WorldNormal",
+          "ParameterName": "WorldNormal",
+          "GlslName": "vertex_WorldNormal",
+          "GlslType": "vec3",
+          "Location": 1,
+          "Binding": 0,
+          "ByteOffset": 16,
+          "InputRate": 0,
+          "ByteSize": 12,
+          "Alignment": 4,
+          "FormatHint": "VK_FORMAT_R32G32B32_SFLOAT"
+        },
+        {
+          "Name": "vertex_Uv",
+          "ParameterName": "Uv",
+          "GlslName": "vertex_Uv",
+          "GlslType": "vec2",
+          "Location": 2,
+          "Binding": 0,
+          "ByteOffset": 28,
+          "InputRate": 0,
+          "ByteSize": 8,
+          "Alignment": 4,
+          "FormatHint": "VK_FORMAT_R32G32_SFLOAT"
+        },
+        {
+          "Name": "vertex_Tangent",
+          "ParameterName": "Tangent",
+          "GlslName": "vertex_Tangent",
+          "GlslType": "vec4",
+          "Location": 3,
+          "Binding": 0,
+          "ByteOffset": 36,
+          "InputRate": 0,
+          "ByteSize": 16,
+          "Alignment": 4,
+          "FormatHint": "VK_FORMAT_R32G32B32A32_SFLOAT"
+        }
+      ]
+    }
+  ],
+  "Outputs": [
+    {
+      "Name": "Position",
+      "ParameterName": "Position",
+      "GlslName": "gl_Position",
+      "GlslType": "vec4",
+      "Location": 0,
+      "Builtin": "Position"
+    },
+    {
+      "Name": "WorldNormal",
+      "ParameterName": "WorldNormal",
+      "GlslName": "WorldNormal",
+      "GlslType": "vec3",
+      "Location": 0,
+      "Builtin": null
+    },
+    {
+      "Name": "Uv",
+      "ParameterName": "Uv",
+      "GlslName": "Uv",
+      "GlslType": "vec2",
+      "Location": 1,
+      "Builtin": null
+    },
+    {
+      "Name": "Tangent",
+      "ParameterName": "Tangent",
+      "GlslName": "Tangent",
+      "GlslType": "vec4",
+      "Location": 2,
+      "Builtin": null
+    },
+    {
+      "Name": "WorldPosition",
+      "ParameterName": "WorldPosition",
+      "GlslName": "WorldPosition",
+      "GlslType": "vec3",
+      "Location": 3,
+      "Builtin": null
+    }
+  ],
+  "PushConstants": [
+    {
+      "Name": "DeltaPushConstants",
+      "ParameterName": "Frame",
+      "GlslType": "DeltaStruct_Delta_Shader_ComputerPbr_ComputerMeshFrame",
+      "Alignment": 16,
+      "Size": 96,
+      "ArrayStride": 96,
+      "Members": [
+        {
+          "Name": "ModelViewProjection",
+          "GlslName": "member_ModelViewProjection",
+          "GlslType": "mat4",
+          "Offset": 0,
+          "Alignment": 16,
+          "Size": 64,
+          "ArrayStride": 64,
+          "MatrixStride": 16,
+          "HostRepresentation": "std430",
+          "Members": []
+        },
+        {
+          "Name": "LightDirection",
+          "GlslName": "member_LightDirection",
+          "GlslType": "vec3",
+          "Offset": 64,
+          "Alignment": 16,
+          "Size": 12,
+          "ArrayStride": 16,
+          "MatrixStride": null,
+          "HostRepresentation": "std430",
+          "Members": []
+        },
+        {
+          "Name": "CameraPosition",
+          "GlslName": "member_CameraPosition",
+          "GlslType": "vec3",
+          "Offset": 80,
+          "Alignment": 16,
+          "Size": 12,
+          "ArrayStride": 16,
+          "MatrixStride": null,
+          "HostRepresentation": "std430",
+          "Members": []
+        },
+        {
+          "Name": "Time",
+          "GlslName": "member_Time",
+          "GlslType": "float",
+          "Offset": 92,
+          "Alignment": 4,
+          "Size": 4,
+          "ArrayStride": 4,
+          "MatrixStride": null,
+          "HostRepresentation": "std430",
+          "Members": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,278 @@
+{
+  "Stage": 2,
+  "SourceEntryPointName": "computer-pbr-model",
+  "EntryPointName": "main",
+  "TargetProfile": "vulkan1.2",
+  "GlslVersion": "460",
+  "SpirvVersion": "1.5",
+  "StorageLayout": "std430",
+  "LocalSizeX": 0,
+  "LocalSizeY": 0,
+  "LocalSizeZ": 0,
+  "Resources": [
+    {
+      "Name": "BaseColor",
+      "ParameterName": "BaseColor",
+      "Category": "sampled-texture",
+      "Stage": 2,
+      "Set": 0,
+      "Binding": 4,
+      "GlslType": "sampler2D",
+      "ReadOnly": true,
+      "Access": 0,
+      "Layout": "opaque",
+      "Offset": 0,
+      "Alignment": 0,
+      "Size": 0,
+      "ArrayStride": 0,
+      "MatrixStride": null,
+      "Members": [],
+      "Packing": {
+        "Scheme": "none",
+        "Strategy": "opaque-resource",
+        "DirectRawUploadAllowed": false,
+        "BoolRepresentation": "uint32",
+        "Stride": 0
+      }
+    },
+    {
+      "Name": "Metallic",
+      "ParameterName": "Metallic",
+      "Category": "sampled-texture",
+      "Stage": 2,
+      "Set": 0,
+      "Binding": 5,
+      "GlslType": "sampler2D",
+      "ReadOnly": true,
+      "Access": 0,
+      "Layout": "opaque",
+      "Offset": 0,
+      "Alignment": 0,
+      "Size": 0,
+      "ArrayStride": 0,
+      "MatrixStride": null,
+      "Members": [],
+      "Packing": {
+        "Scheme": "none",
+        "Strategy": "opaque-resource",
+        "DirectRawUploadAllowed": false,
+        "BoolRepresentation": "uint32",
+        "Stride": 0
+      }
+    },
+    {
+      "Name": "Normal",
+      "ParameterName": "Normal",
+      "Category": "sampled-texture",
+      "Stage": 2,
+      "Set": 0,
+      "Binding": 6,
+      "GlslType": "sampler2D",
+      "ReadOnly": true,
+      "Access": 0,
+      "Layout": "opaque",
+      "Offset": 0,
+      "Alignment": 0,
+      "Size": 0,
+      "ArrayStride": 0,
+      "MatrixStride": null,
+      "Members": [],
+      "Packing": {
+        "Scheme": "none",
+        "Strategy": "opaque-resource",
+        "DirectRawUploadAllowed": false,
+        "BoolRepresentation": "uint32",
+        "Stride": 0
+      }
+    },
+    {
+      "Name": "Roughness",
+      "ParameterName": "Roughness",
+      "Category": "sampled-texture",
+      "Stage": 2,
+      "Set": 0,
+      "Binding": 7,
+      "GlslType": "sampler2D",
+      "ReadOnly": true,
+      "Access": 0,
+      "Layout": "opaque",
+      "Offset": 0,
+      "Alignment": 0,
+      "Size": 0,
+      "ArrayStride": 0,
+      "MatrixStride": null,
+      "Members": [],
+      "Packing": {
+        "Scheme": "none",
+        "Strategy": "opaque-resource",
+        "DirectRawUploadAllowed": false,
+        "BoolRepresentation": "uint32",
+        "Stride": 0
+      }
+    },
+    {
+      "Name": "Occlusion",
+      "ParameterName": "Occlusion",
+      "Category": "sampled-texture",
+      "Stage": 2,
+      "Set": 0,
+      "Binding": 8,
+      "GlslType": "sampler2D",
+      "ReadOnly": true,
+      "Access": 0,
+      "Layout": "opaque",
+      "Offset": 0,
+      "Alignment": 0,
+      "Size": 0,
+      "ArrayStride": 0,
+      "MatrixStride": null,
+      "Members": [],
+      "Packing": {
+        "Scheme": "none",
+        "Strategy": "opaque-resource",
+        "DirectRawUploadAllowed": false,
+        "BoolRepresentation": "uint32",
+        "Stride": 0
+      }
+    },
+    {
+      "Name": "Emissive",
+      "ParameterName": "Emissive",
+      "Category": "sampled-texture",
+      "Stage": 2,
+      "Set": 0,
+      "Binding": 9,
+      "GlslType": "sampler2D",
+      "ReadOnly": true,
+      "Access": 0,
+      "Layout": "opaque",
+      "Offset": 0,
+      "Alignment": 0,
+      "Size": 0,
+      "ArrayStride": 0,
+      "MatrixStride": null,
+      "Members": [],
+      "Packing": {
+        "Scheme": "none",
+        "Strategy": "opaque-resource",
+        "DirectRawUploadAllowed": false,
+        "BoolRepresentation": "uint32",
+        "Stride": 0
+      }
+    }
+  ],
+  "Inputs": [
+    {
+      "Name": "Position",
+      "ParameterName": "Position",
+      "GlslName": "gl_FragCoord",
+      "GlslType": "vec4",
+      "Location": 0,
+      "Builtin": "FragmentPosition"
+    },
+    {
+      "Name": "WorldNormal",
+      "ParameterName": "WorldNormal",
+      "GlslName": "WorldNormal",
+      "GlslType": "vec3",
+      "Location": 0,
+      "Builtin": null
+    },
+    {
+      "Name": "Uv",
+      "ParameterName": "Uv",
+      "GlslName": "Uv",
+      "GlslType": "vec2",
+      "Location": 1,
+      "Builtin": null
+    },
+    {
+      "Name": "Tangent",
+      "ParameterName": "Tangent",
+      "GlslName": "Tangent",
+      "GlslType": "vec4",
+      "Location": 2,
+      "Builtin": null
+    },
+    {
+      "Name": "WorldPosition",
+      "ParameterName": "WorldPosition",
+      "GlslName": "WorldPosition",
+      "GlslType": "vec3",
+      "Location": 3,
+      "Builtin": null
+    }
+  ],
+  "VertexInputs": [],
+  "VertexBufferBindings": [],
+  "Outputs": [
+    {
+      "Name": "FragmentColor",
+      "ParameterName": "return",
+      "GlslName": "fragColor",
+      "GlslType": "vec4",
+      "Location": 0,
+      "Builtin": "FragmentColor"
+    }
+  ],
+  "PushConstants": [
+    {
+      "Name": "DeltaPushConstants",
+      "ParameterName": "Frame",
+      "GlslType": "DeltaStruct_Delta_Shader_ComputerPbr_ComputerMeshFrame",
+      "Alignment": 16,
+      "Size": 96,
+      "ArrayStride": 96,
+      "Members": [
+        {
+          "Name": "ModelViewProjection",
+          "GlslName": "member_ModelViewProjection",
+          "GlslType": "mat4",
+          "Offset": 0,
+          "Alignment": 16,
+          "Size": 64,
+          "ArrayStride": 64,
+          "MatrixStride": 16,
+          "HostRepresentation": "std430",
+          "Members": []
+        },
+        {
+          "Name": "LightDirection",
+          "GlslName": "member_LightDirection",
+          "GlslType": "vec3",
+          "Offset": 64,
+          "Alignment": 16,
+          "Size": 12,
+          "ArrayStride": 16,
+          "MatrixStride": null,
+          "HostRepresentation": "std430",
+          "Members": []
+        },
+        {
+          "Name": "CameraPosition",
+          "GlslName": "member_CameraPosition",
+          "GlslType": "vec3",
+          "Offset": 80,
+          "Alignment": 16,
+          "Size": 12,
+          "ArrayStride": 16,
+          "MatrixStride": null,
+          "HostRepresentation": "std430",
+          "Members": []
+        },
+        {
+          "Name": "Time",
+          "GlslName": "member_Time",
+          "GlslType": "float",
+          "Offset": 92,
+          "Alignment": 4,
+          "Size": 4,
+          "ArrayStride": 4,
+          "MatrixStride": null,
+          "HostRepresentation": "std430",
+          "Members": []
+        }
+      ]
+    }
+  ]
+}

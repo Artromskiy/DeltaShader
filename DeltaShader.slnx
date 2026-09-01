@@ -21,6 +21,8 @@
   <Project Path="src/DeltaShader.ShadertoyGallery/DeltaShader.ShadertoyGallery.csproj" />
   <Project Path="samples/DeltaShader.Playground/DeltaShader.Playground.csproj" />
   <Project Path="samples/DeltaShader.GrassComposite/DeltaShader.GrassComposite.csproj" />
+  <Project Path="samples/DeltaShader.ComputerPbr/DeltaShader.ComputerPbr.csproj" />
+  <Project Path="samples/DeltaShader.ComputerPbrModel/DeltaShader.ComputerPbrModel.csproj" />
   <Project Path="tests/DeltaShader.Compiler.ReferenceFixtures/DeltaShader.Compiler.ReferenceFixtures.csproj" />
   <Project Path="tests/DeltaShader.Compiler.Tests/DeltaShader.Compiler.Tests.csproj" />
   <Project Path="tests/DeltaShader.Golden.Tests/DeltaShader.Golden.Tests.csproj" />
