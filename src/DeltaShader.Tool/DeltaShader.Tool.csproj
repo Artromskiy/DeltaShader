@@ -5,6 +5,7 @@
     <RootNamespace>Delta.Shader.Tool</RootNamespace>
     <AssemblyName>DeltaShader.Tool</AssemblyName>
     <PackageId>DeltaShader.Tool</PackageId>
+    <Version>0.0.1</Version>
     <Description>Roslyn-based C# shader compiler and MSBuild integration for GLSL/SPIR-V artifact generation.</Description>
     <PackageTags>shader;glsl;spirv;vulkan;roslyn;msbuild;dotnet-tool</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
