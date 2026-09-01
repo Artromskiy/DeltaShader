@@ -32,6 +32,8 @@ Public documentation:
   compile-time typed layer-composition model.
 - [README.PACKING.md](README.PACKING.md) defines the generated packer boundary
   for typed, engine, Editor, and composite workflows.
+- [build-integration.md](build-integration.md) defines optional MSBuild
+  compilation and exact project artifact paths.
 - [ui-rendering-performance/README.md](ui-rendering-performance/README.md)
   records the production UI rendering pipeline and performance policy for
   text, shapes, batching, and effects.

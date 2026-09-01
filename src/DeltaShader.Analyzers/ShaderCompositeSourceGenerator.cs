@@ -71,7 +71,8 @@ public static class ShaderCompositeSourceGenerator
             ArtifactSourceEmitter.EmitAbiAccessor("VertexAbi", "CreateAbi"),
             ArtifactSourceEmitter.EmitAbiAccessor("FragmentAbi", "CreateFragmentAbi"),
             vertexPacking,
-            fragmentPacking);
+            fragmentPacking,
+            GeneratedArtifactSource.GraphicsAbiProjection(vertexMethod, className, string.Empty));
         return true;
     }
 }

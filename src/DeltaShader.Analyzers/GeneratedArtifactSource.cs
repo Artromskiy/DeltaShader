@@ -1,3 +1,4 @@
+using System.Linq;
 using Microsoft.CodeAnalysis;
 
 namespace Delta.Shader.Analyzers;
@@ -10,7 +11,8 @@ internal static class GeneratedArtifactSource
         string entryPointName,
         string abiFactory,
         string abiAccessor,
-        string packingMethods)
+        string packingMethods,
+        string abiProjection)
     {
         return $$"""
             using System;
@@ -26,6 +28,7 @@ internal static class GeneratedArtifactSource
                 public static ShaderArtifact CreateArtifact(ReadOnlySpan<byte> spirv)
                     => new(spirv, {{Literal(entryPointName)}}, Abi);
             }
+            {{abiProjection}}
             """;
     }
 
@@ -37,7 +40,8 @@ internal static class GeneratedArtifactSource
         string vertexAbiAccessor,
         string fragmentAbiAccessor,
         string vertexPacking,
-        string fragmentPacking)
+        string fragmentPacking,
+        string abiProjection)
     {
         return $$"""
             using System;
@@ -60,6 +64,40 @@ internal static class GeneratedArtifactSource
                         new ShaderArtifact(vertexSpirv, "main", VertexAbi),
                         new ShaderArtifact(fragmentSpirv, "main", FragmentAbi));
             }
+            {{abiProjection}}
+            """;
+    }
+
+    public static string ComputeAbiProjection(IMethodSymbol method, string generatedClassName)
+    {
+        return $$"""
+            public static partial class ShaderAbis
+            {
+                public static partial class {{Identifier(method.ContainingType.Name)}}
+                {
+                    public static ShaderAbi {{Identifier(method.Name)}} => {{generatedClassName}}.Abi;
+                }
+            }
+            """;
+    }
+
+    public static string GraphicsAbiProjection(
+        IMethodSymbol method,
+        string generatedClassName,
+        string propertyPrefix)
+    {
+        var prefix = Identifier(propertyPrefix);
+        var vertexProperty = prefix.Length == 0 ? "Vertex" : prefix + "Vertex";
+        var fragmentProperty = prefix.Length == 0 ? "Fragment" : prefix + "Fragment";
+        return $$"""
+            public static partial class ShaderAbis
+            {
+                public static partial class {{Identifier(method.ContainingType.Name)}}
+                {
+                    public static ShaderAbi {{vertexProperty}} => {{generatedClassName}}.VertexAbi;
+                    public static ShaderAbi {{fragmentProperty}} => {{generatedClassName}}.FragmentAbi;
+                }
+            }
             """;
     }
 
@@ -70,4 +108,9 @@ internal static class GeneratedArtifactSource
 
     private static string Literal(string value)
         => "\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "\\r").Replace("\n", "\\n") + "\"";
+
+    private static string Identifier(string value)
+        => string.Concat(value.Select(c => char.IsLetterOrDigit(c) || c == '_' ? c : '_')) is { Length: > 0 } identifier
+            ? identifier
+            : string.Empty;
 }

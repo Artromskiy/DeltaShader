@@ -9,7 +9,7 @@ projects=(
   "src/DeltaShader.UI/DeltaShader.UI.csproj"
   "src/DeltaShader.Text/DeltaShader.Text.csproj"
   "src/DeltaShader.Mesh/DeltaShader.Mesh.csproj"
-  "src/DeltaShader.ShadertoyGallery/DeltaShader.ShadertoyGallery.csproj"
+  "samples/DeltaShader.ShadertoyGallery/DeltaShader.ShadertoyGallery.csproj"
   "tests/DeltaShader.TestShaders/DeltaShader.TestShaders.csproj"
   "tests/DeltaShader.ComputeTextureFixture/DeltaShader.ComputeTextureFixture.csproj"
   "tests/DeltaShader.Compiler.ReferenceFixtures/DeltaShader.Compiler.ReferenceFixtures.csproj"

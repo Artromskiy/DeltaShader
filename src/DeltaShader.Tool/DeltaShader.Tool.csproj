@@ -9,6 +9,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Include="build/DeltaShader.props" Pack="true" PackagePath="buildTransitive/DeltaShader.props" />
+    <None Include="build/DeltaShader.targets" Pack="true" PackagePath="buildTransitive/DeltaShader.targets" />
     <ProjectReference Include="..\DeltaShader.Contract\DeltaShader.Contract.csproj" />
     <ProjectReference Include="..\DeltaShader.Analyzers\DeltaShader.Analyzers.csproj" />
     <ProjectReference Include="..\\DeltaShader.Compiler\\DeltaShader.Compiler.csproj" />

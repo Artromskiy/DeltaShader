@@ -1917,6 +1917,7 @@ public class IntrinsicCatalogTests
         GeneratedSourceResult generated = Assert.Single(driver.GetRunResult().Results.SelectMany(result => result.GeneratedSources));
         Assert.Contains("CreateAbi", generated.SourceText.ToString(), StringComparison.Ordinal);
         Assert.Contains("public static Delta.Shader.Contract.ShaderAbi Abi", generated.SourceText.ToString(), StringComparison.Ordinal);
+        Assert.Contains("ShaderAbis.GeneratedKernel.Compute", generated.SourceText.ToString(), StringComparison.Ordinal);
         Assert.Contains("CreateArtifact", generated.SourceText.ToString(), StringComparison.Ordinal);
         Assert.Contains("PackComputeInputElement", generated.SourceText.ToString(), StringComparison.Ordinal);
         Assert.Contains("PackComputeInputElements", generated.SourceText.ToString(), StringComparison.Ordinal);

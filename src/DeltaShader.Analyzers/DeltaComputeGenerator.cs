@@ -76,7 +76,8 @@ public sealed class DeltaComputeGenerator : IIncrementalGenerator
             result.EntryPointName,
             ArtifactSourceEmitter.EmitAbiFactory(result.BuildManifest),
             ArtifactSourceEmitter.EmitAbiAccessor("Abi", "CreateAbi"),
-            packingMethods);
+            packingMethods,
+            GeneratedArtifactSource.ComputeAbiProjection(method, className));
         context.AddSource(className + ".g.cs", SourceText.From(source, Encoding.UTF8));
     }
 

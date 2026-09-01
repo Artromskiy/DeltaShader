@@ -108,7 +108,11 @@ public sealed class DeltaGraphicsGenerator : IIncrementalGenerator
                 ArtifactSourceEmitter.EmitAbiAccessor("VertexAbi", "CreateAbi"),
                 ArtifactSourceEmitter.EmitAbiAccessor("FragmentAbi", "CreateFragmentAbi"),
                 vertexPacking,
-                fragmentPacking);
+                fragmentPacking,
+                GeneratedArtifactSource.GraphicsAbiProjection(
+                    pairVertices[0],
+                    name,
+                    pairNames.Length == 1 ? string.Empty : pairName));
             context.AddSource(name + ".g.cs", SourceText.From(source, Encoding.UTF8));
         }
     }

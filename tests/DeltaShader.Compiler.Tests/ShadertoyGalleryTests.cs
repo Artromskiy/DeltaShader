@@ -20,7 +20,7 @@ public sealed class ShadertoyGalleryTests
     public async Task InternalGallery_HasFiftyTraceableFixtures_AndCompilesToVulkanGlsl()
     {
         var shaderRoot = FindShaderRoot();
-        var catalogPath = Path.Combine(shaderRoot, "src", "DeltaShader.ShadertoyGallery", "gallery", "catalog.json");
+        var catalogPath = Path.Combine(shaderRoot, "samples", "DeltaShader.ShadertoyGallery", "gallery", "catalog.json");
         var catalogJson = await File.ReadAllTextAsync(catalogPath).ConfigureAwait(true);
         var catalog = JsonSerializer.Deserialize<GalleryCatalog>(catalogJson, CatalogJsonOptions);
 
@@ -30,7 +30,7 @@ public sealed class ShadertoyGalleryTests
         Assert.Equal(catalog.Entries.Count, catalog.Entries.Select(entry => entry.SourceIdentifier).Distinct(StringComparer.Ordinal).Count());
         Assert.Equal(catalog.Entries.Count, catalog.Entries.Select(entry => entry.EntryPoint).Distinct(StringComparer.Ordinal).Count());
 
-        var galleryRoot = Path.Combine(shaderRoot, "src", "DeltaShader.ShadertoyGallery");
+        var galleryRoot = Path.Combine(shaderRoot, "samples", "DeltaShader.ShadertoyGallery");
         foreach (var entry in catalog.Entries)
         {
             Assert.Equal("compiled", entry.Status);
@@ -95,7 +95,7 @@ public sealed class ShadertoyGalleryTests
         while (current is not null)
         {
             if (File.Exists(Path.Combine(current.FullName, "DeltaShader.slnx")) &&
-                Directory.Exists(Path.Combine(current.FullName, "src", "DeltaShader.ShadertoyGallery")))
+                Directory.Exists(Path.Combine(current.FullName, "samples", "DeltaShader.ShadertoyGallery")))
             {
                 return current.FullName;
             }

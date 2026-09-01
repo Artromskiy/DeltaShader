@@ -81,7 +81,7 @@
     },
     {
       "project": "DeltaShader.ShadertoyGallery",
-      "projectPath": "src/DeltaShader.ShadertoyGallery/DeltaShader.ShadertoyGallery.csproj",
+      "projectPath": "samples/DeltaShader.ShadertoyGallery/DeltaShader.ShadertoyGallery.csproj",
       "files": [
         "DeltaShader.ShadertoyGallery.AnisotropicBlurImageWarp.frag.glsl",
         "DeltaShader.ShadertoyGallery.AnisotropicBlurImageWarp.frag.shader.json",

@@ -94,6 +94,17 @@ The optional positional arguments remain available for an explicit catalog:
 This emits generated C# fixtures, GLSL 460, SPIR-V, resolved `ShaderAbi`
 (`*.abi.json`) sidecars, source manifests (`*.shader.json`) and `index.json`
 without a nested `cases/` directory. The optional positional arguments remain
+## Project build integration
+
+An ordinary shader project can opt into automatic compilation by restoring the
+`DeltaShader.Tool` package and setting `DeltaShaderEnabled=true`. The package
+imports `buildTransitive/DeltaShader.props` and `DeltaShader.targets`; a normal
+project build then invokes the existing CLI once after `Build`, publishes
+validated outputs under `bin/.../DeltaShader`, and exposes
+`@(DeltaShaderArtifact)` items with exact manifest/SPIR-V/GLSL paths. Sources
+stay in the owning project, and consumer projects must not check in copies of
+the generated files.
+
 The script builds Maths, the DeltaMaths conformance project, and the Tool from
 the current checkout, validates that every supported handoff case has a
 matching artifact/sidecar set, and requires the handoff `shader-contract.json`,

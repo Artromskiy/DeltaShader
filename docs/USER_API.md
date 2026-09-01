@@ -118,6 +118,12 @@ assembly. Each binding helper uses its own resolved `VertexInputs` subset and
 `VertexBuffers[binding].Stride`; consumers may place those ranges in one
 persistent backing allocation when their Render adapter supports aliased
 bindings.
+For a shorter ABI lookup, the generator also exposes
+`ShaderAbis.<ShaderContainer>.<EntryPoint>` for compute shaders and
+`ShaderAbis.<ShaderContainer>.Vertex`/`Fragment` for a single graphics pair.
+For multiple graphics pairs, the pair name prefixes those two properties.
+This facade is generated tooling surface; the values are the same resolved
+`ShaderAbi` objects exposed by the generated artifact/program types.
 The generated surface also exposes `<Method>VertexBufferCount`,
 `Get<Method>VertexBufferByteLength(int)` and
 `Get<Method>VertexBufferRanges(int, Span<Delta.Shader.Packing.ShaderBufferRange>)`
