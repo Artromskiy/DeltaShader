@@ -8,6 +8,6 @@
     <PackageReference Include="System.Memory" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../../../DeltaMaths/src/DeltaMaths/DeltaMaths.csproj" />
+    <PackageReference Include="DeltaMaths" />
   </ItemGroup>
 </Project>

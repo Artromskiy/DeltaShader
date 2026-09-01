@@ -575,9 +575,9 @@ internal static class ShaderBodyTranslator
                 return instancePropertyExpression;
             }
 
-            if (symbol is IPropertySymbol staticProperty &&
-                staticProperty.IsStatic &&
-                TryTranslateIntrinsicProperty(staticProperty, out var intrinsicPropertyExpression))
+            if (symbol is IPropertySymbol intrinsicProperty &&
+                intrinsicProperty.IsStatic &&
+                TryTranslateIntrinsicProperty(intrinsicProperty, out var intrinsicPropertyExpression))
             {
                 return intrinsicPropertyExpression;
             }
@@ -943,6 +943,13 @@ internal static class ShaderBodyTranslator
             if (TryTranslateShaderBuiltinMember(node, out var builtinExpression))
             {
                 return SyntaxFactory.ParseExpression(builtinExpression);
+            }
+
+            if (symbol is IPropertySymbol intrinsicProperty &&
+                intrinsicProperty.IsStatic &&
+                TryTranslateIntrinsicProperty(intrinsicProperty, out var intrinsicPropertyExpression))
+            {
+                return intrinsicPropertyExpression;
             }
 
             if (symbol is IPropertySymbol staticProperty &&

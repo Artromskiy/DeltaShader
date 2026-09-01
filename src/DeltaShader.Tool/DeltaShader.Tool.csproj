@@ -11,8 +11,9 @@
     <PackageTags>shader;glsl;spirv;vulkan;roslyn;msbuild</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IncludeBuildOutput>false</IncludeBuildOutput>
-    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <NoWarn>$(NoWarn);NU1301</NoWarn>
+    <IncludeSymbols>false</IncludeSymbols>
+    <IncludeSource>false</IncludeSource>
   </PropertyGroup>
 
   <ItemGroup>
@@ -34,7 +35,8 @@
 
   <Target Name="CollectDeltaShaderToolPackageFiles" Returns="@(TfmSpecificPackageFile)">
     <ItemGroup>
-      <TfmSpecificPackageFile Include="$(TargetDir)**">
+      <TfmSpecificPackageFile Include="$(TargetDir)**"
+                              Exclude="$(TargetDir)**\*.pdb;$(TargetDir)**\*.xml;$(TargetDir)**\*.pri">
         <PackagePath>tools/net10.0/any/%(RecursiveDir)%(Filename)%(Extension)</PackagePath>
       </TfmSpecificPackageFile>
     </ItemGroup>
