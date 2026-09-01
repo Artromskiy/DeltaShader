@@ -5,10 +5,16 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <DeltaShaderEnabled>true</DeltaShaderEnabled>
   </PropertyGroup>
+
+  <ItemGroup>
+    <DeltaShaderSource Include="Shaders/**/*.cs" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../../../DeltaMaths/src/DeltaMaths/DeltaMaths.csproj" />
     <ProjectReference Include="../../src/DeltaShader/DeltaShader.csproj" />
+    <PackageReference Include="DeltaShader.Tool" PrivateAssets="all" />
   </ItemGroup>
 </Project>

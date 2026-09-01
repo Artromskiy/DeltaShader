@@ -44,8 +44,8 @@ Open `DeltaShader.slnx` in VS Code, then use `Ctrl+Shift+B`, or run
 `dotnet build samples/DeltaShader.Playground/DeltaShader.Playground.csproj -c Release`.
 The solution build includes the `AddBias` module. The project references the sibling `DeltaMaths` project,
 so the C# language server resolves `Delta.Maths` in the editor. Generated
-shader files are written to the canonical ignored
-`src/DeltaShader/CompiledShaders` catalog with project-prefixed names.
+shader files are written to a fresh temporary directory by the validation
+target and are removed after the check.
 
 The production contract is a compile-time static shader method; managed state,
 implicit captures and closures are rejected. See

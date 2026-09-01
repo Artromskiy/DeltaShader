@@ -5,7 +5,12 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
+    <DeltaShaderEnabled>true</DeltaShaderEnabled>
   </PropertyGroup>
+
+  <ItemGroup>
+    <DeltaShaderSource Include="Shaders/**/*.cs" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../../src/DeltaShader/DeltaShader.csproj" />
@@ -19,5 +24,6 @@
     <Analyzer Include="../../src/DeltaShader/bin/$(Configuration)/netstandard2.0/DeltaShader.dll" />
     <Analyzer Include="../../src/DeltaShader.Compiler/bin/$(Configuration)/netstandard2.0/DeltaShader.Compiler.dll" />
     <Analyzer Include="../../src/DeltaShader.Backend.Glsl/bin/$(Configuration)/netstandard2.0/DeltaShader.Backend.Glsl.dll" />
+    <PackageReference Include="DeltaShader.Tool" PrivateAssets="all" />
   </ItemGroup>
 </Project>

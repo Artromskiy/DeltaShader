@@ -54,14 +54,17 @@ for shader in "$out_dir"/*.spv; do
 done
 ```
 
-The canonical publication command compiles every DeltaShader-owned shader
-source project and places the validated outputs in one flat catalog. Sources
-remain in their owning projects; only generated `.spv`, `.glsl`, shader
-manifests and `catalog.json` are published here. Project prefixes make names
-collision-safe while preserving the original entry-point filename:
+Generated shader outputs are never kept in a repository-level catalog. Every
+bounded check creates a fresh temporary output directory and invokes the tool
+directly for the source project under test:
 
 ```bash
-./eng/prepare-compiled-shaders.sh
+out_dir="$(mktemp -d)"
+trap 'rm -rf "$out_dir"' EXIT
+dotnet run --project src/DeltaShader.Tool/DeltaShader.Tool.csproj \
+  -c Release -- build src/DeltaShader.UI/DeltaShader.UI.csproj \
+  --profile vulkan1.2 --spirv 1.5 --glsl 460 \
+  --optimize performance --out "$out_dir"
 ```
 
 It uses `--optimize performance`: `glslangValidator -O` is followed by
@@ -70,19 +73,17 @@ It uses `--optimize performance`: `glslangValidator -O` is followed by
 uses `-Os` in both compiler stages. Every SPIR-V result is validated after
 optimization.
 
-The fixed output directory is
-`src/DeltaShader/CompiledShaders`. Build folders, lock files and temporary
-validator output are not publication members. The individual text/fullscreen
-and Maths conformance scripts may still target a temporary directory for a
-bounded check; they are not an alternate canonical shader catalog.
+Build folders, lock files and temporary validator output are not publication
+members. There is no persistent `CompiledShaders` output to consume.
 
 The Stage-1 CPU/GPU Maths producer bundle is generated from the DeltaMaths
-handoff without changing DeltaMaths tests. With no arguments, the test-only
-publisher refreshes its flat `index.json` and case artifacts alongside the
-ordinary shader `catalog.json` at `src/DeltaShader/CompiledShaders`:
+handoff without changing DeltaMaths tests. The test-only publisher requires an
+explicit fresh output directory:
 
 ```bash
-./eng/prepare-maths-conformance-artifacts.sh
+out_dir="$(mktemp -d)"
+trap 'rm -rf "$out_dir"' EXIT
+./eng/prepare-maths-conformance-artifacts.sh "$out_dir"
 ```
 
 The optional positional arguments remain available for an explicit catalog:
@@ -185,10 +186,7 @@ Build folders, lock files and temporary validator output are not shader
 publication members.
 ## Shader artifact publish parallelism
 
-`eng/prepare-compiled-shaders.sh` compiles independent shader projects in
-bounded batches of four. The tool is built once per publish and each batch job
-invokes that Release binary directly, avoiding repeated MSBuild project
-evaluation. Each project keeps an isolated staging directory and log; results
-are collected in the declared project order before sidecar and SPIR-V
-validation and the atomic catalog swap. This reduces wall time without
-sharing mutable compiler state or making artifact publication nondeterministic.
+Each producer check owns an isolated temporary directory and invokes the
+Release `DeltaShader.Tool` directly. Persistent catalogs and atomic catalog
+swaps are intentionally not part of the workflow, so a later check cannot
+consume artifacts from an earlier run.

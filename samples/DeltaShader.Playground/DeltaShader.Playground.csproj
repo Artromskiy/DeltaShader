@@ -5,11 +5,16 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
+    <DeltaShaderEnabled>true</DeltaShaderEnabled>
   </PropertyGroup>
 
   <ItemGroup>
+    <DeltaShaderSource Include="Shaders/**/*.cs" Exclude="Shaders/AddBias.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Compile Remove="Program.cs" />
-    <Compile Remove="AddBias.cs" />
+    <Compile Remove="Shaders/AddBias.cs" />
     <Compile Remove="tools/**/*.cs" />
     <ProjectReference Include="../../src/DeltaShader/DeltaShader.csproj" />
     <ProjectReference Include="../../src/DeltaShader.Contract/DeltaShader.Contract.csproj" />
@@ -23,5 +28,6 @@
     <Analyzer Include="../../src/DeltaShader/bin/$(Configuration)/netstandard2.0/DeltaShader.dll" />
     <Analyzer Include="../../src/DeltaShader.Compiler/bin/$(Configuration)/netstandard2.0/DeltaShader.Compiler.dll" />
     <Analyzer Include="../../src/DeltaShader.Backend.Glsl/bin/$(Configuration)/netstandard2.0/DeltaShader.Backend.Glsl.dll" />
+    <PackageReference Include="DeltaShader.Tool" PrivateAssets="all" />
   </ItemGroup>
 </Project>

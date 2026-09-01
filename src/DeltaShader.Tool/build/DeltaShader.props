@@ -16,11 +16,4 @@
     <DeltaShaderPublishMarker Condition="'$(DeltaShaderPublishMarker)' == ''">$(DeltaShaderPublishPath).complete</DeltaShaderPublishMarker>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(DeltaShaderEnabled)' == 'true' and '@(DeltaShaderSource)' == ''">
-    <DeltaShaderSource Include="Shaders/**/*.cs" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(DeltaShaderEnabled)' == 'true' and '@(DeltaShaderSource)' == ''">
-    <DeltaShaderSource Include="@(Compile)" />
-  </ItemGroup>
 </Project>

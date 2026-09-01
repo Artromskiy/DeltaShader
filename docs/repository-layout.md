@@ -35,13 +35,11 @@ shader authoring projects and not host code. It has no nested Git repository and
 no project-specific solution; the primary project is part of `DeltaShader.slnx`.
 
 Generated GLSL, SPIR-V and shader JSON for DeltaShader-owned sources are
-published by the canonical shader publisher into
-`src/DeltaShader/CompiledShaders`. The directory is generated and ignored; it
-is not checked-in source and is not a second contract. Ordinary shader
-projects may opt into the MSBuild integration in
-[build-integration.md](build-integration.md); those projects publish into
-their own `bin/.../DeltaShader` deployment directory while keeping staging
-under `obj`. Build output, lock files and temporary validation files remain
+emitted only into an explicit temporary output directory for a bounded check.
+There is no repository-level shader catalog. Ordinary shader projects may opt
+into the MSBuild integration in [build-integration.md](build-integration.md);
+those projects keep build output under `bin/.../DeltaShader` and staging under
+`obj`. Build output, lock files and temporary validation files remain
 outside the checked-in source boundaries. The final consumer boundary remains
 documented in [final-artifact-contract.md](final-artifact-contract.md).
 

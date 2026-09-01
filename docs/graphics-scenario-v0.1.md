@@ -26,7 +26,7 @@ authoring path must not insert another Y inversion when the viewport already
 uses this convention. UV orientation and framebuffer orientation are separate;
 screen-space Y handling does not alter normal-map green-channel semantics.
 
-The canonical source fixture is `tests/DeltaShader.TestShaders/FullscreenUi.cs`.
+The canonical source fixture is `tests/DeltaShader.TestShaders/Shaders/FullscreenUi.cs`.
 The checked-in fixture project `tests/DeltaShader.FullscreenFixture` links that
 source without duplicating it. It builds a fullscreen triangle from
 `gl_VertexIndex` and renders an animated, anti-aliased rounded rectangle from

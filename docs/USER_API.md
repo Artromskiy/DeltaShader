@@ -327,11 +327,13 @@ push-constant block.
 The CLI emits GLSL and validates SPIR-V through the pinned target profile:
 
 ```bash
+out_dir="$(mktemp -d)"
+trap 'rm -rf "$out_dir"' EXIT
 dotnet run --project src/DeltaShader.Tool/DeltaShader.Tool.csproj \
   -c Release -- build tests/DeltaShader.TestShaders/DeltaShader.TestShaders.csproj \
   --profile vulkan1.2 --spirv 1.5 --glsl 460 \
   --optimize performance \
-  --out ./src/DeltaShader/CompiledShaders
+  --out "$out_dir"
 ```
 
 The command requires `glslangValidator` and `spirv-val` for the SPIR-V backend.
