@@ -234,9 +234,10 @@ public sealed class IntrinsicRegistry
 				continue;
 			}
 
-			foreach (var method in intrinsicType.GetMembers().OfType<IMethodSymbol>())
+			foreach (var member in intrinsicType.GetMembers()
+				         .Where(member => member is IMethodSymbol or IPropertySymbol))
 			{
-				var attribute = method.GetAttributes().FirstOrDefault(candidate =>
+				var attribute = member.GetAttributes().FirstOrDefault(candidate =>
 					candidate.AttributeClass?.ToDisplayString() == typeof(ShaderIntrinsicAttribute).FullName);
 				if (attribute is null || attribute.ConstructorArguments.Length < 2)
 				{
@@ -247,7 +248,7 @@ public sealed class IntrinsicRegistry
 				var stages = GetShaderStages(attribute);
 				if (glslName is { Length: > 0 } attributeGlslName && stages.Count > 0)
 				{
-					methods[method] = new IntrinsicBinding(
+					methods[member] = new IntrinsicBinding(
 						IntrinsicCategory.Function,
 						attributeGlslName,
 						stages[0],

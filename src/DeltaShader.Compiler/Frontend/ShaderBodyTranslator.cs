@@ -577,6 +577,13 @@ internal static class ShaderBodyTranslator
 
             if (symbol is IPropertySymbol staticProperty &&
                 staticProperty.IsStatic &&
+                TryTranslateIntrinsicProperty(staticProperty, out var intrinsicPropertyExpression))
+            {
+                return intrinsicPropertyExpression;
+            }
+
+            if (symbol is IPropertySymbol staticProperty &&
+                staticProperty.IsStatic &&
                 TryTranslateStaticProperty(staticProperty, out var propertyExpression))
             {
                 return propertyExpression;
@@ -1004,6 +1011,27 @@ internal static class ShaderBodyTranslator
             }
 
             return base.VisitMemberAccessExpression(node);
+        }
+
+        private bool TryTranslateIntrinsicProperty(
+            IPropertySymbol property,
+            [NotNullWhen(true)] out ExpressionSyntax? expression)
+        {
+            expression = null;
+            if (!_context.Intrinsics.TryGetIntrinsic(property, out var binding) ||
+                binding.Category != IntrinsicCategory.Function)
+            {
+                return false;
+            }
+
+            if (!binding.SupportsStage(_stage))
+            {
+                Reason ??= $"Intrinsic '{property.Name}' is not valid in {_stage} stage.";
+                return false;
+            }
+
+            expression = SyntaxFactory.ParseExpression(binding.GlslName);
+            return true;
         }
 
         private bool TryTranslateStaticProperty(

@@ -33,7 +33,7 @@ public sealed class InterstageAttribute : Attribute
 {
 }
 
-[AttributeUsage(AttributeTargets.Method, Inherited = false, AllowMultiple = false)]
+[AttributeUsage(AttributeTargets.Method | AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
 public sealed class ShaderIntrinsicAttribute : Attribute
 {
 	public string GlslName { get; }
@@ -73,11 +73,11 @@ public static class intrinsics
 	public static float fwidth(float value) => throw new NotSupportedException();
 
 	[ShaderIntrinsic("dFdx", ShaderStage.Fragment)]
-	public static T dFdx<T>(T value) => throw new NotSupportedException();
+	public static T ddx<T>(T value) => throw new NotSupportedException();
 
 	[ShaderIntrinsic("dFdy", ShaderStage.Fragment)]
-	public static T dFdy<T>(T value) => throw new NotSupportedException();
+	public static T ddy<T>(T value) => throw new NotSupportedException();
 
 	[ShaderIntrinsic("discard", ShaderStage.Fragment)]
-	public static byte discard => throw new NotSupportedException();
+	public static bool discard => throw new NotSupportedException();
 }

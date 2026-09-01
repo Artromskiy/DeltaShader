@@ -10,9 +10,10 @@ The first graphics slice is intentionally small:
 - `[FragmentShader]` accepts one `in` context with the matching `[Interstage]`
   payload and returns one `float4` color. `ShaderBuiltins.FragmentCoord` and
   context `[PushConstant]` fields are available in the body.
-- `ShaderIntrinsics.fwidth` and `DeltaMaths.maths.smoothstep` lower to
-  fragment-stage GLSL operations. Using `fwidth` from a vertex shader produces
-  a compiler diagnostic.
+- `intrinsics.fwidth`, `intrinsics.ddx`, `intrinsics.ddy` and
+  `DeltaMaths.maths.smoothstep` lower to fragment-stage GLSL operations.
+  Using a derivative intrinsic from a vertex shader produces a compiler
+  diagnostic.
 - C# source names are retained in compiler metadata as
   `SourceEntryPointName`; the emitted Vulkan entry point is `main`. Only the
   resolved entry point is copied to the final `ShaderArtifact.EntryPoint`;

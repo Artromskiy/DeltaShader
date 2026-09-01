@@ -1,7 +1,6 @@
 using Delta.Maths;
 using Delta.Shader;
 using static Delta.Maths.maths;
-using static Delta.Shader.intrinsics;
 
 namespace Delta.Shader.UI;
 
@@ -607,11 +606,11 @@ public static class UiRectangleShaders
 		float outsideDistance = length(outside);
 		float insideDistance = min(max(q.x, q.y), 0f);
 		float distance = outsideDistance + insideDistance - radius;
-		float edge = fwidth(distance);
+		float edge = intrinsics.fwidth(distance);
 		float fillCoverage = 1f - smoothstep(-edge, edge, distance);
 		if (fillCoverage <= 0f)
 		{
-			discard();
+			_ = Delta.Shader.intrinsics.discard;
 		}
 		float innerCoverage = 1f - smoothstep(-edge, edge, distance + borderWidth);
 		float borderCoverage = max(fillCoverage - innerCoverage, 0f);
@@ -677,11 +676,11 @@ public static class UiRectangleShaders
 			distance = max(max(left, right), max(top, bottom));
 		}
 
-		float edge = fwidth(distance);
+		float edge = intrinsics.fwidth(distance);
 		float fillCoverage = 1f - smoothstep(-edge, edge, distance);
 		if (fillCoverage <= 0f)
 		{
-			discard();
+			_ = Delta.Shader.intrinsics.discard;
 		}
 		float innerDistance = 0f;
 		if (isCorner > 0.5f)
@@ -740,7 +739,7 @@ public static class UiRectangleShaders
 	{
 		if (!IsInsideClip(context.Fragment.ClipRect))
 		{
-			discard();
+			_ = Delta.Shader.intrinsics.discard;
 		}
 
 		return context.Fragment.Color.Value;
@@ -787,7 +786,7 @@ public static class UiRectangleShaders
 	{
 		if (!IsInsideClip(context.Fragment.ClipRect))
 		{
-			discard();
+			_ = Delta.Shader.intrinsics.discard;
 		}
 
 		float4 rect = context.Fragment.Rect.Value;
@@ -819,11 +818,11 @@ public static class UiRectangleShaders
 		float outsideDistance = length(outside);
 		float insideDistance = min(max(q.x, q.y), 0f);
 		float distance = outsideDistance + insideDistance - radius;
-		float edge = fwidth(distance);
+		float edge = intrinsics.fwidth(distance);
 		float fillCoverage = 1f - smoothstep(-edge, edge, distance);
 		if (fillCoverage <= 0f)
 		{
-			discard();
+			_ = Delta.Shader.intrinsics.discard;
 		}
 		float innerCoverage = 1f - smoothstep(-edge, edge, distance + borderWidth);
 		float borderCoverage = max(fillCoverage - innerCoverage, 0f);
@@ -873,7 +872,7 @@ public static class UiRectangleShaders
 	{
 		if (!IsInsideClip(context.Fragment.ClipRect))
 		{
-			discard();
+			_ = Delta.Shader.intrinsics.discard;
 		}
 
 		float4 cornerData = context.Fragment.CornerData.Value;
@@ -895,11 +894,11 @@ public static class UiRectangleShaders
 			distance = max(max(left, right), max(top, bottom));
 		}
 
-		float edge = fwidth(distance);
+		float edge = intrinsics.fwidth(distance);
 		float fillCoverage = 1f - smoothstep(-edge, edge, distance);
 		if (fillCoverage <= 0f)
 		{
-			discard();
+			_ = Delta.Shader.intrinsics.discard;
 		}
 		float innerDistance = 0f;
 		if (isCorner > 0.5f)

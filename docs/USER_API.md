@@ -147,6 +147,18 @@ Their placeholder CLR accessors are never executed. The compiler resolves each
 property by symbol identity and validates its stage before emitting the
 corresponding GLSL builtin.
 
+Stage-gated GLSL intrinsics use the lowercase `intrinsics` facade:
+
+```csharp
+float width = intrinsics.fwidth(value);
+float dx = intrinsics.ddx(value);
+float dy = intrinsics.ddy(value);
+_ = intrinsics.discard;
+```
+
+`ddx` and `ddy` preserve the inferred shader value type. Derivatives and
+`discard` are fragment-stage operations and are rejected in other stages.
+
 `[Layout(set, binding)]` is the common descriptor-binding form for storage
 buffers, textures, and samplers. The resource type supplies its access
 contract and shader kind; the attribute supplies only descriptor coordinates.

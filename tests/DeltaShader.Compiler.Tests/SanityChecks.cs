@@ -769,7 +769,7 @@ public class IntrinsicCatalogTests
                     [VertexShader(""FullscreenVertex"")] public static GraphicsPayload Vertex(in VertexContext context)
                         => new GraphicsPayload { Position = new float4(-1f, -1f, 0f, 1f), Uv = new float2(ShaderBuiltins.VertexIndex, 0f) };
                     [FragmentShader(""FullscreenFragment"")] public static float4 Fragment(in FragmentContext context)
-                        => new float4(ShaderIntrinsics.fwidth(ShaderBuiltins.FragmentCoord.X), context.Constants.Time, float2.Normalize(context.Fragment.Uv).x, 1f);
+                        => new float4(intrinsics.fwidth(ShaderBuiltins.FragmentCoord.X), context.Constants.Time, float2.Normalize(context.Fragment.Uv).x, 1f);
                 }
             }";
 
@@ -1125,7 +1125,7 @@ public class IntrinsicCatalogTests
                     var texel = context.Atlas.Sample<float2, float4>(context.Fragment.Uv);
                     var median = maths.max(maths.min(texel.x, texel.y), maths.min(maths.max(texel.x, texel.y), texel.z));
                     var signedDistance = (median - 0.5f) * context.Parameters.DistanceRange;
-                    var edge = ShaderIntrinsics.fwidth(signedDistance);
+                    var edge = intrinsics.fwidth(signedDistance);
                     var fillCoverage = maths.smoothstep(-edge, edge, signedDistance);
                     var outlineWidth = maths.max(context.Parameters.OutlineWidth, 0f);
                     var outerCoverage = maths.smoothstep(-outlineWidth - edge, -outlineWidth + edge, signedDistance);
@@ -1197,7 +1197,7 @@ public class IntrinsicCatalogTests
     }
 
     [Fact]
-    public async Task ShaderIntrinsics_DerivativesLowerForFragmentAndRejectOtherStages()
+    public async Task Intrinsics_DerivativesLowerForFragmentAndRejectOtherStages()
     {
         const string source = @"
             using Delta.Maths;
@@ -1214,14 +1214,14 @@ public class IntrinsicCatalogTests
                 public static float4 Fragment(in FragmentContext context)
                 {
                     var coord = new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y);
-                    var dx = ShaderIntrinsics.dFdx(coord.x);
-                    var dy = ShaderIntrinsics.dFdy(coord.y);
+                    var dx = intrinsics.ddx(coord.x);
+                    var dy = intrinsics.ddy(coord.y);
                     return new float4(dx, dy, 0f, 1f);
                 }
 
                 [VertexShader]
                 public static VertexPayload Vertex(in VertexContext context)
-                    => new VertexPayload { Position = new float4(ShaderIntrinsics.dFdx(1f), 0f, 0f, 1f) };
+                    => new VertexPayload { Position = new float4(intrinsics.ddx(1f), 0f, 0f, 1f) };
             }";
 
         Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
@@ -1299,7 +1299,7 @@ public class IntrinsicCatalogTests
                 {
                     var texel = context.Atlas.Sample<float2, float4>(context.Fragment.Uv);
                     var signedDistance = (texel.x - 0.5f) * context.Parameters.DistanceRange;
-                    var edge = ShaderIntrinsics.fwidth(signedDistance);
+                    var edge = intrinsics.fwidth(signedDistance);
                     var fillCoverage = maths.smoothstep(-edge, edge, signedDistance);
                     var outlineWidth = maths.max(context.Parameters.OutlineWidth, 0f);
                     var outerCoverage = maths.smoothstep(-outlineWidth - edge, -outlineWidth + edge, signedDistance);

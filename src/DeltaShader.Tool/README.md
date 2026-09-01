@@ -12,7 +12,7 @@
 </PropertyGroup>
 
 <ItemGroup>
-  <PackageReference Include="DeltaShader.Tool" Version="0.0.11" PrivateAssets="all" />
+  <PackageReference Include="DeltaShader.Tool" Version="0.0.12" PrivateAssets="all" />
   <DeltaShaderSource Include="Shaders/**/*.cs" />
 </ItemGroup>
 ```
