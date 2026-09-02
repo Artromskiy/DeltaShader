@@ -124,8 +124,8 @@ public static class RoundedRectangleSliceBuilder
 			throw new ArgumentException("The destination must hold up to nine rounded rectangle slice records.", nameof(destination));
 		}
 
-		float width = Maths.Max(rectangle.Rect.z, 0f);
-		float height = Maths.Max(rectangle.Rect.w, 0f);
+		float width = max(rectangle.Rect.z, 0f);
+		float height = max(rectangle.Rect.w, 0f);
 		if (width <= 0f || height <= 0f)
 		{
 			return 0;
@@ -133,10 +133,10 @@ public static class RoundedRectangleSliceBuilder
 
 		float4 rect = new float4(rectangle.Rect.x, rectangle.Rect.y, width, height);
 		float4 radii = NormalizeRadii(rectangle.CornerRadii, width, height);
-		float left = Maths.Max(radii.x, radii.w);
-		float right = Maths.Max(radii.y, radii.z);
-		float top = Maths.Max(radii.x, radii.y);
-		float bottom = Maths.Max(radii.w, radii.z);
+		float left = max(radii.x, radii.w);
+		float right = max(radii.y, radii.z);
+		float top = max(radii.x, radii.y);
+		float bottom = max(radii.w, radii.z);
 		float x0 = rect.x;
 		float x1 = x0 + left;
 		float x2 = x0 + width - right;
@@ -218,10 +218,10 @@ public static class RoundedRectangleSliceBuilder
 	private static float4 NormalizeRadii(float4 radii, float width, float height)
 	{
 		radii = new float4(
-			Maths.Max(radii.x, 0f),
-			Maths.Max(radii.y, 0f),
-			Maths.Max(radii.z, 0f),
-			Maths.Max(radii.w, 0f));
+			max(radii.x, 0f),
+			max(radii.y, 0f),
+			max(radii.z, 0f),
+			max(radii.w, 0f));
 		float scale = 1f;
 		scale = LimitScale(scale, width, radii.x + radii.y);
 		scale = LimitScale(scale, width, radii.w + radii.z);
@@ -231,7 +231,7 @@ public static class RoundedRectangleSliceBuilder
 	}
 
 	private static float LimitScale(float scale, float extent, float sum)
-		=> sum > 0f ? Maths.Min(scale, extent / sum) : scale;
+		=> sum > 0f ? min(scale, extent / sum) : scale;
 
 	private static void AppendCorner(
 		Span<RoundedRectangleSliceParameters> destination,
@@ -271,7 +271,7 @@ public static class RoundedRectangleSliceBuilder
 			radii,
 			segmentRect,
 			cornerData,
-			Maths.Max(rectangle.BorderWidth, 0f));
+			max(rectangle.BorderWidth, 0f));
 	}
 }
 
