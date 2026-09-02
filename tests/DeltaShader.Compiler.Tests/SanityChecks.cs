@@ -1236,7 +1236,7 @@ public class IntrinsicCatalogTests
         ShaderCompilationResult vertex = Assert.Single(results, result => result.Module!.Stage == ShaderStage.Vertex);
         Assert.False(vertex.Success);
         Assert.Contains(vertex.Diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH008);
-        Assert.Contains(vertex.Diagnostics, diagnostic => diagnostic.Message.Contains("dFdx", StringComparison.Ordinal));
+        Assert.Contains(vertex.Diagnostics, diagnostic => diagnostic.Message.Contains("ddx", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1916,7 +1916,10 @@ public class IntrinsicCatalogTests
         GeneratedSourceResult generated = Assert.Single(driver.GetRunResult().Results.SelectMany(result => result.GeneratedSources));
         Assert.Contains("CreateAbi", generated.SourceText.ToString(), StringComparison.Ordinal);
         Assert.Contains("public static Delta.Shader.Contract.ShaderAbi Abi", generated.SourceText.ToString(), StringComparison.Ordinal);
-        Assert.Contains("ShaderAbis.GeneratedKernel.Compute", generated.SourceText.ToString(), StringComparison.Ordinal);
+        Assert.Contains("public static partial class Shaders", generated.SourceText.ToString(), StringComparison.Ordinal);
+        Assert.Contains("public static partial class Abi", generated.SourceText.ToString(), StringComparison.Ordinal);
+        Assert.Contains("public static partial class GeneratedKernel", generated.SourceText.ToString(), StringComparison.Ordinal);
+        Assert.Contains("public static ShaderAbi Compute()", generated.SourceText.ToString(), StringComparison.Ordinal);
         Assert.Contains("CreateArtifact", generated.SourceText.ToString(), StringComparison.Ordinal);
         Assert.Contains("PackComputeInputElement", generated.SourceText.ToString(), StringComparison.Ordinal);
         Assert.Contains("PackComputeInputElements", generated.SourceText.ToString(), StringComparison.Ordinal);
