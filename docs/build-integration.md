@@ -15,10 +15,18 @@ Install the `DeltaShader.Tool` package and opt in from the project file:
 </PropertyGroup>
 
 <ItemGroup>
+  <PackageReference Include="DeltaShader.Compiler" Version="*" PrivateAssets="all" />
+  <PackageReference Include="DeltaShader.Analyzers" Version="*" PrivateAssets="all" OutputItemType="Analyzer" />
   <PackageReference Include="DeltaShader.Tool" Version="*" PrivateAssets="all" />
   <DeltaShaderSource Include="Shaders/**/*.cs" />
 </ItemGroup>
 ```
+
+`DeltaShader.Compiler` is the compile-time authoring reference for
+`Delta.Shader` symbols; `DeltaShader.Analyzers` is the Roslyn validation
+reference; `DeltaShader.Tool` supplies only the MSBuild/CLI execution target.
+Keep all three references in a shader-authoring project. The split is
+intentional so runtime consumers do not receive compiler or analyzer assets.
 
 The package is consumed through `PackageReference`; a project normally uses
 the package reference so the build target and the checked-in producer sources

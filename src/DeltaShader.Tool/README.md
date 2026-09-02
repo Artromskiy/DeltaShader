@@ -12,10 +12,21 @@
 </PropertyGroup>
 
 <ItemGroup>
+  <!-- Compiler supplies the Delta.Shader authoring symbols. -->
+  <PackageReference Include="DeltaShader.Compiler" Version="*" PrivateAssets="all" />
+  <!-- Analyzer supplies compile-time shader validation. -->
+  <PackageReference Include="DeltaShader.Analyzers" Version="*" PrivateAssets="all" OutputItemType="Analyzer" />
   <PackageReference Include="DeltaShader.Tool" Version="*" PrivateAssets="all" />
   <DeltaShaderSource Include="Shaders/**/*.cs" />
 </ItemGroup>
 ```
+
+The three package roles are deliberately separate: `DeltaShader.Compiler`
+provides the compile-time `Delta.Shader` authoring assembly,
+`DeltaShader.Analyzers` provides Roslyn diagnostics, and `DeltaShader.Tool`
+provides the MSBuild target/CLI that emits final artifacts. A shader project
+must reference all three; the tool package intentionally has no compile-time
+or analyzer asset.
 
 `DeltaShaderSource` is optional. If it is omitted, the build integration first
 discovers `Shaders/**/*.cs` and then falls back to the project's normal
