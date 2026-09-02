@@ -4,7 +4,7 @@
     <RootNamespace>Delta.Shader.Contract</RootNamespace>
     <AssemblyName>DeltaShader.Contract</AssemblyName>
     <PackageId>DeltaShader.Contract</PackageId>
-    <Version>0.0.16</Version>
+    <Version>0.0.17</Version>
     <Description>Runtime-neutral DeltaShader artifact and ShaderAbi contract.</Description>
     <PackageTags>shader;abi;spirv;vulkan</PackageTags>
   </PropertyGroup>

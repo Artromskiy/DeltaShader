@@ -4,7 +4,7 @@
     <RootNamespace>Delta.Shader.Compiler</RootNamespace>
     <AssemblyName>DeltaShader.Compiler</AssemblyName>
     <PackageId>DeltaShader.Compiler</PackageId>
-    <Version>0.0.16</Version>
+    <Version>0.0.17</Version>
     <RepositoryUrl>https://github.com/Artromskiy/DeltaShader</RepositoryUrl>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <NoWarn>$(NoWarn);NU5128</NoWarn>
