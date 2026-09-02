@@ -1,6 +1,7 @@
 <Project>
   <PropertyGroup>
     <NuGetAudit>false</NuGetAudit>
+    <CentralPackageFloatingVersionsEnabled>true</CentralPackageFloatingVersionsEnabled>
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.13.0" />
