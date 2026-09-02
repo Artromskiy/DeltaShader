@@ -137,28 +137,26 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
                         .ToArray();
                     var vertexCount = entries.Count(entry => entry.Stage == "vertex");
                     var fragmentCount = entries.Count(entry => entry.Stage == "fragment");
-                    if (vertexCount == 0 || fragmentCount == 0)
+                    if (vertexCount > 0 && fragmentCount > 0)
                     {
-                        return;
-                    }
+                        var singlePair = vertexCount == 1 && fragmentCount == 1;
+                        var sharedVertex = vertexCount == 1 && fragmentCount > 1;
+                        var sharedFragment = vertexCount > 1 && fragmentCount == 1;
+                        foreach (var pair in entries.GroupBy(entry => entry.Name, StringComparer.Ordinal)
+                            .Where(group => !singlePair && !IsValidSharedGraphicsPair(
+                                group.Count(entry => entry.Stage == "vertex"),
+                                group.Count(entry => entry.Stage == "fragment"),
+                                sharedVertex,
+                                sharedFragment)))
+                        {
+                            context.ReportDiagnostic(Diagnostic.Create(_graphicsPairDescriptor, methodSymbol.Locations[0], pair.Key));
+                        }
 
-                    var singlePair = vertexCount == 1 && fragmentCount == 1;
-                    var sharedVertex = vertexCount == 1 && fragmentCount > 1;
-                    var sharedFragment = vertexCount > 1 && fragmentCount == 1;
-                    foreach (var pair in entries.GroupBy(entry => entry.Name, StringComparer.Ordinal)
-                        .Where(group => !singlePair && !IsValidSharedGraphicsPair(
-                            group.Count(entry => entry.Stage == "vertex"),
-                            group.Count(entry => entry.Stage == "fragment"),
-                            sharedVertex,
-                            sharedFragment)))
-                    {
-                        context.ReportDiagnostic(Diagnostic.Create(_graphicsPairDescriptor, methodSymbol.Locations[0], pair.Key));
-                    }
-
-                    foreach (var duplicate in entries.GroupBy(entry => (entry.Stage, entry.Name))
-                        .Where(group => group.Count() > 1))
-                    {
-                        context.ReportDiagnostic(Diagnostic.Create(_duplicateGraphicsNameDescriptor, methodSymbol.Locations[0], duplicate.Key.Name));
+                        foreach (var duplicate in entries.GroupBy(entry => (entry.Stage, entry.Name))
+                            .Where(group => group.Count() > 1))
+                        {
+                            context.ReportDiagnostic(Diagnostic.Create(_duplicateGraphicsNameDescriptor, methodSymbol.Locations[0], duplicate.Key.Name));
+                        }
                     }
                 }
 
