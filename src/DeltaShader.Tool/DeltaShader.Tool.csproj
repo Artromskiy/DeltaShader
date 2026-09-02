@@ -39,9 +39,11 @@
   <Target Name="CollectDeltaShaderToolPackageFiles" Returns="@(TfmSpecificPackageFile)">
     <ItemGroup>
       <TfmSpecificPackageFile Include="$(TargetDir)**"
-                              Exclude="$(TargetDir)**\*.pdb;$(TargetDir)**\*.xml;$(TargetDir)**\*.pri;$(TargetDir)**/Delta.Shader.Abstractions.dll;$(TargetDir)**/Delta.Shader.Compiler.dll">
+                              Exclude="$(TargetDir)**\*.pdb;$(TargetDir)**\*.xml;$(TargetDir)**\*.pri">
         <PackagePath>tools/net10.0/any/%(RecursiveDir)%(Filename)%(Extension)</PackagePath>
       </TfmSpecificPackageFile>
+      <TfmSpecificPackageFile Remove="@(TfmSpecificPackageFile)"
+                              Condition="'%(Filename)' == 'Delta.Shader.Abstractions' or '%(Filename)' == 'Delta.Shader.Compiler'" />
     </ItemGroup>
   </Target>
 
