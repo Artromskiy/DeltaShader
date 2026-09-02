@@ -31,9 +31,6 @@ jobs:
           dotnet-version: |
             8.x
             10.x
-      - name: Configure authenticated GitHub NuGet source
-        working-directory: DeltaShader
-        run: dotnet nuget add source https://nuget.pkg.github.com/Artromskiy/index.json --name github --username Artromskiy --password "${{ github.token }}" --store-password-in-clear-text
       - name: Restore
         working-directory: DeltaShader
         run: dotnet restore DeltaShader.slnx
