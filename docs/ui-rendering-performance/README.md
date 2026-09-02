@@ -59,7 +59,7 @@ Convert each visual into a small render class before command recording:
 
 | Class | No-effect path | Effect path |
 | --- | --- | --- |
-| Solid rectangle | `Solid` | `Rounded`, slice, or mask |
+| Solid rectangle | `Solid` | `Rounded` or mask |
 | Rounded rectangle | analytic `Rounded` | border or cached effect path |
 | Text | bitmap or SDF atlas | SDF/MSDF effect variant or mask |
 | Image | atlas/page quad | mask or explicit effect pass |
@@ -175,18 +175,6 @@ rectangle. Keep radius and border-width units explicit and consistent.
 Use derivative-based antialiasing with `fwidth` at the boundary and clamp the
 coverage transition to a finite range. Add fast paths for zero radii, zero
 border, and regions known to be fully inside the shape.
-
-### Slice path
-
-`RoundedRectangleSlice` is the decomposition option for large visuals. One
-logical rectangle becomes up to nine sub-quads in one instanced draw. Straight
-regions use straight-boundary distances and corner regions use circle
- distances. This reduces expensive corner work over a large interior, but
-increases instance records and covered geometry.
-
-Keep both classic and slice artifacts. Choose between them from measured
-fragment cost, shape size, and batch compatibility. Do not assume that nine
-records are always faster.
 
 ### Border
 
@@ -331,7 +319,7 @@ effect pass count, display-list build time, command-recording time
 
 ## Implementation order
 
-1. Instrument classic and slice rectangle paths without changing output.
+1. Instrument the solid and analytic rounded rectangle paths without changing output.
 2. Make persistent instance storage, dirty-range uploads, generated packers, and
    contiguous painter-order batching the default.
 3. Keep solid, rounded, image, SDF text, and MSDF text as separate small

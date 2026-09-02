@@ -41,7 +41,6 @@ The stable entry-point names and generated program types are:
 | --- | --- |
 | `solid-rectangle` vertex + fragment | `SolidRectangleGraphicsShaderProgram` |
 | `rounded-rectangle` vertex + fragment | `RoundedRectangleGraphicsShaderProgram` |
-| `rounded-rectangle-slice` vertex + fragment | `RoundedRectangleSliceGraphicsShaderProgram` |
 
 Each program is a six-vertex rectangle draw. The vertex stage reads one record
 per instance using `ShaderBuiltins.InstanceIndex`. The fragment stage receives
@@ -146,81 +145,11 @@ to clip space without a second Y inversion. Rounded coverage uses the four
 independent radii and computes a finite border band; a zero
 `BorderWidth` produces no border contribution.
 
-## Rounded rectangle slice path
+## Clipping
 
-`RoundedRectangleSliceGraphicsShaderProgram` is the producer-side fast path for
-large ordered UI batches. The host expands one logical rounded rectangle into
-nine six-vertex instances: center, four straight edges and four corner
-regions. All nine records share one set-0/binding-0 read-only storage buffer
-and use `ShaderBuiltins.InstanceIndex`; Render can submit them as one ordered
-instanced batch rather than nine draw calls per rectangle. Zero-area regions
-may be omitted by the host.
-
-`RoundedRectangleSliceParameters` has base alignment `16`, size `96` and array
-stride `96` bytes:
-
-| Field | Type | Offset | Size |
-| --- | --- | ---: | ---: |
-| `FillColor` | `float4` | 0 | 16 |
-| `BorderColor` | `float4` | 16 | 16 |
-| `CornerRadii` | `float4` | 32 | 16 |
-| `SegmentRect` | `float4` | 48 | 16 |
-| `CornerData` | `float4` | 64 | 16 |
-| `BorderWidth` | `float` | 80 | 4 |
-| trailing std430 padding | - | 84 | 12 |
-
-`SegmentRect` is the sub-quad in top-left pixel units. `CornerData` stores
-corner-center X/Y, radius and `isCorner` in W (`0` for center/edge regions,
-`1` for corner regions). Corner radii remain ordered TL, TR, BR, BL. The
-corner path evaluates a circle distance only for corner regions; center and
-edge regions use straight-boundary distances. Fill and border remain
-premultiplied-alpha contributions. The classic program retains Render's
-scissor as its clip authority. The clip-aware programs below carry the
-effective clip in every instance and use a fragment discard, allowing
-non-adjacent clip regions to share one ordered instanced draw without making
-Render compute shader layout.
-
-The generated packer is
-`PackRoundedRectangleSliceVertexInstancesElements`; no Render-local byte
-layout or packer is permitted. The decomposition requires a Render batching
-adapter to expand records and preserve painter order; it does not require a
-new frozen `ShaderAbi` contract.
-
-The producer-side `RoundedRectangleSliceBuilder.Build` helper accepts one
-`RoundedRectangleParameters` value and writes up to nine normalized records to
-a caller-owned `Span<RoundedRectangleSliceParameters>`. It clamps negative
-width/height and border width to zero, scales oversized corner radii uniformly
-so adjacent radii fit the rectangle, and omits zero-area regions. Its output
-must then be passed to the generated `InstancesElements` packer; the builder
-does not write bytes or replace the ABI packer.
-
-### Per-instance clip-aware programs
-
-`ClipAwareSolidRectangleGraphicsShaderProgram`,
-`ClipAwareRoundedRectangleGraphicsShaderProgram` and
-`ClipAwareRoundedRectangleSliceGraphicsShaderProgram` are the producer-owned
-variants for ordered UI streams containing different effective clips. Each
-vertex context has one set-0/binding-0 read-only storage buffer named
-`Instances`; each fragment stage receives `ClipRect` through the generated
-interstage payload. `ClipRect` is `x, y, width, height` in top-left UI pixel
-coordinates. Render intersects nested clips before creating each instance and
-the shader discards fragments outside that effective rectangle.
-
-The generated instance layouts are:
-
-| Program | `ClipRect` offset | Record size/array stride |
-| --- | ---: | ---: |
-| `ClipAwareSolidRectangle` | 32 | 48 |
-| `ClipAwareRoundedRectangle` | 80 | 96 |
-| `ClipAwareRoundedRectangleSlice` | 96 | 112 |
-
-All values are bytes and are resolved from `ShaderAbi`; no manual padding or
-host-side layout code is permitted. The rounded slice variant is created with
-`RoundedRectangleSliceBuilder.BuildClipAware(in rectangle, clipRect,
-destination)`, then packed with the generated
-`PackClipAwareRoundedRectangleSliceVertexInstancesElement(s)` helper. The
-frame-wide `UiFrameConstants.Resolution` remains the only push-constant data;
-clip rectangles are never push constants.
+Rounded and solid rectangles use the renderer-owned scissor boundary. DeltaShader
+does not expose a separate clip-aware shader family or slice payload; the
+consumer intersects nested UI clips and records the resulting scissor region.
 
 ## Ownership boundary
 

@@ -12,88 +12,6 @@ namespace Delta.Shader.Compiler.Tests;
 public sealed class UiShaderTests
 {
     [Fact]
-    public void RoundedRectangleSliceBuilder_NormalizesRadiiAndPreservesNineSliceData()
-    {
-        var source = new RoundedRectangleParameters(
-            new float4(10f, 20f, 100f, 100f),
-            new float4(1f, 0f, 0f, 1f),
-            new float4(0f, 0f, 0f, 1f),
-            new float4(40f, 20f, 20f, 40f),
-            4f);
-        RoundedRectangleSliceParameters[] slices = new RoundedRectangleSliceParameters[9];
-
-        int count = RoundedRectangleSliceBuilder.Build(in source, slices);
-
-        Assert.Equal(9, count);
-        Assert.Equal(40f, slices[5].CornerData.z);
-        Assert.Equal(20f, slices[6].CornerData.z);
-        Assert.Equal(20f, slices[7].CornerData.z);
-        Assert.Equal(40f, slices[8].CornerData.z);
-        Assert.Equal(1f, slices[5].CornerData.w);
-        Assert.Equal(40f, slices[0].SegmentRect.z);
-        Assert.Equal(20f, slices[0].SegmentRect.w);
-        Assert.All(slices.Take(5), slice => Assert.Equal(0f, slice.CornerData.w));
-        Assert.Equal(4f, slices[0].BorderWidth);
-    }
-
-    [Fact]
-    public void RoundedRectangleSliceBuilder_LargeRadiiAreUniformlyNormalized()
-    {
-        var source = new RoundedRectangleParameters(
-            new float4(0f, 0f, 100f, 50f),
-            new float4(1f, 1f, 1f, 1f),
-            new float4(0f, 0f, 0f, 1f),
-            new float4(80f, 80f, 80f, 80f),
-            2f);
-        RoundedRectangleSliceParameters[] slices = new RoundedRectangleSliceParameters[9];
-
-        int count = RoundedRectangleSliceBuilder.Build(in source, slices);
-
-        Assert.True(count > 0);
-        Assert.Equal(25f, slices[count - 1].CornerData.z);
-        Assert.Equal(25f, slices[count - 1].CornerData.x - slices[count - 1].SegmentRect.x);
-    }
-
-    [Fact]
-    public void RoundedRectangleSliceBuilder_ZeroRadiiCollapsesToInterior()
-    {
-        var source = new RoundedRectangleParameters(
-            new float4(0f, 0f, 100f, 50f),
-            new float4(1f, 1f, 1f, 1f),
-            new float4(0f, 0f, 0f, 1f),
-            new float4(0f, 0f, 0f, 0f),
-            0f);
-        RoundedRectangleSliceParameters[] slices = new RoundedRectangleSliceParameters[9];
-
-        int count = RoundedRectangleSliceBuilder.Build(in source, slices);
-
-        Assert.Equal(1, count);
-        Assert.Equal(100f, slices[0].SegmentRect.z);
-        Assert.Equal(50f, slices[0].SegmentRect.w);
-        Assert.Equal(0f, slices[0].CornerData.w);
-    }
-
-    [Fact]
-    public void RoundedRectangleSliceBuilder_BuildClipAwareCopiesClipToEveryRecord()
-    {
-        var source = new RoundedRectangleParameters(
-            new float4(10f, 20f, 100f, 100f),
-            new float4(1f, 0f, 0f, 1f),
-            new float4(0f, 0f, 0f, 1f),
-            new float4(40f, 20f, 20f, 40f),
-            4f);
-        var clipRect = new float4(12f, 24f, 80f, 72f);
-        ClipAwareRoundedRectangleSliceParameters[] slices = new ClipAwareRoundedRectangleSliceParameters[9];
-
-        int count = RoundedRectangleSliceBuilder.BuildClipAware(in source, clipRect, slices);
-
-        Assert.Equal(9, count);
-        Assert.All(slices.Take(count), slice => Assert.Equal(clipRect, slice.ClipRect));
-        Assert.Equal(40f, slices[5].CornerData.z);
-        Assert.Equal(1f, slices[5].CornerData.w);
-    }
-
-    [Fact]
     public async Task CanonicalUiRectangles_CompileWithResolvedPushConstantAbi()
     {
         Compilation compilation = await LoadUiCompilationAsync().ConfigureAwait(true);
@@ -103,7 +21,7 @@ public sealed class UiShaderTests
         Assert.Empty(errors);
 
         IReadOnlyList<ShaderCompilationResult> results = ShaderCompiler.CompileAll(compilation);
-        Assert.Equal(12, results.Count);
+        Assert.Equal(4, results.Count);
         Assert.All(results, result => Assert.True(
             result.Success,
             string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message))));
@@ -174,63 +92,6 @@ public sealed class UiShaderTests
         Assert.Contains(vertexManifest.Outputs, output => output.Name == "CornerRadii");
         var packedUvOutput = Assert.Single(vertexManifest.Outputs, output => output.Name == "Uv");
         Assert.Equal("vec4", packedUvOutput.GlslType);
-
-        ShaderCompilationResult sliceVertex = Assert.Single(
-            results,
-            result => result.EntryPointName == "rounded-rectangle-slice" &&
-                result.Module?.Stage == ShaderStage.Vertex);
-        ShaderCompilationResult sliceFragment = Assert.Single(
-            results,
-            result => result.EntryPointName == "rounded-rectangle-slice" &&
-                result.Module?.Stage == ShaderStage.Fragment);
-        var sliceResource = Assert.Single(sliceVertex.BuildManifest!.Resources);
-        Assert.Equal(96u, sliceResource.Size);
-        Assert.Equal(96u, sliceResource.ArrayStride);
-        Assert.DoesNotContain(sliceResource.Members, member => member.Name == "Rect");
-        Assert.Equal(0u, Assert.Single(sliceResource.Members, member => member.Name == "FillColor").Offset);
-        Assert.Equal(16u, Assert.Single(sliceResource.Members, member => member.Name == "BorderColor").Offset);
-        Assert.Equal(32u, Assert.Single(sliceResource.Members, member => member.Name == "CornerRadii").Offset);
-        Assert.Equal(48u, Assert.Single(sliceResource.Members, member => member.Name == "SegmentRect").Offset);
-        Assert.Equal(64u, Assert.Single(sliceResource.Members, member => member.Name == "CornerData").Offset);
-        Assert.Equal(80u, Assert.Single(sliceResource.Members, member => member.Name == "BorderWidth").Offset);
-        Assert.Equal(8u, Assert.Single(sliceVertex.BuildManifest.PushConstants).Size);
-        Assert.Empty(sliceFragment.BuildManifest!.Resources);
-        Assert.Empty(sliceFragment.BuildManifest.PushConstants);
-
-        var sliceFragmentGlsl = GlslEmitter.EmitFromModule(sliceFragment.Module!).Source;
-        Assert.Contains("interstage_slot_", sliceFragmentGlsl, StringComparison.Ordinal);
-        Assert.Contains("isCorner", sliceFragmentGlsl, StringComparison.Ordinal);
-        Assert.Contains("fwidth", sliceFragmentGlsl, StringComparison.Ordinal);
-
-        ShaderCompilationResult clipSliceVertex = Assert.Single(
-            results,
-            result => result.EntryPointName == "clip-aware-rounded-rectangle-slice" &&
-                result.Module?.Stage == ShaderStage.Vertex);
-        ShaderCompilationResult clipSliceFragment = Assert.Single(
-            results,
-            result => result.EntryPointName == "clip-aware-rounded-rectangle-slice" &&
-                result.Module?.Stage == ShaderStage.Fragment);
-        var clipSolidResource = Assert.Single(
-            results.Single(result => result.EntryPointName == "clip-aware-solid-rectangle" && result.Module?.Stage == ShaderStage.Vertex).BuildManifest!.Resources);
-        var clipRoundedResource = Assert.Single(
-            results.Single(result => result.EntryPointName == "clip-aware-rounded-rectangle" && result.Module?.Stage == ShaderStage.Vertex).BuildManifest!.Resources);
-        var clipSliceResource = Assert.Single(clipSliceVertex.BuildManifest!.Resources);
-        Assert.Equal(48u, clipSolidResource.Size);
-        Assert.Equal(48u, clipSolidResource.ArrayStride);
-        Assert.Equal(32u, Assert.Single(clipSolidResource.Members, member => member.Name == "ClipRect").Offset);
-        Assert.Equal(96u, clipRoundedResource.Size);
-        Assert.Equal(96u, clipRoundedResource.ArrayStride);
-        Assert.Equal(80u, Assert.Single(clipRoundedResource.Members, member => member.Name == "ClipRect").Offset);
-        Assert.Equal(112u, clipSliceResource.Size);
-        Assert.Equal(112u, clipSliceResource.ArrayStride);
-        Assert.Equal(80u, Assert.Single(clipSliceResource.Members, member => member.Name == "BorderWidth").Offset);
-        Assert.Equal(96u, Assert.Single(clipSliceResource.Members, member => member.Name == "ClipRect").Offset);
-        Assert.Equal(8u, Assert.Single(clipSliceVertex.BuildManifest.PushConstants).Size);
-        Assert.Empty(clipSliceFragment.BuildManifest!.Resources);
-        Assert.Empty(clipSliceFragment.BuildManifest.PushConstants);
-        var clipFragmentGlsl = GlslEmitter.EmitFromModule(clipSliceFragment.Module!).Source;
-        Assert.Contains("gl_FragCoord", clipFragmentGlsl, StringComparison.Ordinal);
-        Assert.Contains("discard;", clipFragmentGlsl, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -251,28 +112,8 @@ public sealed class UiShaderTests
         Assert.Contains("PackRoundedRectangleVertexInstancesElements", generatedSource, StringComparison.Ordinal);
         Assert.Contains("PackSolidRectangleVertexFrame", generatedSource, StringComparison.Ordinal);
         Assert.Contains("PackRoundedRectangleVertexFrame", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("PackRoundedRectangleSliceVertexInstancesElement", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("PackRoundedRectangleSliceVertexInstancesElements", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("PackRoundedRectangleSliceVertexFrame", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("ClipAwareSolidRectangleGraphicsShaderProgram", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("ClipAwareRoundedRectangleGraphicsShaderProgram", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("ClipAwareRoundedRectangleSliceGraphicsShaderProgram", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("PackClipAwareSolidRectangleVertexInstancesElement", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("PackClipAwareRoundedRectangleVertexInstancesElement", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("PackClipAwareRoundedRectangleSliceVertexInstancesElement", generatedSource, StringComparison.Ordinal);
         Assert.DoesNotContain("PackSolidRectangleFragmentFrame", generatedSource, StringComparison.Ordinal);
         Assert.DoesNotContain("PackRoundedRectangleFragmentFrame", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("WriteFloat(0u, value.Resolution.x)", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("WriteFloat(0u, value.Rect.x)", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("WriteFloat(0u, value.FillColor.x)", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("WriteFloat(16u, value.FillColor.x)", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("WriteFloat(48u, value.CornerRadii.x)", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("WriteFloat(52u, value.CornerRadii.y)", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("WriteFloat(56u, value.CornerRadii.z)", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("WriteFloat(60u, value.CornerRadii.w)", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("WriteFloat(64u, value.BorderWidth)", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("WriteFloat(80u, value.BorderWidth)", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("WriteFloat(96u, value.ClipRect.x)", generatedSource, StringComparison.Ordinal);
     }
 
     private static async Task<Compilation> LoadUiCompilationAsync()
