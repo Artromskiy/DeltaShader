@@ -11,6 +11,7 @@
     <PackageTags>shader;glsl;spirv;vulkan;roslyn;msbuild</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IncludeBuildOutput>false</IncludeBuildOutput>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <NoWarn>$(NoWarn);NU1301</NoWarn>
     <IncludeSymbols>false</IncludeSymbols>
     <IncludeSource>false</IncludeSource>

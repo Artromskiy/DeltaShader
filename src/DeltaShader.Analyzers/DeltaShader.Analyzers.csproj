@@ -8,6 +8,7 @@
     <Description>Roslyn analyzers and source generators for DeltaShader.</Description>
     <PackageTags>shader;roslyn;analyzer;source-generator</PackageTags>
     <IncludeBuildOutput>false</IncludeBuildOutput>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <IncludeSymbols>false</IncludeSymbols>
     <EnableNETAnalyzers>false</EnableNETAnalyzers>
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
