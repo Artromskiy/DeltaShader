@@ -177,8 +177,9 @@ public static class GlslEmitter
 
     private static string NormalizeBody(string? body)
     {
-        var normalized = (body ?? string.Empty).Replace("\r\n", "\n").Replace("\r", "\n").Trim();
-        if (normalized.StartsWith("{", StringComparison.Ordinal) && normalized.EndsWith("}", StringComparison.Ordinal))
+		var normalized = (body ?? string.Empty).Replace("\r\n", "\n").Replace("\r", "\n").Trim();
+		normalized = normalized.Replace("_ = discard;", "discard;");
+		if (normalized.StartsWith("{", StringComparison.Ordinal) && normalized.EndsWith("}", StringComparison.Ordinal))
         {
             normalized = normalized.Substring(1, normalized.Length - 2).Trim();
         }
