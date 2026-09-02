@@ -29,8 +29,9 @@
       <TfmSpecificPackageFile Include="$(TargetPath)">
         <PackagePath>analyzers/dotnet/cs/$(TargetFileName)</PackagePath>
       </TfmSpecificPackageFile>
-      <TfmSpecificPackageFile Include="$(TargetDir)Microsoft.CodeAnalysis*.dll;$(TargetDir)System.Text.Json.dll">
-        <PackagePath>analyzers/dotnet/cs/%(Filename)%(Extension)</PackagePath>
+      <TfmSpecificPackageFile Include="$(TargetDir)**\*.dll"
+                              Exclude="$(TargetDir)$(TargetFileName)">
+        <PackagePath>analyzers/dotnet/cs/</PackagePath>
       </TfmSpecificPackageFile>
     </ItemGroup>
   </Target>
