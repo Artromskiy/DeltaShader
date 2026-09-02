@@ -725,9 +725,10 @@ internal static class GraphicsEntryPoints
                 return false;
             }
             if ((method.IsGenericMethod && method.TypeArguments.Any(argument => argument is ITypeParameterSymbol)) ||
-                method.ReturnsVoid || method.Parameters.Any(parameter => parameter.RefKind != RefKind.None && parameter.RefKind != RefKind.Out))
+                (method.ReturnsVoid && !method.Parameters.Any(parameter => parameter.RefKind == RefKind.Out)) ||
+                method.Parameters.Any(parameter => parameter.RefKind != RefKind.None && parameter.RefKind != RefKind.Out))
             {
-                failureReason = $"Shader helper '{definition.Name}' must be a non-generic value method with a non-void return type and only value or out parameters.";
+                failureReason = $"Shader helper '{definition.Name}' must be a non-generic value method or a void method with out parameters.";
                 return false;
             }
             if (!TryGetHelperSyntax(definition, out var syntax) || syntax is null)
@@ -750,7 +751,7 @@ internal static class GraphicsEntryPoints
             }
 
             RefreshStructMaps();
-            if (!TryGetGlslType(method.ReturnType, context, structNames, out _)
+            if ((!method.ReturnsVoid && !TryGetGlslType(method.ReturnType, context, structNames, out _))
                 || method.Parameters.Any(parameter => !TryGetGlslType(parameter.Type, context, structNames, out _)) ||
                 (hasReceiver && !TryGetGlslType(method.ContainingType, context, structNames, out _)))
             {
@@ -778,9 +779,10 @@ internal static class GraphicsEntryPoints
             }
             foreach (var assignment in helperBody.DescendantNodesAndSelf().OfType<AssignmentExpressionSyntax>())
             {
-                if (model.GetSymbolInfo(assignment.Left).Symbol is IPropertySymbol)
+                if (model.GetSymbolInfo(assignment.Left).Symbol is IPropertySymbol property &&
+                    (property.IsStatic || !ShaderStructSupport.IsAutoProperty(property)))
                 {
-                    failureReason = $"Shader helper '{definition.Name}' cannot mutate a property.";
+                    failureReason = $"Shader helper '{definition.Name}' can mutate only instance auto-properties of value structs.";
                     return false;
                 }
             }
@@ -945,7 +947,12 @@ internal static class GraphicsEntryPoints
                 parameterMap[parameter] = parameterName;
                 signature.Add((parameter.RefKind == RefKind.Out ? "out " : string.Empty) + glslType + " " + parameterName);
             }
-            if (!TryGetGlslType(helper.ReturnType, context, structNames, out var returnType))
+            var returnType = helper.ReturnsVoid
+                ? "void"
+                : TryGetGlslType(helper.ReturnType, context, structNames, out var mappedReturnType)
+                    ? mappedReturnType
+                    : null;
+            if (returnType is null)
             {
                 reason = $"Shader helper '{helper.Name}' has an unsupported return type.";
                 functions = [];
@@ -977,14 +984,19 @@ internal static class GraphicsEntryPoints
                 }
             }
 
-            if (!ShaderBodyTranslator.TryTranslate(helperBody, model, context, stage, parameterMap, pushFieldMap, structNames, structFields, storageBufferTargets, helperNameMap, out var body, out var bodyReason, instanceReceiver: instanceReceiver, structProperties: structProperties, helperReceivers: helperReceiverMap))
+            var outputParameters = helper.Parameters
+                .Where(parameter => parameter.RefKind == RefKind.Out)
+                .ToArray();
+            if (!ShaderBodyTranslator.TryTranslate(helperBody, model, context, stage, parameterMap, pushFieldMap, structNames, structFields, storageBufferTargets, helperNameMap, out var body, out var bodyReason, instanceReceiver: instanceReceiver, structProperties: structProperties, helperReceivers: helperReceiverMap, outputParameters: outputParameters))
             {
                 reason = bodyReason ?? $"Unable to translate shader helper '{helper.Name}'.";
                 functions = [];
                 names = helperNames;
                 return false;
             }
-            var functionBody = syntax.Body is null ? "{ return " + body + "; }" : body;
+            var functionBody = syntax.Body is null
+                ? helper.ReturnsVoid ? "{ " + body + "; }" : "{ return " + body + "; }"
+                : body;
             emitted.Add(returnType + " " + helperNames[helper] + "(" + string.Join(", ", signature) + ") " + functionBody);
         }
 
@@ -1061,17 +1073,27 @@ internal static class GraphicsEntryPoints
         }
 
         return property.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is PropertyDeclarationSyntax syntax &&
-            (syntax.ExpressionBody?.Expression is not null ||
-             syntax.AccessorList?.Accessors.Any(accessor =>
-                 accessor.IsKind(SyntaxKind.GetAccessorDeclaration) && accessor.ExpressionBody?.Expression is not null) == true ||
+            (HasSimpleGetter(syntax) ||
              syntax.Initializer?.Value is not null);
     }
 
     private static bool IsExpressionBodiedProperty(IPropertySymbol property)
         => property.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is PropertyDeclarationSyntax syntax &&
-           (syntax.ExpressionBody?.Expression is not null ||
-            syntax.AccessorList?.Accessors.Any(accessor =>
-                accessor.IsKind(SyntaxKind.GetAccessorDeclaration) && accessor.ExpressionBody?.Expression is not null) == true);
+           HasSimpleGetter(syntax);
+
+    private static bool HasSimpleGetter(PropertyDeclarationSyntax syntax)
+    {
+        if (syntax.ExpressionBody?.Expression is not null)
+        {
+            return true;
+        }
+
+        var getter = syntax.AccessorList?.Accessors.FirstOrDefault(accessor =>
+            accessor.IsKind(SyntaxKind.GetAccessorDeclaration));
+        return getter?.ExpressionBody?.Expression is not null ||
+            getter?.Body?.Statements.Count == 1 &&
+            getter.Body.Statements[0] is ReturnStatementSyntax { Expression: not null };
+    }
 
     private static uint GetUIntArg(AttributeData attribute, int index)
         => attribute.ConstructorArguments.Length > index && attribute.ConstructorArguments[index].Value is not null
@@ -1357,9 +1379,10 @@ internal static class GraphicsEntryPoints
         { visiting.Remove(type); structure = null; reason = $"Shader struct '{type.ToDisplayString()}' uses explicit or auto layout."; return false; }
         var members = new List<ShaderIrStructMember>();
         uint offset = 0, alignment = 1;
-        foreach (var field in type.GetMembers().OfType<IFieldSymbol>().Where(field => !field.IsStatic))
+        foreach (var member in GetStructValueMembers(type))
         {
-            if (field.Type is INamedTypeSymbol statelessType &&
+            var memberType = member is IFieldSymbol field ? field.Type : ((IPropertySymbol)member).Type;
+            if (memberType is INamedTypeSymbol statelessType &&
                 statelessType.TypeKind == TypeKind.Struct &&
                 !TryMapType(statelessType, context, out _) &&
                 ShaderStructSupport.IsStateless(statelessType))
@@ -1367,24 +1390,41 @@ internal static class GraphicsEntryPoints
                 continue;
             }
 
-            if (!TryMapType(field.Type, context, out var glslType) && field.Type is INamedTypeSymbol nested && nested.TypeKind == TypeKind.Struct)
+            if (!TryMapType(memberType, context, out var glslType) && memberType is INamedTypeSymbol nested && nested.TypeKind == TypeKind.Struct)
             {
                 if (!TryBuildStruct(nested, context, definitions, visiting, out var nestedStruct, out reason) || nestedStruct is null) { structure = null; visiting.Remove(type); return false; }
                 glslType = nestedStruct.GlslName;
                 var nestedLayout = ShaderStd430Layout.ForStruct(nestedStruct.Alignment, nestedStruct.Size);
                 offset = AlignUp(offset, nestedLayout.Alignment);
-                members.Add(new ShaderIrStructMember { Name = field.Name, GlslName = "member_" + Sanitize(field.Name), GlslType = glslType, Offset = offset, Alignment = nestedLayout.Alignment, Size = nestedLayout.Size, ArrayStride = nestedLayout.ArrayStride, Members = nestedStruct.Members });
+                members.Add(new ShaderIrStructMember { Name = member.Name, GlslName = "member_" + Sanitize(member.Name), GlslType = glslType, Offset = offset, Alignment = nestedLayout.Alignment, Size = nestedLayout.Size, ArrayStride = nestedLayout.ArrayStride, Members = nestedStruct.Members });
                 offset += nestedLayout.Size; alignment = Math.Max(alignment, nestedLayout.Alignment); continue;
             }
-            if (string.IsNullOrEmpty(glslType)) { structure = null; visiting.Remove(type); reason = $"Shader struct field '{field.Name}' has unsupported type '{field.Type}'."; return false; }
+            if (string.IsNullOrEmpty(glslType)) { structure = null; visiting.Remove(type); reason = $"Shader struct member '{member.Name}' has unsupported type '{memberType}'."; return false; }
             var fieldLayout = ShaderStd430Layout.ForGlslType(glslType);
             offset = AlignUp(offset, fieldLayout.Alignment);
-            members.Add(new ShaderIrStructMember { Name = field.Name, GlslName = "member_" + Sanitize(field.Name), GlslType = glslType, Offset = offset, Alignment = fieldLayout.Alignment, Size = fieldLayout.Size, ArrayStride = fieldLayout.ArrayStride, MatrixStride = fieldLayout.MatrixStride });
+            members.Add(new ShaderIrStructMember { Name = member.Name, GlslName = "member_" + Sanitize(member.Name), GlslType = glslType, Offset = offset, Alignment = fieldLayout.Alignment, Size = fieldLayout.Size, ArrayStride = fieldLayout.ArrayStride, MatrixStride = fieldLayout.MatrixStride });
             offset += fieldLayout.Size; alignment = Math.Max(alignment, fieldLayout.Alignment);
         }
         if (members.Count == 0) { structure = null; visiting.Remove(type); reason = $"Shader struct '{type.ToDisplayString()}' has no instance data fields."; return false; }
         structure = new ShaderIrStruct { Name = type.ToDisplayString(), GlslName = "DeltaStruct_" + Sanitize(type.ToDisplayString()), Alignment = alignment, Size = AlignUp(offset, alignment), ArrayStride = AlignUp(offset, alignment), Members = members };
         definitions[type] = structure; visiting.Remove(type); reason = null; return true;
+    }
+
+    private static IEnumerable<ISymbol> GetStructValueMembers(INamedTypeSymbol type)
+    {
+        foreach (var member in type.GetMembers())
+        {
+            if (member is IFieldSymbol field && !field.IsStatic && !field.IsImplicitlyDeclared)
+            {
+                yield return field;
+            }
+            else if (member is IPropertySymbol property && !property.IsStatic && !property.IsIndexer &&
+                     property.Parameters.Length == 0 && property.GetMethod is not null &&
+                     ShaderStructSupport.IsAutoProperty(property))
+            {
+                yield return property;
+            }
+        }
     }
 
     private static uint AlignUp(uint value, uint alignment) => alignment == 0 ? value : (value + alignment - 1) / alignment * alignment;

@@ -49,42 +49,212 @@ internal static class ShaderBodyTranslator
             allowValueReturn,
             instanceReceiver,
             helperReceivers);
-        if (methodSyntax.Body is { } methodBlock)
-        {
-            rewriter.PredeclareOutLocals(methodBlock);
-        }
-        else if (methodSyntax.ExpressionBody?.Expression is { } outExpression &&
-                 rewriter.ContainsOutLocalDeclaration(outExpression))
+        return TryTranslateBody(
+            methodSyntax.Body ?? (SyntaxNode?)methodSyntax.ExpressionBody?.Expression,
+            rewriter,
+            normalizeComputeText: true,
+            normalizeWhitespace: false,
+            lowerReturns: false,
+            applyGraphicsPostProcessing: false,
+            out translated,
+            out usesBuiltin,
+            out reason);
+    }
+
+    private static bool ContainsTopLevelGoto(BlockSyntax block)
+        => block.Statements.Any(statement =>
+            statement is GotoStatementSyntax or LabeledStatementSyntax ||
+            statement.DescendantNodes().OfType<GotoStatementSyntax>().Any() ||
+            statement.DescendantNodes().OfType<LabeledStatementSyntax>().Any());
+
+    private static bool TryTranslateGotoBlock(BlockSyntax block, Rewriter rewriter, out string translated)
+    {
+        if (!rewriter.PrepareGotoLocals(block))
         {
             translated = string.Empty;
-            usesBuiltin = false;
-            reason = "Expression-bodied shader methods cannot declare local out variables; use a block body.";
             return false;
         }
 
-        var rewritten = methodSyntax.Body is { } body
-            ? rewriter.Visit(body)
-            : methodSyntax.ExpressionBody?.Expression is { } expressionBody
-                ? rewriter.Visit(expressionBody)
-                : null;
+        var statements = block.Statements;
+        var labels = statements
+            .OfType<LabeledStatementSyntax>()
+            .Select((statement, index) => (Label: statement.Identifier.ValueText, State: index + 1))
+            .ToDictionary(item => item.Label, item => item.State, StringComparer.Ordinal);
+        var segments = new List<(int State, string? Label, List<StatementSyntax> Statements)>();
+        var current = (State: 0, Label: (string?)null, Statements: new List<StatementSyntax>());
+        foreach (var statement in statements)
+        {
+            if (statement is LabeledStatementSyntax labeled)
+            {
+                segments.Add(current);
+                var state = labels[labeled.Identifier.ValueText];
+                current = (state, labeled.Identifier.ValueText, new List<StatementSyntax>());
+                if (labeled.Statement is not EmptyStatementSyntax)
+                {
+                    current.Statements.Add(labeled.Statement);
+                }
 
-        if (rewritten is BlockSyntax block)
-        {
-            translated = string.Join("\n", block.Statements.Select(statement => statement.ToFullString().Trim()));
-        }
-        else
-        {
-            translated = rewritten?.ToFullString().Trim() ?? string.Empty;
+                continue;
+            }
+
+            current.Statements.Add(statement);
         }
 
-        translated = NormalizeComputeText(translated);
-        if (rewriter.OutDeclarations.Count != 0)
+        segments.Add(current);
+        foreach (var segment in segments)
         {
-            translated = string.Join("\n", rewriter.OutDeclarations) + "\n" + translated;
+            foreach (var statement in segment.Statements)
+            {
+                if (statement.DescendantNodesAndSelf().OfType<LabeledStatementSyntax>().Any())
+                {
+                    rewriter.SetReason("Labels inside nested shader statements are not supported.");
+                    translated = string.Empty;
+                    return false;
+                }
+
+                if (statement.DescendantNodesAndSelf().OfType<GotoStatementSyntax>().Any(gotoStatement =>
+                    gotoStatement.CaseOrDefaultKeyword.RawKind != 0 ||
+                    gotoStatement.Expression is not IdentifierNameSyntax ||
+                    gotoStatement.Ancestors().Any(ancestor =>
+                        ancestor is ForStatementSyntax or WhileStatementSyntax or DoStatementSyntax or
+                        ForEachStatementSyntax or SwitchStatementSyntax)))
+                {
+                    rewriter.SetReason("Shader goto supports labels and if/else control flow, but not goto case/default or transitions from loops and switch sections.");
+                    translated = string.Empty;
+                    return false;
+                }
+            }
         }
-        usesBuiltin = rewriter.UsesBuiltin;
-        reason = rewriter.Reason;
-        return reason is null;
+
+        var cases = new List<string>(segments.Count);
+        for (var segmentIndex = 0; segmentIndex < segments.Count; segmentIndex++)
+        {
+            var segment = segments[segmentIndex];
+            var body = new List<string>();
+            foreach (var statement in segment.Statements)
+            {
+                if (!TryTranslateGotoStatement(
+                        statement,
+                        rewriter,
+                        labels,
+                        segment.State,
+                        out var statementText))
+                {
+                    translated = string.Empty;
+                    return false;
+                }
+
+                body.Add($"if (__delta_goto_state == {segment.State}) {{ {statementText} }}");
+            }
+
+            if (body.Count == 0 && segmentIndex + 1 < segments.Count)
+            {
+                body.Add($"__delta_goto_state = {segments[segmentIndex + 1].State};");
+            }
+
+            body.Add($"if (__delta_goto_state == {segment.State}) {{ __delta_goto_state = -1; }}");
+            body.Add("break;");
+            cases.Add($"case {segment.State}: {{ {string.Join(" ", body)} }}");
+        }
+
+        var stateMachine = "int __delta_goto_state = 0; while (__delta_goto_state >= 0) { " +
+            string.Join(" ", cases) + " }";
+        translated = rewriter.GotoDeclarations.Count == 0
+            ? stateMachine
+            : string.Join("\n", rewriter.GotoDeclarations) + "\n" + stateMachine;
+        return true;
+    }
+
+    private static bool TryTranslateGotoStatement(
+        StatementSyntax statement,
+        Rewriter rewriter,
+        IReadOnlyDictionary<string, int> labels,
+        int state,
+        out string translated)
+    {
+        if (statement is GotoStatementSyntax gotoStatement)
+        {
+            var target = gotoStatement.Expression?.ToString();
+            if (target is null || !labels.TryGetValue(target, out var targetState))
+            {
+                rewriter.SetReason($"Shader goto target '{target ?? "<unknown>"}' is not a top-level label.");
+                translated = string.Empty;
+                return false;
+            }
+
+            translated = $"__delta_goto_state = {targetState};";
+            return true;
+        }
+
+        if (statement is IfStatementSyntax conditional &&
+            conditional.Condition is ExpressionSyntax condition &&
+            rewriter.Visit(condition) is ExpressionSyntax rewrittenCondition)
+        {
+            if (!TryTranslateGotoBranch(conditional.Statement, rewriter, labels, state, out var whenTrue))
+            {
+                translated = string.Empty;
+                return false;
+            }
+
+            var falseBranch = string.Empty;
+            if (conditional.Else is { Statement: { } whenFalse } &&
+                !TryTranslateGotoBranch(whenFalse, rewriter, labels, state, out falseBranch))
+            {
+                translated = string.Empty;
+                return false;
+            }
+
+            translated = falseBranch.Length == 0
+                ? $"if ({rewrittenCondition.ToFullString().Trim()}) {{ {whenTrue} }}"
+                : $"if ({rewrittenCondition.ToFullString().Trim()}) {{ {whenTrue} }} else {{ {falseBranch} }}";
+            return true;
+        }
+
+        if (statement.DescendantNodesAndSelf().OfType<GotoStatementSyntax>().Any())
+        {
+            rewriter.SetReason("Shader goto is supported in if/else blocks, but this control-flow shape cannot be lowered safely.");
+            translated = string.Empty;
+            return false;
+        }
+
+        if (rewriter.Visit(statement) is not StatementSyntax rewrittenStatement)
+        {
+            translated = string.Empty;
+            return false;
+        }
+
+        translated = rewrittenStatement.ToFullString().Trim();
+        return true;
+    }
+
+    private static bool TryTranslateGotoBranch(
+        StatementSyntax statement,
+        Rewriter rewriter,
+        IReadOnlyDictionary<string, int> labels,
+        int state,
+        out string translated)
+    {
+        if (statement is BlockSyntax block)
+        {
+            var statements = new List<string>(block.Statements.Count);
+            foreach (var child in block.Statements)
+            {
+                if (!TryTranslateGotoStatement(child, rewriter, labels, state, out var childText))
+                {
+                    translated = string.Empty;
+                    return false;
+                }
+
+                statements.Add(child is GotoStatementSyntax
+                    ? childText
+                    : $"if (__delta_goto_state == {state}) {{ {childText} }}");
+            }
+
+            translated = string.Join(" ", statements);
+            return true;
+        }
+
+        return TryTranslateGotoStatement(statement, rewriter, labels, state, out translated);
     }
 
     public static bool TryTranslateComputeExpression(
@@ -103,26 +273,24 @@ internal static class ShaderBodyTranslator
         IReadOnlyDictionary<INamedTypeSymbol, string>? structNames = null,
         IReadOnlyDictionary<IFieldSymbol, string>? structFields = null,
         IReadOnlyDictionary<IPropertySymbol, string>? structProperties = null,
-        IReadOnlyDictionary<IMethodSymbol, bool>? helperReceivers = null)
+        IReadOnlyDictionary<IMethodSymbol, bool>? helperReceivers = null,
+        IReadOnlyCollection<IParameterSymbol>? outputParameters = null)
     {
         var rewriter = CreateComputeRewriter(model, context, contextParameter, resourceBindings,
             parameterMap, locals, helperNames, structNames, structFields, structProperties,
+            outputParameters: outputParameters,
             instanceReceiver: instanceReceiver,
             helperReceivers: helperReceivers);
-        rewriter.PredeclareOutLocals(expression);
-        if (rewriter.OutDeclarations.Count != 0)
-        {
-            translated = string.Empty;
-            usesBuiltin = false;
-            reason = "Expression-bodied shader methods cannot declare local out variables; use a block body.";
-            return false;
-        }
-
-        var rewritten = rewriter.Visit(expression);
-        translated = NormalizeComputeText(rewritten?.ToFullString().Trim() ?? string.Empty);
-        usesBuiltin = rewriter.UsesBuiltin;
-        reason = rewriter.Reason;
-        return reason is null;
+        return TryTranslateBody(
+            expression,
+            rewriter,
+            normalizeComputeText: true,
+            normalizeWhitespace: false,
+            lowerReturns: false,
+            applyGraphicsPostProcessing: false,
+            out translated,
+            out usesBuiltin,
+            out reason);
     }
 
     private static Rewriter CreateComputeRewriter(
@@ -241,7 +409,8 @@ internal static class ShaderBodyTranslator
         bool lowerReturns = false,
         string? instanceReceiver = null,
         IReadOnlyDictionary<IPropertySymbol, string>? structProperties = null,
-        IReadOnlyDictionary<IMethodSymbol, bool>? helperReceivers = null)
+        IReadOnlyDictionary<IMethodSymbol, bool>? helperReceivers = null,
+        IReadOnlyCollection<IParameterSymbol>? outputParameters = null)
     {
         var rewriter = new Rewriter(
             model,
@@ -258,68 +427,140 @@ internal static class ShaderBodyTranslator
             lowerReturns,
             structProperties: structProperties,
             instanceReceiver: instanceReceiver,
-            helperReceivers: helperReceivers);
-        if (body is not ExpressionSyntax expressionBody)
-        {
-            rewriter.PredeclareOutLocals(body);
-        }
-        else if (rewriter.ContainsOutLocalDeclaration(expressionBody))
+            helperReceivers: helperReceivers,
+            outputParameters: outputParameters);
+        return TryTranslateBody(
+            body,
+            rewriter,
+            normalizeComputeText: false,
+            normalizeWhitespace: true,
+            lowerReturns: lowerReturns,
+            applyGraphicsPostProcessing: true,
+            out translated,
+            out _,
+            out reason,
+            model: model,
+            context: context,
+            stage: stage,
+            parameterMap: parameterMap,
+            pushFieldMap: pushFieldMap,
+            storageBufferTargets: storageBufferTargets);
+    }
+
+    private static bool TryTranslateBody(
+        SyntaxNode? body,
+        Rewriter rewriter,
+        bool normalizeComputeText,
+        bool normalizeWhitespace,
+        bool lowerReturns,
+        bool applyGraphicsPostProcessing,
+        out string translated,
+        out bool usesBuiltin,
+        out string? reason,
+        SemanticModel? model = null,
+        ModuleCompilationContext? context = null,
+        ShaderStage stage = ShaderStage.Compute,
+        IReadOnlyDictionary<IParameterSymbol, string>? parameterMap = null,
+        IReadOnlyDictionary<IFieldSymbol, string>? pushFieldMap = null,
+        IReadOnlyCollection<string>? storageBufferTargets = null)
+    {
+        if (body is null)
         {
             translated = string.Empty;
+            usesBuiltin = false;
+            reason = "Shader methods must have a translatable body.";
+            return false;
+        }
+
+        if (body is BlockSyntax methodBlock)
+        {
+            rewriter.PredeclareOutLocals(methodBlock);
+        }
+        else if (body is ExpressionSyntax expressionBody &&
+                 rewriter.ContainsOutLocalDeclaration(expressionBody))
+        {
+            translated = string.Empty;
+            usesBuiltin = false;
             reason = "Expression-bodied shader methods cannot declare local out variables; use a block body.";
             return false;
         }
 
-        var rewritten = body is ExpressionSyntax expression && lowerReturns
-            ? rewriter.TranslateExpressionBody(expression)
-            : rewriter.Visit(body);
-        translated = rewritten?.NormalizeWhitespace(indentation: "    ", eol: "\n").ToFullString().Trim() ?? string.Empty;
+        var rewritten = body is BlockSyntax gotoBlock && ContainsTopLevelGoto(gotoBlock)
+            ? TryTranslateGotoBlock(gotoBlock, rewriter, out var gotoTranslation)
+                ? SyntaxFactory.ParseStatement(gotoTranslation)
+                : null
+            : body is ExpressionSyntax expression && lowerReturns
+                ? rewriter.TranslateExpressionBody(expression)
+                : rewriter.Visit(body);
+        translated = rewritten is null
+            ? string.Empty
+            : normalizeWhitespace
+                ? rewritten.NormalizeWhitespace(indentation: "    ", eol: "\n").ToFullString().Trim()
+                : rewritten.ToFullString().Trim();
         if (rewriter.OutDeclarations.Count != 0)
         {
             translated = string.Join("\n", rewriter.OutDeclarations) + "\n" + translated;
         }
-        foreach (var field in pushFieldMap)
+
+        if (applyGraphicsPostProcessing)
         {
-            foreach (var parameter in parameterMap.Keys.Where(parameter => SymbolEqualityComparer.Default.Equals(parameter.Type, field.Key.ContainingType)))
+            if (model is null || context is null || parameterMap is null || pushFieldMap is null || storageBufferTargets is null)
             {
-                translated = translated.Replace(parameter.Name + "." + field.Key.Name, field.Value);
+                translated = string.Empty;
+                usesBuiltin = false;
+                reason = "Shader body post-processing requires the active compilation context.";
+                return false;
+            }
+
+            foreach (var field in pushFieldMap)
+            {
+                foreach (var parameter in parameterMap.Keys.Where(parameter => SymbolEqualityComparer.Default.Equals(parameter.Type, field.Key.ContainingType)))
+                {
+                    translated = translated.Replace(parameter.Name + "." + field.Key.Name, field.Value);
+                }
+            }
+            foreach (var parameter in parameterMap)
+            {
+                translated = Regex.Replace(translated, $"\\b{Regex.Escape(parameter.Key.Name)}\\b", parameter.Value, RegexOptions.None);
+            }
+            foreach (var bufferName in storageBufferTargets)
+            {
+                translated = Regex.Replace(translated, $"\\b{Regex.Escape(bufferName)}\\s*\\[", bufferName + ".data[", RegexOptions.None);
+            }
+            foreach (var invocation in body.DescendantNodes().OfType<InvocationExpressionSyntax>())
+            {
+                if (_TryBinding(model, context, invocation, stage, out var glslName) && glslName is not null)
+                {
+                    translated = translated.Replace(invocation.Expression.ToString(), glslName);
+                }
+            }
+            foreach (var creation in body.DescendantNodes().OfType<ObjectCreationExpressionSyntax>())
+            {
+                var type = model.GetTypeInfo(creation).Type;
+                if (type is not null && context.Intrinsics.TryMapType(type, out var glslType))
+                {
+                    translated = translated.Replace("new " + creation.Type.ToString(), glslType);
+                }
+            }
+            foreach (var declaration in body.DescendantNodes().OfType<VariableDeclarationSyntax>().Where(declaration => declaration.Type.IsVar && declaration.Variables.Count == 1))
+            {
+                var type = declaration.Variables[0].Initializer is { } initializer
+                    ? model.GetTypeInfo(initializer.Value).Type
+                    : null;
+                if (type is not null && context.Intrinsics.TryMapType(type, out var glslType))
+                {
+                    translated = Regex.Replace(translated, $"\\b{Regex.Escape(glslType)}(?=[A-Za-z_]\\w*\\s*=)", glslType + " ", RegexOptions.None);
+                }
             }
         }
-        foreach (var parameter in parameterMap)
-        {
-            translated = Regex.Replace(translated, $"\\b{Regex.Escape(parameter.Key.Name)}\\b", parameter.Value, RegexOptions.None);
-        }
-        foreach (var bufferName in storageBufferTargets)
-        {
-            translated = Regex.Replace(translated, $"\\b{Regex.Escape(bufferName)}\\s*\\[", bufferName + ".data[", RegexOptions.None);
-        }
-        foreach (var invocation in body.DescendantNodes().OfType<InvocationExpressionSyntax>())
-        {
-            if (_TryBinding(model, context, invocation, stage, out var glslName) && glslName is not null)
-            {
-                translated = translated.Replace(invocation.Expression.ToString(), glslName);
-            }
-        }
-        foreach (var creation in body.DescendantNodes().OfType<ObjectCreationExpressionSyntax>())
-        {
-            var type = model.GetTypeInfo(creation).Type;
-            if (type is not null && context.Intrinsics.TryMapType(type, out var glslType))
-            {
-                translated = translated.Replace("new " + creation.Type.ToString(), glslType);
-            }
-        }
-        foreach (var declaration in body.DescendantNodes().OfType<VariableDeclarationSyntax>().Where(declaration => declaration.Type.IsVar && declaration.Variables.Count == 1))
-        {
-            var type = declaration.Variables[0].Initializer is { } initializer
-                ? model.GetTypeInfo(initializer.Value).Type
-                : null;
-            if (type is not null && context.Intrinsics.TryMapType(type, out var glslType))
-            {
-                translated = Regex.Replace(translated, $"\\b{Regex.Escape(glslType)}(?=[A-Za-z_]\\w*\\s*=)", glslType + " ", RegexOptions.None);
-            }
-        }
+
         translated = translated.Replace("\r\n", "\n").Replace("\r", "\n");
-        translated = System.Text.RegularExpressions.Regex.Replace(translated, @"(?<=\d)f\b", string.Empty);
+        if (normalizeComputeText)
+        {
+            translated = NormalizeComputeText(translated);
+        }
+
+        usesBuiltin = rewriter.UsesBuiltin;
         reason = rewriter.Reason;
         return reason is null;
     }
@@ -416,10 +657,18 @@ internal static class ShaderBodyTranslator
         private readonly HashSet<IPropertySymbol> _staticProperties;
         private readonly IReadOnlyDictionary<IMethodSymbol, bool> _helperReceivers;
         private readonly HashSet<ILocalSymbol> _outLocals;
+        private readonly Dictionary<ILocalSymbol, string> _patternVariables;
+        private readonly Dictionary<IParameterSymbol, string> _valueSubstitutions;
+        private readonly HashSet<ILocalSymbol> _hoistedLocals;
+        private readonly List<string> _gotoDeclarations;
         private readonly List<string> _outDeclarations;
+        private int _foreachIndex;
         public string? Reason { get; private set; }
         public bool UsesBuiltin { get; private set; }
         public IReadOnlyList<string> OutDeclarations => _outDeclarations;
+        public IReadOnlyList<string> GotoDeclarations => _gotoDeclarations;
+
+        public void SetReason(string reason) => Reason ??= reason;
 
         public Rewriter(
             SemanticModel model,
@@ -488,6 +737,10 @@ internal static class ShaderBodyTranslator
             _staticProperties = new HashSet<IPropertySymbol>(SymbolEqualityComparer.Default);
             _helperReceivers = helperReceivers ?? new Dictionary<IMethodSymbol, bool>(SymbolEqualityComparer.Default);
             _outLocals = new HashSet<ILocalSymbol>(SymbolEqualityComparer.Default);
+            _patternVariables = new Dictionary<ILocalSymbol, string>(SymbolEqualityComparer.Default);
+            _valueSubstitutions = new Dictionary<IParameterSymbol, string>(SymbolEqualityComparer.Default);
+            _hoistedLocals = new HashSet<ILocalSymbol>(SymbolEqualityComparer.Default);
+            _gotoDeclarations = new List<string>();
             _outDeclarations = new List<string>();
         }
 
@@ -539,12 +792,67 @@ internal static class ShaderBodyTranslator
             }
         }
 
+        public bool PrepareGotoLocals(BlockSyntax root)
+        {
+            foreach (var declaration in root.DescendantNodes().OfType<VariableDeclarationSyntax>())
+            {
+                if (declaration.Parent is not LocalDeclarationStatementSyntax &&
+                    declaration.Parent is not ForStatementSyntax)
+                {
+                    continue;
+                }
+
+                if (declaration.Variables.Count != 1 ||
+                    GetDeclaredSymbol(declaration.Variables[0]) is not ILocalSymbol local)
+                {
+                    Reason ??= "Goto lowering requires one shader-value local per declaration.";
+                    return false;
+                }
+
+                if (_outLocals.Contains(local) || _hoistedLocals.Contains(local))
+                {
+                    continue;
+                }
+
+                var variable = declaration.Variables[0];
+                var type = declaration.Type.IsVar
+                    ? variable.Initializer is { } initializer
+                        ? GetTypeInfo(initializer.Value).ConvertedType ?? GetTypeInfo(initializer.Value).Type
+                        : null
+                    : GetTypeInfo(declaration.Type).Type;
+                if (type is null || !TryMap(type, out var glslType) ||
+                    !TryCreateZeroValue(type, out var zero))
+                {
+                    Reason ??= $"Goto local '{local.Name}' has an unsupported shader value type.";
+                    return false;
+                }
+
+                var localName = CreateLocalName(local.Name);
+                _locals[local] = localName;
+                _hoistedLocals.Add(local);
+                _gotoDeclarations.Add($"{glslType} {localName} = {zero.ToFullString()};");
+            }
+
+            return true;
+        }
+
         public override SyntaxNode? VisitIdentifierName(IdentifierNameSyntax node)
         {
             var symbol = GetSymbolInfo(node).Symbol;
             if (symbol is ILocalSymbol local && _locals.TryGetValue(local, out var localName))
             {
                 return SyntaxFactory.ParseName(localName);
+            }
+
+            if (symbol is ILocalSymbol patternLocal && _patternVariables.TryGetValue(patternLocal, out var patternExpression))
+            {
+                return SyntaxFactory.ParseExpression(patternExpression);
+            }
+
+            if (symbol is IParameterSymbol valueParameter &&
+                _valueSubstitutions.TryGetValue(valueParameter, out var substitutedValue))
+            {
+                return SyntaxFactory.ParseExpression(substitutedValue);
             }
 
             if (symbol is IParameterSymbol parameter && _parameters.TryGetValue(parameter, out var parameterName))
@@ -613,9 +921,12 @@ internal static class ShaderBodyTranslator
             var statements = new List<StatementSyntax>(node.Statements.Count);
             foreach (var statement in node.Statements)
             {
-                if (statement is not BlockSyntax and not LocalDeclarationStatementSyntax and not IfStatementSyntax and not ForStatementSyntax and not ExpressionStatementSyntax and not ReturnStatementSyntax)
+                if (statement is not BlockSyntax and not LocalDeclarationStatementSyntax and
+                    not IfStatementSyntax and not ForStatementSyntax and not WhileStatementSyntax and
+                    not DoStatementSyntax and not ForEachStatementSyntax and not SwitchStatementSyntax and not ExpressionStatementSyntax and
+                    not ReturnStatementSyntax and not BreakStatementSyntax and not ContinueStatementSyntax)
                 {
-                    Reason ??= "Only declarations, conditionals, for loops, and assignments are supported in compute shader bodies.";
+                    Reason ??= "Only declarations, conditionals, switch, loops, and assignments are supported in compute shader bodies.";
                     continue;
                 }
 
@@ -626,6 +937,398 @@ internal static class ShaderBodyTranslator
             }
 
             return SyntaxFactory.Block(statements);
+        }
+
+        public override SyntaxNode? VisitBreakStatement(BreakStatementSyntax node)
+            => _computeMode ? node : base.VisitBreakStatement(node);
+
+        public override SyntaxNode? VisitContinueStatement(ContinueStatementSyntax node)
+            => _computeMode ? node : base.VisitContinueStatement(node);
+
+        public override SyntaxNode? VisitWhileStatement(WhileStatementSyntax node)
+        {
+            if (Visit(node.Condition) is not ExpressionSyntax condition)
+            {
+                Reason ??= "While-loop condition could not be translated.";
+                return SyntaxFactory.EmptyStatement();
+            }
+
+            if (Visit(node.Statement) is not StatementSyntax body)
+            {
+                Reason ??= "While-loop body could not be translated.";
+                return SyntaxFactory.EmptyStatement();
+            }
+
+            return SyntaxFactory.ParseStatement(
+                $"while ({condition.ToFullString().Trim()}) {body.ToFullString().Trim()}");
+        }
+
+        public override SyntaxNode? VisitDoStatement(DoStatementSyntax node)
+        {
+            if (Visit(node.Condition) is not ExpressionSyntax condition)
+            {
+                Reason ??= "Do-while condition could not be translated.";
+                return SyntaxFactory.EmptyStatement();
+            }
+
+            if (Visit(node.Statement) is not StatementSyntax body)
+            {
+                Reason ??= "Do-while body could not be translated.";
+                return SyntaxFactory.EmptyStatement();
+            }
+
+            return SyntaxFactory.ParseStatement(
+                $"do {body.ToFullString().Trim()} while ({condition.ToFullString().Trim()});");
+        }
+
+        public override SyntaxNode? VisitSwitchStatement(SwitchStatementSyntax node)
+        {
+            if (Visit(node.Expression) is not ExpressionSyntax expression)
+            {
+                Reason ??= "Switch expression could not be translated.";
+                return SyntaxFactory.EmptyStatement();
+            }
+
+            var branches = new List<string>();
+            string? defaultBody = null;
+            var pendingLabels = new List<SwitchLabelSyntax>();
+            foreach (var section in node.Sections)
+            {
+                var labels = new List<SwitchLabelSyntax>(pendingLabels.Count + section.Labels.Count);
+                labels.AddRange(pendingLabels);
+                labels.AddRange(section.Labels);
+                pendingLabels.Clear();
+
+                var lastStatement = section.Statements.Count == 0
+                    ? null
+                    : section.Statements[section.Statements.Count - 1];
+                if (lastStatement is not null && !IsSwitchTerminator(lastStatement))
+                {
+                    Reason ??= "Switch sections must terminate with break, return, throw, or goto; fall-through is not supported.";
+                    return SyntaxFactory.EmptyStatement();
+                }
+
+                if (section.Statements.Count == 0 &&
+                    labels.OfType<DefaultSwitchLabelSyntax>().Count() == 0)
+                {
+                    pendingLabels.AddRange(labels);
+                    continue;
+                }
+
+                if (labels.Count == 0 || labels.OfType<DefaultSwitchLabelSyntax>().Count() > 1)
+                {
+                    Reason ??= "Switch sections must contain at least one label and only one default label.";
+                    return SyntaxFactory.EmptyStatement();
+                }
+
+                var bodyStatements = new List<string>();
+                foreach (var statement in section.Statements)
+                {
+                    if (statement.IsKind(SyntaxKind.BreakStatement))
+                    {
+                        continue;
+                    }
+
+                    if (Visit(statement) is not StatementSyntax rewritten)
+                    {
+                        Reason ??= "Switch section contains an unsupported statement.";
+                        return SyntaxFactory.EmptyStatement();
+                    }
+
+                    bodyStatements.Add(rewritten.ToFullString().Trim());
+                }
+
+                var body = string.Join(" ", bodyStatements);
+                var defaultLabel = labels.OfType<DefaultSwitchLabelSyntax>().SingleOrDefault();
+                var caseConditions = new List<string>();
+                foreach (var label in labels)
+                {
+                    if (label is CaseSwitchLabelSyntax caseLabel)
+                    {
+                        if (Visit(caseLabel.Value) is not ExpressionSyntax caseValue)
+                        {
+                            Reason ??= "Switch case label could not be translated.";
+                            return SyntaxFactory.EmptyStatement();
+                        }
+
+                        caseConditions.Add($"({expression.ToFullString().Trim()} == {caseValue.ToFullString().Trim()})");
+                        continue;
+                    }
+
+                    if (label is CasePatternSwitchLabelSyntax patternLabel &&
+                        TryTranslatePattern(patternLabel.Pattern, expression.ToFullString().Trim(), out var patternCondition))
+                    {
+                        if (patternLabel.WhenClause is { Condition: { } guard } &&
+                            Visit(guard) is ExpressionSyntax translatedGuard)
+                        {
+                            patternCondition = $"({patternCondition}) && ({translatedGuard.ToFullString().Trim()})";
+                        }
+
+                        caseConditions.Add(patternCondition);
+                        continue;
+                    }
+
+                    if (label is not DefaultSwitchLabelSyntax)
+                    {
+                        Reason ??= "Switch supports constant or translatable pattern case labels.";
+                        return SyntaxFactory.EmptyStatement();
+                    }
+                }
+
+                if (defaultLabel is not null)
+                {
+                    if (defaultBody is not null)
+                    {
+                        Reason ??= "Switch supports only one default section.";
+                        return SyntaxFactory.EmptyStatement();
+                    }
+
+                    if (caseConditions.Count != 0)
+                    {
+                        branches.Add($"if ({string.Join(" || ", caseConditions)}) {{ {body} }}");
+                    }
+
+                    defaultBody = body;
+                    continue;
+                }
+
+                if (caseConditions.Count == 0)
+                {
+                    Reason ??= "Switch supports constant or translatable pattern case labels, or one default label per section.";
+                    return SyntaxFactory.EmptyStatement();
+                }
+
+                var condition = string.Join(" || ", caseConditions);
+                branches.Add($"if ({condition}) {{ {body} }}");
+            }
+
+            if (pendingLabels.Count != 0)
+            {
+                Reason ??= "Switch cannot end with an empty fall-through section.";
+                return SyntaxFactory.EmptyStatement();
+            }
+
+            if (defaultBody is not null)
+            {
+                branches.Add($"{{ {defaultBody} }}");
+            }
+
+            return SyntaxFactory.ParseStatement(string.Join(" else ", branches));
+        }
+
+        public override SyntaxNode? VisitForEachStatement(ForEachStatementSyntax node)
+        {
+            if (GetDeclaredSymbol(node) is not ILocalSymbol local ||
+                GetTypeInfo(node.Expression).Type is not INamedTypeSymbol bufferType ||
+                !IsStorageBufferType(bufferType, _context) ||
+                bufferType.TypeArguments.Length != 1 ||
+                !TryGetShaderType(bufferType.TypeArguments[0], out var elementGlslType))
+            {
+                Reason ??= "Foreach is supported only for storage buffers with one shader-visible element type.";
+                return SyntaxFactory.EmptyStatement();
+            }
+
+            var source = Visit(node.Expression) as ExpressionSyntax;
+            if (source is null)
+            {
+                Reason ??= "Foreach storage-buffer source could not be translated.";
+                return SyntaxFactory.EmptyStatement();
+            }
+
+            var localName = CreateLocalName(local.Name);
+            var indexName = "__delta_foreach_" + _foreachIndex++;
+            _locals[local] = localName;
+            var body = Visit(node.Statement) as StatementSyntax;
+            _locals.Remove(local);
+            if (body is null)
+            {
+                Reason ??= "Foreach storage-buffer body could not be translated.";
+                return SyntaxFactory.EmptyStatement();
+            }
+
+            return SyntaxFactory.ParseStatement(
+                $"for (int {indexName} = 0; {indexName} < {source.ToFullString().Trim()}.data.length(); ++{indexName}) {{ {elementGlslType} {localName} = {source.ToFullString().Trim()}.data[{indexName}]; {body.ToFullString().Trim()} }}");
+        }
+
+        private bool TryGetShaderType(ITypeSymbol type, out string glslType)
+            => TryMap(type, out glslType) ||
+               type is INamedTypeSymbol namedType && _structNames.TryGetValue(namedType, out glslType);
+
+        private static bool IsSwitchTerminator(StatementSyntax statement)
+            => statement is BreakStatementSyntax or ContinueStatementSyntax or ReturnStatementSyntax;
+
+        public override SyntaxNode? VisitIsPatternExpression(IsPatternExpressionSyntax node)
+        {
+            if (Visit(node.Expression) is not ExpressionSyntax expression ||
+                !TryTranslatePattern(node.Pattern, expression.ToFullString().Trim(), out var translatedPattern))
+            {
+                Reason ??= "Only constant, relational, and/or patterns are supported in shader code.";
+                return SyntaxFactory.ParseExpression("false");
+            }
+
+            return SyntaxFactory.ParseExpression(translatedPattern);
+        }
+
+        public override SyntaxNode? VisitSwitchExpression(SwitchExpressionSyntax node)
+        {
+            if (Visit(node.GoverningExpression) is not ExpressionSyntax governing)
+            {
+                Reason ??= "Switch-expression governing value could not be translated.";
+                return SyntaxFactory.ParseExpression("0");
+            }
+
+            var governingText = governing.ToFullString().Trim();
+            string? result = null;
+            for (var index = node.Arms.Count - 1; index >= 0; index--)
+            {
+                var arm = node.Arms[index];
+                if (Visit(arm.Expression) is not ExpressionSyntax armExpression)
+                {
+                    Reason ??= "Switch-expression arm could not be translated.";
+                    return SyntaxFactory.ParseExpression("0");
+                }
+
+                var value = armExpression.ToFullString().Trim();
+                if (arm.Pattern is DiscardPatternSyntax)
+                {
+                    result = value;
+                    continue;
+                }
+
+                if (!TryTranslatePattern(arm.Pattern, governingText, out var pattern))
+                {
+                    Reason ??= "Switch-expression contains an unsupported pattern.";
+                    return SyntaxFactory.ParseExpression("0");
+                }
+
+                if (arm.WhenClause is { } whenClause)
+                {
+                    if (Visit(whenClause.Condition) is not ExpressionSyntax whenCondition)
+                    {
+                        Reason ??= "Switch-expression guard could not be translated.";
+                        return SyntaxFactory.ParseExpression("0");
+                    }
+
+                    pattern = $"({pattern} && {whenCondition.ToFullString().Trim()})";
+                }
+
+                if (result is null)
+                {
+                    Reason ??= "Switch-expression requires a final discard arm.";
+                    return SyntaxFactory.ParseExpression("0");
+                }
+
+                result = $"({pattern} ? {value} : {result})";
+            }
+
+            return result is null
+                ? SyntaxFactory.ParseExpression("0")
+                : SyntaxFactory.ParseExpression(result);
+        }
+
+        private bool TryTranslatePattern(PatternSyntax pattern, string expression, out string translated)
+        {
+            switch (pattern)
+            {
+                case DiscardPatternSyntax:
+                    translated = "true";
+                    return true;
+                case TypePatternSyntax typePattern:
+                    if (GetTypeInfo(typePattern.Type).Type is ITypeSymbol type && TryMap(type, out _))
+                    {
+                        translated = "true";
+                        return true;
+                    }
+
+                    break;
+                case DeclarationPatternSyntax declaration:
+                    if (GetTypeInfo(declaration.Type).Type is ITypeSymbol declarationType &&
+                        TryMap(declarationType, out _) &&
+                        declaration.Designation is SingleVariableDesignationSyntax designation &&
+                        GetDeclaredSymbol(designation) is ILocalSymbol declarationLocal)
+                    {
+                        _patternVariables[declarationLocal] = expression;
+                        translated = "true";
+                        return true;
+                    }
+
+                    break;
+                case VarPatternSyntax variablePattern when
+                    variablePattern.Designation is SingleVariableDesignationSyntax variableDesignation &&
+                    GetDeclaredSymbol(variableDesignation) is ILocalSymbol variableLocal:
+                    _patternVariables[variableLocal] = expression;
+                    translated = "true";
+                    return true;
+                case ConstantPatternSyntax constant:
+                    if (Visit(constant.Expression) is ExpressionSyntax constantExpression)
+                    {
+                        translated = $"({expression} == {constantExpression.ToFullString().Trim()})";
+                        return true;
+                    }
+
+                    break;
+                case RelationalPatternSyntax relational:
+                    if (Visit(relational.Expression) is ExpressionSyntax relationalExpression)
+                    {
+                        translated = $"({expression} {relational.OperatorToken.Text} {relationalExpression.ToFullString().Trim()})";
+                        return true;
+                    }
+
+                    break;
+                case BinaryPatternSyntax binary when binary.OperatorToken.IsKind(SyntaxKind.AndKeyword) ||
+                    binary.OperatorToken.IsKind(SyntaxKind.OrKeyword):
+                    if (TryTranslatePattern(binary.Left, expression, out var left) &&
+                        TryTranslatePattern(binary.Right, expression, out var right))
+                    {
+                        var op = binary.OperatorToken.IsKind(SyntaxKind.AndKeyword) ? "&&" : "||";
+                        translated = $"({left} {op} {right})";
+                        return true;
+                    }
+
+                    break;
+                case RecursivePatternSyntax recursive when
+                    (recursive.Type is null ||
+                     GetTypeInfo(recursive.Type).Type is ITypeSymbol recursiveType && TryGetShaderType(recursiveType, out _)) &&
+                    recursive.PositionalPatternClause is null && recursive.PropertyPatternClause is { } properties:
+                    var propertyConditions = new List<string>(properties.Subpatterns.Count);
+                    foreach (var subpattern in properties.Subpatterns)
+                    {
+                        var member = GetSymbolInfo(subpattern.NameColon!.Name).Symbol;
+                        if (member is not IFieldSymbol and not IPropertySymbol)
+                        {
+                            translated = string.Empty;
+                            return false;
+                        }
+
+                        var memberName = member switch
+                        {
+                            IFieldSymbol field when _structFields.TryGetValue(field, out var fieldName) => fieldName,
+                            IPropertySymbol property when _structProperties.TryGetValue(property, out var propertyName) => propertyName,
+                            _ => member.Name
+                        };
+                        if (!TryTranslatePattern(subpattern.Pattern, expression + "." + memberName, out var propertyCondition))
+                        {
+                            translated = string.Empty;
+                            return false;
+                        }
+
+                        propertyConditions.Add(propertyCondition);
+                    }
+
+                    translated = propertyConditions.Count == 0
+                        ? "true"
+                        : "(" + string.Join(" && ", propertyConditions) + ")";
+                    return true;
+                case UnaryPatternSyntax negated when negated.OperatorToken.IsKind(SyntaxKind.NotKeyword) &&
+                    TryTranslatePattern(negated.Pattern, expression, out var negatedPattern):
+                    translated = "!(" + negatedPattern + ")";
+                    return true;
+                case ParenthesizedPatternSyntax parenthesized:
+                    return TryTranslatePattern(parenthesized.Pattern, expression, out translated);
+            }
+
+            translated = string.Empty;
+            return false;
         }
 
         public override SyntaxNode? VisitLocalDeclarationStatement(LocalDeclarationStatementSyntax node)
@@ -640,6 +1343,13 @@ internal static class ShaderBodyTranslator
 
             if (!_computeMode)
             {
+                if (node.Declaration.Variables.Count == 1 &&
+                    GetDeclaredSymbol(node.Declaration.Variables[0]) is ILocalSymbol hoistedLocal &&
+                    _hoistedLocals.Contains(hoistedLocal))
+                {
+                    return TranslateLocalDeclaration(node.Declaration);
+                }
+
                 if (node.Declaration.Variables.Count == 1 &&
                     node.Declaration.Variables[0].Initializer is { } initializer)
                 {
@@ -669,9 +1379,9 @@ internal static class ShaderBodyTranslator
 
         private StatementSyntax? TranslateLocalDeclaration(VariableDeclarationSyntax declaration)
         {
-            if (declaration.Variables.Count != 1 || declaration.Variables[0].Initializer is not { } initializer)
+            if (declaration.Variables.Count != 1)
             {
-                Reason ??= "Local declarations require exactly one initialized variable in a compute shader body.";
+                Reason ??= "Local declarations require exactly one shader value per declaration.";
                 return null;
             }
 
@@ -682,8 +1392,22 @@ internal static class ShaderBodyTranslator
                 return null;
             }
 
+            if (_hoistedLocals.Contains(local))
+            {
+                if (variable.Initializer is not { } hoistedInitializer ||
+                    Visit(hoistedInitializer.Value) is not ExpressionSyntax rewrittenHoistedInitializer)
+                {
+                    return SyntaxFactory.EmptyStatement();
+                }
+
+                return SyntaxFactory.ParseStatement(
+                    $"{_locals[local]} = {rewrittenHoistedInitializer.ToFullString().Trim()};");
+            }
+
             var type = declaration.Type.IsVar
-                ? GetTypeInfo(initializer.Value).ConvertedType ?? GetTypeInfo(initializer.Value).Type
+                ? variable.Initializer is { } inferredInitializer
+                    ? GetTypeInfo(inferredInitializer.Value).ConvertedType ?? GetTypeInfo(inferredInitializer.Value).Type
+                    : null
                 : GetTypeInfo(declaration.Type).Type;
             if (_computeMode && type is INamedTypeSymbol statelessType &&
                 ShaderStructSupport.IsStateless(statelessType) &&
@@ -698,14 +1422,24 @@ internal static class ShaderBodyTranslator
                 return null;
             }
 
-            if (Visit(initializer.Value) is not ExpressionSyntax rewrittenInitializer)
+            var localName = CreateLocalName(local.Name);
+            _locals[local] = localName;
+            if (variable.Initializer is null)
+            {
+                if (!TryCreateZeroValue(type, out var zero))
+                {
+                    return null;
+                }
+
+                return SyntaxFactory.ParseStatement($"{glslType} {localName} = {zero.ToFullString()};");
+            }
+
+            if (Visit(variable.Initializer.Value) is not ExpressionSyntax rewrittenInitializer)
             {
                 Reason ??= "Compute shader local initializer could not be translated.";
                 return null;
             }
 
-            var localName = CreateLocalName(local.Name);
-            _locals[local] = localName;
             return SyntaxFactory.ParseStatement($"{glslType} {localName} = {rewrittenInitializer.ToFullString().Trim()};");
         }
 
@@ -802,6 +1536,17 @@ internal static class ShaderBodyTranslator
 
             if (!_computeMode)
             {
+                if (node.Expression is AssignmentExpressionSyntax graphicsAssignment &&
+                    (graphicsAssignment.Left is MemberAccessExpressionSyntax or IdentifierNameSyntax) &&
+                    GetSymbolInfo(graphicsAssignment.Left).Symbol is IFieldSymbol or IPropertySymbol &&
+                    IsSupportedAssignmentOperator(graphicsAssignment.Kind()) &&
+                    Visit(graphicsAssignment.Left) is ExpressionSyntax rewrittenGraphicsMember &&
+                    Visit(graphicsAssignment.Right) is ExpressionSyntax rewrittenValue)
+                {
+                    return SyntaxFactory.ParseStatement(
+                        $"{rewrittenGraphicsMember.ToFullString().Trim()} {graphicsAssignment.OperatorToken.Text} {rewrittenValue.ToFullString().Trim()};");
+                }
+
                 return base.VisitExpressionStatement(node);
             }
 
@@ -874,6 +1619,16 @@ internal static class ShaderBodyTranslator
                 }
 
                 return SyntaxFactory.ParseStatement($"{outputName} = {rewrittenValue.ToFullString().Trim()};");
+            }
+
+            if ((assignment.Left is MemberAccessExpressionSyntax or IdentifierNameSyntax) &&
+                GetSymbolInfo(assignment.Left).Symbol is IFieldSymbol or IPropertySymbol &&
+                Visit(assignment.Left) is ExpressionSyntax rewrittenMember &&
+                Visit(assignment.Right) is ExpressionSyntax rewrittenMemberValue &&
+                IsSupportedAssignmentOperator(assignment.Kind()))
+            {
+                return SyntaxFactory.ParseStatement(
+                    $"{rewrittenMember.ToFullString().Trim()} {assignment.OperatorToken.Text} {rewrittenMemberValue.ToFullString().Trim()};");
             }
 
             Reason ??= "Compute shader assignments must target a local or indexed storage buffer.";
@@ -1060,11 +1815,7 @@ internal static class ShaderBodyTranslator
                     return false;
                 }
 
-                var getter = syntax.ExpressionBody?.Expression ??
-                    syntax.AccessorList?.Accessors
-                        .Where(accessor => accessor.IsKind(SyntaxKind.GetAccessorDeclaration))
-                        .Select(accessor => accessor.ExpressionBody?.Expression)
-                        .FirstOrDefault(value => value is not null);
+                var getter = GetSimpleGetterExpression(syntax);
                 if (getter is null && syntax.Initializer?.Value is { } initializer &&
                     HasConstantValue(initializer))
                 {
@@ -1110,11 +1861,7 @@ internal static class ShaderBodyTranslator
                 return false;
             }
 
-            var getter = syntax.ExpressionBody?.Expression ??
-                syntax.AccessorList?.Accessors
-                    .Where(accessor => accessor.IsKind(SyntaxKind.GetAccessorDeclaration))
-                    .Select(accessor => accessor.ExpressionBody?.Expression)
-                    .FirstOrDefault(value => value is not null);
+            var getter = GetSimpleGetterExpression(syntax);
             if (getter is null)
             {
                 return false;
@@ -1158,6 +1905,26 @@ internal static class ShaderBodyTranslator
             }
 
             return expression is not null;
+        }
+
+        private static ExpressionSyntax? GetSimpleGetterExpression(PropertyDeclarationSyntax syntax)
+        {
+            if (syntax.ExpressionBody?.Expression is { } expression)
+            {
+                return expression;
+            }
+
+            var getter = syntax.AccessorList?.Accessors.FirstOrDefault(accessor =>
+                accessor.IsKind(SyntaxKind.GetAccessorDeclaration));
+            if (getter?.ExpressionBody?.Expression is { } expressionBody)
+            {
+                return expressionBody;
+            }
+
+            return getter?.Body?.Statements.Count == 1 &&
+                getter.Body.Statements[0] is ReturnStatementSyntax { Expression: { } returnExpression }
+                ? returnExpression
+                : null;
         }
 
         private bool IsPropertyDeclaredInActiveCompilation(IPropertySymbol property)
@@ -1708,6 +2475,19 @@ internal static class ShaderBodyTranslator
             return TryGetSemanticModel(designation)?.GetDeclaredSymbol(designation);
         }
 
+        private ISymbol? GetDeclaredSymbol(ForEachStatementSyntax statement)
+        {
+            return TryGetSemanticModel(statement)?.GetDeclaredSymbol(statement);
+        }
+
+        private static bool IsSupportedAssignmentOperator(SyntaxKind kind)
+            => kind is SyntaxKind.SimpleAssignmentExpression or
+                SyntaxKind.AddAssignmentExpression or
+                SyntaxKind.SubtractAssignmentExpression or
+                SyntaxKind.MultiplyAssignmentExpression or
+                SyntaxKind.DivideAssignmentExpression or
+                SyntaxKind.ModuloAssignmentExpression;
+
         private bool HasConstantValue(ExpressionSyntax expression)
         {
             return TryGetSemanticModel(expression)?.GetConstantValue(expression).HasValue == true;
@@ -1722,7 +2502,7 @@ internal static class ShaderBodyTranslator
 
             var type = typeInfo.Type;
             if (type is INamedTypeSymbol structType &&
-                TryTranslateStructCreation(structType, node.Initializer, out var structExpression))
+                TryTranslateStructCreation(structType, node.ArgumentList, node.Initializer, out var structExpression))
             {
                 return structExpression;
             }
@@ -1744,7 +2524,7 @@ internal static class ShaderBodyTranslator
 
             var type = typeInfo.ConvertedType ?? typeInfo.Type;
             if (type is INamedTypeSymbol structType &&
-                TryTranslateStructCreation(structType, node.Initializer, out var structExpression))
+                TryTranslateStructCreation(structType, node.ArgumentList, node.Initializer, out var structExpression))
             {
                 return structExpression;
             }
@@ -1763,6 +2543,7 @@ internal static class ShaderBodyTranslator
 
         private bool TryTranslateStructCreation(
             INamedTypeSymbol type,
+            ArgumentListSyntax? arguments,
             InitializerExpressionSyntax? initializer,
             out ExpressionSyntax translated)
         {
@@ -1772,27 +2553,188 @@ internal static class ShaderBodyTranslator
                 return false;
             }
 
-            if (initializer is null || initializer.Expressions.Count == 0)
+            var members = GetStructValueMembers(type).ToArray();
+            var values = new string[members.Length];
+            for (var index = 0; index < members.Length; index++)
             {
-                return TryCreateZeroValue(type, out translated);
-            }
-
-            var assignments = initializer.Expressions.OfType<AssignmentExpressionSyntax>().ToArray();
-            var values = new List<string>();
-            foreach (var member in GetStructValueMembers(type))
-            {
-                var assignment = assignments.FirstOrDefault(candidate =>
-                    SymbolEqualityComparer.Default.Equals(GetSymbolInfo(candidate.Left).Symbol, member));
-                if (assignment is null || Visit(assignment.Right) is not ExpressionSyntax value)
+                var memberType = members[index] is IFieldSymbol field ? field.Type : ((IPropertySymbol)members[index]).Type;
+                if (!TryCreateZeroValue(memberType, out var memberZero))
                 {
-                    Reason ??= $"Local shader struct '{type.Name}' does not initialize member '{member.Name}'.";
+                    translated = SyntaxFactory.ParseExpression("0");
                     return true;
                 }
 
-                values.Add(value.ToFullString().Trim());
+                values[index] = memberZero.ToFullString();
+            }
+
+            if (arguments is { Arguments.Count: > 0 })
+            {
+                var constructor = arguments.Parent is ExpressionSyntax creation
+                    ? GetSymbolInfo(creation).Symbol as IMethodSymbol
+                    : null;
+                var isFieldwiseConstructor = constructor is not null &&
+                    constructor.Parameters.Length == members.Length &&
+                    arguments.Arguments.Count == members.Length &&
+                    constructor.Parameters.Select(parameter => parameter.Type).Zip(
+                        members.Select(member => member is IFieldSymbol field ? field.Type : ((IPropertySymbol)member).Type),
+                        SymbolEqualityComparer.Default.Equals).All(pair => pair);
+                if (isFieldwiseConstructor)
+                {
+                    for (var index = 0; index < arguments.Arguments.Count; index++)
+                    {
+                        if (arguments.Arguments[index].NameColon is not null ||
+                            arguments.Arguments[index].RefKindKeyword.RawKind != 0 ||
+                            Visit(arguments.Arguments[index].Expression) is not ExpressionSyntax value)
+                        {
+                            Reason ??= $"Shader struct '{type.Name}' constructors support only positional value arguments.";
+                            return true;
+                        }
+
+                        values[index] = value.ToFullString().Trim();
+                    }
+                }
+                else if (constructor is null ||
+                         constructor.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is not ConstructorDeclarationSyntax constructorSyntax ||
+                         !TryTranslateValueConstructor(constructor, constructorSyntax, arguments, members, values))
+                {
+                    Reason ??= $"Shader struct '{type.Name}' constructors must be positional fieldwise value constructors or assign value members directly.";
+                    return true;
+                }
+            }
+
+            if (initializer is not null)
+            {
+                foreach (var expression in initializer.Expressions)
+                {
+                    if (expression is not AssignmentExpressionSyntax assignment ||
+                        GetSymbolInfo(assignment.Left).Symbol is not ISymbol assignedMember)
+                    {
+                        Reason ??= $"Shader struct '{type.Name}' initializers must contain named value assignments.";
+                        return true;
+                    }
+
+                    var memberIndex = Array.FindIndex(members, member =>
+                        SymbolEqualityComparer.Default.Equals(member, assignedMember));
+                    if (memberIndex < 0 || Visit(assignment.Right) is not ExpressionSyntax value)
+                    {
+                        Reason ??= $"Shader struct '{type.Name}' initializer targets an unsupported member.";
+                        return true;
+                    }
+
+                    values[memberIndex] = value.ToFullString().Trim();
+                }
             }
 
             translated = SyntaxFactory.ParseExpression(structName + "(" + string.Join(", ", values) + ")");
+            return true;
+        }
+
+        private bool TryTranslateValueConstructor(
+            IMethodSymbol constructor,
+            ConstructorDeclarationSyntax syntax,
+            ArgumentListSyntax arguments,
+            IReadOnlyList<ISymbol> members,
+            string[] values)
+        {
+            if (arguments.Arguments.Count != constructor.Parameters.Length ||
+                syntax.Initializer is { ArgumentList.Arguments.Count: > 0 })
+            {
+                return false;
+            }
+
+            var argumentValues = new string[arguments.Arguments.Count];
+            for (var index = 0; index < arguments.Arguments.Count; index++)
+            {
+                var argument = arguments.Arguments[index];
+                if (argument.NameColon is not null || argument.RefKindKeyword.RawKind != 0 ||
+                    Visit(argument.Expression) is not ExpressionSyntax value)
+                {
+                    return false;
+                }
+
+                argumentValues[index] = value.ToFullString().Trim();
+            }
+
+            var previousValues = new Dictionary<IParameterSymbol, string>(SymbolEqualityComparer.Default);
+            try
+            {
+                for (var index = 0; index < constructor.Parameters.Length; index++)
+                {
+                    var parameter = constructor.Parameters[index];
+                    if (_valueSubstitutions.TryGetValue(parameter, out var previous))
+                    {
+                        previousValues[parameter] = previous;
+                    }
+
+                    _valueSubstitutions[parameter] = argumentValues[index];
+                    _valueSubstitutions[parameter.OriginalDefinition] = argumentValues[index];
+                }
+
+                if (syntax.ExpressionBody?.Expression is { } expressionBody)
+                {
+                    if (expressionBody is not AssignmentExpressionSyntax assignment ||
+                        !TryApplyValueConstructorAssignment(assignment, members, values))
+                    {
+                        return false;
+                    }
+                }
+                else
+                {
+                    foreach (var statement in syntax.Body?.Statements ?? [])
+                    {
+                        if (statement is not ExpressionStatementSyntax
+                            {
+                                Expression: AssignmentExpressionSyntax assignment
+                            } || !TryApplyValueConstructorAssignment(assignment, members, values))
+                        {
+                            return false;
+                        }
+                    }
+                }
+
+                return true;
+            }
+            finally
+            {
+                foreach (var parameter in constructor.Parameters)
+                {
+                    _valueSubstitutions.Remove(parameter);
+                    _valueSubstitutions.Remove(parameter.OriginalDefinition);
+                    if (previousValues.TryGetValue(parameter, out var previous))
+                    {
+                        _valueSubstitutions[parameter] = previous;
+                    }
+                }
+            }
+        }
+
+        private bool TryApplyValueConstructorAssignment(
+            AssignmentExpressionSyntax assignment,
+            IReadOnlyList<ISymbol> members,
+            string[] values)
+        {
+            if (!assignment.IsKind(SyntaxKind.SimpleAssignmentExpression) ||
+                GetSymbolInfo(assignment.Left).Symbol is not ISymbol assignedMember)
+            {
+                return false;
+            }
+
+            var memberIndex = -1;
+            for (var index = 0; index < members.Count; index++)
+            {
+                if (SymbolEqualityComparer.Default.Equals(members[index], assignedMember))
+                {
+                    memberIndex = index;
+                    break;
+                }
+            }
+
+            if (memberIndex < 0 || Visit(assignment.Right) is not ExpressionSyntax value)
+            {
+                return false;
+            }
+
+            values[memberIndex] = value.ToFullString().Trim();
             return true;
         }
 

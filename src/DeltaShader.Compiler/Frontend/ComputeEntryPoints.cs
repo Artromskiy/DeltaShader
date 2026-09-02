@@ -318,9 +318,10 @@ public static class ComputeEntryPoints
 
             foreach (var assignment in helperBody.DescendantNodesAndSelf().OfType<AssignmentExpressionSyntax>())
             {
-                if (model.GetSymbolInfo(assignment.Left).Symbol is IPropertySymbol)
+                if (model.GetSymbolInfo(assignment.Left).Symbol is IPropertySymbol property &&
+                    (property.IsStatic || !ShaderStructSupport.IsAutoProperty(property)))
                 {
-                    failureReason = $"Compute shader helper '{definition.Name}' cannot mutate a property.";
+                    failureReason = $"Compute shader helper '{definition.Name}' can mutate only instance auto-properties of value structs.";
                     return false;
                 }
             }
@@ -521,7 +522,8 @@ public static class ComputeEntryPoints
                     structNames: structNames,
                     structFields: structFields,
                     structProperties: structProperties,
-                    helperReceivers: helperReceivers);
+                    helperReceivers: helperReceivers,
+                    outputParameters: outputParameters);
             }
             else
             {
@@ -681,17 +683,27 @@ public static class ComputeEntryPoints
         }
 
         return property.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is PropertyDeclarationSyntax syntax &&
-            (syntax.ExpressionBody?.Expression is not null ||
-             syntax.AccessorList?.Accessors.Any(accessor =>
-                 accessor.IsKind(SyntaxKind.GetAccessorDeclaration) && accessor.ExpressionBody?.Expression is not null) == true ||
+            (HasSimpleGetter(syntax) ||
              syntax.Initializer?.Value is not null);
     }
 
     private static bool IsExpressionBodiedProperty(IPropertySymbol property)
         => property.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is PropertyDeclarationSyntax syntax &&
-           (syntax.ExpressionBody?.Expression is not null ||
-            syntax.AccessorList?.Accessors.Any(accessor =>
-                accessor.IsKind(SyntaxKind.GetAccessorDeclaration) && accessor.ExpressionBody?.Expression is not null) == true);
+           HasSimpleGetter(syntax);
+
+    private static bool HasSimpleGetter(PropertyDeclarationSyntax syntax)
+    {
+        if (syntax.ExpressionBody?.Expression is not null)
+        {
+            return true;
+        }
+
+        var getter = syntax.AccessorList?.Accessors.FirstOrDefault(accessor =>
+            accessor.IsKind(SyntaxKind.GetAccessorDeclaration));
+        return getter?.ExpressionBody?.Expression is not null ||
+            getter?.Body?.Statements.Count == 1 &&
+            getter.Body.Statements[0] is ReturnStatementSyntax { Expression: not null };
+    }
 
     private static bool IsCompileTimeOnlyMember(IFieldSymbol field, IMethodSymbol method)
     {

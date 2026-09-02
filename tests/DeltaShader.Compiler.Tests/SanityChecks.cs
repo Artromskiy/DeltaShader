@@ -2592,6 +2592,10 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Shader;
+            public struct PatternValue
+            {
+                public uint Value;
+            }
             public struct ComputeContext
             {
                 [Layout(0, 0)] public ReadOnlyStorageBuffer<uint> Input;
@@ -2653,7 +2657,7 @@ public class IntrinsicCatalogTests
     }
 
     [Fact]
-    public async Task Compute_RejectsPropertyMutationInInstanceHelper()
+    public async Task Compute_LowersPropertyMutationInInstanceHelper()
     {
         const string source = @"
             using Delta.Shader;
@@ -2685,8 +2689,201 @@ public class IntrinsicCatalogTests
         Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
         ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
 
-        Assert.False(result.Success);
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Message.Contains("mutate a property", StringComparison.Ordinal));
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        Assert.Contains("member_Bias = 2u", string.Join(Environment.NewLine, result.Module!.HelperFunctions), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Compute_LowersWhileDoForeachAndGotoWithHoistedLocals()
+    {
+        const string source = """
+            using Delta.Shader;
+            public struct ComputeContext
+            {
+                [Layout(0, 0)] public ReadOnlyStorageBuffer<uint> Input;
+                [Layout(0, 1)] public ReadWriteStorageBuffer<uint> Output;
+            }
+            public static class LanguageShader
+            {
+                [ComputeShader(localSizeX: 64)]
+                public static void Compute(in ComputeContext context)
+                {
+                    uint id = ShaderBuiltins.GlobalInvocationId.X;
+                    uint cursor = 0u;
+                    while (cursor < 2u) { cursor += 1u; }
+                    do { cursor -= 1u; } while (cursor > 0u);
+                    foreach (uint value in context.Input)
+                    {
+                        context.Output[id] = value;
+                        break;
+                    }
+                    goto write;
+                    cursor = 99u;
+                write:
+                    context.Output[id] = cursor;
+                }
+            }
+            """;
+
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        Assert.Contains("__delta_goto_state", result.Module!.Body, StringComparison.Ordinal);
+        Assert.Contains("__delta_foreach_", result.Module.Body, StringComparison.Ordinal);
+        Assert.Contains("while", result.Module.Body, StringComparison.Ordinal);
+        Assert.Contains("do", result.Module.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Compute_LowersMultiOutputHelper()
+    {
+        const string source = """
+            using Delta.Shader;
+            public struct ComputeContext
+            {
+                [Layout(0, 0)] public ReadOnlyStorageBuffer<uint> Input;
+                [Layout(0, 1)] public ReadWriteStorageBuffer<uint> Output;
+            }
+            public static class OutShader
+            {
+                private static void Split(uint value, out uint twice, out uint plus)
+                {
+                    twice = value * 2u;
+                    plus = value + 3u;
+                }
+
+                [ComputeShader(localSizeX: 64)]
+                public static void Compute(in ComputeContext context)
+                {
+                    uint id = ShaderBuiltins.GlobalInvocationId.X;
+                    uint twice;
+                    uint plus;
+                    Split(context.Input[id], out twice, out plus);
+                    context.Output[id] = twice + plus;
+                }
+            }
+            """;
+
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        string helpers = string.Join(Environment.NewLine, result.Module!.HelperFunctions);
+        Assert.Contains("out uint arg_twice", helpers, StringComparison.Ordinal);
+        Assert.Contains("out uint arg_plus", helpers, StringComparison.Ordinal);
+        Assert.Contains("arg_twice =", helpers, StringComparison.Ordinal);
+        Assert.Contains("arg_plus =", helpers, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Compute_LowersSwitchPatternsAndGuards()
+    {
+        const string source = """
+            using Delta.Shader;
+            public struct PatternValue
+            {
+                public uint Value;
+            }
+            public struct ComputeContext
+            {
+                [Layout(0, 0)] public ReadOnlyStorageBuffer<uint> Input;
+                [Layout(0, 1)] public ReadWriteStorageBuffer<uint> Output;
+            }
+            public static class PatternShader
+            {
+                [ComputeShader(localSizeX: 64)]
+                public static void Compute(in ComputeContext context)
+                {
+                    uint id = ShaderBuiltins.GlobalInvocationId.X;
+                    uint value = context.Input[id];
+                    uint result;
+                    switch (value)
+                    {
+                        case 0u:
+                        case 1u:
+                            result = 1u;
+                            break;
+                        case uint large when large > 10u:
+                            result = 3u;
+                            break;
+                        default:
+                            result = 2u;
+                            break;
+                    }
+                    context.Output[id] = result;
+                    uint expressionResult = value switch
+                    {
+                        0u or 1u => 4u,
+                        uint largeValue when largeValue > 20u => 5u,
+                        _ => 6u
+                    };
+                    PatternValue patternValue = default;
+                    uint structuredResult = patternValue switch
+                    {
+                        PatternValue { Value: 0u } => 7u,
+                        _ => 8u
+                    };
+                    context.Output[id] = result + expressionResult + structuredResult;
+                }
+            }
+            """;
+
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        Assert.Contains("== 0u", result.Module!.Body, StringComparison.Ordinal);
+        Assert.Contains("> 10u", result.Module.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain("large", result.Module.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Compute_LowersValueConstructorAndNestedDefault()
+    {
+        const string source = """
+            using Delta.Shader;
+            public struct Inner
+            {
+                public uint Value;
+
+                public Inner(uint value) => Value = value;
+            }
+            public struct Outer
+            {
+                public Inner Inner;
+                public uint Scale;
+
+                public Outer(uint value)
+                {
+                    Inner = new Inner(value);
+                    Scale = 2u;
+                }
+            }
+            public struct ComputeContext
+            {
+                [Layout(0, 0)] public ReadOnlyStorageBuffer<uint> Input;
+                [Layout(0, 1)] public ReadWriteStorageBuffer<uint> Output;
+            }
+            public static class ConstructorShader
+            {
+                [ComputeShader(localSizeX: 64)]
+                public static void Compute(in ComputeContext context)
+                {
+                    uint id = ShaderBuiltins.GlobalInvocationId.X;
+                    Outer value = new Outer(context.Input[id]);
+                    Outer zero = default;
+                    context.Output[id] = value.Inner.Value + zero.Scale;
+                }
+            }
+            """;
+
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        Assert.Contains("DeltaStruct_Outer", result.Module!.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain("default", result.Module.Body, StringComparison.Ordinal);
     }
 
     [Fact]
