@@ -15,6 +15,9 @@
     <PackageVersion Include="xunit" Version="2.9.2" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.0.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.11.0" />
+    <PackageVersion Include="DeltaShader.Compiler" Version="*" />
+    <PackageVersion Include="DeltaShader.Analyzers" Version="*" />
+    <PackageVersion Include="DeltaShader.Contract" Version="*" />
     <PackageVersion Include="DeltaShader.Tool" Version="*" />
     <PackageVersion Include="DeltaMaths" Version="*" />
   </ItemGroup>

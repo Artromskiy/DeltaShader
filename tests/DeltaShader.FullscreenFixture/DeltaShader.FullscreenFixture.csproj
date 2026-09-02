@@ -14,9 +14,10 @@
 
   <ItemGroup>
     <Compile Include="..\DeltaShader.TestShaders\Shaders\FullscreenUi.cs" Link="FullscreenUi.cs" />
-    <ProjectReference Include="..\..\src\DeltaShader.Contract\DeltaShader.Contract.csproj" />
-    <ProjectReference Include="..\..\src\DeltaShader\DeltaShader.csproj" />
     <PackageReference Include="DeltaMaths" />
+    <PackageReference Include="DeltaShader.Compiler" PrivateAssets="all" />
+    <PackageReference Include="DeltaShader.Analyzers" PrivateAssets="all" OutputItemType="Analyzer" />
+    <PackageReference Include="DeltaShader.Contract" PrivateAssets="all" />
     <PackageReference Include="DeltaShader.Tool" PrivateAssets="all" />
   </ItemGroup>
 </Project>
