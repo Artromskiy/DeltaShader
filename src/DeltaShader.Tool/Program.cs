@@ -113,15 +113,16 @@ static async Task<int> ExecuteEmitAsync(ProgramOptions options)
             }
 
             var spirvFile = Path.Combine(outputDirectory, $"{fileStem}.spv");
-            var optimizationFlag = options.CompilationOptions.Optimization switch
-            {
-                ShaderOptimizationMode.Performance => "-O",
-                ShaderOptimizationMode.Size => "-Os",
-                _ => string.Empty
-            };
-            var compile = optimizationFlag.Length == 0
-                ? ProcessRunner.Run(glslang, "-V", "--target-env", options.CompilationOptions.Profile, "-S", stageSuffix, glslFile, "-o", spirvFile)
-                : ProcessRunner.Run(glslang, "-V", "--target-env", options.CompilationOptions.Profile, optimizationFlag, "-S", stageSuffix, glslFile, "-o", spirvFile);
+            var compile = ProcessRunner.Run(
+                glslang,
+                "-V",
+                "--target-env",
+                options.CompilationOptions.Profile,
+                "-S",
+                stageSuffix,
+                glslFile,
+                "-o",
+                spirvFile);
             if (!ReportProcessFailure(compile, "glslangValidator"))
             {
                 return 1;

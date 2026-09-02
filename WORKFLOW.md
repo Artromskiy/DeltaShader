@@ -80,11 +80,11 @@ dotnet run --project src/DeltaShader.Tool/DeltaShader.Tool.csproj \
   --optimize performance --out "$out_dir"
 ```
 
-It uses `--optimize performance`: `glslangValidator -O` is followed by
-`spirv-opt -O`, and every resulting SPIR-V module is then validated by
-`spirv-val`. The CLI also accepts `--optimize none|performance|size`; `size`
-uses `-Os` in both compiler stages. Every SPIR-V result is validated after
-optimization.
+It uses `--optimize performance`: `glslangValidator` compiles without an
+optimization flag for compatibility across runner versions, then `spirv-opt -O`
+optimizes the module, and `spirv-val` validates the result. The CLI also accepts
+`--optimize none|performance|size`; `size` uses `spirv-opt -Os`. Every SPIR-V
+result is validated after optimization.
 
 Build folders, lock files and temporary validator output are not publication
 members. There is no persistent `CompiledShaders` output to consume.
