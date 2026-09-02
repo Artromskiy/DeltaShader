@@ -16,9 +16,7 @@
     <ProjectReference Include="..\..\src\DeltaShader.Contract\DeltaShader.Contract.csproj" />
     <ProjectReference Include="..\\..\\src\\DeltaShader\\DeltaShader.csproj" />
     <ProjectReference Include="..\\..\\src\\DeltaShader.Text\\DeltaShader.Text.csproj" />
-    <ProjectReference Include="..\\..\\..\\DeltaMaths\\src\\DeltaMaths\\DeltaMaths.csproj">
-      <SetTargetFramework>TargetFramework=netstandard2.1</SetTargetFramework>
-    </ProjectReference>
+    <PackageReference Include="DeltaMaths" />
     <PackageReference Include="DeltaShader.Tool" PrivateAssets="all" />
   </ItemGroup>
 </Project>

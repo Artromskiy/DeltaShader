@@ -2,7 +2,10 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <RootNamespace>Delta.Shader.Compiler</RootNamespace>
-    <IsPackable>false</IsPackable>
+    <AssemblyName>DeltaShader.Compiler</AssemblyName>
+    <PackageId>DeltaShader.Compiler</PackageId>
+    <Description>Build-time DeltaShader compiler frontend and typed shader IR.</Description>
+    <PackageTags>shader;compiler;roslyn;glsl;spirv</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

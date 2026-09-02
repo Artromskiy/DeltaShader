@@ -2,7 +2,10 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <RootNamespace>Delta.Shader.Analyzers</RootNamespace>
-    <IsPackable>false</IsPackable>
+    <AssemblyName>DeltaShader.Analyzers</AssemblyName>
+    <PackageId>DeltaShader.Analyzers</PackageId>
+    <Description>Roslyn analyzers and source generators for DeltaShader.</Description>
+    <PackageTags>shader;roslyn;analyzer;source-generator</PackageTags>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <IncludeSymbols>false</IncludeSymbols>
     <EnableNETAnalyzers>false</EnableNETAnalyzers>
@@ -20,4 +23,19 @@
   <Target Name="CopyDeltaShaderAnalyzerDependencies" AfterTargets="Build">
     <Copy SourceFiles="@(ReferenceCopyLocalPaths)" DestinationFolder="$(TargetDir)" SkipUnchangedFiles="true" />
   </Target>
+
+  <Target Name="CollectDeltaShaderAnalyzerPackageFiles" Returns="@(TfmSpecificPackageFile)">
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="$(TargetPath)">
+        <PackagePath>analyzers/dotnet/cs/$(TargetFileName)</PackagePath>
+      </TfmSpecificPackageFile>
+      <TfmSpecificPackageFile Include="$(TargetDir)Microsoft.CodeAnalysis*.dll;$(TargetDir)System.Text.Json.dll">
+        <PackagePath>analyzers/dotnet/cs/%(Filename)%(Extension)</PackagePath>
+      </TfmSpecificPackageFile>
+    </ItemGroup>
+  </Target>
+
+  <PropertyGroup>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);CollectDeltaShaderAnalyzerPackageFiles</TargetsForTfmSpecificContentInPackage>
+  </PropertyGroup>
 </Project>

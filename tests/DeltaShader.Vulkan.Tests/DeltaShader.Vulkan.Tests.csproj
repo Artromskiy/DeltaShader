@@ -11,7 +11,7 @@
     <ProjectReference Include="..\..\src\DeltaShader.Contract\DeltaShader.Contract.csproj" />
     <ProjectReference Include="..\\..\\src\\DeltaShader.Backend.Glsl\\DeltaShader.Backend.Glsl.csproj" />
     <ProjectReference Include="..\\..\\src\\DeltaShader.Compiler\\DeltaShader.Compiler.csproj" />
-    <ProjectReference Include="..\\..\\src\\DeltaShader.Tool\\DeltaShader.Tool.csproj" />
+    <PackageReference Include="DeltaShader.Tool" PrivateAssets="all" />
     <ProjectReference Include="..\\..\\src\\DeltaShader.Text\\DeltaShader.Text.csproj" />
     <ProjectReference Include="..\\..\\..\\DeltaRender\\src\\DeltaRender\\DeltaRender.csproj" />
     <ProjectReference Include="..\\..\\..\\DeltaRender\\src\\DeltaRender.Vulkan\\DeltaRender.Vulkan.csproj" />

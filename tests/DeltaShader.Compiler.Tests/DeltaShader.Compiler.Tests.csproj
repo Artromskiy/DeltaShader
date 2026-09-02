@@ -12,7 +12,7 @@
     <ProjectReference Include="..\\..\\src\\DeltaShader.Analyzers\\DeltaShader.Analyzers.csproj" />
     <ProjectReference Include="..\\..\\src\\DeltaShader.Contract\\DeltaShader.Contract.csproj" />
     <ProjectReference Include="..\\..\\src\\DeltaShader.UI\\DeltaShader.UI.csproj" />
-    <ProjectReference Include="..\\..\\..\\DeltaMaths\\src\\DeltaMaths\\DeltaMaths.csproj" />
+    <PackageReference Include="DeltaMaths" />
     <ProjectReference Include="..\\DeltaShader.Compiler.ReferenceFixtures\\DeltaShader.Compiler.ReferenceFixtures.csproj" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />

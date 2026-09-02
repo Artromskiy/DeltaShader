@@ -15,9 +15,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/DeltaShader/DeltaShader.csproj" />
     <ProjectReference Include="../../src/DeltaShader.Contract/DeltaShader.Contract.csproj" />
-    <ProjectReference Include="../../../DeltaMaths/src/DeltaMaths/DeltaMaths.csproj">
-      <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
-    </ProjectReference>
+    <PackageReference Include="DeltaMaths" />
     <ProjectReference Include="../../src/DeltaShader.Analyzers/DeltaShader.Analyzers.csproj"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false" />
