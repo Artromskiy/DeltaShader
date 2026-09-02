@@ -54,7 +54,7 @@ After building the package, publish the exact version to NuGet with an API key
 provided through the environment:
 
 ```bash
-dotnet nuget push artifacts/DeltaShader.Tool.0.0.17.nupkg \
+dotnet nuget push artifacts/DeltaShader.Tool.0.0.18.nupkg \
   --source https://api.nuget.org/v3/index.json \
   --api-key "$NUGET_API_KEY" \
   --skip-duplicate \
