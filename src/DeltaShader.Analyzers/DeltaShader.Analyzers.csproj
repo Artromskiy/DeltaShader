@@ -4,7 +4,7 @@
     <RootNamespace>Delta.Shader.Analyzers</RootNamespace>
     <AssemblyName>DeltaShader.Analyzers</AssemblyName>
     <PackageId>DeltaShader.Analyzers</PackageId>
-    <Version>0.0.15</Version>
+    <Version>0.0.16</Version>
     <Description>Roslyn analyzers and source generators for DeltaShader.</Description>
     <PackageTags>shader;roslyn;analyzer;source-generator</PackageTags>
     <IncludeBuildOutput>false</IncludeBuildOutput>
