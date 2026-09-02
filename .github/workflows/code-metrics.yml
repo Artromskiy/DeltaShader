@@ -11,23 +11,41 @@ jobs:
     name: .NET code metrics
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout DeltaShader
         uses: actions/checkout@v5
+        with:
+          path: DeltaShader
+      - name: Checkout DeltaMaths
+        uses: actions/checkout@v5
+        with:
+          repository: Artromskiy/DeltaMaths
+          path: DeltaMaths
+      - name: Checkout DeltaRender
+        uses: actions/checkout@v5
+        with:
+          repository: Artromskiy/DeltaRender
+          path: DeltaRender
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.x
             10.x
+      - name: Configure authenticated GitHub NuGet source
+        working-directory: DeltaShader
+        run: dotnet nuget add source https://nuget.pkg.github.com/Artromskiy/index.json --name github --username Artromskiy --password "${{ github.token }}" --store-password-in-clear-text
       - name: Restore
+        working-directory: DeltaShader
         run: dotnet restore DeltaShader.slnx
       - name: Verify formatting
         continue-on-error: true
+        working-directory: DeltaShader
         run: |
           mkdir -p artifacts/code-metrics
           dotnet format whitespace --folder . --exclude ./obj ./bin --verify-no-changes --verbosity minimal 2>&1 | tee artifacts/code-metrics/format.log
       - name: Build and collect analyzer metrics
         shell: bash
+        working-directory: DeltaShader
         run: |
           set -uo pipefail
           mkdir -p artifacts/code-metrics; set +e
@@ -39,5 +57,5 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: code-metrics
-          path: artifacts/code-metrics
+          path: DeltaShader/artifacts/code-metrics
           if-no-files-found: warn
