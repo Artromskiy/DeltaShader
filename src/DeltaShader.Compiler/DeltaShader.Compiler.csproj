@@ -5,6 +5,9 @@
     <AssemblyName>DeltaShader.Compiler</AssemblyName>
     <PackageId>DeltaShader.Compiler</PackageId>
     <Version>0.0.13</Version>
+    <RepositoryUrl>https://github.com/Artromskiy/DeltaShader</RepositoryUrl>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
     <Description>Build-time DeltaShader compiler frontend and typed shader IR.</Description>
     <PackageTags>shader;compiler;roslyn;glsl;spirv</PackageTags>
   </PropertyGroup>
@@ -23,8 +26,9 @@
 
   <Target Name="CollectDeltaShaderCompilerPackageFiles" Returns="@(TfmSpecificPackageFile)">
     <ItemGroup>
-      <TfmSpecificPackageFile Include="$(MSBuildThisFileDirectory)..\\DeltaShader\\bin\\$(Configuration)\\netstandard2.0\\DeltaShader.dll">
-        <PackagePath>lib/netstandard2.0/DeltaShader.dll</PackagePath>
+      <TfmSpecificPackageFile Include="$(TargetDir)**\\*.dll"
+                              Exclude="$(TargetDir)$(TargetFileName)">
+        <PackagePath>lib/netstandard2.0/</PackagePath>
       </TfmSpecificPackageFile>
     </ItemGroup>
   </Target>
