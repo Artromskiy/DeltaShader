@@ -94,7 +94,7 @@ public sealed class ShadertoyGalleryTests
         var current = new DirectoryInfo(AppContext.BaseDirectory);
         while (current is not null)
         {
-            if (File.Exists(Path.Combine(current.FullName, "DeltaShader.slnx")) &&
+            if (Directory.Exists(Path.Combine(current.FullName, "src", "DeltaShader")) &&
                 Directory.Exists(Path.Combine(current.FullName, "samples", "DeltaShader.ShadertoyGallery")))
             {
                 return current.FullName;
