@@ -7,5 +7,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\\DeltaShader.Compiler\\DeltaShader.Compiler.csproj" />
+    <ProjectReference Include="..\\DeltaShader\\DeltaShader.csproj" />
   </ItemGroup>
 </Project>

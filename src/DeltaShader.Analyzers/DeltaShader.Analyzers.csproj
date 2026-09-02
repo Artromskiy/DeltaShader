@@ -17,6 +17,7 @@
   <ItemGroup>
     <ProjectReference Include="..\\DeltaShader.Backend.Glsl\\DeltaShader.Backend.Glsl.csproj" />
     <ProjectReference Include="..\\DeltaShader.Compiler\\DeltaShader.Compiler.csproj" />
+    <ProjectReference Include="..\\DeltaShader\\DeltaShader.csproj" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" />
     <PackageReference Include="System.Text.Json" />
