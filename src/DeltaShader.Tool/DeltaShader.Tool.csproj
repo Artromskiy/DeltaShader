@@ -42,8 +42,6 @@
                               Exclude="$(TargetDir)**\*.pdb;$(TargetDir)**\*.xml;$(TargetDir)**\*.pri">
         <PackagePath>tools/net10.0/any/%(RecursiveDir)%(Filename)%(Extension)</PackagePath>
       </TfmSpecificPackageFile>
-      <TfmSpecificPackageFile Remove="@(TfmSpecificPackageFile)"
-                              Condition="'%(Filename)' == 'Delta.Shader.Abstractions' or '%(Filename)' == 'Delta.Shader.Compiler'" />
     </ItemGroup>
   </Target>
 
