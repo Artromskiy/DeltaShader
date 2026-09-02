@@ -10,12 +10,10 @@ SPIR-V and `ShaderAbi` data for a renderer.
 - `Delta.Maths` vector, matrix, quaternion and intrinsic operations.
 - Compile-time diagnostics for unsupported shader code and invalid layouts.
 - Generated shader artifacts and typed pack/unpack helpers for consumers.
-- A stable handoff from shader authoring to a renderer without Vulkan types in
-  shader source.
 
 ## Quick start
 
-Add the authoring and build packages to the project that owns the shader source:
+Add the packages to the project that owns the shader source:
 
 ```xml
 <PropertyGroup>
@@ -31,12 +29,9 @@ Add the authoring and build packages to the project that owns the shader source:
 </ItemGroup>
 ```
 
-Write a static entry point using the public shader API:
-
 ```csharp
 using Delta.Maths;
 using Delta.Shader;
-using static Delta.Maths.maths;
 
 public readonly struct ComputeContext
 {
@@ -55,38 +50,36 @@ public static class ExampleShader
 }
 ```
 
-The project produces validated stage source and binary artifacts together with
-the resolved ABI and generated typed accessors for the owning application.
+The project produces validated stage source and binary artifacts, a resolved
+ABI and generated typed accessors for the owning application.
 
 ## Core concepts
 
-Shader source -> compiler diagnostics -> GLSL/SPIR-V + `ShaderAbi` -> renderer
+Shader source -> diagnostics -> GLSL/SPIR-V + `ShaderAbi` -> renderer
 
-Entry-point contexts are ordinary blittable value types. Resource fields,
-push-constant fields and stage payloads are described by the public API; the
-consumer supplies CLR values and uses generated helpers rather than recreating
-GPU layout rules.
+Contexts are blittable value types. Resources, push constants and stage data
+are declared through the public API; consumers use generated helpers instead
+of reproducing GPU layout rules.
 
 ## Capabilities and limits
 
-DeltaShader targets the Vulkan GLSL 460/SPIR-V profile. Supported code must be
-static, shader-visible C# and use supported value types and operations.
-
-Managed references, classes, delegates, reflection, runtime services and
-runtime shader compilation are not shader inputs. CLR layout is not used as a
-GPU layout: unsupported fields and ambiguous stage interfaces produce compiler
-diagnostics. Graphics programs require a valid vertex/fragment interface.
+DeltaShader targets the Vulkan GLSL 460/SPIR-V profile. Shader code must be
+static, shader-visible C# using supported value types and operations. Managed
+references, classes, delegates, reflection, runtime services and runtime shader
+compilation are not shader inputs. Graphics programs require a valid
+vertex/fragment interface.
 
 ## Packages and examples
 
 - [DeltaShader.Tool on NuGet](https://www.nuget.org/packages/DeltaShader.Tool/)
-  adds project integration and artifact publication.
+  provides project integration and artifact generation.
 - [DeltaMaths on NuGet](https://www.nuget.org/packages/DeltaMaths/) provides
   shader-visible math types and operations.
-- [Shader playground examples](https://github.com/Artromskiy/DeltaShader/tree/main/samples)
+- [Shader examples](https://github.com/Artromskiy/DeltaShader/tree/main/samples)
   show compute and graphics authoring.
 
 ## Further reading
 
-- [User API](USER_API.md)
-- [Final artifact contract](CONTRACT.md)
+- [User API](docs/USER_API.md)
+- [Final artifact contract](docs/CONTRACT.md)
+- [Documentation index](docs/README.md)
