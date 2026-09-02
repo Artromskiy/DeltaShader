@@ -1,5 +1,7 @@
 using Delta.Shader.Compiler.Intrinsics;
 using Microsoft.CodeAnalysis;
+using System;
+using System.Linq;
 
 namespace Delta.Shader.Compiler;
 
@@ -10,10 +12,9 @@ internal static class ShaderSemanticTypeSupport
         ModuleCompilationContext context,
         out string glslType)
     {
-        if (type is INamedTypeSymbol namedType &&
-            context.SemanticValueFields.TryGetValue(namedType, out var valueField))
+        if (TryGetValueField(type, context, out var valueField))
         {
-            return TryMapUnderlyingType(valueField.Type, context, out glslType);
+            return TryMapUnderlyingType(valueField!.Type, context, out glslType);
         }
 
         glslType = string.Empty;
@@ -26,7 +27,8 @@ internal static class ShaderSemanticTypeSupport
         out IFieldSymbol? valueField)
     {
         if (type is INamedTypeSymbol namedType &&
-            context.SemanticValueFields.TryGetValue(namedType, out var field))
+            IsSemanticTypeName(namedType) &&
+            namedType.GetMembers("Value").OfType<IFieldSymbol>().SingleOrDefault() is IFieldSymbol field)
         {
             valueField = field;
             return true;
@@ -40,11 +42,26 @@ internal static class ShaderSemanticTypeSupport
         ITypeSymbol type,
         ModuleCompilationContext context)
         => type is INamedTypeSymbol namedType &&
-            context.SemanticValueFields.TryGetValue(namedType, out var valueField) &&
-            SymbolEqualityComparer.Default.Equals(namedType, GetPositionType(context));
+            IsSemanticTypeName(namedType) &&
+            string.Equals(namedType.ToDisplayString(), "Delta.Shader.Position", StringComparison.Ordinal);
 
-    private static ITypeSymbol? GetPositionType(ModuleCompilationContext context)
-        => context.Compilation.GetTypeByMetadataName("Delta.Shader.Position");
+    private static bool IsSemanticTypeName(INamedTypeSymbol type)
+        => type.ToDisplayString() is
+            "Delta.Shader.Position" or
+            "Delta.Shader.Uv0" or
+            "Delta.Shader.Uv1" or
+            "Delta.Shader.Color" or
+            "Delta.Shader.VertexColor" or
+            "Delta.Shader.FragmentColor" or
+            "Delta.Shader.WorldPosition" or
+            "Delta.Shader.WorldNormal" or
+            "Delta.Shader.Tangent" or
+            "Delta.Shader.Pixel" or
+            "Delta.Shader.SegmentRect" or
+            "Delta.Shader.CornerData" or
+            "Delta.Shader.CornerRadii" or
+            "Delta.Shader.BorderWidth" or
+            "Delta.Shader.ClipRect";
 
     private static bool TryMapUnderlyingType(
         ITypeSymbol type,

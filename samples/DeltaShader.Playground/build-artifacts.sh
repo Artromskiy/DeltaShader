@@ -22,13 +22,14 @@ if ! command -v spirv-opt >/dev/null 2>&1; then
 fi
 
 dotnet build "$TOOL_PROJECT" -c Release --disable-build-servers -m:1 /p:UseSharedCompilation=false -v:minimal
+TOOL_DLL="$ROOT/../../src/DeltaShader.Tool/bin/Release/net10.0/DeltaShader.Tool.dll"
 
 passed=0
 compile_project() {
     project="$1"
     output="$TEMP_ROOT/$(basename "$project" .csproj)"
     mkdir -p "$output"
-    dotnet run --project "$TOOL_PROJECT" -c Release --no-build --no-restore -- \
+    dotnet exec "$TOOL_DLL" \
         build "$project" --backend spirv --profile vulkan1.2 --spirv 1.5 \
         --glsl 460 --optimize performance --out "$output"
 
