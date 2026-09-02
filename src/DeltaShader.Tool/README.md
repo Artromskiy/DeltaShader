@@ -36,3 +36,19 @@ package.
 The package contains no Vulkan runtime dependency. Render and Engine consume
 the final `ShaderArtifact`/`ShaderAbi` boundary and do not compile C# or
 calculate ABI layout.
+
+## Publish the package
+
+After building the package, publish the exact version to NuGet with an API key
+provided through the environment:
+
+```bash
+dotnet nuget push artifacts/DeltaShader.Tool.0.0.16.nupkg \
+  --source https://api.nuget.org/v3/index.json \
+  --api-key "$NUGET_API_KEY" \
+  --skip-duplicate \
+  --no-symbols
+```
+
+The package version must match the repository release tag. Do not put the API
+key in project files, shell history or committed documentation.
