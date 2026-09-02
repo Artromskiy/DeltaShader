@@ -149,7 +149,10 @@ public static class UiRectangleShaders
 
     [FragmentShader("solid-rectangle")]
     public static float4 SolidRectangleFragment(in SolidRectangleFragmentContext context)
-        => context.Fragment.Color.Value;
+    {
+        float4 color = context.Fragment.Color.Value;
+        return new float4(color.x * color.w, color.y * color.w, color.z * color.w, color.w);
+    }
 
     [VertexShader("rounded-rectangle")]
     public static RoundedRectanglePayload RoundedRectangleVertex(in RoundedRectangleVertexContext context)
@@ -218,17 +221,24 @@ public static class UiRectangleShaders
         float outsideDistance = length(outside);
         float insideDistance = min(max(q.x, q.y), 0f);
         float distance = outsideDistance + insideDistance - radius;
-        float edge = fwidth(distance);
-        float fillCoverage = 1f - smoothstep(-edge, edge, distance);
-        if (fillCoverage <= 0f)
+        float edge = max(fwidth(distance), 0.0001f);
+        float outerCoverage = 1f - smoothstep(-edge, edge, distance);
+        if (outerCoverage <= 0f)
         {
             _ = discard;
         }
-        float innerCoverage = 1f - smoothstep(-edge, edge, distance + borderWidth);
-        float borderCoverage = max(fillCoverage - innerCoverage, 0f);
 
-        return context.Fragment.FillColor.Value * innerCoverage +
+        float innerCoverage = 1f - smoothstep(-edge, edge, distance + borderWidth);
+        float borderCoverage = max(outerCoverage - innerCoverage, 0f);
+        float4 premultipliedColor =
+            context.Fragment.FillColor.Value * innerCoverage +
             context.Fragment.BorderColor.Value * borderCoverage;
+
+        return new float4(
+            premultipliedColor.x,
+            premultipliedColor.y,
+            premultipliedColor.z,
+            outerCoverage);
     }
 
 }

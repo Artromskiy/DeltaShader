@@ -30,6 +30,10 @@ public sealed class UiShaderTests
             results,
             result => result.EntryPointName == "rounded-rectangle" &&
                 result.Module?.Stage == ShaderStage.Fragment);
+        ShaderCompilationResult solidFragment = Assert.Single(
+            results,
+            result => result.EntryPointName == "solid-rectangle" &&
+                result.Module?.Stage == ShaderStage.Fragment);
         ShaderCompilationResult roundedVertex = Assert.Single(
             results,
             result => result.EntryPointName == "rounded-rectangle" &&
@@ -37,7 +41,8 @@ public sealed class UiShaderTests
 
         var fragmentModule = roundedFragment.Module;
         var fragmentManifest = roundedFragment.BuildManifest;
-        if (fragmentModule is null || fragmentManifest is null)
+        var solidFragmentModule = solidFragment.Module;
+        if (fragmentModule is null || fragmentManifest is null || solidFragmentModule is null)
         {
             throw new InvalidOperationException("Rounded rectangle compilation did not produce a module and manifest.");
         }
@@ -72,17 +77,20 @@ public sealed class UiShaderTests
         Assert.Empty(fragmentManifest.PushConstants);
 
         var fragmentGlsl = GlslEmitter.EmitFromModule(fragmentModule).Source;
+        var solidFragmentGlsl = GlslEmitter.EmitFromModule(solidFragmentModule).Source;
         var vertexGlsl = GlslEmitter.EmitFromModule(roundedVertex.Module!).Source;
         Assert.Contains("gl_InstanceIndex", vertexGlsl, StringComparison.Ordinal);
         Assert.Contains("#version 460", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("fwidth", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("smoothstep", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("borderCoverage", fragmentGlsl, StringComparison.Ordinal);
-        Assert.Contains("fillCoverage", fragmentGlsl, StringComparison.Ordinal);
+        Assert.Contains("outerCoverage", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("cornerRadii", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("1 - smoothstep(-edge, edge, distance)", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("1 - smoothstep(-edge, edge, distance +", fragmentGlsl, StringComparison.Ordinal);
-        Assert.Contains("max(fillCoverage - innerCoverage, 0)", fragmentGlsl, StringComparison.Ordinal);
+        Assert.Contains("max(outerCoverage - innerCoverage, 0)", fragmentGlsl, StringComparison.Ordinal);
+        Assert.Contains("premultipliedColor", fragmentGlsl, StringComparison.Ordinal);
+        Assert.Contains("color.x * color.w", solidFragmentGlsl, StringComparison.Ordinal);
         Assert.Equal("main", vertexManifest.EntryPointName);
         Assert.Single(vertexManifest.Outputs, output => output.Builtin == "Position");
         Assert.Contains(vertexManifest.Outputs, output => output.Name == "Uv");

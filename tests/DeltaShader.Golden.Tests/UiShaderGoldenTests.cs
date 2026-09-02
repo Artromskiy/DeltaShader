@@ -63,7 +63,7 @@ public sealed class UiShaderGoldenTests
                 GlslName = "fragColor",
                 Builtin = "FragmentColor"
             }],
-            Body = "float edge = fwidth(distance); float fill = 1.0 - smoothstep(-edge, edge, distance); float inner = 1.0 - smoothstep(-edge, edge, distance + borderWidth); float border = max(fill - inner, 0.0); fragColor = fillColor * inner + borderColor * border;"
+            Body = "float edge = max(fwidth(distance), 0.0001); float outer = 1.0 - smoothstep(-edge, edge, distance); float inner = 1.0 - smoothstep(-edge, edge, distance + borderWidth); float border = max(outer - inner, 0.0); vec3 rgb = fillColor.rgb * inner + borderColor.rgb * border; float alpha = outer; fragColor = vec4(rgb, alpha);"
         };
 
         var emitted = GlslEmitter.EmitFromModule(module);
@@ -71,8 +71,9 @@ public sealed class UiShaderGoldenTests
         Assert.Contains("#version 460", emitted.Source, StringComparison.Ordinal);
         Assert.Contains("fwidth(distance)", emitted.Source, StringComparison.Ordinal);
         Assert.Contains("1.0 - smoothstep", emitted.Source, StringComparison.Ordinal);
-        Assert.Contains("max(fill - inner, 0.0)", emitted.Source, StringComparison.Ordinal);
-        Assert.Contains("fillColor * inner + borderColor * border", emitted.Source, StringComparison.Ordinal);
-        Assert.DoesNotContain("1.0 - fill", emitted.Source, StringComparison.Ordinal);
+        Assert.Contains("max(outer - inner, 0.0)", emitted.Source, StringComparison.Ordinal);
+        Assert.Contains("fillColor.rgb * inner + borderColor.rgb * border", emitted.Source, StringComparison.Ordinal);
+        Assert.Contains("float alpha = outer", emitted.Source, StringComparison.Ordinal);
+        Assert.DoesNotContain("1.0 - outer", emitted.Source, StringComparison.Ordinal);
     }
 }

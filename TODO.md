@@ -46,5 +46,5 @@
 - Runtime Roslyn/lambda transpilation is deferred tooling research and must
   not be presented as an implemented runtime path.
 
-Shared SDF/MSDF and graphics acceptance is tracked in
-[../EDITOR_UI_TODO.md](../EDITOR_UI_TODO.md).
+Shared SDF/MSDF and graphics acceptance is tracked in the owning project
+TODOs and [../CONTRACTS.md](../CONTRACTS.md).
