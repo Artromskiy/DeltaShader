@@ -302,7 +302,7 @@ public static class ShaderVisibleTypeValidation
         ];
 
         return semanticTypeNames.Any(name =>
-            SymbolEqualityComparer.Default.Equals(namedType, compilation.GetTypeByMetadataName(name)));
+            string.Equals(namedType.ToDisplayString(), name, StringComparison.Ordinal));
     }
 
     private static ITypeSymbol? GetBufferElementType(ITypeSymbol type, Compilation compilation)

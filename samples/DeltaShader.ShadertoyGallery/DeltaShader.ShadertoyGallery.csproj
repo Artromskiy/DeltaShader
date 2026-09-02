@@ -13,7 +13,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\DeltaShader\DeltaShader.csproj" />
+    <ProjectReference Include="../../src/DeltaShader/DeltaShader.csproj" />
     <PackageReference Include="DeltaMaths" />
     <PackageReference Include="DeltaShader.Tool" PrivateAssets="all" />
   </ItemGroup>
