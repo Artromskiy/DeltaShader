@@ -137,6 +137,11 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
                         .ToArray();
                     var vertexCount = entries.Count(entry => entry.Stage == "vertex");
                     var fragmentCount = entries.Count(entry => entry.Stage == "fragment");
+                    if (vertexCount == 0 || fragmentCount == 0)
+                    {
+                        return;
+                    }
+
                     var singlePair = vertexCount == 1 && fragmentCount == 1;
                     var sharedVertex = vertexCount == 1 && fragmentCount > 1;
                     var sharedFragment = vertexCount > 1 && fragmentCount == 1;

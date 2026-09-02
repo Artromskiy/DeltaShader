@@ -744,6 +744,40 @@ public class IntrinsicCatalogTests
     }
 
     [Fact]
+    public async Task GraphicsEntryPointAnalyzer_AllowsFragmentOnlyShader()
+    {
+        const string source = """
+            using Delta.Maths;
+            using Delta.Shader;
+
+            public struct FragmentPayload
+            {
+                public Position Position;
+            }
+
+            public struct FragmentContext
+            {
+                [Interstage]
+                public FragmentPayload Fragment;
+            }
+
+            public static class FragmentOnlyShader
+            {
+                [FragmentShader]
+                public static float4 Fragment(in FragmentContext context) =>
+                    new float4(1f, 0f, 0f, 1f);
+            }
+            """;
+
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
+        ImmutableArray<Diagnostic> diagnostics = await compilation
+            .WithAnalyzers(ImmutableArray.Create<DiagnosticAnalyzer>(new ComputeEntryPointAnalyzer()))
+            .GetAnalyzerDiagnosticsAsync();
+
+        Assert.DoesNotContain(diagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH017);
+    }
+
+    [Fact]
     public async Task GraphicsEntryPoints_BuildVertexAndFragmentModulesWithStageAbi()
     {
         const string source = @"
