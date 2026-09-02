@@ -2126,6 +2126,40 @@ public class IntrinsicCatalogTests
     }
 
     [Fact]
+    public async Task DeltaGraphicsGenerator_AllowsFragmentOnlyShader()
+    {
+        const string source = """
+            using Delta.Maths;
+            using Delta.Shader;
+
+            public struct FragmentPayload
+            {
+                public Position Position;
+            }
+
+            public struct FragmentContext
+            {
+                [Interstage]
+                public FragmentPayload Fragment;
+            }
+
+            public static class FragmentOnlyShader
+            {
+                [FragmentShader]
+                public static float4 Fragment(in FragmentContext context) =>
+                    new float4(1f, 0f, 0f, 1f);
+            }
+            """;
+
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new DeltaGraphicsGenerator().AsSourceGenerator());
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out ImmutableArray<Diagnostic> diagnostics);
+
+        Assert.DoesNotContain(diagnostics, diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+        Assert.Empty(driver.GetRunResult().Results.SelectMany(result => result.GeneratedSources));
+    }
+
+    [Fact]
     public async Task DeltaGraphicsGenerator_MatchesSameNamedMethodsBySymbolIdentity()
     {
         const string source = @"

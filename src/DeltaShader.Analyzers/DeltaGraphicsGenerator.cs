@@ -42,6 +42,11 @@ public sealed class DeltaGraphicsGenerator : IIncrementalGenerator
 
         var vertices = methodsInAssembly.Where(IsVertexShader).ToArray();
         var fragments = methodsInAssembly.Where(IsFragmentShader).ToArray();
+        if (vertices.Length == 0 || fragments.Length == 0)
+        {
+            return;
+        }
+
         var singlePair = vertices.Length == 1 && fragments.Length == 1;
         var sharedVertex = vertices.Length == 1 && fragments.Length > 1;
         var pairNames = singlePair
