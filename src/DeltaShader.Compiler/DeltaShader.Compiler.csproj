@@ -10,10 +10,22 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\\DeltaShader\\DeltaShader.csproj" />
+    <ProjectReference Include="..\\DeltaShader\\DeltaShader.csproj" PrivateAssets="all" />
     <EmbeddedResource Include="../../../DeltaMaths/src/DeltaMaths/Vectors/shader-contract.json" Link="Contracts/shader-contract.json" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" />
     <PackageReference Include="System.Text.Json" />
   </ItemGroup>
+
+  <PropertyGroup>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);CollectDeltaShaderCompilerPackageFiles</TargetsForTfmSpecificContentInPackage>
+  </PropertyGroup>
+
+  <Target Name="CollectDeltaShaderCompilerPackageFiles" Returns="@(TfmSpecificPackageFile)">
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="$(MSBuildThisFileDirectory)..\\DeltaShader\\bin\\$(Configuration)\\netstandard2.0\\DeltaShader.dll">
+        <PackagePath>lib/netstandard2.0/DeltaShader.dll</PackagePath>
+      </TfmSpecificPackageFile>
+    </ItemGroup>
+  </Target>
 </Project>

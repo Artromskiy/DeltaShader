@@ -13,7 +13,7 @@
   </PropertyGroup>
 
   <PropertyGroup Condition="$(MSBuildProjectName.StartsWith('DeltaShader'))">
-    <RepositoryUrl>https://example.invalid/delta-shader</RepositoryUrl>
+    <RepositoryUrl>https://github.com/Artromskiy/DeltaShader</RepositoryUrl>
     <Authors>DeltaShader contributors</Authors>
   </PropertyGroup>
   <ItemGroup>
