@@ -1905,8 +1905,7 @@ public class IntrinsicCatalogTests
                 }
             }";
 
-        Compilation compilation = (await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true)).AddReferences(
-            MetadataReference.CreateFromFile(typeof(Delta.Shader.Contract.ShaderArtifact).Assembly.Location));
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
         var parseOptions = compilation.SyntaxTrees.First().Options as CSharpParseOptions;
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
             new[] { new DeltaComputeGenerator().AsSourceGenerator() },
@@ -1963,8 +1962,7 @@ public class IntrinsicCatalogTests
 
         Assert.DoesNotContain(generatorDiagnostics, diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
         Assert.Empty(driver.GetRunResult().Diagnostics);
-        Compilation generatedCompilation = updatedCompilation.AddReferences(
-            MetadataReference.CreateFromFile(typeof(Delta.Shader.Contract.ShaderArtifact).Assembly.Location));
+        Compilation generatedCompilation = updatedCompilation;
         Assert.DoesNotContain(generatedCompilation.GetDiagnostics(), diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
         GeneratedSourceResult generated = Assert.Single(driver.GetRunResult().Results.SelectMany(result => result.GeneratedSources));
         var generatedText = generated.SourceText.ToString();
@@ -1998,8 +1996,7 @@ public class IntrinsicCatalogTests
             }
             """;
 
-        Compilation compilation = (await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true)).AddReferences(
-            MetadataReference.CreateFromFile(typeof(Delta.Shader.Contract.ShaderArtifact).Assembly.Location));
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
         var parseOptions = compilation.SyntaxTrees.First().Options as CSharpParseOptions;
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
             new[] { new DeltaComputeGenerator().AsSourceGenerator() },
@@ -2058,8 +2055,7 @@ public class IntrinsicCatalogTests
             }
             """;
 
-        Compilation compilation = (await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true)).AddReferences(
-            MetadataReference.CreateFromFile(typeof(Delta.Shader.Contract.ShaderArtifact).Assembly.Location));
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
         var parseOptions = compilation.SyntaxTrees.First().Options as CSharpParseOptions;
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
             new[] { new DeltaGraphicsGenerator().AsSourceGenerator() },

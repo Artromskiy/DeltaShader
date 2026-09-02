@@ -27,7 +27,7 @@
   <Target Name="CollectDeltaShaderCompilerPackageFiles" Returns="@(TfmSpecificPackageFile)">
     <ItemGroup>
       <TfmSpecificPackageFile Include="$(TargetDir)**\\*.dll"
-                              Exclude="$(TargetDir)$(TargetFileName)">
+                              Exclude="$(TargetDir)$(TargetFileName);$(TargetDir)Delta.Shader.Abstractions.dll;$(TargetDir)Delta.Shader.Compiler.dll">
         <PackagePath>lib/netstandard2.0/</PackagePath>
       </TfmSpecificPackageFile>
     </ItemGroup>

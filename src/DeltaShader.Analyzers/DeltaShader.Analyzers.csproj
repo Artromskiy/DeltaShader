@@ -33,7 +33,7 @@
         <PackagePath>analyzers/dotnet/cs/$(TargetFileName)</PackagePath>
       </TfmSpecificPackageFile>
       <TfmSpecificPackageFile Include="$(TargetDir)**\*.dll"
-                              Exclude="$(TargetDir)$(TargetFileName)">
+                              Exclude="$(TargetDir)$(TargetFileName);$(TargetDir)Delta.Shader.Abstractions.dll;$(TargetDir)Delta.Shader.Compiler.dll">
         <PackagePath>analyzers/dotnet/cs/</PackagePath>
       </TfmSpecificPackageFile>
     </ItemGroup>
