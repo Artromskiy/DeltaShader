@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
-using Delta.Maths;
+using Delta;
 using Delta.Shader;
 using Delta.Shader.Analyzers;
 using Delta.Shader.Compiler.Intrinsics;
@@ -80,8 +80,8 @@ public class IntrinsicCatalogTests
         Compilation compilation = await LoadDeltaMathsCompilationAsync().ConfigureAwait(true);
         var registry = IntrinsicRegistry.Build(compilation);
 
-        INamedTypeSymbol? float2 = compilation.GetTypeByMetadataName("Delta.Maths.float2");
-        INamedTypeSymbol? int3 = compilation.GetTypeByMetadataName("Delta.Maths.int3");
+        INamedTypeSymbol? float2 = compilation.GetTypeByMetadataName("Delta.float2");
+        INamedTypeSymbol? int3 = compilation.GetTypeByMetadataName("Delta.int3");
 
         Assert.NotNull(float2);
         Assert.NotNull(int3);
@@ -96,7 +96,7 @@ public class IntrinsicCatalogTests
     {
         Compilation compilation = await LoadDeltaMathsCompilationAsync().ConfigureAwait(true);
         var registry = IntrinsicRegistry.Build(compilation);
-        INamedTypeSymbol maths = compilation.GetTypeByMetadataName("Delta.Maths.maths")!;
+        INamedTypeSymbol maths = compilation.GetTypeByMetadataName("Delta.maths")!;
 
         IMethodSymbol sinFloat = maths.GetMembers("sin").OfType<IMethodSymbol>().Single(m =>
             m.Parameters.Length == 1 && m.Parameters[0].Type.SpecialType == SpecialType.System_Single);
@@ -126,8 +126,8 @@ public class IntrinsicCatalogTests
     {
         Compilation compilation = await LoadDeltaMathsCompilationAsync().ConfigureAwait(true);
         var registry = IntrinsicRegistry.Build(compilation);
-        INamedTypeSymbol float4 = compilation.GetTypeByMetadataName("Delta.Maths.float4")!;
-        INamedTypeSymbol float3 = compilation.GetTypeByMetadataName("Delta.Maths.float3")!;
+        INamedTypeSymbol float4 = compilation.GetTypeByMetadataName("Delta.float4")!;
+        INamedTypeSymbol float3 = compilation.GetTypeByMetadataName("Delta.float3")!;
 
         IMethodSymbol ctorByScalars = float4.InstanceConstructors.First(c =>
             c.Parameters.Length == 4 &&
@@ -156,7 +156,7 @@ public class IntrinsicCatalogTests
     public async Task DeltaMaths_IdentityContract_IgnoresNameCollisionWithoutISymbolMatch()
     {
         var fixtureSource = @"
-            using Delta.Maths;
+            using Delta;
 
             namespace Delta.Shader.Compiler.Tests.Fixtures
             {
@@ -170,7 +170,7 @@ public class IntrinsicCatalogTests
 
         Compilation compilation = await LoadDeltaMathsCompilationAsync(fixtureSource).ConfigureAwait(true);
         var registry = IntrinsicRegistry.Build(compilation);
-        INamedTypeSymbol deltaDeltaMaths = compilation.GetTypeByMetadataName("Delta.Maths.maths")!;
+        INamedTypeSymbol deltaDeltaMaths = compilation.GetTypeByMetadataName("Delta.maths")!;
         INamedTypeSymbol fakeDeltaMaths = compilation.GetTypeByMetadataName("Delta.Shader.Compiler.Tests.Fixtures.DeltaMathsNameCollision")!;
         IMethodSymbol deltaSin = deltaDeltaMaths.GetMembers("sin").OfType<IMethodSymbol>().Single(m =>
             m.Parameters.Length == 1 && m.Parameters[0].Type.SpecialType == SpecialType.System_Single);
@@ -208,7 +208,7 @@ public class IntrinsicCatalogTests
             .OfType<ObjectCreationExpressionSyntax>()
             .Select(e => semanticModel.GetSymbolInfo(e).Symbol as IMethodSymbol)
             .Where(m => m?.ContainingType is not null)
-            .Where(m => m!.ContainingType.ContainingNamespace?.ToDisplayString() == "Delta.Maths")
+            .Where(m => m!.ContainingType.ContainingNamespace?.ToDisplayString() == "Delta")
             .ToList();
 
         var operators = syntax
@@ -224,7 +224,7 @@ public class IntrinsicCatalogTests
             .OfType<MemberAccessExpressionSyntax>()
             .Select(e => semanticModel.GetSymbolInfo(e).Symbol as IPropertySymbol)
             .Where(p => p is not null)
-            .Where(p => p!.ContainingType?.ContainingNamespace?.ToDisplayString() == "Delta.Maths")
+            .Where(p => p!.ContainingType?.ContainingNamespace?.ToDisplayString() == "Delta")
             .ToList();
 
         var mathsCalls = syntax
@@ -256,8 +256,8 @@ public class IntrinsicCatalogTests
         var contract = ShaderContractManifest.LoadEmbedded();
         var registry = IntrinsicRegistry.Build(compilation, contract);
 
-        INamedTypeSymbol matrix = compilation.GetTypeByMetadataName("Delta.Maths.float4x4")!;
-        INamedTypeSymbol quaternion = compilation.GetTypeByMetadataName("Delta.Maths.quaternion")!;
+        INamedTypeSymbol matrix = compilation.GetTypeByMetadataName("Delta.float4x4")!;
+        INamedTypeSymbol quaternion = compilation.GetTypeByMetadataName("Delta.quaternion")!;
         ShaderContractType matrixType = contract.Types.Single(type => type.ClrName == "float4x4");
         ShaderContractType quaternionType = contract.Types.Single(type => type.ClrName == "quaternion");
 
@@ -290,7 +290,7 @@ public class IntrinsicCatalogTests
         Compilation compilation = await LoadDeltaMathsCompilationAsync().ConfigureAwait(true);
         var contract = new ShaderContractManifest
         {
-            Namespace = "Delta.Maths",
+            Namespace = "Delta",
             Types = [new ShaderContractType { ClrName = "float2", GlslName = "vec2", Mapping = ShaderContractMapping.Unsupported }],
             Functions = [new ShaderContractFunction
             {
@@ -304,8 +304,8 @@ public class IntrinsicCatalogTests
         };
 
         var registry = IntrinsicRegistry.Build(compilation, contract);
-        INamedTypeSymbol? float2 = compilation.GetTypeByMetadataName("Delta.Maths.float2");
-        INamedTypeSymbol? maths = compilation.GetTypeByMetadataName("Delta.Maths.maths");
+        INamedTypeSymbol? float2 = compilation.GetTypeByMetadataName("Delta.float2");
+        INamedTypeSymbol? maths = compilation.GetTypeByMetadataName("Delta.maths");
         IMethodSymbol sin = maths!.GetMembers("sin").OfType<IMethodSymbol>().Single(method =>
             method.Parameters.Length == 1 && method.Parameters[0].Type.SpecialType == SpecialType.System_Single);
 
@@ -318,8 +318,8 @@ public class IntrinsicCatalogTests
     {
         Compilation compilation = await LoadDeltaMathsCompilationAsync().ConfigureAwait(true);
         var registry = IntrinsicRegistry.Build(compilation, ShaderContractManifest.LoadEmbedded());
-        var maths = compilation.GetTypeByMetadataName("Delta.Maths.maths")
-            ?? throw new InvalidOperationException("Delta.Maths.maths was not found in the test compilation.");
+        var maths = compilation.GetTypeByMetadataName("Delta.maths")
+            ?? throw new InvalidOperationException("Delta.maths was not found in the test compilation.");
         var scalarAbs = maths.GetMembers("abs").OfType<IMethodSymbol>().Single(method =>
             method.Parameters.Length == 1 && method.Parameters[0].Type.SpecialType == SpecialType.System_Single);
 
@@ -334,8 +334,8 @@ public class IntrinsicCatalogTests
     {
         Compilation compilation = await LoadDeltaMathsCompilationAsync().ConfigureAwait(true);
         var registry = IntrinsicRegistry.Build(compilation, ShaderContractManifest.LoadEmbedded());
-        var maths = compilation.GetTypeByMetadataName("Delta.Maths.maths")
-            ?? throw new InvalidOperationException("Delta.Maths.maths was not found in the test compilation.");
+        var maths = compilation.GetTypeByMetadataName("Delta.maths")
+            ?? throw new InvalidOperationException("Delta.maths was not found in the test compilation.");
         var vectorAbs = maths.GetMembers("abs").OfType<IMethodSymbol>().Single(method =>
             method.Parameters.Length == 1 && method.Parameters[0].Type.Name == "float2");
 
@@ -349,7 +349,7 @@ public class IntrinsicCatalogTests
     public async Task ComputeEntryPoint_ResourcesUseSetBindingAndGlslTypeFromSymbol()
     {
         var source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
 
             namespace Delta.Shader.Compiler.Tests.Fixtures
@@ -396,7 +396,7 @@ public class IntrinsicCatalogTests
     public async Task ComputeEntryPoint_Rejects_ManagedType_WithExplicitDiagnostic()
     {
         var source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
 
             namespace Delta.Shader.Compiler.Tests.Fixtures
@@ -425,7 +425,7 @@ public class IntrinsicCatalogTests
     public async Task ComputeEntryPoint_Rejects_OrdinaryParameters()
     {
         var source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
 
             namespace Delta.Shader.Compiler.Tests.Fixtures
@@ -451,7 +451,7 @@ public class IntrinsicCatalogTests
     public async Task ComputeEntryPoint_Rejects_InvalidProfilePair()
     {
         var source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
 
             namespace Delta.Shader.Compiler.Tests.Fixtures
@@ -479,7 +479,7 @@ public class IntrinsicCatalogTests
     public async Task ComputeEntryPoint_RejectsDuplicateBinding()
     {
         var source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
 
             namespace Delta.Shader.Compiler.Tests.Fixtures
@@ -508,7 +508,7 @@ public class IntrinsicCatalogTests
     public async Task ComputeEntryPoint_BuildsStructuredStd430RecordWithDeltaMathsTypes()
     {
         const string source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
 
             namespace Delta.Shader.Compiler.Tests.Fixtures
@@ -675,7 +675,7 @@ public class IntrinsicCatalogTests
     public async Task ShaderVisibleTypeValidation_RejectsPushConstantReferencesButIgnoresCpuOnlyHelpers()
     {
         const string invalidSource = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
             public class CpuOnlyHelper { public string Name; }
             public struct Constants { public CpuOnlyHelper Helper; }
@@ -716,7 +716,7 @@ public class IntrinsicCatalogTests
     public async Task ShaderVisibleTypeAnalyzer_ReportsDsh010ForGraphicsPushConstantGraph()
     {
         const string source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
             public class CpuOnlyHelper { public string Name; }
             public struct Constants { public CpuOnlyHelper Helper; }
@@ -743,7 +743,7 @@ public class IntrinsicCatalogTests
     public async Task GraphicsEntryPointAnalyzer_AllowsFragmentOnlyShader()
     {
         const string source = """
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
 
             public struct FragmentPayload
@@ -774,7 +774,7 @@ public class IntrinsicCatalogTests
     public async Task GraphicsEntryPoints_BuildVertexAndFragmentModulesWithStageAbi()
     {
         const string source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
             namespace Delta.Shader.Compiler.Tests.Fixtures
             {
@@ -814,7 +814,7 @@ public class IntrinsicCatalogTests
     public async Task GraphicsEntryPoints_TransformConformancePreservesColumnMajorCpuGpuContract()
     {
         const string source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
             public struct TransformConstants
             {
@@ -871,7 +871,7 @@ public class IntrinsicCatalogTests
 
         var model = float4x4.CreateTRS(new float3(4f, -1f, 2f), quaternion.CreateFromAxisAngle(new float3(0f, 1f, 0f), 0.35f), new float3(2f, 3f, 4f));
         var view = float4x4.CreateLookTo(new float3(0f, 1f, -8f), new float3(0f, 0f, 1f), new float3(0f, 1f, 0f));
-        var projection = float4x4.CreatePerspectiveFieldOfViewLeftHanded(global::Delta.Maths.DeltaMaths.Radians(60f), 16f / 9f, 0.1f, 100f);
+        var projection = float4x4.CreatePerspectiveFieldOfViewLeftHanded(global::Delta.DeltaMaths.Radians(60f), 16f / 9f, 0.1f, 100f);
         var vertex = new float4(1f, 2f, 3f, 1f);
         float4 cpu = projection * view * model * vertex;
         Assert.Equal(1f, vertex.w);
@@ -885,7 +885,7 @@ public class IntrinsicCatalogTests
     public async Task GraphicsEntryPoints_ViewportCube_EmitsVertexInputs_ReadonlyTransformsAndStableMatrixOrder()
     {
         const string source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
 
             public struct SceneParameters
@@ -958,7 +958,7 @@ public class IntrinsicCatalogTests
 
         var model = float4x4.CreateTRS(new float3(1f, 2f, 3f), quaternion.CreateFromAxisAngle(new float3(0f, 1f, 0f), 0.5f), new float3(2f, 2f, 2f));
         var view = float4x4.CreateLookTo(new float3(0f, 0f, -5f), new float3(0f, 0f, 1f), new float3(0f, 1f, 0f));
-        var projection = float4x4.CreatePerspectiveFieldOfViewLeftHanded(global::Delta.Maths.DeltaMaths.Radians(60f), 1f, 0.1f, 100f);
+        var projection = float4x4.CreatePerspectiveFieldOfViewLeftHanded(global::Delta.DeltaMaths.Radians(60f), 1f, 0.1f, 100f);
         var vertex = new float4(1f, 0f, 0f, 1f);
         float4 cpuOrder = projection * view * model * vertex;
         Assert.Equal(cpuOrder, projection * view * model * vertex);
@@ -968,7 +968,7 @@ public class IntrinsicCatalogTests
     public async Task GraphicsEntryPoints_RejectsBadVertexInputLocationsStagesAndManagedTypes()
     {
         const string source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
 
             public sealed class ManagedData
@@ -1016,7 +1016,7 @@ public class IntrinsicCatalogTests
     public async Task GraphicsEntryPoints_RejectFragmentBuiltinInVertexStage()
     {
         const string source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
             [Interstage]
             public struct VertexPayload {  public Position Position; }
@@ -1037,7 +1037,7 @@ public class IntrinsicCatalogTests
     public async Task GraphicsEntryPoints_LowerDefaultLiteralToTypedGlslZero()
     {
         const string source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
             [Interstage]
             public struct VertexPayload {  public Position Position; }
@@ -1061,7 +1061,7 @@ public class IntrinsicCatalogTests
     public async Task GraphicsEntryPoints_PreserveEarlyReturnsForFullscreenVertexBranches()
     {
         const string source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
             [Interstage]
             public struct VertexPayload {  public Position Position; }
@@ -1100,7 +1100,7 @@ public class IntrinsicCatalogTests
     public async Task SampledTexture_CompilesForVertexAndFragment_WithOpaqueAbi()
     {
         const string source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
             public static class TextureStages
             {
@@ -1186,7 +1186,7 @@ public class IntrinsicCatalogTests
     public async Task SampledTexture_RejectsVertexBindingFormInFragment()
     {
         const string source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
             [Interstage]
             public struct FragmentPayload {  public Position Position; }
@@ -1211,7 +1211,7 @@ public class IntrinsicCatalogTests
     public async Task Intrinsics_DerivativesLowerForFragmentAndRejectOtherStages()
     {
         const string source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
             [Interstage]
             public struct FragmentPayload {  public Position Position; }
@@ -1254,7 +1254,7 @@ public class IntrinsicCatalogTests
     public async Task GraphicsText_GlyphInstances_AreReflected_AsStd430Ssbo_WithInstanceIndex()
     {
         const string source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
             public static class TextScene
             {
@@ -1357,7 +1357,7 @@ public class IntrinsicCatalogTests
     public async Task GraphicsStructFieldLowering_PreservesLocalWithMatchingFieldName()
     {
         const string source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
             public static class StructFieldSymbols
             {
@@ -1401,7 +1401,7 @@ public class IntrinsicCatalogTests
     public async Task InstanceIndex_RejectsFragmentStage()
     {
         const string source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
             [Interstage]
             public struct FragmentPayload {  public Position Position; }
@@ -1425,7 +1425,7 @@ public class IntrinsicCatalogTests
     public async Task GraphicsEntryPoint_LowersStaticHelperCallGraphInDependencyOrder()
     {
         const string source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
             [Interstage]
             public struct FragmentPayload {  public Position Position; }
@@ -1462,7 +1462,7 @@ public class IntrinsicCatalogTests
     public async Task GraphicsEntryPoint_LowersExpressionBodiedStaticHelper()
     {
         const string source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
             [Interstage]
             public struct FragmentPayload {  public Position Position; }
@@ -1493,7 +1493,7 @@ public class IntrinsicCatalogTests
     public async Task GraphicsEntryPoint_RejectsRecursiveStaticHelperCallGraph()
     {
         const string source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
             [Interstage]
             public struct FragmentPayload {  public Position Position; }
@@ -1529,7 +1529,7 @@ public class IntrinsicCatalogTests
     public async Task GraphicsEntryPoint_RejectsManagedStaticHelperCapture()
     {
         const string source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
             [Interstage]
             public struct FragmentPayload {  public Position Position; }
@@ -1562,7 +1562,7 @@ public class IntrinsicCatalogTests
     public async Task ComputeContext_LowersUserDefinedResourcesBuiltinsAndPushConstants()
     {
         const string source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
 
             public readonly struct UserDefinedComputeContext
@@ -1709,7 +1709,7 @@ public class IntrinsicCatalogTests
     public async Task CompileTimeTypedKernel_LowersIndexedResourcesAndDeltaMathsThroughTheExistingPipeline()
     {
         const string source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
 
             public static class CompileTimeValid
@@ -1739,7 +1739,7 @@ public class IntrinsicCatalogTests
     public async Task NonGenericUIntBuffers_LowerThroughValidationIrAndGlsl()
     {
         const string source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
 
             public static class SimpleCompute
@@ -1776,7 +1776,7 @@ public class IntrinsicCatalogTests
     public async Task ComputeSampledTexture_LowersWithComputeStageAbi()
     {
         const string source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
 
             public static class ComputeTexture
@@ -1891,7 +1891,7 @@ public class IntrinsicCatalogTests
     public async Task DeltaComputeGenerator_EmitsGlslManifestAndArtifactWrapper()
     {
         const string source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
 
             public static class GeneratedKernel
@@ -1983,7 +1983,7 @@ public class IntrinsicCatalogTests
     public async Task DeltaComputeGenerator_UsesInternalAccessibilityForNonPublicShaderTypes()
     {
         const string source = """
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
 
             internal static class GeneratedKernel
@@ -2025,7 +2025,7 @@ public class IntrinsicCatalogTests
     public async Task DeltaGraphicsGenerator_EmitsResolvedVertexBufferPackers()
     {
         const string source = """
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
 
             public static class MeshShaders
@@ -2082,7 +2082,7 @@ public class IntrinsicCatalogTests
     public async Task DeltaComputeGenerator_EmitsTypedGraphicsProgramForVertexFragmentPair()
     {
         const string source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
 
             public static class GeneratedGraphics
@@ -2128,7 +2128,7 @@ public class IntrinsicCatalogTests
     public async Task DeltaGraphicsGenerator_AllowsFragmentOnlyShader()
     {
         const string source = """
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
 
             public struct FragmentPayload
@@ -2159,7 +2159,7 @@ public class IntrinsicCatalogTests
     public async Task DeltaGraphicsGenerator_MatchesSameNamedMethodsBySymbolIdentity()
     {
         const string source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
 
             public static class FirstGraphics
@@ -2852,7 +2852,7 @@ public class IntrinsicCatalogTests
     public async Task Graphics_SpecializesClosedGenericHelperWithValueStructInterface()
     {
         const string source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
             public interface ITransform
             {

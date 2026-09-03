@@ -163,7 +163,7 @@ public sealed class BindingAndBuiltinTests
     public async Task ComputeBodyLowersIntegerRemainderWithCSharpSemantics()
     {
         const string source = """
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
 
             public readonly struct ComputeContext
@@ -388,7 +388,7 @@ public sealed class BindingAndBuiltinTests
     {
         const string source = @"
             using Delta.Shader;
-            using Delta.Maths;
+            using Delta;
 
             public readonly struct ComputeContext
             {
@@ -424,7 +424,7 @@ public sealed class BindingAndBuiltinTests
     public async Task VertexInput_UsesSingleArgumentBindingAndComputesSequentialOffsets()
     {
         const string source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
 
             [Interstage]
@@ -465,7 +465,7 @@ public sealed class BindingAndBuiltinTests
     public async Task NestedInterstagePayload_FlattensSemanticLeavesAndMatchesStages()
     {
         const string source = """
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
 
             [Interstage]
@@ -534,7 +534,7 @@ public sealed class BindingAndBuiltinTests
     public async Task NestedInterstagePayload_RejectsRepeatedLeafSymbols()
     {
         const string source = """
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
 
             public struct SharedSurface
@@ -573,7 +573,7 @@ public sealed class BindingAndBuiltinTests
     public async Task NestedInterstagePayload_RejectsUnwrappedMappedTypes()
     {
         const string source = """
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
 
             public struct InvalidSurface
@@ -642,7 +642,7 @@ public sealed class BindingAndBuiltinTests
     public async Task VertexBuiltin_IsRejectedInFragmentBody()
     {
         const string source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
 
             [Interstage]
@@ -674,7 +674,7 @@ public sealed class BindingAndBuiltinTests
     public async Task GraphicsHelper_AllowsDeltaMathsFieldSwizzles()
     {
         const string source = @"
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
 
             [Interstage]
@@ -712,7 +712,7 @@ public sealed class BindingAndBuiltinTests
     public async Task CompositeContextResolver_MergesSemanticFieldsWithoutFieldNames()
     {
         const string source = """
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
 
             [Interstage]
@@ -822,7 +822,7 @@ public sealed class BindingAndBuiltinTests
     public async Task CompositeContextResolver_RejectsFragmentFieldWithoutVertexProducer()
     {
         const string source = """
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
 
             [Interstage]

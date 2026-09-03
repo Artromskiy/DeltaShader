@@ -1,6 +1,6 @@
-using Delta.Maths;
+using Delta;
 using Delta.Shader;
-using static Delta.Maths.maths;
+using static Delta.maths;
 using static Delta.Shader.intrinsics;
 
 namespace Delta.Shader.UI;

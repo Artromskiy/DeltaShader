@@ -188,16 +188,16 @@ fragments.
 
 ## DeltaMaths usage gate
 
-Managed code that consumes DeltaMaths uses `using Delta.Maths;` and the
+Managed code that consumes DeltaMaths uses `using Delta;` and the
 `Maths.*` facade. If a namespace collision requires it, use one global alias:
-`using Maths = global::Delta.Maths.Maths;`. Shader-authoring sources and their
-fixtures may instead use `using static Delta.Maths.maths;` and lowercase
+`using Maths = global::Delta.Maths;`. Shader-authoring sources and their
+fixtures may instead use `using static Delta.maths;` and lowercase
 `maths.*`, because those calls are lowered into shader code. Generated source,
 compiler provider code and emitted fixture text are not authoring call sites.
 
 Direct `System.Math`/`MathF` is allowed only in projects that do not consume
 DeltaMaths. In DeltaShader's authoring, compiler, sample, test and tool scope,
-use Delta.Maths for shader semantics and explicit comparisons for integer or
+use Delta for shader semantics and explicit comparisons for integer or
 compiler/tool decisions. Do not replace floating-point semantics with
 hand-written numeric approximations. Run the bounded gate before a handoff or
 commit:

@@ -2,7 +2,7 @@ using Delta.Shader.Analyzers;
 using Delta.Shader.Backend.Glsl;
 using Delta.Shader.Compiler;
 using Delta.Shader.UI;
-using Delta.Maths;
+using Delta;
 using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;

@@ -475,7 +475,7 @@ internal static partial class ArtifactSourceEmitter
                 _ => "float"
             };
             expression = glslType == "float16_t"
-                ? $"new global::Delta.Maths.half(reader.{reader}({offset}u))"
+                ? $"new global::Delta.half(reader.{reader}({offset}u))"
                 : ScalarExpression($"reader.{reader}({offset}u)", valueType, castType);
             reason = null;
             return true;
@@ -497,7 +497,7 @@ internal static partial class ArtifactSourceEmitter
             {
                 var componentOffset = offset + (uint)index * componentSize;
                 components[index] = glslType.StartsWith("f16vec", StringComparison.Ordinal)
-                    ? $"new global::Delta.Maths.half(reader.{vectorReader}({componentOffset}u))"
+                    ? $"new global::Delta.half(reader.{vectorReader}({componentOffset}u))"
                     : $"reader.{vectorReader}({componentOffset}u)";
             }
 
@@ -527,7 +527,7 @@ internal static partial class ArtifactSourceEmitter
                 {
                     var componentOffset = offset + (uint)column * stride + (uint)row * ScalarByteWidth(glslType);
                     values[row] = glslType.StartsWith("f16mat", StringComparison.Ordinal)
-                        ? $"new global::Delta.Maths.half(reader.ReadHalf({componentOffset}u))"
+                        ? $"new global::Delta.half(reader.ReadHalf({componentOffset}u))"
                         : $"reader.{ScalarReader(glslType)}({componentOffset}u)";
                 }
 

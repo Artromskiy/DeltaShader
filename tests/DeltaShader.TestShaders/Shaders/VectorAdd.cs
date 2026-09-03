@@ -1,5 +1,5 @@
 using Delta.Shader;
-using Delta.Maths;
+using Delta;
 
 namespace Delta.Shader.TestShaders;
 

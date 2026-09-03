@@ -2909,7 +2909,7 @@ internal static class ShaderBodyTranslator
             }
             if (type is INamedTypeSymbol halfType &&
                 halfType.Name == "half" &&
-                halfType.ContainingNamespace.ToDisplayString() == "Delta.Maths")
+                halfType.ContainingNamespace.ToDisplayString() == "Delta")
             {
                 glslType = "float16_t";
                 return true;

@@ -7,7 +7,7 @@ SPIR-V and `ShaderAbi` data for a renderer.
 
 - C# entry points for compute, vertex and fragment shaders.
 - Typed value contexts for resources, push constants and stage data.
-- `Delta.Maths` vector, matrix, quaternion and intrinsic operations.
+- `Delta` vector, matrix, quaternion and intrinsic operations.
 - Compile-time diagnostics for unsupported shader code and invalid layouts.
 - Generated shader artifacts and typed pack/unpack helpers for consumers.
 - A stable handoff from shader authoring to a renderer without Vulkan types in
@@ -34,9 +34,9 @@ Add the authoring and build packages to the project that owns the shader source:
 Write a static entry point using the public shader API:
 
 ```csharp
-using Delta.Maths;
+using Delta;
 using Delta.Shader;
-using static Delta.Maths.maths;
+using static Delta.maths;
 
 public readonly struct ComputeContext
 {

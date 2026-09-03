@@ -771,7 +771,7 @@ public static class ComputeEntryPoints
     private static bool IsDeltaMathsHalf(ITypeSymbol type)
         => type is INamedTypeSymbol namedType &&
            namedType.Name == "half" &&
-           namedType.ContainingNamespace.ToDisplayString() == "Delta.Maths";
+           namedType.ContainingNamespace.ToDisplayString() == "Delta";
 
     private static string CreateHelperName(IMethodSymbol method, ISet<string> usedNames)
     {

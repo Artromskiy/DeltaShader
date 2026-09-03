@@ -11,7 +11,7 @@ namespace Delta.Shader.Compiler.Intrinsics;
 public sealed class ShaderContractManifest
 {
     private const string LegacyDeltaMathsNamespace = "DeltaMaths";
-    private const string CanonicalDeltaMathsNamespace = "Delta.Maths";
+    private const string CanonicalDeltaMathsNamespace = "Delta";
 
     [JsonPropertyName("schemaVersion")]
     public string SchemaVersion { get; set; } = string.Empty;

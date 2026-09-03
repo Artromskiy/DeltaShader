@@ -1,4 +1,4 @@
-using Delta.Maths;
+using Delta;
 
 namespace Delta.Shader.ShadertoyGallery;
 

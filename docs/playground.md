@@ -38,12 +38,12 @@ build runs the tool bridge automatically and prints one `PASS` line per shader
 after `glslangValidator` and `spirv-val` succeed.
 
 Both shader modules reference the sibling `DeltaMaths` project and can use its
-canonical `Delta.Maths` types directly.
+canonical `Delta` types directly.
 
 Open `DeltaShader.slnx` in VS Code, then use `Ctrl+Shift+B`, or run
 `dotnet build samples/DeltaShader.Playground/DeltaShader.Playground.csproj -c Release`.
 The solution build includes the `AddBias` module. The project references the sibling `DeltaMaths` project,
-so the C# language server resolves `Delta.Maths` in the editor. Generated
+so the C# language server resolves `Delta` in the editor. Generated
 shader files are written to a fresh temporary directory by the validation
 target and are removed after the check.
 

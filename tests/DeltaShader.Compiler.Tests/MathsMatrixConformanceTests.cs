@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using Delta.Maths;
+using Delta;
 using Delta.Shader;
 using Delta.Shader.Backend.Glsl;
 using Delta.Shader.Compiler;
@@ -59,7 +59,7 @@ public sealed class MathsMatrixConformanceTests
     public void MathsFixtures_CompileVectorAdditionAndMatrixVectorMultiplication()
     {
         const string source = """
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
 
             public readonly struct VectorContext

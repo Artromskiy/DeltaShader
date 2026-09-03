@@ -1,6 +1,6 @@
-using Delta.Maths;
+using Delta;
 using Delta.Shader;
-using static Delta.Maths.maths;
+using static Delta.maths;
 
 namespace Delta.Shader.GrassComposite;
 

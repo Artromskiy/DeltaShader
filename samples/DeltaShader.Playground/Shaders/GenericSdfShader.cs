@@ -1,5 +1,5 @@
 using System.Runtime.CompilerServices;
-using Delta.Maths;
+using Delta;
 using Delta.Shader;
 
 namespace Delta.Shader.Playground;

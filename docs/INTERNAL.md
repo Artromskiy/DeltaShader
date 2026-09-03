@@ -113,7 +113,7 @@ has final SPIR-V plus `ShaderAbi`.
 The composition design is documented in
 [shader-composition.md](shader-composition.md). The compiler now recognizes
 the standard semantic value wrappers by full symbol identity and lowers their
-`Value` member to the underlying Delta.Maths type. Direct scalar/vector fields
+`Value` member to the underlying Delta type. Direct scalar/vector fields
 in interstage payloads are rejected as the obsolete graphics ABI. Layer payloads remain
 compiler-side typed patches and must resolve into one final vertex/fragment
 interface before publication. Full Roslyn symbol identity is used for source
@@ -123,7 +123,7 @@ are emitted into the final `ShaderAbi`.
 Nested interstage payloads are flattened by `ShaderInterstageTraversal`. It
 walks user-defined value structs recursively, records each semantic leaf's
 Roslyn field path, and derives a collision-resistant GLSL name from that path.
-Mapped Delta.Maths primitives without a Delta.Shader semantic wrapper are
+Mapped Delta primitives without a Delta.Shader semantic wrapper are
 rejected rather than recursively exposing their implementation fields. The
 same leaf traversal is used by vertex return lowering so ABI and generated
 assignments cannot diverge.

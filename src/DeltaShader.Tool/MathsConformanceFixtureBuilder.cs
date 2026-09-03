@@ -9,7 +9,7 @@ internal static class MathsConformanceFixtureBuilder
     {
         var builder = new StringBuilder(
             """
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
 
             namespace Delta.Shader.MathsConformance.Generated;
@@ -140,7 +140,7 @@ internal static class MathsConformanceFixtureBuilder
         string expression;
         if (operatorToken is null)
         {
-            expression = $"Delta.Maths.{function.OwnerType}.{function.MethodName}({string.Join(", ", arguments)})";
+            expression = $"Delta.{function.OwnerType}.{function.MethodName}({string.Join(", ", arguments)})";
         }
         else if (arguments.Length == 1)
         {

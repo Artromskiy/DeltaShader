@@ -1,6 +1,6 @@
 using System;
 using System.Linq;
-using Delta.Maths;
+using Delta;
 using Delta.Shader;
 using Delta.Shader.Analyzers;
 using Delta.Shader.Contract;
@@ -16,7 +16,7 @@ public sealed class GeneratedBufferPackingTests
     public void GraphicsGenerator_EmitsStorageRangesAndVertexBindingPacker()
     {
         const string source = """
-            using Delta.Maths;
+            using Delta;
             using Delta.Shader;
 
             public struct Payload
