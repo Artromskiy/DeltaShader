@@ -15,10 +15,10 @@
     <PackageVersion Include="xunit" Version="2.9.2" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.0.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.11.0" />
-    <PackageVersion Include="DeltaShader.Compiler" Version="*" />
-    <PackageVersion Include="DeltaShader.Analyzers" Version="*" />
-    <PackageVersion Include="DeltaShader.Contract" Version="*" />
-    <PackageVersion Include="DeltaShader.Tool" Version="*" />
+    <PackageVersion Include="DeltaShader.Compiler" Version="0.0.23" />
+    <PackageVersion Include="DeltaShader.Analyzers" Version="0.0.23" />
+    <PackageVersion Include="DeltaShader.Contract" Version="0.0.23" />
+    <PackageVersion Include="DeltaShader.Tool" Version="0.0.23" />
     <PackageVersion Include="DeltaMaths" Version="*" />
   </ItemGroup>
 </Project>

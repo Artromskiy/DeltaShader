@@ -157,7 +157,9 @@ internal static class GraphicsEntryPoints
                 (outputType ?? inputType).Locations.FirstOrDefault()?.GetLineSpan());
         }
 
-        var positionFields = new HashSet<IFieldSymbol>(positionLeaves.Select(leaf => leaf.Field), SymbolEqualityComparer.Default);
+        var positionFields = new HashSet<IFieldSymbol>(
+            varyingLeaves.Where(leaf => IsPositionMember(leaf.Field, context)).Select(leaf => leaf.Field),
+            SymbolEqualityComparer.Default);
 
         var inputs = new List<ShaderIrInterfaceVariable>();
         var vertexInputs = new List<ShaderIrVertexInput>();
