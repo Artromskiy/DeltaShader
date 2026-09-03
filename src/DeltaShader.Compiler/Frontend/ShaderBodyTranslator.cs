@@ -2540,7 +2540,7 @@ internal static class ShaderBodyTranslator
         private SyntaxNode SetUnsupportedImplicitCreationReason(ImplicitObjectCreationExpressionSyntax node)
         {
             Reason ??= "Target-typed shader constructor has an unsupported type.";
-            return base.VisitImplicitObjectCreationExpression(node);
+            return base.VisitImplicitObjectCreationExpression(node) ?? node;
         }
 
         private ExpressionSyntax? TryTranslateObjectCreation(

@@ -48,7 +48,7 @@ public sealed class ShaderIntrinsicAttribute : Attribute
     public ShaderIntrinsicAttribute(string glslName, params ShaderStage[] stages)
     {
 #if NET10_0_OR_GREATER
-		ArgumentNullException.ThrowIfNull(stages);
+        ArgumentNullException.ThrowIfNull(stages);
 #else
         if (stages is null)
         {
@@ -67,6 +67,7 @@ public sealed class ShaderIntrinsicAttribute : Attribute
     }
 }
 
+#pragma warning disable CS8981
 public static class intrinsics
 {
     [ShaderIntrinsic("fwidth", ShaderStage.Fragment)]
@@ -81,3 +82,4 @@ public static class intrinsics
     [ShaderIntrinsic("discard", ShaderStage.Fragment)]
     public static bool discard => throw new NotSupportedException();
 }
+#pragma warning restore CS8981
