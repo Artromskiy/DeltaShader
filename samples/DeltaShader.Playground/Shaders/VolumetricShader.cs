@@ -18,7 +18,8 @@ public struct VolumetricFrameConstants
 }
 
 public readonly struct VolumetricVertexContext
-{[Layout(0, 0)]
+{
+    [Layout(0, 0)]
     public readonly ReadOnlyStorageBuffer<float4> Vertices;
 
     [PushConstant]
@@ -26,7 +27,8 @@ public readonly struct VolumetricVertexContext
 }
 
 public readonly struct VolumetricFragmentContext
-{[Layout(0, 0)]
+{
+    [Layout(0, 0)]
     public readonly ReadOnlyStorageBuffer<float4> Vertices;
 
     [PushConstant]

@@ -45,9 +45,9 @@ internal static class EditorViewportCube
     {
         public VertexContext(ReadOnlyStorageBuffer<SceneParameters> scene)
         {
-Scene = scene;
+            Scene = scene;
         }
-[Layout(0, 0)]
+        [Layout(0, 0)]
         public readonly ReadOnlyStorageBuffer<SceneParameters> Scene;
     }
 
@@ -57,10 +57,10 @@ Scene = scene;
             ReadOnlyStorageBuffer<SceneParameters> scene,
             SampledTexture2D albedo)
         {
-Scene = scene;
+            Scene = scene;
             Albedo = albedo;
         }
-[Layout(0, 0)]
+        [Layout(0, 0)]
         public readonly ReadOnlyStorageBuffer<SceneParameters> Scene;
 
         [Layout(0, 1)]

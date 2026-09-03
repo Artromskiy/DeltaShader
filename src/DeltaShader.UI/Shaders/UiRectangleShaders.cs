@@ -35,7 +35,8 @@ public struct SolidRectanglePayload
 }
 
 public readonly struct SolidRectangleVertexContext
-{[Layout(0, 0)]
+{
+    [Layout(0, 0)]
     public readonly ReadOnlyStorageBuffer<SolidRectangleParameters> Instances;
 
     [PushConstant]
@@ -43,7 +44,7 @@ public readonly struct SolidRectangleVertexContext
 }
 
 public readonly struct SolidRectangleFragmentContext
-{}
+{ }
 
 public readonly struct RoundedRectangleParameters
 {
@@ -81,7 +82,8 @@ public struct RoundedRectanglePayload
 }
 
 public readonly struct RoundedRectangleVertexContext
-{[Layout(0, 0)]
+{
+    [Layout(0, 0)]
     public readonly ReadOnlyStorageBuffer<RoundedRectangleParameters> Instances;
 
     [PushConstant]
@@ -89,7 +91,7 @@ public readonly struct RoundedRectangleVertexContext
 }
 
 public readonly struct RoundedRectangleFragmentContext
-{}
+{ }
 
 public static class UiRectangleShaders
 {

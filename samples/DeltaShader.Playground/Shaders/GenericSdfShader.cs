@@ -18,14 +18,16 @@ public struct FrameConstants
 }
 
 public readonly struct VertexContext
-{[Layout(0, 0)]
+{
+    [Layout(0, 0)]
     public readonly ReadOnlyStorageBuffer<float4> Vertices;
     [PushConstant]
     public readonly FrameConstants Constants;
 }
 
 public readonly struct FragmentContext
-{[Layout(0, 0)]
+{
+    [Layout(0, 0)]
     public readonly ReadOnlyStorageBuffer<float4> Vertices;
     [PushConstant]
     public readonly FrameConstants Constants;

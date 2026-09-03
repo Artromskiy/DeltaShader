@@ -17,6 +17,7 @@ public struct GalleryVarying
 }
 
 public readonly struct GalleryFragmentContext
-{[PushConstant]
+{
+    [PushConstant]
     public readonly GalleryConstants Constants;
 }

@@ -26,9 +26,9 @@ internal static class TransformVertex
     {
         public VertexContext(TransformConstants constants)
         {
-Constants = constants;
+            Constants = constants;
         }
-[PushConstant]
+        [PushConstant]
         public readonly TransformConstants Constants;
     }
 

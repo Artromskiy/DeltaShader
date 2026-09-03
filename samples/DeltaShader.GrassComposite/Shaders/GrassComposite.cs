@@ -30,7 +30,8 @@ public struct GrassFrame
 }
 
 public readonly struct GrassVertexContext
-{[Layout(0, 0)]
+{
+    [Layout(0, 0)]
     public readonly ReadOnlyStorageBuffer<float4x4> InstanceTransforms;
 
     [PushConstant]
@@ -38,7 +39,8 @@ public readonly struct GrassVertexContext
 }
 
 public readonly struct GrassFragmentContext
-{[Layout(0, 1)]
+{
+    [Layout(0, 1)]
     public readonly SampledTexture2D GrassTexture;
 
     [PushConstant]
