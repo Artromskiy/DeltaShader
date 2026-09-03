@@ -7,7 +7,7 @@ namespace Delta.Shader.ShadertoyGallery;
 internal static class Example09_RainbowSectors
 {
     [FragmentShader]
-    public static float4 RainbowSectors(in GalleryFragmentContext context)
+    public static float4 RainbowSectors(in GalleryFragmentContext context, in GalleryVarying input)
     {
         var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution) * 2f - new float2(1f, 1f);
         var angle = maths.atan(p.y / (maths.abs(p.x) + 0.001f)) + context.Constants.Time * 0.4f;

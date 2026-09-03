@@ -15,27 +15,18 @@ internal static class JfaShaders
 
 	public readonly struct JfaInitVertexContext
 	{
-		public JfaInitVertexContext(JfaVarying vertex)
+		public JfaInitVertexContext()
 		{
-			Vertex = vertex;
-		}
-
-		[Interstage]
-		public readonly JfaVarying Vertex;
-	}
+}
+}
 
 	public readonly struct JfaInitFragmentContext
 	{
-		public JfaInitFragmentContext(JfaVarying fragment, SampledTexture2D silhouette)
+		public JfaInitFragmentContext(SampledTexture2D silhouette)
 		{
-			Fragment = fragment;
-			Silhouette = silhouette;
+Silhouette = silhouette;
 		}
-
-		[Interstage]
-		public readonly JfaVarying Fragment;
-
-		[Layout(0, 0)]
+[Layout(0, 0)]
 		public readonly SampledTexture2D Silhouette;
 	}
 
@@ -53,31 +44,21 @@ internal static class JfaShaders
 
 	public readonly struct JfaFloodVertexContext
 	{
-		public JfaFloodVertexContext(JfaVarying vertex)
+		public JfaFloodVertexContext()
 		{
-			Vertex = vertex;
-		}
-
-		[Interstage]
-		public readonly JfaVarying Vertex;
-	}
+}
+}
 
 	public readonly struct JfaFloodFragmentContext
 	{
 		public JfaFloodFragmentContext(
-			JfaVarying fragment,
 			SampledTexture2D seeds,
 			JfaFloodParameters parameters)
 		{
-			Fragment = fragment;
-			Seeds = seeds;
+Seeds = seeds;
 			Parameters = parameters;
 		}
-
-		[Interstage]
-		public readonly JfaVarying Fragment;
-
-		[Layout(0, 0)]
+[Layout(0, 0)]
 		public readonly SampledTexture2D Seeds;
 
 		[PushConstant]
@@ -100,33 +81,23 @@ internal static class JfaShaders
 
 	public readonly struct JfaCompositeVertexContext
 	{
-		public JfaCompositeVertexContext(JfaVarying vertex)
+		public JfaCompositeVertexContext()
 		{
-			Vertex = vertex;
-		}
-
-		[Interstage]
-		public readonly JfaVarying Vertex;
-	}
+}
+}
 
 	public readonly struct JfaCompositeFragmentContext
 	{
 		public JfaCompositeFragmentContext(
-			JfaVarying fragment,
 			SampledTexture2D seeds,
 			SampledTexture2D silhouette,
 			JfaCompositeParameters parameters)
 		{
-			Fragment = fragment;
-			Seeds = seeds;
+Seeds = seeds;
 			Silhouette = silhouette;
 			Parameters = parameters;
 		}
-
-		[Interstage]
-		public readonly JfaVarying Fragment;
-
-		[Layout(0, 0)]
+[Layout(0, 0)]
 		public readonly SampledTexture2D Seeds;
 
 		[Layout(0, 1)]
@@ -137,7 +108,7 @@ internal static class JfaShaders
 	}
 
 	[VertexShader("jfa-init")]
-	public static JfaVarying JfaInitVertex(in JfaInitVertexContext context)
+	public static JfaVarying JfaInitVertex(in JfaInitVertexContext context, in JfaVarying input)
 	{
 		uint vertex = ShaderBuiltins.VertexIndex;
 		if (vertex == 0u)
@@ -166,16 +137,16 @@ internal static class JfaShaders
 	}
 
 	[FragmentShader("jfa-init")]
-	public static float4 JfaInitFragment(in JfaInitFragmentContext context)
+	public static float4 JfaInitFragment(in JfaInitFragmentContext context, in JfaVarying input)
 	{
-		float2 uv = context.Fragment.Uv.Value;
+		float2 uv = input.Uv.Value;
 		float4 silhouette = context.Silhouette.Sample<float2, float4>(uv);
 		float valid = silhouette.a > 0.001f ? 1f : 0f;
 		return new float4(uv.x, uv.y, valid, 1f);
 	}
 
 	[VertexShader("jfa-flood")]
-	public static JfaVarying JfaFloodVertex(in JfaFloodVertexContext context)
+	public static JfaVarying JfaFloodVertex(in JfaFloodVertexContext context, in JfaVarying input)
 	{
 		uint vertex = ShaderBuiltins.VertexIndex;
 		if (vertex == 0u)
@@ -204,9 +175,9 @@ internal static class JfaShaders
 	}
 
 	[FragmentShader("jfa-flood")]
-	public static float4 JfaFloodFragment(in JfaFloodFragmentContext context)
+	public static float4 JfaFloodFragment(in JfaFloodFragmentContext context, in JfaVarying input)
 	{
-		float2 uv = context.Fragment.Uv.Value;
+		float2 uv = input.Uv.Value;
 		float2 offset = context.Parameters.TexelSize * context.Parameters.Jump;
 		float4 center = context.Seeds.Sample<float2, float4>(ClampUv(uv));
 		float2 best = center.z > 0.5f ? center.xy : new float2(-1f, -1f);
@@ -225,7 +196,7 @@ internal static class JfaShaders
 	}
 
 	[VertexShader("jfa-composite")]
-	public static JfaVarying JfaCompositeVertex(in JfaCompositeVertexContext context)
+	public static JfaVarying JfaCompositeVertex(in JfaCompositeVertexContext context, in JfaVarying input)
 	{
 		uint vertex = ShaderBuiltins.VertexIndex;
 		if (vertex == 0u)
@@ -254,9 +225,9 @@ internal static class JfaShaders
 	}
 
 	[FragmentShader("jfa-composite")]
-	public static float4 JfaCompositeFragment(in JfaCompositeFragmentContext context)
+	public static float4 JfaCompositeFragment(in JfaCompositeFragmentContext context, in JfaVarying input)
 	{
-		float2 uv = context.Fragment.Uv.Value;
+		float2 uv = input.Uv.Value;
 		float4 silhouette = context.Silhouette.Sample<float2, float4>(ClampUv(uv));
 		if (silhouette.a > 0.001f || context.Parameters.OutlineWidth <= 0f)
 		{

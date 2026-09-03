@@ -7,7 +7,7 @@ namespace Delta.Shader.ShadertoyGallery;
 internal static class Example11_HillNoise
 {
     [FragmentShader]
-    public static float4 HillNoise(in GalleryFragmentContext context)
+    public static float4 HillNoise(in GalleryFragmentContext context, in GalleryVarying input)
     {
         var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution) * 2f - new float2(1f, 1f);
         var value = 0f;

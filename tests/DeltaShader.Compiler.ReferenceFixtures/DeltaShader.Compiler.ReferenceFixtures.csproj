@@ -14,6 +14,7 @@
 
   <ItemGroup>
     <PackageReference Include="DeltaMaths" />
+    <ProjectReference Include="../../src/DeltaShader.SemanticTypes/DeltaShader.SemanticTypes.csproj" />
     <ProjectReference Include="../../src/DeltaShader/DeltaShader.csproj" />
     <PackageReference Include="DeltaShader.Tool" PrivateAssets="all" />
   </ItemGroup>

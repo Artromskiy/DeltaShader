@@ -7,7 +7,7 @@ namespace Delta.Shader.ShadertoyGallery;
 internal static class Example41_ExitTheMatrix
 {
     [FragmentShader]
-    public static float4 ExitTheMatrix(in GalleryFragmentContext context)
+    public static float4 ExitTheMatrix(in GalleryFragmentContext context, in GalleryVarying input)
     {
         var uv = new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution;
         var grid = uv * new float2(18f, 10f);

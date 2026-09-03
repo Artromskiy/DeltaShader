@@ -50,12 +50,14 @@ public static class ShaderCompositeSourceGenerator
         if (!ArtifactSourceEmitter.TryEmitPackingMethods(
                 vertexMethod,
                 vertexManifest,
+                ShaderStage.Vertex,
                 out var vertexPacking,
                 out reason,
                 className + "Vertex") ||
             !ArtifactSourceEmitter.TryEmitPackingMethods(
                 fragmentMethod,
                 fragmentManifest,
+                ShaderStage.Fragment,
                 out var fragmentPacking,
                 out reason,
                 className + "Fragment"))

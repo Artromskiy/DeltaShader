@@ -1,9 +1,11 @@
+using Delta.Shader.Analyzers;
 using Delta.Shader.Backend.Glsl;
 using Delta.Shader.Compiler;
 using Delta.Shader.UI;
 using Delta.Maths;
 using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.MSBuild;
 using Xunit;
 
@@ -86,11 +88,11 @@ public sealed class UiShaderTests
         Assert.Contains("borderCoverage", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("outerCoverage", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("cornerRadii", fragmentGlsl, StringComparison.Ordinal);
-        Assert.Contains("1 - smoothstep(-edge, edge, distance)", fragmentGlsl, StringComparison.Ordinal);
-        Assert.Contains("1 - smoothstep(-edge, edge, distance +", fragmentGlsl, StringComparison.Ordinal);
-        Assert.Contains("max(outerCoverage - innerCoverage, 0)", fragmentGlsl, StringComparison.Ordinal);
+        Assert.Contains("1.0 - smoothstep(-edge, edge, distance)", fragmentGlsl, StringComparison.Ordinal);
+        Assert.Contains("1.0 - smoothstep(-edge, edge, distance +", fragmentGlsl, StringComparison.Ordinal);
+        Assert.Contains("max(outerCoverage - innerCoverage, 0.0)", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("premultipliedColor", fragmentGlsl, StringComparison.Ordinal);
-        Assert.Contains("color.x * color.w", solidFragmentGlsl, StringComparison.Ordinal);
+        Assert.Contains("color.xyz * color.w", solidFragmentGlsl, StringComparison.Ordinal);
         Assert.Equal("main", vertexManifest.EntryPointName);
         Assert.Single(vertexManifest.Outputs, output => output.Builtin == "Position");
         Assert.Contains(vertexManifest.Outputs, output => output.Name == "Uv");
@@ -99,7 +101,7 @@ public sealed class UiShaderTests
         Assert.Contains(vertexManifest.Outputs, output => output.Name == "BorderColor");
         Assert.Contains(vertexManifest.Outputs, output => output.Name == "CornerRadii");
         var packedUvOutput = Assert.Single(vertexManifest.Outputs, output => output.Name == "Uv");
-        Assert.Equal("vec4", packedUvOutput.GlslType);
+        Assert.Equal("vec2", packedUvOutput.GlslType);
     }
 
     [Fact]
@@ -110,9 +112,23 @@ public sealed class UiShaderTests
             compilation.GetDiagnostics(),
             diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
 
+        var parseOptions = compilation.SyntaxTrees.First().Options as CSharpParseOptions;
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            new[] { new DeltaGraphicsGenerator().AsSourceGenerator() },
+            parseOptions: parseOptions);
+        driver = driver.RunGeneratorsAndUpdateCompilation(
+            compilation,
+            out var generatedCompilation,
+            out var generatorDiagnostics);
+        Assert.DoesNotContain(generatorDiagnostics, diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+        Assert.DoesNotContain(
+            generatedCompilation.GetDiagnostics(),
+            diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+
         var generatedSource = string.Join(
             Environment.NewLine,
-            compilation.SyntaxTrees.Select(tree => tree.GetText().ToString()));
+            driver.GetRunResult().Results.SelectMany(result => result.GeneratedSources)
+                .Select(result => result.SourceText.ToString()));
 
         Assert.Contains("PackSolidRectangleVertexInstancesElement", generatedSource, StringComparison.Ordinal);
         Assert.Contains("PackSolidRectangleVertexInstancesElements", generatedSource, StringComparison.Ordinal);

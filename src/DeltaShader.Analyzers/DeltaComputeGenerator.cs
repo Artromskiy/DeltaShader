@@ -63,7 +63,7 @@ public sealed class DeltaComputeGenerator : IIncrementalGenerator
             return;
         }
 
-        if (!ArtifactSourceEmitter.TryEmitPackingMethods(method, result.BuildManifest, out var packingMethods, out var packingReason))
+        if (!ArtifactSourceEmitter.TryEmitPackingMethods(method, result.BuildManifest, ShaderStage.Compute, out var packingMethods, out var packingReason))
         {
             ReportDiagnostic(context, method, $"Std430 packer generation failed: {packingReason}");
             return;

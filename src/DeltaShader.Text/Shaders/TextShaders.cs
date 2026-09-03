@@ -37,11 +37,7 @@ public struct TextVarying
 }
 
 public readonly struct TextVertexContext
-{
-	[Interstage]
-	public readonly TextVarying Vertex;
-
-	[Layout(0, 0)]
+{[Layout(0, 0)]
 	public readonly ReadOnlyStorageBuffer<GlyphInstance> Glyphs;
 
 	[PushConstant]
@@ -49,11 +45,7 @@ public readonly struct TextVertexContext
 }
 
 public readonly struct SdfTextFragmentContext
-{
-	[Interstage]
-	public readonly TextVarying Fragment;
-
-	[Layout(0, 3)]
+{[Layout(0, 3)]
 	public readonly SampledTexture2D Atlas;
 
 	[PushConstant]
@@ -61,11 +53,7 @@ public readonly struct SdfTextFragmentContext
 }
 
 public readonly struct MsdfTextFragmentContext
-{
-	[Interstage]
-	public readonly TextVarying Fragment;
-
-	[Layout(0, 4)]
+{[Layout(0, 4)]
 	public readonly SampledTexture2D Atlas;
 
 	[PushConstant]
@@ -75,7 +63,7 @@ public readonly struct MsdfTextFragmentContext
 public static class TextShaders
 {
 	[VertexShader("sdf-text")]
-	public static TextVarying SdfTextVertex(in TextVertexContext context)
+	public static TextVarying SdfTextVertex(in TextVertexContext context, in TextVarying input)
 	{
 		uint instanceIndex = ShaderBuiltins.InstanceIndex;
 		uint vertexIndex = ShaderBuiltins.VertexIndex;
@@ -140,21 +128,21 @@ public static class TextShaders
 	}
 
 	[FragmentShader("sdf-text")]
-	public static float4 SdfTextFragment(in SdfTextFragmentContext context)
+	public static float4 SdfTextFragment(in SdfTextFragmentContext context, in TextVarying input)
 	{
-		var texel = context.Atlas.Sample<float2, float4>(context.Fragment.Uv.Value);
+		var texel = context.Atlas.Sample<float2, float4>(input.Uv.Value);
 		var signedDistance = (texel.x - 0.5f) * context.Parameters.DistanceRange;
 		var edge = intrinsics.fwidth(signedDistance);
 		var fillCoverage = maths.smoothstep(-edge, edge, signedDistance);
 		var outlineWidth = maths.max(context.Parameters.OutlineWidth, 0f);
 		var outerCoverage = maths.smoothstep(-outlineWidth - edge, -outlineWidth + edge, signedDistance);
 		var outlineContribution = maths.max(outerCoverage - fillCoverage, 0f);
-		return context.Parameters.TextColor * context.Fragment.GlyphColor.Value * fillCoverage +
-			context.Parameters.OutlineColor * context.Fragment.GlyphColor.Value * outlineContribution;
+		return context.Parameters.TextColor * input.GlyphColor.Value * fillCoverage +
+			context.Parameters.OutlineColor * input.GlyphColor.Value * outlineContribution;
 	}
 
 	[VertexShader("msdf-text")]
-	public static TextVarying MsdfTextVertex(in TextVertexContext context)
+	public static TextVarying MsdfTextVertex(in TextVertexContext context, in TextVarying input)
 	{
 		uint instanceIndex = ShaderBuiltins.InstanceIndex;
 		uint vertexIndex = ShaderBuiltins.VertexIndex;
@@ -219,9 +207,9 @@ public static class TextShaders
 	}
 
 	[FragmentShader("msdf-text")]
-	public static float4 MsdfTextFragment(in MsdfTextFragmentContext context)
+	public static float4 MsdfTextFragment(in MsdfTextFragmentContext context, in TextVarying input)
 	{
-		var texel = context.Atlas.Sample<float2, float4>(context.Fragment.Uv.Value);
+		var texel = context.Atlas.Sample<float2, float4>(input.Uv.Value);
 		var median = maths.max(
 			maths.min(texel.x, texel.y),
 			maths.min(maths.max(texel.x, texel.y), texel.z));
@@ -232,7 +220,7 @@ public static class TextShaders
 		var outlineWidth = maths.max(context.Parameters.OutlineWidth, 0f);
 		var outerCoverage = maths.smoothstep(-outlineWidth - edge, -outlineWidth + edge, signedDistance);
 		var outlineContribution = maths.max(outerCoverage - fillCoverage, 0f);
-		return context.Parameters.TextColor * context.Fragment.GlyphColor.Value * fillCoverage +
-			context.Parameters.OutlineColor * context.Fragment.GlyphColor.Value * outlineContribution;
+		return context.Parameters.TextColor * input.GlyphColor.Value * fillCoverage +
+			context.Parameters.OutlineColor * input.GlyphColor.Value * outlineContribution;
 	}
 }

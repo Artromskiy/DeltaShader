@@ -18,20 +18,14 @@ public struct FrameConstants
 }
 
 public readonly struct VertexContext
-{
-    [Interstage]
-    public readonly VertexPayload Vertex;
-    [Layout(0, 0)]
+{[Layout(0, 0)]
     public readonly ReadOnlyStorageBuffer<float4> Vertices;
     [PushConstant]
     public readonly FrameConstants Constants;
 }
 
 public readonly struct FragmentContext
-{
-    [Interstage]
-    public readonly VertexPayload Fragment;
-    [Layout(0, 0)]
+{[Layout(0, 0)]
     public readonly ReadOnlyStorageBuffer<float4> Vertices;
     [PushConstant]
     public readonly FrameConstants Constants;
@@ -178,18 +172,13 @@ public struct Raymarcher<TScene> where TScene : unmanaged, ISdfShape
 public static class GenericShaderPipeline
 {
     [VertexShader("template")]
-    public static VertexPayload GenericSdfVertex(in VertexContext context)
-    {
-        VertexPayload output = default;
-        output.Position = context.Vertex.Position;
-        output.Uv = context.Vertex.Uv;
-        return output;
-    }
+    public static VertexPayload GenericSdfVertex(in VertexContext context, in VertexPayload input)
+        => input;
 
     [FragmentShader("template")]
-    public static float4 GenericSdfFragment(in FragmentContext context)
+    public static float4 GenericSdfFragment(in FragmentContext context, in VertexPayload input)
     {
-        float2 uv = context.Fragment.Uv.Value * 2.0f - 1.0f;
+        float2 uv = input.Uv.Value * 2.0f - 1.0f;
         float aspectRatio = context.Constants.Resolution.x / context.Constants.Resolution.y;
         uv.x *= aspectRatio;
 

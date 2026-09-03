@@ -1670,6 +1670,25 @@ internal static class ShaderBodyTranslator
                 }
             }
 
+            if (node.IsKind(SyntaxKind.NumericLiteralExpression) &&
+                node.Token.Value is float or double or decimal)
+            {
+                var literal = node.Token.Value switch
+                {
+                    float value => value.ToString("R", System.Globalization.CultureInfo.InvariantCulture),
+                    double value => value.ToString("R", System.Globalization.CultureInfo.InvariantCulture),
+                    decimal value => value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    _ => node.Token.Text
+                };
+
+                if (!literal.Contains('.') && !literal.Contains('e') && !literal.Contains('E'))
+                {
+                    literal += ".0";
+                }
+
+                return SyntaxFactory.ParseExpression(literal).WithTriviaFrom(node);
+            }
+
             return base.VisitLiteralExpression(node);
         }
 
@@ -2004,9 +2023,12 @@ internal static class ShaderBodyTranslator
                 var translatedExpression = value is not null
                     ? Visit(value)?.ToFullString().Trim()
                     : GetTypeInfo(expression).Type is INamedTypeSymbol expressionType &&
-                        SymbolEqualityComparer.Default.Equals(expressionType, _returnType) &&
-                        _directFields.TryGetValue(leaf.Field, out var directFieldName)
-                        ? directFieldName
+                        SymbolEqualityComparer.Default.Equals(expressionType, _returnType)
+                        ? _outputFields.TryGetValue(leaf.Field, out var outputFieldName)
+                            ? outputFieldName
+                            : _directFields.TryGetValue(leaf.Field, out var directFieldName)
+                                ? directFieldName
+                                : null
                         : null;
                 if (string.IsNullOrWhiteSpace(translatedExpression))
                 {
@@ -2500,19 +2522,8 @@ internal static class ShaderBodyTranslator
                 return node;
             }
 
-            var type = typeInfo.Type;
-            if (type is INamedTypeSymbol structType &&
-                TryTranslateStructCreation(structType, node.ArgumentList, node.Initializer, out var structExpression))
-            {
-                return structExpression;
-            }
-
-            if (type is not null && TryMap(type, out var glslType))
-            {
-                var args = node.ArgumentList?.Arguments.Select(argument => Visit(argument.Expression) ?? throw new InvalidOperationException("Shader expression visitor returned no argument node.")).ToArray() ?? Array.Empty<ExpressionSyntax>();
-                return SyntaxFactory.ParseExpression(glslType + "(" + string.Join(", ", args.Select(argument => argument.ToFullString())) + ")");
-            }
-            return base.VisitObjectCreationExpression(node);
+            return TryTranslateObjectCreation(typeInfo.Type, node.ArgumentList, node.Initializer) ??
+                base.VisitObjectCreationExpression(node);
         }
 
         public override SyntaxNode? VisitImplicitObjectCreationExpression(ImplicitObjectCreationExpressionSyntax node)
@@ -2522,23 +2533,37 @@ internal static class ShaderBodyTranslator
                 return node;
             }
 
-            var type = typeInfo.ConvertedType ?? typeInfo.Type;
+            return TryTranslateObjectCreation(typeInfo.ConvertedType ?? typeInfo.Type, node.ArgumentList, node.Initializer) ??
+                SetUnsupportedImplicitCreationReason(node);
+        }
+
+        private SyntaxNode SetUnsupportedImplicitCreationReason(ImplicitObjectCreationExpressionSyntax node)
+        {
+            Reason ??= "Target-typed shader constructor has an unsupported type.";
+            return base.VisitImplicitObjectCreationExpression(node);
+        }
+
+        private ExpressionSyntax? TryTranslateObjectCreation(
+            ITypeSymbol? type,
+            ArgumentListSyntax? arguments,
+            InitializerExpressionSyntax? initializer)
+        {
             if (type is INamedTypeSymbol structType &&
-                TryTranslateStructCreation(structType, node.ArgumentList, node.Initializer, out var structExpression))
+                TryTranslateStructCreation(structType, arguments, initializer, out var structExpression))
             {
                 return structExpression;
             }
 
-            if (type is not null && TryMap(type, out var glslType))
+            if (type is null || !TryMap(type, out var glslType))
             {
-                var args = node.ArgumentList.Arguments
-                    .Select(argument => Visit(argument.Expression) ?? throw new InvalidOperationException("Shader expression visitor returned no argument node."))
-                    .ToArray();
-                return SyntaxFactory.ParseExpression(glslType + "(" + string.Join(", ", args.Select(argument => argument.ToFullString())) + ")");
+                return null;
             }
 
-            Reason ??= "Target-typed shader constructor has an unsupported type.";
-            return base.VisitImplicitObjectCreationExpression(node);
+            var translatedArguments = arguments?.Arguments
+                .Select(argument => Visit(argument.Expression) ?? throw new InvalidOperationException("Shader expression visitor returned no argument node."))
+                .ToArray() ?? Array.Empty<ExpressionSyntax>();
+            return SyntaxFactory.ParseExpression(
+                glslType + "(" + string.Join(", ", translatedArguments.Select(argument => argument.ToFullString())) + ")");
         }
 
         private bool TryTranslateStructCreation(

@@ -43,35 +43,24 @@ internal static class EditorViewportCube
 
     public readonly struct VertexContext
     {
-        public VertexContext(CubeVarying vertex, ReadOnlyStorageBuffer<SceneParameters> scene)
+        public VertexContext(ReadOnlyStorageBuffer<SceneParameters> scene)
         {
-            Vertex = vertex;
-            Scene = scene;
+Scene = scene;
         }
-
-        [Interstage]
-        public readonly CubeVarying Vertex;
-
-        [Layout(0, 0)]
+[Layout(0, 0)]
         public readonly ReadOnlyStorageBuffer<SceneParameters> Scene;
     }
 
     public readonly struct FragmentContext
     {
         public FragmentContext(
-            CubeVarying fragment,
             ReadOnlyStorageBuffer<SceneParameters> scene,
             SampledTexture2D albedo)
         {
-            Fragment = fragment;
-            Scene = scene;
+Scene = scene;
             Albedo = albedo;
         }
-
-        [Interstage]
-        public readonly CubeVarying Fragment;
-
-        [Layout(0, 0)]
+[Layout(0, 0)]
         public readonly ReadOnlyStorageBuffer<SceneParameters> Scene;
 
         [Layout(0, 1)]
@@ -79,23 +68,23 @@ internal static class EditorViewportCube
     }
 
     [VertexShader("EditorViewportCubeVertex")]
-    public static CubeVarying Vertex(in VertexContext context)
+    public static CubeVarying Vertex(in VertexContext context, in CubeVarying input)
     {
-        var modelPosition = context.Scene[0].Model * context.Vertex.Position.Value;
+        var modelPosition = context.Scene[0].Model * input.Position.Value;
         return new CubeVarying
         {
             Position = context.Scene[0].Projection * context.Scene[0].View * modelPosition,
-            Normal = maths.normalize((context.Scene[0].Model * new float4(context.Vertex.Normal.Value, 0f)).xyz),
-            Uv = context.Vertex.Uv
+            Normal = maths.normalize((context.Scene[0].Model * new float4(input.Normal.Value, 0f)).xyz),
+            Uv = input.Uv
         };
     }
 
     [FragmentShader("EditorViewportCubeFragment")]
-    public static float4 Fragment(in FragmentContext context)
+    public static float4 Fragment(in FragmentContext context, in CubeVarying input)
     {
-        var baseColor = context.Albedo.Sample<float2, float4>(context.Fragment.Uv.Value);
+        var baseColor = context.Albedo.Sample<float2, float4>(input.Uv.Value);
         var lightDirection = maths.normalize(-context.Scene[0].LightDirection);
-        var diffuse = maths.max(0f, maths.dot(context.Fragment.Normal.Value, lightDirection));
+        var diffuse = maths.max(0f, maths.dot(input.Normal.Value, lightDirection));
         return baseColor * context.Scene[0].LightColor * diffuse;
     }
 }

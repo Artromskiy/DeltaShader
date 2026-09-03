@@ -7,7 +7,7 @@ namespace Delta.Shader.ShadertoyGallery;
 internal static class Example17_DisplacedGrid
 {
     [FragmentShader]
-    public static float4 DisplacedGrid(in GalleryFragmentContext context)
+    public static float4 DisplacedGrid(in GalleryFragmentContext context, in GalleryVarying input)
     {
         var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution) * 2f - new float2(1f, 1f);
         var displacedX = p.x + 0.16f * maths.sin(p.y * 9f + context.Constants.Time);

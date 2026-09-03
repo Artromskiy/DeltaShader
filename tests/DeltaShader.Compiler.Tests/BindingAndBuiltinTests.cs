@@ -417,7 +417,7 @@ public sealed class BindingAndBuiltinTests
         ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
 
         Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
-        Assert.Contains("vec4 local_color = vec4(1, 1, 1, 1);", result.Module!.Body, StringComparison.Ordinal);
+        Assert.Contains("vec4 local_color = vec4(1.0, 1.0, 1.0, 1.0);", result.Module!.Body, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -438,20 +438,17 @@ public sealed class BindingAndBuiltinTests
             }
 
             public readonly struct VertexContext
-            {
-                [Interstage]
-                public readonly VertexPayload Vertex;
-            }
+            {}
 
             public static class VertexEntry
             {
                 [VertexShader]
-                public static VertexPayload Execute(in VertexContext context)
+                public static VertexPayload Execute(in VertexContext context, in VertexPayload input)
                 {
                     return new VertexPayload
                     {
-                        Position = new float4(context.Vertex.Position.xyz, 1f),
-                        Uv = context.Vertex.Uv
+                        Position = new float4(input.Position.xyz, 1f),
+                        Uv = input.Uv
                     };
                 }
             }";
@@ -485,21 +482,15 @@ public sealed class BindingAndBuiltinTests
             }
 
             public struct VertexContext
-            {
-                [Interstage]
-                public SurfacePayload Vertex;
-            }
+            {}
 
             public struct FragmentContext
-            {
-                [Interstage]
-                public SurfacePayload Fragment;
-            }
+            {}
 
             public static class NestedGraphics
             {
                 [VertexShader]
-                public static SurfacePayload Vertex(in VertexContext context) => new SurfacePayload
+                public static SurfacePayload Vertex(in VertexContext context, in SurfacePayload input) => new SurfacePayload
                 {
                     Position = new float4(0f, 0f, 0f, 1f),
                     Surface = new SurfaceData
@@ -510,7 +501,7 @@ public sealed class BindingAndBuiltinTests
                 };
 
                 [FragmentShader]
-                public static float4 Fragment(in FragmentContext context) => context.Fragment.Surface.Color.Value;
+                public static float4 Fragment(in FragmentContext context, in SurfacePayload input) => input.Surface.Color.Value;
             }
             """;
 
@@ -523,11 +514,17 @@ public sealed class BindingAndBuiltinTests
         Assert.True(fragment.Success, string.Join(Environment.NewLine, fragment.Diagnostics.Select(diagnostic => diagnostic.Message)));
         Assert.Equal(
             SurfacePayloadOutputs,
-            vertex.Module!.Outputs.Where(output => output.Builtin is null).Select(output => output.GlslName).ToArray());
+            vertex.Module!.Outputs
+                .Where(output => output.Builtin is null && output.GlslName is not ("Position" or "gl_Position"))
+                .Select(output => output.GlslName)
+                .ToArray());
         Assert.Equal(
             SurfacePayloadOutputs,
-            fragment.Module!.Inputs.Where(input => input.Builtin is null).Select(input => input.GlslName).ToArray());
-        Assert.Equal((0u, 1u), (fragment.Module.Inputs[1].Location, fragment.Module.Inputs[2].Location));
+            fragment.Module!.Inputs
+                .Where(input => input.Builtin is null && input.GlslName is not ("Position" or "gl_Position"))
+                .Select(input => input.GlslName)
+                .ToArray());
+        Assert.Equal((1u, 2u), (fragment.Module.Inputs[1].Location, fragment.Module.Inputs[2].Location));
         Assert.Contains("Surface_Uv = vec2", vertex.Module.Body, StringComparison.Ordinal);
         Assert.Contains("Surface_Color = vec4", vertex.Module.Body, StringComparison.Ordinal);
         Assert.Contains("fragColor = Surface_Color", fragment.Module.Body, StringComparison.Ordinal);
@@ -554,15 +551,12 @@ public sealed class BindingAndBuiltinTests
             }
 
             public struct VertexContext
-            {
-                [Interstage]
-                public SurfacePayload Vertex;
-            }
+            {}
 
             public static class RepeatedNestedGraphics
             {
                 [VertexShader]
-                public static SurfacePayload Vertex(in VertexContext context) => default;
+                public static SurfacePayload Vertex(in VertexContext context, in SurfacePayload input) => default;
             }
             """;
 
@@ -595,15 +589,12 @@ public sealed class BindingAndBuiltinTests
             }
 
             public struct VertexContext
-            {
-                [Interstage]
-                public SurfacePayload Vertex;
-            }
+            {}
 
             public static class InvalidNestedGraphics
             {
                 [VertexShader]
-                public static SurfacePayload Vertex(in VertexContext context) => default;
+                public static SurfacePayload Vertex(in VertexContext context, in SurfacePayload input) => default;
             }
             """;
 
@@ -662,15 +653,12 @@ public sealed class BindingAndBuiltinTests
             }
 
             public readonly struct FragmentContext
-            {
-                [Interstage]
-                public readonly FragmentPayload Fragment;
-            }
+            {}
 
             public static class FragmentEntry
             {
                 [FragmentShader]
-                public static float4 Execute(in FragmentContext context) =>
+                public static float4 Execute(in FragmentContext context, in FragmentPayload input) =>
                     new float4(ShaderBuiltins.VertexIndex);
             }";
 
@@ -697,15 +685,12 @@ public sealed class BindingAndBuiltinTests
             }
 
             public readonly struct FragmentContext
-            {
-                [Interstage]
-                public readonly FragmentPayload Fragment;
-            }
+            {}
 
             public static class SwizzleHelperShader
             {
                 [FragmentShader]
-                public static float4 Fragment(in FragmentContext context)
+                public static float4 Fragment(in FragmentContext context, in FragmentPayload input)
                 {
                     return ReadCandidate(new float4(1f, 2f, 3f, 4f));
                 }
@@ -753,8 +738,6 @@ public sealed class BindingAndBuiltinTests
 
             public struct VertexContext
             {
-                [Interstage]
-                public VertexPayload Input;
                 [Layout(0, 0)]
                 public ReadOnlyStorageBuffer<float4> InstanceData;
                 [PushConstant]
@@ -763,8 +746,6 @@ public sealed class BindingAndBuiltinTests
 
             public struct FragmentContext
             {
-                [Interstage]
-                public FragmentPayload Input;
                 [Layout(0, 1)]
                 public SampledTexture2D FragmentTexture;
                 [PushConstant]
@@ -774,7 +755,7 @@ public sealed class BindingAndBuiltinTests
             public static class GrassLayers
             {
                 [VertexShader("grass-vertex")]
-                public static VertexPayload Vertex(in VertexContext context) => new VertexPayload
+                public static VertexPayload Vertex(in VertexContext context, in VertexPayload input) => new VertexPayload
                 {
                     Position = new float4(0f, 0f, 0f, 1f),
                     VertexUv = new float2(0f, 0f),
@@ -782,8 +763,8 @@ public sealed class BindingAndBuiltinTests
                 };
 
                 [FragmentShader("grass-fragment")]
-                public static float4 Fragment(in FragmentContext context) =>
-                    context.Input.ColorInput.Value * context.Constants.Color;
+                public static float4 Fragment(in FragmentContext context, in FragmentPayload input) =>
+                    input.ColorInput.Value * context.Constants.Color;
             }
             """;
 
@@ -858,25 +839,19 @@ public sealed class BindingAndBuiltinTests
             }
 
             public struct VertexContext
-            {
-                [Interstage]
-                public VertexPayload Input;
-            }
+            {}
 
             public struct FragmentContext
-            {
-                [Interstage]
-                public FragmentPayload Input;
-            }
+            {}
 
             public static class InvalidComposite
             {
                 [VertexShader("producer")]
-                public static VertexPayload Vertex(in VertexContext context) => default;
+                public static VertexPayload Vertex(in VertexContext context, in VertexPayload input) => default;
 
                 [FragmentShader("consumer")]
-                public static float4 Fragment(in FragmentContext context) =>
-                    new float4(context.Input.MissingUv.Value, 0f, 1f);
+                public static float4 Fragment(in FragmentContext context, in FragmentPayload input) =>
+                    new float4(input.MissingUv.Value, 0f, 1f);
             }
             """;
 

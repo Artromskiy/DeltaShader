@@ -7,7 +7,7 @@ namespace Delta.Shader.ShadertoyGallery;
 internal static class Example14_RayMarchingSketch
 {
     [FragmentShader]
-    public static float4 RayMarchingSketch(in GalleryFragmentContext context)
+    public static float4 RayMarchingSketch(in GalleryFragmentContext context, in GalleryVarying input)
     {
         var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution) * 2f - new float2(1f, 1f);
         var travel = 0f;

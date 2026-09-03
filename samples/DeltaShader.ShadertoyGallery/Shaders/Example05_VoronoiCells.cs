@@ -7,7 +7,7 @@ namespace Delta.Shader.ShadertoyGallery;
 internal static class Example05_VoronoiCells
 {
     [FragmentShader]
-    public static float4 VoronoiCells(in GalleryFragmentContext context)
+    public static float4 VoronoiCells(in GalleryFragmentContext context, in GalleryVarying input)
     {
         var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution) * 2f - new float2(1f, 1f);
         var grid = p * 4f;

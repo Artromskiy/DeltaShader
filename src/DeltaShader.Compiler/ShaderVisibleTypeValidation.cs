@@ -39,14 +39,14 @@ public static class ShaderVisibleTypeValidation
         }
 
         if (parameter.RefKind != RefKind.In ||
-            parameter.Type is not INamedTypeSymbol { TypeKind: TypeKind.Struct } contextType)
+            parameter.Type is not INamedTypeSymbol { TypeKind: TypeKind.Struct })
         {
             return false;
         }
 
-        return contextType.GetMembers().OfType<IFieldSymbol>()
-            .Where(field => !field.IsStatic)
-            .Any(field => IsContextField(field, compilation));
+        // Graphics stages may legitimately have an empty context when all
+        // stage data arrives through the explicit payload parameter.
+        return true;
     }
 
     public static IReadOnlyList<ShaderVisibleTypeIssue> ValidateContext(
@@ -73,11 +73,7 @@ public static class ShaderVisibleTypeValidation
 
             if (attributes.Length == 0)
             {
-                foreach (var issue in Validate(field.Type, field))
-                {
-                    issues.Add(issue);
-                }
-
+                AddIssue(field, $"Shader context field '{field.Name}' must not contain an interstage payload; pass it as an entry-point parameter.", issues);
                 continue;
             }
 
@@ -282,27 +278,9 @@ public static class ShaderVisibleTypeValidation
             return false;
         }
 
-        string[] semanticTypeNames =
-        [
-            "Delta.Shader.Position",
-            "Delta.Shader.Uv0",
-            "Delta.Shader.Uv1",
-            "Delta.Shader.Color",
-            "Delta.Shader.VertexColor",
-            "Delta.Shader.FragmentColor",
-            "Delta.Shader.WorldPosition",
-            "Delta.Shader.WorldNormal",
-            "Delta.Shader.Tangent",
-            "Delta.Shader.Pixel",
-            "Delta.Shader.SegmentRect",
-            "Delta.Shader.CornerData",
-            "Delta.Shader.CornerRadii",
-            "Delta.Shader.BorderWidth",
-            "Delta.Shader.ClipRect"
-        ];
-
-        return semanticTypeNames.Any(name =>
-            string.Equals(namedType.ToDisplayString(), name, StringComparison.Ordinal));
+        return namedType.TypeKind == TypeKind.Struct &&
+            string.Equals(namedType.ContainingNamespace?.ToDisplayString(), "Delta.Shader", StringComparison.Ordinal) &&
+            namedType.GetMembers("Value").OfType<IFieldSymbol>().Count(field => !field.IsStatic) == 1;
     }
 
     private static ITypeSymbol? GetBufferElementType(ITypeSymbol type, Compilation compilation)

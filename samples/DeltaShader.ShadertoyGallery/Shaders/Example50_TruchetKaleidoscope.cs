@@ -7,7 +7,7 @@ namespace Delta.Shader.ShadertoyGallery;
 internal static class Example50_TruchetKaleidoscope
 {
     [FragmentShader]
-    public static float4 TruchetKaleidoscope(in GalleryFragmentContext context)
+    public static float4 TruchetKaleidoscope(in GalleryFragmentContext context, in GalleryVarying input)
     {
         var uv = new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution;
         var p = uv * 6f - new float2(3f, 3f);

@@ -200,16 +200,16 @@ public static void Compute(in BufferComputeContext ctx)
 
 ### Graphics context contract
 
-Graphics contexts use the same shape: descriptors and push constants remain
-ordinary context fields, while one interstage field contains the stage-data
-payload. The canonical payload uses semantic value types. `Position` is the
-required vertex position semantic; `Uv0`, `Color`, `VertexColor`, and
-`FragmentColor` carry their meaning in their full type identity rather than in
-the CLR field name. Direct scalar/vector fields are rejected; migrate the field
-to the `Delta.Shader.Position` semantic type.
+Graphics stages use two independent input ports. The first parameter is the
+stage context with descriptors and push constants. The second parameter is the
+semantic payload consumed by the stage. A vertex stage returns the payload for
+the next stage; a fragment stage returns its final color. The canonical payload
+uses semantic value types. `Position` is the required vertex position semantic;
+`Uv0`, `Color`, `VertexColor`, and `FragmentColor` carry their meaning in their
+full type identity rather than in the CLR field name. Direct scalar/vector
+fields are rejected; migrate the field to a semantic value type.
 
 ```csharp
-[Interstage]
 public struct InterstageData
 {
     [Layout(0)]
@@ -223,32 +223,30 @@ public struct InterstageData
 
 public readonly struct VertexContext
 {
-    [Interstage]
-    public readonly InterstageData Vertex;
-
     [Layout(0, 0)]
     public readonly ReadOnlyStorageBuffer<int> Values;
 }
 
 public readonly struct FragmentContext
 {
-    [Interstage]
-    public readonly InterstageData Vertex;
-
     [Layout(0, 1)]
     public readonly ReadOnlyStorageBuffer<float> OtherValues;
 }
 
 [VertexShader]
-public static InterstageData VertexEntry(in VertexContext context)
+public static InterstageData VertexEntry(
+    in VertexContext context,
+    in InterstageData input)
 {
-    return context.Vertex;
+    return input;
 }
 
 [FragmentShader]
-public static float4 FragmentEntry(in FragmentContext context)
+public static float4 FragmentEntry(
+    in FragmentContext context,
+    in InterstageData input)
 {
-    return context.Vertex.VertexColor.Value;
+    return input.VertexColor.Value;
 }
 ```
 

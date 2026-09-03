@@ -64,7 +64,7 @@ public struct InterstageUvAnimation
 
 public struct InterstageFragment
 {
-    public Color Color;
+    public FragmentColor FragmentColor;
 }
 ```
 
@@ -81,23 +81,31 @@ required.
 ## Stage contexts
 
 Contexts are input declarations for one composite, not interstage storage.
-They may contain different fields in different stages:
+They may contain different fields in different stages. The interstage payload is
+passed as a separate method parameter:
 
 ```csharp
 public readonly struct VertexContext
 {
-    public InterstageVertex Input;
     public ObjectColors ObjectColors;
     public FrameConstants Frame;
 }
 
 public readonly struct FragmentContext
 {
-    public Uv0 Uv;
-    public Color Color;
     public FrameConstants Frame;
     public MainTexture Texture;
 }
+
+[VertexShader]
+public static InterstageVertex Vertex(
+    in VertexContext context,
+    in InterstageVertex input) => input;
+
+[FragmentShader]
+public static float4 Fragment(
+    in FragmentContext context,
+    in InterstageVertex input) => input.VertexColor.Value;
 ```
 
 The context merger uses full type/member identity. It collects fields used by

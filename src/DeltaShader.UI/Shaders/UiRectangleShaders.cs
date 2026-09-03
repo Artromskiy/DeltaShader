@@ -31,15 +31,11 @@ public readonly struct SolidRectangleParameters
 public struct SolidRectanglePayload
 {
     public Position Position;
-    public Color Color;
+    public VertexColor Color;
 }
 
 public readonly struct SolidRectangleVertexContext
-{
-    [Interstage]
-    public readonly SolidRectanglePayload Vertex;
-
-    [Layout(0, 0)]
+{[Layout(0, 0)]
     public readonly ReadOnlyStorageBuffer<SolidRectangleParameters> Instances;
 
     [PushConstant]
@@ -47,10 +43,7 @@ public readonly struct SolidRectangleVertexContext
 }
 
 public readonly struct SolidRectangleFragmentContext
-{
-    [Interstage]
-    public readonly SolidRectanglePayload Fragment;
-}
+{}
 
 public readonly struct RoundedRectangleParameters
 {
@@ -80,7 +73,7 @@ public struct RoundedRectanglePayload
 {
     public Position Position;
     public Uv0 Uv;
-    public Color Rect;
+    public SegmentRect Rect;
     public VertexColor FillColor;
     public FragmentColor BorderColor;
     public CornerRadii CornerRadii;
@@ -88,11 +81,7 @@ public struct RoundedRectanglePayload
 }
 
 public readonly struct RoundedRectangleVertexContext
-{
-    [Interstage]
-    public readonly RoundedRectanglePayload Vertex;
-
-    [Layout(0, 0)]
+{[Layout(0, 0)]
     public readonly ReadOnlyStorageBuffer<RoundedRectangleParameters> Instances;
 
     [PushConstant]
@@ -100,28 +89,12 @@ public readonly struct RoundedRectangleVertexContext
 }
 
 public readonly struct RoundedRectangleFragmentContext
-{
-    [Interstage]
-    public readonly RoundedRectanglePayload Fragment;
-}
+{}
 
 public static class UiRectangleShaders
 {
-    private static bool IsInsideClip(ClipRect clip)
+    private static float2 GetQuadLocal(uint vertexIndex)
     {
-        float pixelX = ShaderBuiltins.FragmentCoord.X;
-        float pixelY = ShaderBuiltins.FragmentCoord.Y;
-        return pixelX >= clip.Value.x &&
-            pixelY >= clip.Value.y &&
-            pixelX < clip.Value.x + clip.Value.z &&
-            pixelY < clip.Value.y + clip.Value.w;
-    }
-
-    [VertexShader("solid-rectangle")]
-    public static SolidRectanglePayload SolidRectangleVertex(in SolidRectangleVertexContext context)
-    {
-        SolidRectangleParameters instance = context.Instances[ShaderBuiltins.InstanceIndex];
-        uint vertexIndex = ShaderBuiltins.VertexIndex;
         float2 local = new float2(0f, 0f);
         if (vertexIndex == 1u || vertexIndex == 2u || vertexIndex == 4u)
         {
@@ -133,72 +106,17 @@ public static class UiRectangleShaders
             local = new float2(local.x, 1f);
         }
 
-        float2 pixel = new float2(
-            instance.Rect.x + local.x * instance.Rect.z,
-            instance.Rect.y + local.y * instance.Rect.w);
-        float2 clip = new float2(
-            pixel.x / context.Frame.Resolution.x * 2f - 1f,
-            pixel.y / context.Frame.Resolution.y * 2f - 1f);
-
-        return new SolidRectanglePayload
-        {
-            Position = new float4(clip.x, clip.y, 0f, 1f),
-            Color = new Color(instance.Color)
-        };
+        return local;
     }
 
-    [FragmentShader("solid-rectangle")]
-    public static float4 SolidRectangleFragment(in SolidRectangleFragmentContext context)
+    private static float2 ToClipPosition(float4 rect, float2 local, float2 resolution)
     {
-        float4 color = context.Fragment.Color.Value;
-        return new float4(color.x * color.w, color.y * color.w, color.z * color.w, color.w);
+        float2 pixel = rect.xy + local.xy * rect.zw;
+        return pixel / resolution * 2f - 1f;
     }
 
-    [VertexShader("rounded-rectangle")]
-    public static RoundedRectanglePayload RoundedRectangleVertex(in RoundedRectangleVertexContext context)
+    private static float GetCornerRadius(float4 cornerRadii, float2 centered)
     {
-        RoundedRectangleParameters instance = context.Instances[ShaderBuiltins.InstanceIndex];
-        uint vertexIndex = ShaderBuiltins.VertexIndex;
-        float2 local = new float2(0f, 0f);
-        if (vertexIndex == 1u || vertexIndex == 2u || vertexIndex == 4u)
-        {
-            local = new float2(1f, local.y);
-        }
-
-        if (vertexIndex == 2u || vertexIndex == 4u || vertexIndex == 5u)
-        {
-            local = new float2(local.x, 1f);
-        }
-
-        float2 pixel = new float2(
-            instance.Rect.x + local.x * instance.Rect.z,
-            instance.Rect.y + local.y * instance.Rect.w);
-        float2 clip = new float2(
-            pixel.x / context.Frame.Resolution.x * 2f - 1f,
-            pixel.y / context.Frame.Resolution.y * 2f - 1f);
-
-        return new RoundedRectanglePayload
-        {
-            Position = new float4(clip.x, clip.y, 0f, 1f),
-            Uv = new Uv0(local),
-            Rect = new Color(instance.Rect),
-            FillColor = new VertexColor(instance.FillColor),
-            BorderColor = new FragmentColor(instance.BorderColor),
-            CornerRadii = new CornerRadii(instance.CornerRadii),
-            BorderWidth = new BorderWidth(instance.BorderWidth)
-        };
-    }
-
-    [FragmentShader("rounded-rectangle")]
-    public static float4 RoundedRectangleFragment(in RoundedRectangleFragmentContext context)
-    {
-        float4 rect = context.Fragment.Rect.Value;
-        float2 size = new float2(rect.z, rect.w);
-        float4 cornerRadii = context.Fragment.CornerRadii.Value;
-        float borderWidth = context.Fragment.BorderWidth.Value;
-        float2 pixel = context.Fragment.Uv.Value * size;
-        float2 halfSize = size * 0.5f;
-        float2 centered = pixel - halfSize;
         float radius = cornerRadii.x;
         if (centered.x > 0f)
         {
@@ -216,7 +134,62 @@ public static class UiRectangleShaders
             radius = cornerRadii.w;
         }
 
-        float2 q = abs(centered) - halfSize + new float2(radius, radius);
+        return radius;
+    }
+
+    [VertexShader("solid-rectangle")]
+    public static SolidRectanglePayload SolidRectangleVertex(in SolidRectangleVertexContext context, in SolidRectanglePayload input)
+    {
+        SolidRectangleParameters instance = context.Instances[ShaderBuiltins.InstanceIndex];
+        float2 local = GetQuadLocal(ShaderBuiltins.VertexIndex);
+        float2 clip = ToClipPosition(instance.Rect, local, context.Frame.Resolution);
+
+        return new SolidRectanglePayload
+        {
+            Position = new float4(clip.x, clip.y, 0f, 1f),
+            Color = new VertexColor(instance.Color)
+        };
+    }
+
+    [FragmentShader("solid-rectangle")]
+    public static float4 SolidRectangleFragment(in SolidRectangleFragmentContext context, in SolidRectanglePayload input)
+    {
+        float4 color = input.Color.Value;
+        return new float4(color.xyz * color.w, color.w);
+    }
+
+    [VertexShader("rounded-rectangle")]
+    public static RoundedRectanglePayload RoundedRectangleVertex(in RoundedRectangleVertexContext context, in RoundedRectanglePayload input)
+    {
+        RoundedRectangleParameters instance = context.Instances[ShaderBuiltins.InstanceIndex];
+        float2 local = GetQuadLocal(ShaderBuiltins.VertexIndex);
+        float2 clip = ToClipPosition(instance.Rect, local, context.Frame.Resolution);
+
+        return new RoundedRectanglePayload
+        {
+            Position = new float4(clip.x, clip.y, 0f, 1f),
+            Uv = new Uv0(local),
+            Rect = new SegmentRect(instance.Rect),
+            FillColor = new VertexColor(instance.FillColor),
+            BorderColor = new FragmentColor(instance.BorderColor),
+            CornerRadii = new CornerRadii(instance.CornerRadii),
+            BorderWidth = new BorderWidth(instance.BorderWidth)
+        };
+    }
+
+    [FragmentShader("rounded-rectangle")]
+    public static float4 RoundedRectangleFragment(in RoundedRectangleFragmentContext context, in RoundedRectanglePayload input)
+    {
+        float4 rect = input.Rect.Value;
+        float2 size = rect.zw;
+        float4 cornerRadii = input.CornerRadii.Value;
+        float borderWidth = input.BorderWidth.Value;
+        float2 pixel = input.Uv.Value * size;
+        float2 halfSize = size * 0.5f;
+        float2 centered = pixel - halfSize;
+        float radius = GetCornerRadius(cornerRadii, centered);
+
+        float2 q = abs(centered) - halfSize + radius;
         float2 outside = max(q, 0f);
         float outsideDistance = length(outside);
         float insideDistance = min(max(q.x, q.y), 0f);
@@ -231,14 +204,10 @@ public static class UiRectangleShaders
         float innerCoverage = 1f - smoothstep(-edge, edge, distance + borderWidth);
         float borderCoverage = max(outerCoverage - innerCoverage, 0f);
         float4 premultipliedColor =
-            context.Fragment.FillColor.Value * innerCoverage +
-            context.Fragment.BorderColor.Value * borderCoverage;
+            input.FillColor.Value * innerCoverage +
+            input.BorderColor.Value * borderCoverage;
 
-        return new float4(
-            premultipliedColor.x,
-            premultipliedColor.y,
-            premultipliedColor.z,
-            outerCoverage);
+        return new float4(premultipliedColor.xyz, outerCoverage);
     }
 
 }

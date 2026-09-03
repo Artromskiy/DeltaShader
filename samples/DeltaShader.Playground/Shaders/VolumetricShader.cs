@@ -18,11 +18,7 @@ public struct VolumetricFrameConstants
 }
 
 public readonly struct VolumetricVertexContext
-{
-    [Interstage]
-    public readonly VolumetricVertexPayload Vertex;
-
-    [Layout(0, 0)]
+{[Layout(0, 0)]
     public readonly ReadOnlyStorageBuffer<float4> Vertices;
 
     [PushConstant]
@@ -30,11 +26,7 @@ public readonly struct VolumetricVertexContext
 }
 
 public readonly struct VolumetricFragmentContext
-{
-    [Interstage]
-    public readonly VolumetricVertexPayload Fragment;
-
-    [Layout(0, 0)]
+{[Layout(0, 0)]
     public readonly ReadOnlyStorageBuffer<float4> Vertices;
 
     [PushConstant]
@@ -44,19 +36,14 @@ public readonly struct VolumetricFragmentContext
 public static class VolumetricShader
 {
     [VertexShader("volumetric")]
-    public static VolumetricVertexPayload Vertex(in VolumetricVertexContext context)
-    {
-        VolumetricVertexPayload output = default;
-        output.Position = context.Vertex.Position;
-        output.Uv = context.Vertex.Uv;
-        return output;
-    }
+    public static VolumetricVertexPayload Vertex(in VolumetricVertexContext context, in VolumetricVertexPayload input)
+        => input;
 
     [FragmentShader("volumetric")]
-    public static float4 Fragment(in VolumetricFragmentContext context)
+    public static float4 Fragment(in VolumetricFragmentContext context, in VolumetricVertexPayload input)
     {
         // 1. Prepare UV coordinates (-1 to 1) with aspect ratio correction.
-        float2 uv = context.Fragment.Uv.Value * 2.0f - 1.0f;
+        float2 uv = input.Uv.Value * 2.0f - 1.0f;
         float aspectRatio = context.Constants.Resolution.x / context.Constants.Resolution.y;
         uv.x *= aspectRatio;
 
@@ -117,10 +104,10 @@ public static class VolumetricShader
         finalColor += neonColor * glow * 0.4f;
 
         // 5. Apply a vignette at the screen edges.
-        float vignette = context.Fragment.Uv.Value.x
-            * context.Fragment.Uv.Value.y
-            * (1.0f - context.Fragment.Uv.Value.x)
-            * (1.0f - context.Fragment.Uv.Value.y);
+        float vignette = input.Uv.Value.x
+            * input.Uv.Value.y
+            * (1.0f - input.Uv.Value.x)
+            * (1.0f - input.Uv.Value.y);
         vignette = maths.clamp(maths.pow(vignette * 16.0f, 0.25f), 0.0f, 1.0f);
         finalColor *= vignette;
 

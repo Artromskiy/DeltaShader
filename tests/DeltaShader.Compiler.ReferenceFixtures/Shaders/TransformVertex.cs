@@ -24,21 +24,16 @@ internal static class TransformVertex
 
     public readonly struct VertexContext
     {
-        public VertexContext(VertexOutput vertex, TransformConstants constants)
+        public VertexContext(TransformConstants constants)
         {
-            Vertex = vertex;
-            Constants = constants;
+Constants = constants;
         }
-
-        [Interstage]
-        public readonly VertexOutput Vertex;
-
-        [PushConstant]
+[PushConstant]
         public readonly TransformConstants Constants;
     }
 
     [VertexShader("CubeVertex")]
-    public static VertexOutput Vertex(in VertexContext context)
+    public static VertexOutput Vertex(in VertexContext context, in VertexOutput input)
     {
         var vertex = new float3(1f, 2f, 3f);
         return new VertexOutput

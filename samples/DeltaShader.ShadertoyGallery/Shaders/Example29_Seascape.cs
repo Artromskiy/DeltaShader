@@ -7,7 +7,7 @@ namespace Delta.Shader.ShadertoyGallery;
 internal static class Example29_Seascape
 {
     [FragmentShader]
-    public static float4 Seascape(in GalleryFragmentContext context)
+    public static float4 Seascape(in GalleryFragmentContext context, in GalleryVarying input)
     {
         var uv = new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution;
         var p = uv * 2f - new float2(1f, 1f);

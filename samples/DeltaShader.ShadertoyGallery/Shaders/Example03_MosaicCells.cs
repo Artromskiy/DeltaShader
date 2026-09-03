@@ -7,7 +7,7 @@ namespace Delta.Shader.ShadertoyGallery;
 internal static class Example03_MosaicCells
 {
     [FragmentShader]
-    public static float4 MosaicCells(in GalleryFragmentContext context)
+    public static float4 MosaicCells(in GalleryFragmentContext context, in GalleryVarying input)
     {
         var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution) * 2f - new float2(1f, 1f);
         var tile = p * 5f;

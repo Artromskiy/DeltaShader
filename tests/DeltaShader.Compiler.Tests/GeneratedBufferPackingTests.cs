@@ -29,11 +29,7 @@ public sealed class GeneratedBufferPackingTests
             }
 
             public readonly struct VertexContext
-            {
-                [Interstage]
-                public readonly Payload Vertex;
-
-                [Layout(0, 0)]
+            {[Layout(0, 0)]
                 public readonly ReadOnlyStorageBuffer<uint> First;
 
                 [Layout(0, 1)]
@@ -41,18 +37,15 @@ public sealed class GeneratedBufferPackingTests
             }
 
             public readonly struct FragmentContext
-            {
-                [Interstage]
-                public readonly Payload Fragment;
-            }
+            {}
 
             public static class BufferPackingShader
             {
                 [VertexShader("buffer-packing")]
-                public static Payload Vertex(in VertexContext context) => default;
+                public static Payload Vertex(in VertexContext context, in Payload input) => default;
 
                 [FragmentShader("buffer-packing")]
-                public static float4 Fragment(in FragmentContext context) => default;
+                public static float4 Fragment(in FragmentContext context, in Payload input) => default;
             }
             """;
 

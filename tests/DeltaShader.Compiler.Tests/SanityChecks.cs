@@ -682,13 +682,11 @@ public class IntrinsicCatalogTests
             [Interstage]
             public struct FragmentPayload {  public Position Position; }
             public struct FragmentContext
-            {
-                [Interstage] public FragmentPayload Fragment;
-                [PushConstant] public Constants Constants;
+            {[PushConstant] public Constants Constants;
             }
             public static class InvalidFragment
             {
-                [FragmentShader] public static float4 Fragment(in FragmentContext context)
+                [FragmentShader] public static float4 Fragment(in FragmentContext context, in FragmentPayload input)
                     => new float4(1f, 0f, 0f, 1f);
             }";
 
@@ -725,13 +723,11 @@ public class IntrinsicCatalogTests
             [Interstage]
             public struct FragmentPayload {  public Position Position; }
             public struct FragmentContext
-            {
-                [Interstage] public FragmentPayload Fragment;
-                [PushConstant] public Constants Constants;
+            {[PushConstant] public Constants Constants;
             }
             public static class InvalidGraphics
             {
-                [FragmentShader] public static float4 Fragment(in FragmentContext context)
+                [FragmentShader] public static float4 Fragment(in FragmentContext context, in FragmentPayload input)
                     => new float4(1f, 0f, 0f, 1f);
             }";
 
@@ -756,15 +752,12 @@ public class IntrinsicCatalogTests
             }
 
             public struct FragmentContext
-            {
-                [Interstage]
-                public FragmentPayload Fragment;
-            }
+            {}
 
             public static class FragmentOnlyShader
             {
                 [FragmentShader]
-                public static float4 Fragment(in FragmentContext context) =>
+                public static float4 Fragment(in FragmentContext context, in FragmentPayload input) =>
                     new float4(1f, 0f, 0f, 1f);
             }
             """;
@@ -792,18 +785,16 @@ public class IntrinsicCatalogTests
                      public Position Position;
                     public Uv0 Uv;
                 }
-                public struct VertexContext { [Interstage] public GraphicsPayload Vertex; }
+                public struct VertexContext {}
                 public struct FragmentContext
-                {
-                    [Interstage] public GraphicsPayload Fragment;
-                    [PushConstant] public Constants Constants;
+                {[PushConstant] public Constants Constants;
                 }
                 public static class Graphics
                 {
-                    [VertexShader(""FullscreenVertex"")] public static GraphicsPayload Vertex(in VertexContext context)
+                    [VertexShader(""FullscreenVertex"")] public static GraphicsPayload Vertex(in VertexContext context, in GraphicsPayload input)
                         => new GraphicsPayload { Position = new float4(-1f, -1f, 0f, 1f), Uv = new float2(ShaderBuiltins.VertexIndex, 0f) };
-                    [FragmentShader(""FullscreenFragment"")] public static float4 Fragment(in FragmentContext context)
-                        => new float4(intrinsics.fwidth(ShaderBuiltins.FragmentCoord.X), context.Constants.Time, float2.Normalize(context.Fragment.Uv).x, 1f);
+                    [FragmentShader(""FullscreenFragment"")] public static float4 Fragment(in FragmentContext context, in GraphicsPayload input)
+                        => new float4(intrinsics.fwidth(ShaderBuiltins.FragmentCoord.X), context.Constants.Time, float2.Normalize(input.Uv).x, 1f);
                 }
             }";
 
@@ -834,14 +825,12 @@ public class IntrinsicCatalogTests
             [Interstage]
             public struct VertexPayload {  public Position Position; }
             public struct VertexContext
-            {
-                [Interstage] public VertexPayload Vertex;
-                [PushConstant] public TransformConstants Constants;
+            {[PushConstant] public TransformConstants Constants;
             }
             public static class TransformConformance
             {
                 [VertexShader(""CubeVertex"")]
-                public static VertexPayload Vertex(in VertexContext context) => new VertexPayload
+                public static VertexPayload Vertex(in VertexContext context, in VertexPayload input) => new VertexPayload
                 {
                     Position = context.Constants.Projection * context.Constants.View * context.Constants.Model * new float4(1f, 2f, 3f, 1f)
                 };
@@ -918,19 +907,17 @@ public class IntrinsicCatalogTests
             }
 
             public struct VertexContext
-            {
-                [Interstage] public CubePayload Vertex;
-                [Layout(0, 0)] public ReadOnlyStorageBuffer<SceneParameters> Scene;
+            {[Layout(0, 0)] public ReadOnlyStorageBuffer<SceneParameters> Scene;
             }
 
             public static class EditorViewportCube
             {
                 [VertexShader(""EditorViewportCubeVertex"")]
-                public static CubePayload Vertex(in VertexContext context) => new CubePayload
+                public static CubePayload Vertex(in VertexContext context, in CubePayload input) => new CubePayload
                 {
-                    Position = context.Scene[0].Projection * context.Scene[0].View * context.Scene[0].Model * context.Vertex.Position,
-                    Normal = maths.normalize((context.Scene[0].Model * new float4(context.Vertex.Normal, 0f)).xyz),
-                    Uv = context.Vertex.Uv
+                    Position = context.Scene[0].Projection * context.Scene[0].View * context.Scene[0].Model * input.Position,
+                    Normal = maths.normalize((context.Scene[0].Model * new float4(input.Normal, 0f)).xyz),
+                    Uv = input.Uv
                 };
             }";
 
@@ -999,22 +986,18 @@ public class IntrinsicCatalogTests
                 [Layout(1)] public ManagedData Managed;
             }
             public struct FragmentContext
-            {
-                [Interstage] public FragmentPayload Fragment;
-                [Layout(0, 0)] public SampledTexture2D Texture;
+            {[Layout(0, 0)] public SampledTexture2D Texture;
             }
             public struct VertexContext
-            {
-                [Interstage] public VertexPayload Vertex;
-            }
+            {}
             public static class InvalidViewport
             {
                 [FragmentShader(""Fragment"")]
-                public static float4 Fragment(in FragmentContext context)
-                    => new float4(context.Fragment.Position.xyz, 1f);
+                public static float4 Fragment(in FragmentContext context, in FragmentPayload input)
+                    => new float4(input.Position.xyz, 1f);
 
                 [VertexShader(""Vertex"")]
-                public static VertexPayload Vertex(in VertexContext context) => context.Vertex;
+                public static VertexPayload Vertex(in VertexContext context, in VertexPayload input) => input;
             }";
 
         Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
@@ -1037,10 +1020,10 @@ public class IntrinsicCatalogTests
             using Delta.Shader;
             [Interstage]
             public struct VertexPayload {  public Position Position; }
-            public struct VertexContext { [Interstage] public VertexPayload Vertex; }
+            public struct VertexContext {}
             public static class InvalidGraphics
             {
-                [VertexShader] public static VertexPayload Vertex(in VertexContext context)
+                [VertexShader] public static VertexPayload Vertex(in VertexContext context, in VertexPayload input)
                     => new VertexPayload { Position = new float4(ShaderBuiltins.FragmentCoord.X, 0f, 0f, 1f) };
             }";
 
@@ -1058,10 +1041,10 @@ public class IntrinsicCatalogTests
             using Delta.Shader;
             [Interstage]
             public struct VertexPayload {  public Position Position; }
-            public struct VertexContext { [Interstage] public VertexPayload Vertex; }
+            public struct VertexContext {}
             public static class FullscreenUi
             {
-                [VertexShader] public static VertexPayload Vertex(in VertexContext context)
+                [VertexShader] public static VertexPayload Vertex(in VertexContext context, in VertexPayload input)
                     => new VertexPayload { Position = default };
             }";
 
@@ -1082,10 +1065,10 @@ public class IntrinsicCatalogTests
             using Delta.Shader;
             [Interstage]
             public struct VertexPayload {  public Position Position; }
-            public struct VertexContext { [Interstage] public VertexPayload Vertex; }
+            public struct VertexContext {}
             public static class FullscreenVertex
             {
-                [VertexShader] public static VertexPayload Vertex(in VertexContext context)
+                [VertexShader] public static VertexPayload Vertex(in VertexContext context, in VertexPayload input)
                 {
                     if (ShaderBuiltins.VertexIndex == 0u)
                     {
@@ -1108,9 +1091,9 @@ public class IntrinsicCatalogTests
         var body = result.Module!.Body ?? throw new InvalidOperationException("Vertex compilation did not produce a shader body.");
         Assert.Equal(3, body.Split("gl_Position =", StringSplitOptions.None).Length - 1);
         Assert.Equal(3, body.Split("return;", StringSplitOptions.None).Length - 1);
-        Assert.Contains("vec4(-1, -1, 0, 1)", body, StringComparison.Ordinal);
-        Assert.Contains("vec4(3, -1, 0, 1)", body, StringComparison.Ordinal);
-        Assert.Contains("vec4(-1, 3, 0, 1)", body, StringComparison.Ordinal);
+        Assert.Contains("vec4(-1.0, -1.0, 0.0, 1.0)", body, StringComparison.Ordinal);
+        Assert.Contains("vec4(3.0, -1.0, 0.0, 1.0)", body, StringComparison.Ordinal);
+        Assert.Contains("vec4(-1.0, 3.0, 0.0, 1.0)", body, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1135,28 +1118,24 @@ public class IntrinsicCatalogTests
                     public Uv0 Uv;
                 }
                 public struct VertexContext
-                {
-                    [Interstage] public TexturePayload Vertex;
-                    [Layout(0, 1)] public SampledTexture2D Atlas;
+                {[Layout(0, 1)] public SampledTexture2D Atlas;
                 }
                 public struct FragmentContext
-                {
-                    [Interstage] public TexturePayload Fragment;
-                    [Layout(0, 2)] public SampledTexture2D Atlas;
+                {[Layout(0, 2)] public SampledTexture2D Atlas;
                     [PushConstant] public TextParameters Parameters;
                 }
 
                 [VertexShader(""sdf-text"")]
-                public static TexturePayload Vertex(in VertexContext context)
+                public static TexturePayload Vertex(in VertexContext context, in TexturePayload input)
                 {
                     var sampled = context.Atlas.Sample<float2, float4>(new float2(0.5f, 0.5f));
                     return new TexturePayload { Position = sampled, Uv = new float2(0.5f, 0.5f) };
                 }
 
                 [FragmentShader(""sdf-text"")]
-                public static float4 Fragment(in FragmentContext context)
+                public static float4 Fragment(in FragmentContext context, in TexturePayload input)
                 {
-                    var texel = context.Atlas.Sample<float2, float4>(context.Fragment.Uv);
+                    var texel = context.Atlas.Sample<float2, float4>(input.Uv);
                     var median = maths.max(maths.min(texel.x, texel.y), maths.min(maths.max(texel.x, texel.y), texel.z));
                     var signedDistance = (median - 0.5f) * context.Parameters.DistanceRange;
                     var edge = intrinsics.fwidth(signedDistance);
@@ -1212,14 +1191,12 @@ public class IntrinsicCatalogTests
             [Interstage]
             public struct FragmentPayload {  public Position Position; }
             public struct FragmentContext
-            {
-                [Interstage] public FragmentPayload Fragment;
-                [Layout(0)] public SampledTexture2D Atlas;
+            {[Layout(0)] public SampledTexture2D Atlas;
             }
             public static class InvalidTextureStage
             {
                 [FragmentShader]
-                public static float4 Fragment(in FragmentContext context)
+                public static float4 Fragment(in FragmentContext context, in FragmentPayload input)
                     => new float4(1f, 1f, 1f, 1f);
             }";
 
@@ -1240,12 +1217,12 @@ public class IntrinsicCatalogTests
             public struct FragmentPayload {  public Position Position; }
             [Interstage]
             public struct VertexPayload {  public Position Position; }
-            public struct FragmentContext { [Interstage] public FragmentPayload Fragment; }
-            public struct VertexContext { [Interstage] public VertexPayload Vertex; }
+            public struct FragmentContext {}
+            public struct VertexContext {}
             public static class DerivativeStages
             {
                 [FragmentShader]
-                public static float4 Fragment(in FragmentContext context)
+                public static float4 Fragment(in FragmentContext context, in FragmentPayload input)
                 {
                     var coord = new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y);
                     var dx = intrinsics.ddx(coord.x);
@@ -1254,7 +1231,7 @@ public class IntrinsicCatalogTests
                 }
 
                 [VertexShader]
-                public static VertexPayload Vertex(in VertexContext context)
+                public static VertexPayload Vertex(in VertexContext context, in VertexPayload input)
                     => new VertexPayload { Position = new float4(intrinsics.ddx(1f), 0f, 0f, 1f) };
             }";
 
@@ -1307,21 +1284,17 @@ public class IntrinsicCatalogTests
                 }
 
                 public struct VertexContext
-                {
-                    [Interstage] public TextPayload Vertex;
-                    [Layout(0, 0)] public ReadOnlyStorageBuffer<GlyphInstance> Glyphs;
+                {[Layout(0, 0)] public ReadOnlyStorageBuffer<GlyphInstance> Glyphs;
                     [PushConstant] public TextParameters Parameters;
                 }
 
                 public struct FragmentContext
-                {
-                    [Interstage] public TextPayload Fragment;
-                    [Layout(0, 3)] public SampledTexture2D Atlas;
+                {[Layout(0, 3)] public SampledTexture2D Atlas;
                     [PushConstant] public TextParameters Parameters;
                 }
 
                 [VertexShader(""sdf-text"")]
-                public static TextPayload Vertex(in VertexContext context) => new TextPayload
+                public static TextPayload Vertex(in VertexContext context, in TextPayload input) => new TextPayload
                 {
                     Position = new float4(0f, 0f, 0f, 1f),
                     Uv = context.Glyphs[ShaderBuiltins.InstanceIndex].UvRect.xy,
@@ -1329,16 +1302,16 @@ public class IntrinsicCatalogTests
                 };
 
                 [FragmentShader(""sdf-text"")]
-                public static float4 Fragment(in FragmentContext context)
+                public static float4 Fragment(in FragmentContext context, in TextPayload input)
                 {
-                    var texel = context.Atlas.Sample<float2, float4>(context.Fragment.Uv);
+                    var texel = context.Atlas.Sample<float2, float4>(input.Uv);
                     var signedDistance = (texel.x - 0.5f) * context.Parameters.DistanceRange;
                     var edge = intrinsics.fwidth(signedDistance);
                     var fillCoverage = maths.smoothstep(-edge, edge, signedDistance);
                     var outlineWidth = maths.max(context.Parameters.OutlineWidth, 0f);
                     var outerCoverage = maths.smoothstep(-outlineWidth - edge, -outlineWidth + edge, signedDistance);
                     var outlineContribution = maths.max(outerCoverage - fillCoverage, 0f);
-                    return context.Parameters.TextColor * context.Fragment.GlyphColor * fillCoverage + context.Parameters.OutlineColor * context.Fragment.GlyphColor * outlineContribution;
+                    return context.Parameters.TextColor * input.GlyphColor * fillCoverage + context.Parameters.OutlineColor * input.GlyphColor * outlineContribution;
                 }
             }";
 
@@ -1400,13 +1373,11 @@ public class IntrinsicCatalogTests
                 }
 
                 public struct VertexContext
-                {
-                    [Interstage] public VertexPayload Vertex;
-                    [Layout(0, 0)] public ReadOnlyStorageBuffer<Payload> Payloads;
+                {[Layout(0, 0)] public ReadOnlyStorageBuffer<Payload> Payloads;
                 }
 
                 [VertexShader]
-                public static VertexPayload Vertex(in VertexContext context)
+                public static VertexPayload Vertex(in VertexContext context, in VertexPayload input)
                 {
                     uint index = ShaderBuiltins.VertexIndex;
                     var payload = context.Payloads[index];
@@ -1434,11 +1405,11 @@ public class IntrinsicCatalogTests
             using Delta.Shader;
             [Interstage]
             public struct FragmentPayload {  public Position Position; }
-            public struct FragmentContext { [Interstage] public FragmentPayload Fragment; }
+            public struct FragmentContext {}
             public static class InvalidInstanceIndex
             {
                 [FragmentShader]
-                public static float4 Fragment(in FragmentContext context)
+                public static float4 Fragment(in FragmentContext context, in FragmentPayload input)
                     => new float4(ShaderBuiltins.InstanceIndex, ShaderBuiltins.InstanceIndex, ShaderBuiltins.InstanceIndex, 1f);
             }";
 
@@ -1458,11 +1429,11 @@ public class IntrinsicCatalogTests
             using Delta.Shader;
             [Interstage]
             public struct FragmentPayload {  public Position Position; }
-            public struct FragmentContext { [Interstage] public FragmentPayload Fragment; }
+            public struct FragmentContext {}
             public static class HelperShader
             {
                 [FragmentShader]
-                public static float4 Fragment(in FragmentContext context)
+                public static float4 Fragment(in FragmentContext context, in FragmentPayload input)
                 {
                     var value = Wave(0.5f);
                     return new float4(value, value, value, 1f);
@@ -1495,13 +1466,13 @@ public class IntrinsicCatalogTests
             using Delta.Shader;
             [Interstage]
             public struct FragmentPayload {  public Position Position; }
-            public struct FragmentContext { [Interstage] public FragmentPayload Fragment; }
+            public struct FragmentContext {}
             public static class ExpressionHelperShader
             {
                 private static float Wave(float value) => maths.sin(value);
 
                 [FragmentShader]
-                public static float4 Fragment(in FragmentContext context)
+                public static float4 Fragment(in FragmentContext context, in FragmentPayload input)
                 {
                     var value = Wave(0.5f);
                     return new float4(value);
@@ -1526,11 +1497,11 @@ public class IntrinsicCatalogTests
             using Delta.Shader;
             [Interstage]
             public struct FragmentPayload {  public Position Position; }
-            public struct FragmentContext { [Interstage] public FragmentPayload Fragment; }
+            public struct FragmentContext {}
             public static class RecursiveHelperShader
             {
                 [FragmentShader]
-                public static float4 Fragment(in FragmentContext context)
+                public static float4 Fragment(in FragmentContext context, in FragmentPayload input)
                 {
                     var value = First(0.5f);
                     return new float4(value, value, value, 1f);
@@ -1562,13 +1533,13 @@ public class IntrinsicCatalogTests
             using Delta.Shader;
             [Interstage]
             public struct FragmentPayload {  public Position Position; }
-            public struct FragmentContext { [Interstage] public FragmentPayload Fragment; }
+            public struct FragmentContext {}
             public static class CapturedHelperShader
             {
                 private static readonly float Scale = 2f;
 
                 [FragmentShader]
-                public static float4 Fragment(in FragmentContext context)
+                public static float4 Fragment(in FragmentContext context, in FragmentPayload input)
                 {
                     var value = ScaleValue(0.5f);
                     return new float4(value, value, value, 1f);
@@ -2072,23 +2043,17 @@ public class IntrinsicCatalogTests
                 }
 
                 public struct VertexContext
-                {
-                    [Interstage]
-                    public MeshPayload Vertex;
-                }
+                {}
 
                 public struct FragmentContext
-                {
-                    [Interstage]
-                    public MeshPayload Fragment;
-                }
+                {}
 
                 [VertexShader("MeshVertex")]
-                public static MeshPayload Transform(in VertexContext context) => context.Vertex;
+                public static MeshPayload Transform(in VertexContext context, in MeshPayload input) => input;
 
                 [FragmentShader("MeshFragment")]
-                public static float4 Fragment(in FragmentContext context) =>
-                    new float4(context.Fragment.Uv, 0.0f, 1.0f);
+                public static float4 Fragment(in FragmentContext context, in MeshPayload input) =>
+                    new float4(input.Uv, 0.0f, 1.0f);
             }
             """;
 
@@ -2127,17 +2092,17 @@ public class IntrinsicCatalogTests
                 {
                      public Position Position;
                 }
-                public struct VertexContext { [Interstage] public Payload Vertex; }
-                public struct FragmentContext { [Interstage] public Payload Fragment; }
+                public struct VertexContext {}
+                public struct FragmentContext {}
 
                 [VertexShader(""CubeVertex"")]
-                public static Payload Vertex(in VertexContext context) => new Payload
+                public static Payload Vertex(in VertexContext context, in Payload input) => new Payload
                 {
                     Position = new float4((float)ShaderBuiltins.VertexIndex, 0.0f, 0.0f, 1.0f)
                 };
 
                 [FragmentShader(""CubeFragment"")]
-                public static float4 Fragment(in FragmentContext context) =>
+                public static float4 Fragment(in FragmentContext context, in Payload input) =>
                     new float4(1.0f, 0.0f, 1.0f, 1.0f);
             }";
 
@@ -2172,15 +2137,12 @@ public class IntrinsicCatalogTests
             }
 
             public struct FragmentContext
-            {
-                [Interstage]
-                public FragmentPayload Fragment;
-            }
+            {}
 
             public static class FragmentOnlyShader
             {
                 [FragmentShader]
-                public static float4 Fragment(in FragmentContext context) =>
+                public static float4 Fragment(in FragmentContext context, in FragmentPayload input) =>
                     new float4(1f, 0f, 0f, 1f);
             }
             """;
@@ -2208,17 +2170,17 @@ public class IntrinsicCatalogTests
                      public Position Position;
                 }
 
-                public struct VertexContext { [Interstage] public Payload Vertex; }
-                public struct FragmentContext { [Interstage] public Payload Fragment; }
+                public struct VertexContext {}
+                public struct FragmentContext {}
 
                 [VertexShader(""first"")]
-                public static Payload Vertex(in VertexContext context) => new Payload
+                public static Payload Vertex(in VertexContext context, in Payload input) => new Payload
                 {
                     Position = new float4((float)ShaderBuiltins.VertexIndex, 0.0f, 0.0f, 1.0f)
                 };
 
                 [FragmentShader(""first"")]
-                public static float4 Fragment(in FragmentContext context) =>
+                public static float4 Fragment(in FragmentContext context, in Payload input) =>
                     new float4(1.0f, 0.0f, 0.0f, 1.0f);
             }
 
@@ -2230,17 +2192,17 @@ public class IntrinsicCatalogTests
                      public Position Position;
                 }
 
-                public struct VertexContext { [Interstage] public Payload Vertex; }
-                public struct FragmentContext { [Interstage] public Payload Fragment; }
+                public struct VertexContext {}
+                public struct FragmentContext {}
 
                 [VertexShader(""second"")]
-                public static Payload Vertex(in VertexContext context) => new Payload
+                public static Payload Vertex(in VertexContext context, in Payload input) => new Payload
                 {
                     Position = new float4((float)ShaderBuiltins.VertexIndex, 0.0f, 0.0f, 1.0f)
                 };
 
                 [FragmentShader(""second"")]
-                public static float4 Fragment(in FragmentContext context) =>
+                public static float4 Fragment(in FragmentContext context, in Payload input) =>
                     new float4(0.0f, 0.0f, 1.0f, 1.0f);
             }";
 
@@ -2908,20 +2870,18 @@ public class IntrinsicCatalogTests
                 public Color Color;
             }
             public struct VertexContext
-            {
-                [Interstage] public VertexPayload Vertex;
-            }
+            {}
             public static class GenericGraphicsShader
             {
                 public static float4 Apply<T>(T operation, float4 value) where T : unmanaged, ITransform
                     => operation.Apply(value);
 
                 [VertexShader]
-                public static VertexPayload Vertex(in VertexContext context)
+                public static VertexPayload Vertex(in VertexContext context, in VertexPayload input)
                     => new VertexPayload
                     {
-                        Position = Apply<Offset>(new Offset { Delta = new float4(1f, 0f, 0f, 0f) }, context.Vertex.Position),
-                        Color = context.Vertex.Color
+                        Position = Apply<Offset>(new Offset { Delta = new float4(1f, 0f, 0f, 0f) }, input.Position),
+                        Color = input.Color
                     };
             }";
 

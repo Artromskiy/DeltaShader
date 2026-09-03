@@ -162,8 +162,18 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
 
                 var isContext = methodSymbol.Parameters.Length == 1 &&
                     ShaderVisibleTypeValidation.IsContextParameter(methodSymbol.Parameters[0], compilation);
+                var isGraphicsContext = graphicsAttribute is not null &&
+                    methodSymbol.Parameters.Length == 2 &&
+                    ShaderVisibleTypeValidation.IsContextParameter(methodSymbol.Parameters[0], compilation) &&
+                    methodSymbol.Parameters[1].RefKind == RefKind.In &&
+                    methodSymbol.Parameters[1].Type is INamedTypeSymbol { TypeKind: TypeKind.Struct };
                 var visibleIssues = isContext
                     ? ShaderVisibleTypeValidation.ValidateContext(methodSymbol.Parameters[0], compilation)
+                    : isGraphicsContext
+                    ? ShaderVisibleTypeValidation.ValidateContext(methodSymbol.Parameters[0], compilation)
+                        .Concat(ShaderVisibleTypeValidation.Validate(
+                            ShaderVisibleTypeValidation.GetVisibleRootType(methodSymbol.Parameters[1], compilation),
+                            methodSymbol.Parameters[1]))
                     : methodSymbol.Parameters.SelectMany(parameter =>
                     {
                         var visibleType = ShaderVisibleTypeValidation.GetVisibleRootType(parameter, compilation);
@@ -175,7 +185,7 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
                     context.ReportDiagnostic(Diagnostic.Create(_visibleTypeDescriptor, location, issue.Message));
                 }
 
-                var isValidGraphicsContext = graphicsAttribute is not null && isContext;
+                var isValidGraphicsContext = graphicsAttribute is not null && isGraphicsContext;
                 if (!methodSymbol.IsStatic ||
                     (graphicsAttribute is null && methodSymbol.ReturnType.SpecialType != SpecialType.System_Void) ||
                     (graphicsAttribute is not null && !isValidGraphicsContext))
@@ -229,7 +239,7 @@ public sealed class ComputeEntryPointAnalyzer : DiagnosticAnalyzer
             }
 
             var namespaceName = field.ContainingNamespace?.ToDisplayString() ?? string.Empty;
-            var isContextField = method.Parameters.Length == 1 &&
+            var isContextField = method.Parameters.Length >= 1 &&
                 ShaderVisibleTypeValidation.IsContextParameter(method.Parameters[0], context.SemanticModel.Compilation) &&
                 SymbolEqualityComparer.Default.Equals(field.ContainingType, method.Parameters[0].Type);
             if (!field.IsConst &&

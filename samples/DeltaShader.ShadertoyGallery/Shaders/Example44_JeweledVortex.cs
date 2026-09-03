@@ -7,7 +7,7 @@ namespace Delta.Shader.ShadertoyGallery;
 internal static class Example44_JeweledVortex
 {
     [FragmentShader]
-    public static float4 JeweledVortex(in GalleryFragmentContext context)
+    public static float4 JeweledVortex(in GalleryFragmentContext context, in GalleryVarying input)
     {
         var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution) * 2f - new float2(1f, 1f);
         p.x = p.x * context.Constants.Resolution.x / context.Constants.Resolution.y;

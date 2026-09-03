@@ -14,15 +14,19 @@ internal static partial class ArtifactSourceEmitter
     public static bool TryEmitPackingMethods(
         IMethodSymbol method,
         ShaderCompilationManifest manifest,
+        ShaderStage stage,
         out string source,
         out string? reason,
         string? stemOverride = null)
     {
         source = string.Empty;
         reason = null;
-        if (method.Parameters.Length != 1)
+        var expectedParameterCount = stage == ShaderStage.Compute ? 1 : 2;
+        if (method.Parameters.Length != expectedParameterCount)
         {
-            reason = "A generated packer requires the single shader context parameter.";
+            reason = stage == ShaderStage.Compute
+                ? "A generated compute packer requires one context parameter."
+                : "A generated graphics packer requires context and payload parameters.";
             return false;
         }
 
@@ -194,9 +198,9 @@ internal static partial class ArtifactSourceEmitter
             return false;
         }
 
-        if (method.GetAttributes().Any(attribute => attribute.AttributeClass?.ToDisplayString() == typeof(VertexShaderAttribute).FullName))
+        if (stage == ShaderStage.Vertex)
         {
-            if (!TryAppendVertexPackMethods(method, manifest, contextType, methods, stem, out reason) ||
+            if (!TryAppendVertexPackMethods(method, manifest, method.Parameters[1].Type, methods, stem, out reason) ||
                 !BufferRangePlanSourceEmitter.TryAppendVertexBufferRangeMethods(methods, stem, manifest.VertexBufferBindings, out reason) ||
                 !BufferRangePlanSourceEmitter.TryAppendSharedBufferRangeMethods(
                     methods,
@@ -216,7 +220,7 @@ internal static partial class ArtifactSourceEmitter
     private static bool TryAppendVertexPackMethods(
         IMethodSymbol method,
         ShaderCompilationManifest manifest,
-        ITypeSymbol contextType,
+        ITypeSymbol payloadType,
         StringBuilder source,
         string stem,
         out string? reason)
@@ -233,13 +237,9 @@ internal static partial class ArtifactSourceEmitter
             return false;
         }
 
-        var varyingField = contextType is INamedTypeSymbol namedContext
-            ? namedContext.GetMembers().OfType<IFieldSymbol>().FirstOrDefault(field =>
-                !field.IsStatic && IsInterstagePayloadField(field))
-            : null;
-        if (varyingField is null || varyingField.Type is not INamedTypeSymbol varyingType)
+        if (payloadType is not INamedTypeSymbol varyingType)
         {
-            reason = $"Vertex shader '{method.Name}' has no resolvable interstage payload type.";
+            reason = $"Vertex shader '{method.Name}' has no resolvable payload parameter type.";
             return false;
         }
 
@@ -752,22 +752,10 @@ internal static partial class ArtifactSourceEmitter
     }
 
     private static bool IsSemanticType(ITypeSymbol type)
-        => type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) is
-            "global::Delta.Shader.Position" or
-            "global::Delta.Shader.Uv0" or
-            "global::Delta.Shader.Uv1" or
-            "global::Delta.Shader.Color" or
-            "global::Delta.Shader.VertexColor" or
-            "global::Delta.Shader.FragmentColor" or
-            "global::Delta.Shader.WorldPosition" or
-            "global::Delta.Shader.WorldNormal" or
-            "global::Delta.Shader.Tangent" or
-            "global::Delta.Shader.Pixel" or
-            "global::Delta.Shader.SegmentRect" or
-            "global::Delta.Shader.CornerData" or
-            "global::Delta.Shader.CornerRadii" or
-            "global::Delta.Shader.BorderWidth" or
-            "global::Delta.Shader.ClipRect";
+        => type is INamedTypeSymbol namedType &&
+            namedType.TypeKind == TypeKind.Struct &&
+            string.Equals(namedType.ContainingNamespace?.ToDisplayString(), "Delta.Shader", StringComparison.Ordinal) &&
+            namedType.GetMembers("Value").OfType<IFieldSymbol>().Count(field => !field.IsStatic) == 1;
 
     private static bool IsInterstagePayloadField(IFieldSymbol field)
         => field.GetAttributes().Any(attribute => attribute.AttributeClass?.ToDisplayString() == typeof(InterstageAttribute).FullName) ||

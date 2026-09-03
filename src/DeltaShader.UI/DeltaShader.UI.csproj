@@ -22,6 +22,7 @@
     <Analyzer Include="..\DeltaShader.Compiler\bin\$(Configuration)\netstandard2.0\DeltaShader.Compiler.dll" />
     <Analyzer Include="..\DeltaShader.Backend.Glsl\bin\$(Configuration)\netstandard2.0\DeltaShader.Backend.Glsl.dll" />
     <PackageReference Include="DeltaMaths" />
+    <ProjectReference Include="..\DeltaShader.SemanticTypes\DeltaShader.SemanticTypes.csproj" />
     <PackageReference Include="DeltaShader.Tool" PrivateAssets="all" />
   </ItemGroup>
 </Project>

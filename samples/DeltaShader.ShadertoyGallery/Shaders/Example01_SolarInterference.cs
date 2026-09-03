@@ -10,7 +10,7 @@ namespace Delta.Shader.ShadertoyGallery;
 internal static class Example01_SolarInterference
 {
     [FragmentShader]
-    public static float4 SolarInterference(in GalleryFragmentContext context)
+    public static float4 SolarInterference(in GalleryFragmentContext context, in GalleryVarying input)
     {
         var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution) * 2f - new float2(1f, 1f);
         var radius = maths.length(p);

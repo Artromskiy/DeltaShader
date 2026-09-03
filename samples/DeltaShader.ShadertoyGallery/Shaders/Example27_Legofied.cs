@@ -7,7 +7,7 @@ namespace Delta.Shader.ShadertoyGallery;
 internal static class Example27_Legofied
 {
     [FragmentShader]
-    public static float4 Legofied(in GalleryFragmentContext context)
+    public static float4 Legofied(in GalleryFragmentContext context, in GalleryVarying input)
     {
         var uv = new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution;
         var grid = uv * 9f + new float2(context.Constants.Time * 0.08f, -context.Constants.Time * 0.05f);

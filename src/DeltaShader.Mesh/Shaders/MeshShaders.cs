@@ -17,33 +17,23 @@ public struct MeshPayload
 }
 
 public readonly struct MeshVertexContext
-{
-    [Interstage]
-    public readonly MeshPayload Vertex;
-
-    public MeshVertexContext(MeshPayload vertex)
+{public MeshVertexContext()
     {
-        Vertex = vertex;
-    }
+}
 }
 
 public readonly struct MeshFragmentContext
-{
-    [Interstage]
-    public readonly MeshPayload Fragment;
-
-    public MeshFragmentContext(MeshPayload fragment)
+{public MeshFragmentContext()
     {
-        Fragment = fragment;
-    }
+}
 }
 
 public static class MeshShaders
 {
     [VertexShader("mesh")]
-    public static MeshPayload Mesh(in MeshVertexContext context) => context.Vertex;
+    public static MeshPayload Mesh(in MeshVertexContext context, in MeshPayload input) => input;
 
     [FragmentShader("mesh")]
-    public static float4 Fragment(in MeshFragmentContext context) =>
-        new float4(context.Fragment.Uv.Value, 0f, 1f);
+    public static float4 Fragment(in MeshFragmentContext context, in MeshPayload input) =>
+        new float4(input.Uv.Value, 0f, 1f);
 }

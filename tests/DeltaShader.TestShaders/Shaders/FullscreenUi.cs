@@ -24,36 +24,26 @@ internal static class FullscreenUi
 
 	public readonly struct VertexContext
 	{
-		public VertexContext(UiVarying vertex, UiPushConstants constants)
+		public VertexContext(UiPushConstants constants)
 		{
-			Vertex = vertex;
-			Constants = constants;
+Constants = constants;
 		}
-
-		[Interstage]
-		public readonly UiVarying Vertex;
-
-		[PushConstant]
+[PushConstant]
 		public readonly UiPushConstants Constants;
 	}
 
 	public readonly struct FragmentContext
 	{
-		public FragmentContext(UiVarying fragment, UiPushConstants constants)
+		public FragmentContext(UiPushConstants constants)
 		{
-			Fragment = fragment;
-			Constants = constants;
+Constants = constants;
 		}
-
-		[Interstage]
-		public readonly UiVarying Fragment;
-
-		[PushConstant]
+[PushConstant]
 		public readonly UiPushConstants Constants;
 	}
 
 	[VertexShader]
-	public static UiVarying Vertex(in VertexContext context)
+	public static UiVarying Vertex(in VertexContext context, in UiVarying input)
 	{
 		uint vertexIndex = ShaderBuiltins.VertexIndex;
 
@@ -83,7 +73,7 @@ internal static class FullscreenUi
 	}
 
 	[FragmentShader]
-	public static float4 Fragment(in FragmentContext context)
+	public static float4 Fragment(in FragmentContext context, in UiVarying input)
 	{
 		float2 fragmentCoord = new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y);
 		var p = (fragmentCoord / context.Constants.Resolution) * 2f - new float2(1f, 1f);

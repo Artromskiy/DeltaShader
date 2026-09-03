@@ -17,6 +17,7 @@
     <Compile Remove="Shaders/Compute.cs" />
     <Compile Remove="tools/**/*.cs" />
     <PackageReference Include="DeltaMaths" />
+    <ProjectReference Include="..\..\src\DeltaShader.SemanticTypes\DeltaShader.SemanticTypes.csproj" />
     <PackageReference Include="DeltaShader.Compiler" PrivateAssets="all" />
     <PackageReference Include="DeltaShader.Analyzers" PrivateAssets="all" OutputItemType="Analyzer" />
     <PackageReference Include="DeltaShader.Contract" PrivateAssets="all" />

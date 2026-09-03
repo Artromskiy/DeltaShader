@@ -93,9 +93,9 @@ public sealed class DeltaGraphicsGenerator : IIncrementalGenerator
             }
 
             var vertexPackingSucceeded = ArtifactSourceEmitter.TryEmitPackingMethods(
-                pairVertices[0], vertexResult.BuildManifest, out var vertexPacking, out var vertexPackingReason);
+                pairVertices[0], vertexResult.BuildManifest, ShaderStage.Vertex, out var vertexPacking, out var vertexPackingReason);
             var fragmentPackingSucceeded = ArtifactSourceEmitter.TryEmitPackingMethods(
-                pairFragments[0], fragmentResult.BuildManifest, out var fragmentPacking, out var fragmentPackingReason);
+                pairFragments[0], fragmentResult.BuildManifest, ShaderStage.Fragment, out var fragmentPacking, out var fragmentPackingReason);
             if (!vertexPackingSucceeded || !fragmentPackingSucceeded)
             {
                 var reason = vertexPackingReason ?? fragmentPackingReason ?? "unknown packing error";

@@ -4,12 +4,16 @@ The current compiler backend emits Vulkan GLSL `#version 460` as a build
 intermediate and uses `std430` for structured storage and push-constant data.
 The first graphics slice is intentionally small:
 
-- `[VertexShader]` accepts one `in` context whose `[Interstage]` payload contains
-  one `Delta.Shader.Position` field and optional location-based vertex input fields;
-  `ShaderBuiltins.VertexIndex` remains available in the body.
-- `[FragmentShader]` accepts one `in` context with the matching `[Interstage]`
-  payload and returns one `float4` color. `ShaderBuiltins.FragmentCoord` and
-  context `[PushConstant]` fields are available in the body.
+- `[VertexShader]` accepts `in VertexContext context` followed by
+  `in VertexPayload input`. The payload contains one `Delta.Shader.Position`
+  field and optional location-based vertex input fields; `ShaderBuiltins.VertexIndex`
+  remains available in the body. The context contains only stage-local
+  descriptors and push constants.
+- `[FragmentShader]` accepts `in FragmentContext context` followed by
+  `in SurfacePayload input` and returns one `float4` color.
+  `ShaderBuiltins.FragmentCoord` and context `[PushConstant]` fields are
+  available in the body. The old combined `Fragment(in FragmentContext)` form
+  is not part of the graphics API.
 - `intrinsics.fwidth`, `intrinsics.ddx`, `intrinsics.ddy` and
   `DeltaMaths.maths.smoothstep` lower to fragment-stage GLSL operations.
   Using a derivative intrinsic from a vertex shader produces a compiler
