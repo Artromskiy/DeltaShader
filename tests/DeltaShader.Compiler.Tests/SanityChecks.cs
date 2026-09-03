@@ -871,7 +871,7 @@ public class IntrinsicCatalogTests
 
         var model = float4x4.CreateTRS(new float3(4f, -1f, 2f), quaternion.CreateFromAxisAngle(new float3(0f, 1f, 0f), 0.35f), new float3(2f, 3f, 4f));
         var view = float4x4.CreateLookTo(new float3(0f, 1f, -8f), new float3(0f, 0f, 1f), new float3(0f, 1f, 0f));
-        var projection = float4x4.CreatePerspectiveFieldOfViewLeftHanded(global::Delta.DeltaMaths.Radians(60f), 16f / 9f, 0.1f, 100f);
+        var projection = float4x4.CreatePerspectiveFieldOfViewLeftHanded(Maths.Radians(60f), 16f / 9f, 0.1f, 100f);
         var vertex = new float4(1f, 2f, 3f, 1f);
         float4 cpu = projection * view * model * vertex;
         Assert.Equal(1f, vertex.w);
@@ -958,7 +958,7 @@ public class IntrinsicCatalogTests
 
         var model = float4x4.CreateTRS(new float3(1f, 2f, 3f), quaternion.CreateFromAxisAngle(new float3(0f, 1f, 0f), 0.5f), new float3(2f, 2f, 2f));
         var view = float4x4.CreateLookTo(new float3(0f, 0f, -5f), new float3(0f, 0f, 1f), new float3(0f, 1f, 0f));
-        var projection = float4x4.CreatePerspectiveFieldOfViewLeftHanded(global::Delta.DeltaMaths.Radians(60f), 1f, 0.1f, 100f);
+        var projection = float4x4.CreatePerspectiveFieldOfViewLeftHanded(Maths.Radians(60f), 1f, 0.1f, 100f);
         var vertex = new float4(1f, 0f, 0f, 1f);
         float4 cpuOrder = projection * view * model * vertex;
         Assert.Equal(cpuOrder, projection * view * model * vertex);
