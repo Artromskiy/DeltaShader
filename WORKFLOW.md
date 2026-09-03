@@ -188,9 +188,8 @@ fragments.
 
 ## DeltaMaths usage gate
 
-Managed code that consumes DeltaMaths uses `using Delta;` and the
-`Maths.*` facade. If a namespace collision requires it, use one global alias:
-`using Maths = global::Delta.Maths;`. Shader-authoring sources and their
+Managed code that consumes DeltaMaths uses `using Delta;` and the `Maths.*`
+facade. Shader-authoring sources and their
 fixtures may instead use `using static Delta.maths;` and lowercase
 `maths.*`, because those calls are lowered into shader code. Generated source,
 compiler provider code and emitted fixture text are not authoring call sites.
