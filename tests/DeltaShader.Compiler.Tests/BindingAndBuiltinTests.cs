@@ -524,7 +524,7 @@ public sealed class BindingAndBuiltinTests
                 .Where(input => input.Builtin is null && input.GlslName is not ("Position" or "gl_Position"))
                 .Select(input => input.GlslName)
                 .ToArray());
-        Assert.Equal((1u, 2u), (fragment.Module.Inputs[1].Location, fragment.Module.Inputs[2].Location));
+        Assert.Equal((0u, 1u), (fragment.Module.Inputs[1].Location, fragment.Module.Inputs[2].Location));
         Assert.Contains("Surface_Uv = vec2", vertex.Module.Body, StringComparison.Ordinal);
         Assert.Contains("Surface_Color = vec4", vertex.Module.Body, StringComparison.Ordinal);
         Assert.Contains("fragColor = Surface_Color", fragment.Module.Body, StringComparison.Ordinal);

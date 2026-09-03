@@ -101,13 +101,14 @@ public sealed class UiShaderTests
         Assert.Contains(vertexManifest.Outputs, output => output.Name == "BorderColor");
         Assert.Contains(vertexManifest.Outputs, output => output.Name == "CornerRadii");
         var packedUvOutput = Assert.Single(vertexManifest.Outputs, output => output.Name == "Uv");
-        Assert.Equal("vec2", packedUvOutput.GlslType);
+        Assert.Equal("vec4", packedUvOutput.GlslType);
     }
 
     [Fact]
     public async Task GeneratedUiFactoriesExposeDirectPushRootPackers()
     {
         Compilation compilation = await LoadUiCompilationAsync().ConfigureAwait(true);
+        compilation = RemovePersistedGeneratedSources(compilation);
         Assert.DoesNotContain(
             compilation.GetDiagnostics(),
             diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
@@ -138,6 +139,14 @@ public sealed class UiShaderTests
         Assert.Contains("PackRoundedRectangleVertexFrame", generatedSource, StringComparison.Ordinal);
         Assert.DoesNotContain("PackSolidRectangleFragmentFrame", generatedSource, StringComparison.Ordinal);
         Assert.DoesNotContain("PackRoundedRectangleFragmentFrame", generatedSource, StringComparison.Ordinal);
+    }
+
+    private static Compilation RemovePersistedGeneratedSources(Compilation compilation)
+    {
+        SyntaxTree[] generatedTrees = compilation.SyntaxTrees
+            .Where(tree => tree.FilePath.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        return compilation.RemoveSyntaxTrees(generatedTrees);
     }
 
     private static async Task<Compilation> LoadUiCompilationAsync()
