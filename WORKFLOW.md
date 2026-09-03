@@ -188,18 +188,28 @@ fragments.
 
 ## DeltaMaths usage gate
 
-Shader authoring, compiler, sample, test and tool code must not call
-`System.Math` or `MathF` directly. Use the shader-visible `Delta.Maths` API for
-shader semantics and explicit comparisons for integer/compiler/tool decisions.
-Run the bounded gate before a handoff or commit:
+Managed code that consumes DeltaMaths uses `using Delta.Maths;` and the
+`Maths.*` facade. If a namespace collision requires it, use one global alias:
+`using Maths = global::Delta.Maths.Maths;`. Shader-authoring sources and their
+fixtures may instead use `using static Delta.Maths.maths;` and lowercase
+`maths.*`, because those calls are lowered into shader code. Generated source,
+compiler provider code and emitted fixture text are not authoring call sites.
+
+Direct `System.Math`/`MathF` is allowed only in projects that do not consume
+DeltaMaths. In DeltaShader's authoring, compiler, sample, test and tool scope,
+use Delta.Maths for shader semantics and explicit comparisons for integer or
+compiler/tool decisions. Do not replace floating-point semantics with
+hand-written numeric approximations. Run the bounded gate before a handoff or
+commit:
 
 ```bash
 ./eng/check-no-system-math.sh
 ```
 
-The gate scans only first-party C# under `src/`, `tests/` and `samples/`.
-Generated sources and build/output trees (`Generated`, `obj`, `bin` and
-`artifacts`) are excluded explicitly; no provider-file exception is implicit.
+The gate scans first-party C# under `src/`, `tests/` and `samples/`, including
+the compiler/tool boundaries that resolve DeltaMaths symbols. Generated
+sources and build/output trees (`Generated`, `obj`, `bin` and `artifacts`) are
+excluded explicitly; no provider-file exception is implicit.
 
 ## Shader output ownership
 

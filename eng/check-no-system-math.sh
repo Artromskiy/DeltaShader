@@ -15,9 +15,9 @@ matches="$(rg -n -P \
   src tests samples || true)"
 
 if [[ -n "$matches" ]]; then
-    printf '%s\n' 'Direct System.Math/MathF usage is not allowed in DeltaShader first-party code:' >&2
+    printf '%s\n' 'Direct System.Math/MathF usage is not allowed in the DeltaMaths-dependent DeltaShader scope:' >&2
     printf '%s\n' "$matches" >&2
     exit 1
 fi
 
-printf '%s\n' 'No direct System.Math/MathF usage found in src/, tests/ or samples/.'
+printf '%s\n' 'No direct System.Math/MathF usage found in the checked DeltaMaths-dependent scope.'
