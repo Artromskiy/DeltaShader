@@ -186,6 +186,21 @@ line-by-line `Append` calls. Use interpolation only for the values that are
 actually dynamic, and keep ordinary escaped strings for short single-line
 fragments.
 
+## DeltaMaths usage gate
+
+Shader authoring, compiler, sample, test and tool code must not call
+`System.Math` or `MathF` directly. Use the shader-visible `Delta.Maths` API for
+shader semantics and explicit comparisons for integer/compiler/tool decisions.
+Run the bounded gate before a handoff or commit:
+
+```bash
+./eng/check-no-system-math.sh
+```
+
+The gate scans only first-party C# under `src/`, `tests/` and `samples/`.
+Generated sources and build/output trees (`Generated`, `obj`, `bin` and
+`artifacts`) are excluded explicitly; no provider-file exception is implicit.
+
 ## Shader output ownership
 
 DeltaShader is the sole owner of generated `.spv`, `.glsl`, `*.shader.json`

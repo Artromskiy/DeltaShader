@@ -368,7 +368,7 @@ internal static class MathsConformancePublisher
         });
         var parallelOptions = new ParallelOptions
         {
-            MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount)
+            MaxDegreeOfParallelism = Environment.ProcessorCount > 1 ? Environment.ProcessorCount : 1
         };
         Parallel.For(0, workOrder.Length, parallelOptions, workIndex =>
         {

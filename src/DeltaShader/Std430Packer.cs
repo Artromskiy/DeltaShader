@@ -78,7 +78,10 @@ public static class Std430Packer
         foreach (var range in ranges)
         {
             var rangeEnd = checked(range.Offset + range.Size);
-            end = Math.Max(end, rangeEnd);
+            if (rangeEnd > end)
+            {
+                end = rangeEnd;
+            }
         }
 
         if (end > int.MaxValue)

@@ -74,7 +74,7 @@ internal static class ShaderArtifactPublisher
             return Final.ShaderAbiLayout.Empty;
         }
 
-        var paddedSize = Math.Max(size, alignment);
+        var paddedSize = size > alignment ? size : alignment;
         return new(paddedSize, alignment, arrayStride, matrixStride, memberArray.Select(ToMember));
     }
 

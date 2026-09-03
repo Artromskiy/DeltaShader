@@ -934,7 +934,7 @@ public static class ComputeEntryPoints
                     Members = members
                 });
                 pushOffset += layout.Size;
-                pushAlignment = Math.Max(pushAlignment, layout.Alignment);
+                pushAlignment = layout.Alignment > pushAlignment ? layout.Alignment : pushAlignment;
             }
         }
 
@@ -1274,7 +1274,7 @@ public static class ComputeEntryPoints
                 Members = nestedMembers
             });
             offset += fieldLayout.Size;
-            alignment = Math.Max(alignment, fieldLayout.Alignment);
+            alignment = fieldLayout.Alignment > alignment ? fieldLayout.Alignment : alignment;
         }
 
         if (members.Count == 0)

@@ -1411,13 +1411,13 @@ internal static class GraphicsEntryPoints
                 var nestedLayout = ShaderStd430Layout.ForStruct(nestedStruct.Alignment, nestedStruct.Size);
                 offset = AlignUp(offset, nestedLayout.Alignment);
                 members.Add(new ShaderIrStructMember { Name = member.Name, GlslName = "member_" + Sanitize(member.Name), GlslType = glslType, Offset = offset, Alignment = nestedLayout.Alignment, Size = nestedLayout.Size, ArrayStride = nestedLayout.ArrayStride, Members = nestedStruct.Members });
-                offset += nestedLayout.Size; alignment = Math.Max(alignment, nestedLayout.Alignment); continue;
+                offset += nestedLayout.Size; alignment = nestedLayout.Alignment > alignment ? nestedLayout.Alignment : alignment; continue;
             }
             if (string.IsNullOrEmpty(glslType)) { structure = null; visiting.Remove(type); reason = $"Shader struct member '{member.Name}' has unsupported type '{memberType}'."; return false; }
             var fieldLayout = ShaderStd430Layout.ForGlslType(glslType);
             offset = AlignUp(offset, fieldLayout.Alignment);
             members.Add(new ShaderIrStructMember { Name = member.Name, GlslName = "member_" + Sanitize(member.Name), GlslType = glslType, Offset = offset, Alignment = fieldLayout.Alignment, Size = fieldLayout.Size, ArrayStride = fieldLayout.ArrayStride, MatrixStride = fieldLayout.MatrixStride });
-            offset += fieldLayout.Size; alignment = Math.Max(alignment, fieldLayout.Alignment);
+            offset += fieldLayout.Size; alignment = fieldLayout.Alignment > alignment ? fieldLayout.Alignment : alignment;
         }
         if (members.Count == 0) { structure = null; visiting.Remove(type); reason = $"Shader struct '{type.ToDisplayString()}' has no instance data fields."; return false; }
         structure = new ShaderIrStruct { Name = type.ToDisplayString(), GlslName = "DeltaStruct_" + Sanitize(type.ToDisplayString()), Alignment = alignment, Size = AlignUp(offset, alignment), ArrayStride = AlignUp(offset, alignment), Members = members };
