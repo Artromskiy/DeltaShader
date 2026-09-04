@@ -43,8 +43,7 @@ public readonly struct SolidRectangleVertexContext
     public readonly UiFrameConstants Frame;
 }
 
-public readonly struct SolidRectangleFragmentContext
-{ }
+public readonly struct SolidRectangleFragmentContext { }
 
 public readonly struct RoundedRectangleParameters
 {
@@ -90,79 +89,48 @@ public readonly struct RoundedRectangleVertexContext
     public readonly UiFrameConstants Frame;
 }
 
-public readonly struct RoundedRectangleFragmentContext
-{ }
+public readonly struct RoundedRectangleFragmentContext { }
 
 public static class UiRectangleShaders
 {
     private static float2 GetQuadLocal(uint vertexIndex)
     {
-        float2 local = new float2(0f, 0f);
-        if (vertexIndex == 1u || vertexIndex == 2u || vertexIndex == 4u)
-        {
-            local = new float2(1f, local.y);
-        }
-
-        if (vertexIndex == 2u || vertexIndex == 4u || vertexIndex == 5u)
-        {
-            local = new float2(local.x, 1f);
-        }
-
-        return local;
+        // Битовые маски для индексов 0..5, формирующих два треугольника (quad).
+        // X = 1 для вершин 1, 2, 4 (маска 22 = 0b010110)
+        // Y = 1 для вершин 2, 4, 5 (маска 52 = 0b110100)
+        float x = (22u >> (int)vertexIndex) & 1u;
+        float y = (52u >> (int)vertexIndex) & 1u;
+        return new float2(x, y);
     }
 
     private static float2 ToClipPosition(float4 rect, float2 local, float2 resolution)
     {
-        float2 pixel = rect.xy + local.xy * rect.zw;
-        return pixel / resolution * 2f - 1f;
+        float2 pixel = rect.xy + local * rect.zw;
+        return (pixel / resolution) * 2f - 1f;
     }
 
-    private static float4 NormalizeCornerRadii(float4 cornerRadii, float2 size)
+    private static float4 GetCornerData(float4 cornerRadii, float2 pixel, float2 size)
     {
-        float horizontalRadius = max(
-            cornerRadii.x + cornerRadii.y,
-            cornerRadii.z + cornerRadii.w);
-        float verticalRadius = max(
-            cornerRadii.x + cornerRadii.w,
-            cornerRadii.y + cornerRadii.z);
-        float scale = 1f;
+        float4 d = new float4(pixel, size - pixel);
+        float4 influence = max(cornerRadii - max(d.xzzx, d.yyww), 0f);
 
-        if (horizontalRadius > size.x)
-        {
-            scale = size.x / horizontalRadius;
-        }
+        float2 max2 = max(influence.xy, influence.zw);
+        float maxInfluence = max(max2.x, max2.y);
 
-        if (verticalRadius > size.y)
-        {
-            scale = min(scale, size.y / verticalRadius);
-        }
+        float4 hasMax = step(maxInfluence, influence);
+        float4 notMax = 1f - hasMax;
 
-        return cornerRadii * scale;
-    }
+        float m0 = notMax.x;
+        float m1 = m0 * notMax.y;
+        float m2 = m1 * notMax.z;
 
-    private static float GetCornerRadius(float4 cornerRadii, float2 pixel, float2 size)
-    {
-        if (pixel.x <= cornerRadii.x && pixel.y <= cornerRadii.x)
-        {
-            return cornerRadii.x;
-        }
+        float4 winner = hasMax * new float4(1f, m0, m1, m2);
+        float r = dot(cornerRadii, winner);
 
-        if (pixel.x >= size.x - cornerRadii.y && pixel.y <= cornerRadii.y)
-        {
-            return cornerRadii.y;
-        }
+        float2 isRightTop = new float2(winner.y + winner.z, winner.z + winner.w);
+        float2 center = isRightTop * (size - 2f * r) + r;
 
-        if (pixel.x >= size.x - cornerRadii.z && pixel.y >= size.y - cornerRadii.z)
-        {
-            return cornerRadii.z;
-        }
-
-        if (pixel.x <= cornerRadii.w && pixel.y >= size.y - cornerRadii.w)
-        {
-            return cornerRadii.w;
-        }
-
-        return 0f;
+        return new float4(r, center.x, center.y, maxInfluence);
     }
 
     [VertexShader("solid-rectangle")]
@@ -182,8 +150,8 @@ public static class UiRectangleShaders
     [FragmentShader("solid-rectangle")]
     public static float4 SolidRectangleFragment(in SolidRectangleFragmentContext context, in SolidRectanglePayload input)
     {
-        float4 color = input.Color.Value;
-        return new float4(color.xyz * color.w, color.w);
+        float4 c = input.Color.Value;
+        return new float4(c.xyz * c.w, c.w);
     }
 
     [VertexShader("rounded-rectangle")]
@@ -208,34 +176,42 @@ public static class UiRectangleShaders
     [FragmentShader("rounded-rectangle")]
     public static float4 RoundedRectangleFragment(in RoundedRectangleFragmentContext context, in RoundedRectanglePayload input)
     {
-        float4 rect = input.Rect.Value;
-        float2 size = rect.zw;
-        float4 cornerRadii = NormalizeCornerRadii(input.CornerRadii.Value, size);
-        float borderWidth = input.BorderWidth.Value;
+        float2 size = input.Rect.Value.zw;
         float2 pixel = input.Uv.Value * size;
-        float2 halfSize = size * 0.5f;
-        float2 centered = pixel - halfSize;
-        float radius = GetCornerRadius(cornerRadii, pixel, size);
 
-        float2 q = abs(centered) - halfSize + radius;
-        float2 outside = max(q, 0f);
-        float outsideDistance = length(outside);
-        float insideDistance = min(max(q.x, q.y), 0f);
-        float distance = outsideDistance + insideDistance - radius;
-        float edge = max(fwidth(distance), 0.0001f);
+        float4 cornerData = GetCornerData(input.CornerRadii.Value, pixel, size);
+
+        float distance;
+        // Если мы в зоне влияния угла, считаем расстояние только до круга.
+        // Иначе считаем стандартный Box SDF. Это экономит инструкции.
+        if (cornerData.w > 0f)
+        {
+            distance = length(pixel - cornerData.yz) - cornerData.x;
+        }
+        else
+        {
+            float2 halfSize = size * 0.5f;
+            float2 q = abs(pixel - halfSize) - halfSize;
+            distance = length(max(q, 0f)) + min(max(q.x, q.y), 0f);
+        }
+
+        float edge = max(fwidth(distance) * 0.5f, 0.0001f);
         float outerCoverage = 1f - smoothstep(-edge, edge, distance);
+
         if (outerCoverage <= 0f)
         {
             _ = discard;
         }
 
-        float innerCoverage = 1f - smoothstep(-edge, edge, distance + borderWidth);
-        float borderCoverage = max(outerCoverage - innerCoverage, 0f);
-        float4 premultipliedColor =
-            input.FillColor.Value * innerCoverage +
-            input.BorderColor.Value * borderCoverage;
+        float innerCoverage = 1f - smoothstep(-edge, edge, distance + input.BorderWidth.Value);
+        float borderCoverage = outerCoverage - innerCoverage;
 
-        return new float4(premultipliedColor.xyz, outerCoverage);
+        // Предварительное умножение альфы (Premultiply Alpha) исходных цветов
+        float4 f = input.FillColor.Value;
+        float4 b = input.BorderColor.Value;
+        float4 fill = new float4(f.xyz * f.w, f.w);
+        float4 border = new float4(b.xyz * b.w, b.w);
+
+        return fill * innerCoverage + border * borderCoverage;
     }
-
 }
