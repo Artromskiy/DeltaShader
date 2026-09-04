@@ -88,6 +88,10 @@ public sealed class UiShaderTests
         Assert.Contains("borderCoverage", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("outerCoverage", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("cornerRadii", fragmentGlsl, StringComparison.Ordinal);
+        Assert.Contains("horizontalRadius", fragmentGlsl, StringComparison.Ordinal);
+        Assert.Contains("verticalRadius", fragmentGlsl, StringComparison.Ordinal);
+        Assert.Contains("pixel.x <= cornerRadii.w", fragmentGlsl, StringComparison.Ordinal);
+        Assert.Contains("pixel.y >= size.y - cornerRadii.w", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("1.0 - smoothstep(-edge, edge, distance)", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("1.0 - smoothstep(-edge, edge, distance +", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("max(outerCoverage - innerCoverage, 0.0)", fragmentGlsl, StringComparison.Ordinal);

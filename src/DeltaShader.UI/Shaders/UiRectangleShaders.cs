@@ -117,26 +117,52 @@ public static class UiRectangleShaders
         return pixel / resolution * 2f - 1f;
     }
 
-    private static float GetCornerRadius(float4 cornerRadii, float2 centered)
+    private static float4 NormalizeCornerRadii(float4 cornerRadii, float2 size)
     {
-        float radius = cornerRadii.x;
-        if (centered.x > 0f)
+        float horizontalRadius = max(
+            cornerRadii.x + cornerRadii.y,
+            cornerRadii.z + cornerRadii.w);
+        float verticalRadius = max(
+            cornerRadii.x + cornerRadii.w,
+            cornerRadii.y + cornerRadii.z);
+        float scale = 1f;
+
+        if (horizontalRadius > size.x)
         {
-            if (centered.y > 0f)
-            {
-                radius = cornerRadii.z;
-            }
-            else
-            {
-                radius = cornerRadii.y;
-            }
-        }
-        else if (centered.y > 0f)
-        {
-            radius = cornerRadii.w;
+            scale = size.x / horizontalRadius;
         }
 
-        return radius;
+        if (verticalRadius > size.y)
+        {
+            scale = min(scale, size.y / verticalRadius);
+        }
+
+        return cornerRadii * scale;
+    }
+
+    private static float GetCornerRadius(float4 cornerRadii, float2 pixel, float2 size)
+    {
+        if (pixel.x <= cornerRadii.x && pixel.y <= cornerRadii.x)
+        {
+            return cornerRadii.x;
+        }
+
+        if (pixel.x >= size.x - cornerRadii.y && pixel.y <= cornerRadii.y)
+        {
+            return cornerRadii.y;
+        }
+
+        if (pixel.x >= size.x - cornerRadii.z && pixel.y >= size.y - cornerRadii.z)
+        {
+            return cornerRadii.z;
+        }
+
+        if (pixel.x <= cornerRadii.w && pixel.y >= size.y - cornerRadii.w)
+        {
+            return cornerRadii.w;
+        }
+
+        return 0f;
     }
 
     [VertexShader("solid-rectangle")]
@@ -184,12 +210,12 @@ public static class UiRectangleShaders
     {
         float4 rect = input.Rect.Value;
         float2 size = rect.zw;
-        float4 cornerRadii = input.CornerRadii.Value;
+        float4 cornerRadii = NormalizeCornerRadii(input.CornerRadii.Value, size);
         float borderWidth = input.BorderWidth.Value;
         float2 pixel = input.Uv.Value * size;
         float2 halfSize = size * 0.5f;
         float2 centered = pixel - halfSize;
-        float radius = GetCornerRadius(cornerRadii, centered);
+        float radius = GetCornerRadius(cornerRadii, pixel, size);
 
         float2 q = abs(centered) - halfSize + radius;
         float2 outside = max(q, 0f);
