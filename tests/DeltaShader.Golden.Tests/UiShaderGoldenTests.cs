@@ -33,13 +33,14 @@ public sealed class UiShaderGoldenTests
                     new ShaderIrStructMember { Name = "DistanceRange", GlslName = "member_DistanceRange", GlslType = "float", Offset = 52, Alignment = 4, Size = 4, ArrayStride = 4 }
                 ]
             }],
-            Body = "float signedDistance = (texel.x - 0.5) * distanceRange; float edge = fwidth(signedDistance); float fillCoverage = smoothstep(-edge, edge, signedDistance); float outerCoverage = smoothstep(-outlineWidth - edge, -outlineWidth + edge, signedDistance); float outlineContribution = max(outerCoverage - fillCoverage, 0.0);"
+            Body = "float signedDistance = (texel.x - 0.5) * distanceRange; float edge = max(fwidth(signedDistance) * 0.5, 0.0001); float fillCoverage = smoothstep(-edge, edge, signedDistance); float outerCoverage = smoothstep(-outlineWidth - edge, -outlineWidth + edge, signedDistance); float outlineContribution = max(outerCoverage - fillCoverage, 0.0);"
         };
 
         var emitted = GlslEmitter.EmitFromModule(module);
         var manifest = ShaderManifest.FromModule(module).ToBuildManifest(ShaderCompilationOptions.Default);
 
         Assert.Contains("smoothstep(-edge, edge, signedDistance)", emitted.Source, StringComparison.Ordinal);
+        Assert.Contains("fwidth(signedDistance) * 0.5", emitted.Source, StringComparison.Ordinal);
         Assert.Contains("smoothstep(-outlineWidth - edge, -outlineWidth + edge, signedDistance)", emitted.Source, StringComparison.Ordinal);
         Assert.Contains("max(outerCoverage - fillCoverage, 0.0)", emitted.Source, StringComparison.Ordinal);
         Assert.DoesNotContain("1.0 - smoothstep", emitted.Source, StringComparison.Ordinal);

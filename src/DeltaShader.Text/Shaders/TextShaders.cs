@@ -135,7 +135,7 @@ public static class TextShaders
     {
         var texel = context.Atlas.Sample<float2, float4>(input.Uv.Value);
         var signedDistance = (texel.x - 0.5f) * context.Parameters.DistanceRange;
-        var edge = intrinsics.fwidth(signedDistance);
+        var edge = maths.max(intrinsics.fwidth(signedDistance) * 0.5f, 0.0001f);
         var fillCoverage = maths.smoothstep(-edge, edge, signedDistance);
         var outlineWidth = maths.max(context.Parameters.OutlineWidth, 0f);
         var outerCoverage = maths.smoothstep(-outlineWidth - edge, -outlineWidth + edge, signedDistance);
@@ -218,7 +218,7 @@ public static class TextShaders
             maths.min(maths.max(texel.x, texel.y), texel.z));
         var signedDistance = median - 0.5f;
         signedDistance *= context.Parameters.DistanceRange;
-        var edge = intrinsics.fwidth(signedDistance);
+        var edge = maths.max(intrinsics.fwidth(signedDistance) * 0.5f, 0.0001f);
         var fillCoverage = maths.smoothstep(-edge, edge, signedDistance);
         var outlineWidth = maths.max(context.Parameters.OutlineWidth, 0f);
         var outerCoverage = maths.smoothstep(-outlineWidth - edge, -outlineWidth + edge, signedDistance);

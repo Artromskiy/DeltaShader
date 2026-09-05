@@ -1306,7 +1306,7 @@ public class IntrinsicCatalogTests
                 {
                     var texel = context.Atlas.Sample<float2, float4>(input.Uv);
                     var signedDistance = (texel.x - 0.5f) * context.Parameters.DistanceRange;
-                    var edge = intrinsics.fwidth(signedDistance);
+                    var edge = maths.max(intrinsics.fwidth(signedDistance) * 0.5f, 0.0001f);
                     var fillCoverage = maths.smoothstep(-edge, edge, signedDistance);
                     var outlineWidth = maths.max(context.Parameters.OutlineWidth, 0f);
                     var outerCoverage = maths.smoothstep(-outlineWidth - edge, -outlineWidth + edge, signedDistance);
@@ -1349,6 +1349,7 @@ public class IntrinsicCatalogTests
         var fragmentGlsl = Delta.Shader.Backend.Glsl.GlslEmitter.EmitFromModule(fragment.Module!).Source;
         Assert.Contains("layout(set = 0, binding = 3) uniform sampler2D", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("fwidth", fragmentGlsl, StringComparison.Ordinal);
+        Assert.Contains("* 0.5", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("smoothstep", fragmentGlsl, StringComparison.Ordinal);
         Assert.DoesNotContain("1 - smoothstep", fragmentGlsl, StringComparison.Ordinal);
     }
