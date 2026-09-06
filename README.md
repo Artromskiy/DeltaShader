@@ -1,7 +1,8 @@
 # DeltaShader
 
-DeltaShader lets you author Vulkan shaders in C# and produce validated GLSL,
-SPIR-V and `ShaderAbi` data for a renderer.
+DeltaShader lets you author Vulkan shaders in C# and produce a validated final
+SPIR-V artifact with its resolved binary `ShaderAbi`. GLSL may be emitted as a
+build-time inspection sidecar; it is not consumed by the renderer.
 
 ## What it provides
 
@@ -50,12 +51,13 @@ public static class ExampleShader
 }
 ```
 
-The project produces validated stage source and binary artifacts, a resolved
-ABI and generated typed accessors for the owning application.
+The project produces validated source/inspection sidecars, final SPIR-V
+artifacts, a resolved ABI and generated typed accessors for the owning
+application. Only the final artifact and ABI cross into DeltaRender.
 
 ## Core concepts
 
-Shader source -> diagnostics -> GLSL/SPIR-V + `ShaderAbi` -> renderer
+Shader source -> diagnostics -> optional GLSL sidecar + SPIR-V/`ShaderAbi` -> renderer
 
 Contexts are blittable value types. Resources, push constants and stage data
 are declared through the public API; consumers use generated helpers instead
