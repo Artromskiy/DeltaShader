@@ -20,9 +20,11 @@ The contract package contains no Roslyn, MSBuild, compiler, backend, Vulkan, or
 renderer dependency. Render and Engine consume only the final artifact and
 resolved `ShaderAbi`.
 
-All packages are restored from `nuget.org`. Package versions must follow the
-repository release versioning rule in `WORKFLOW.md`; a contract or generated
-pack/unpack API change increments both the tag and package version.
+Public and CI restores use `nuget.org`. During development, the root `dev`
+mode maps first-party package IDs to the feed generated from the current
+checkouts; `release` stages the same graph before publishing. Versioning rules
+live in [`WORKFLOW.md`](../WORKFLOW.md#contract-release-versioning); do not
+duplicate them here.
 
 ## UI, text, and mesh producer projects
 

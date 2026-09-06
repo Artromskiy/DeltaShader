@@ -229,9 +229,10 @@ Unless the change explicitly says otherwise, every change to a public shader
 authoring contract, `ShaderAbi`/`ShaderArtifact` shape, generated pack/unpack
 API, or frozen DeltaShader-to-consumer semantics must increment the repository
 version tag and the `DeltaShader.Tool` NuGet package version together. The tag
-uses the `v` prefix (`v0.0.14`); the NuGet package uses the same SemVer without
-that prefix (`0.0.14`). Update package references and release documentation to
-the same version in the same change.
+uses the `v` prefix and the package uses the same SemVer without that prefix.
+Read the current value from the project file or the latest tag; do not copy a
+package version into this document. Update package references and release
+documentation to the same version in the same change.
 
 Internal implementation fixes, diagnostics, tests and documentation-only
 changes do not require a version bump unless they change the public contract.
