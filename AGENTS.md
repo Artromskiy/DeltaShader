@@ -1,30 +1,23 @@
-# DeltaShader agent guide
+# DeltaShader agent router
 
-Scope: Roslyn validation, typed shader IR, GLSL 460/SPIR-V generation and the
-runtime-neutral `ShaderArtifact` ABI.
+Scope: Roslyn validation, typed shader IR, GLSL/SPIR-V generation and the
+runtime-neutral final ShaderArtifact ABI. Compiler code must not depend on
+Vulkan or DeltaRender. Map DeltaMaths by Roslyn symbol identity and generated
+manifest, never by CLR-name guesses.
 
-- [docs/README.md](docs/README.md) — stable public authoring/compiler contract.
-- [docs/final-artifact-contract.md](docs/final-artifact-contract.md) — immutable
-  final DeltaShader-to-DeltaRender handoff.
-- [TODO.md](TODO.md) — selected compiler work.
-- [IDEAS.md](IDEAS.md) — deferred language/backend ideas.
-- [WORKFLOW.md](WORKFLOW.md) — fast build, tests, CLI and SPIR-V checks.
-- Read [docs/diagnostics.md](docs/diagnostics.md) for analyzer changes,
-  [docs/graphics-scenario-v0.1.md](docs/graphics-scenario-v0.1.md) for graphics
-  artifacts, and [docs/TRANSFORM_CONFORMANCE.md](docs/TRANSFORM_CONFORMANCE.md)
-  for matrix/layout work. ADRs are decision records, not task lists.
-- [../CONTRACTS.md](../CONTRACTS.md) is authoritative for graphics-artifact
-  ownership and consumer boundaries.
+## Map — open only as needed
 
-Compiler/abstractions must not depend on Vulkan or DeltaRender. Map DeltaMaths by
-Roslyn symbol identity and generated manifest, never by CLR name guesses.
-During documentation cleanup and producer/consumer migration, treat
-`docs/final-artifact-contract.md` and `src/DeltaShader.Contract/**` as
-read-only sources of truth. Change them only when the user explicitly requests
-a contract revision; adapt every other document and compatibility layer to
-them, never the reverse.
+- ../CODE_STYLE.md — technical source-generation, ABI, ownership and hot-path rules.
+- ../CONTRACTS.md — graphics-artifact ownership and direct consumers; open only for a boundary task.
+- IDEAS.md — language/backend research/options only when requested.
+- WORKFLOW.md — bounded build, tests, CLI and SPIR-V checks.
+- docs/CONTRACT.md and docs/final-artifact-contract.md — frozen contracts; read-only unless the user requests revision.
+- docs/USER_API.md — user-facing authoring API; open only for public API/documentation work.
+- docs/INTERNAL.md — compiler implementation notes.
+- src/DeltaShader.Contract and src/DeltaShader.* — production contract/compiler/backends.
+- tests, samples, playground — verification, runnable examples and disposable experiments.
 
-Skills: `compiler-frontend` for Roslyn/IOperation and diagnostics,
-`shader-dev` for GLSL/stage semantics, `abi-and-calling-conventions` for std430
-and manifests, `static-analysis` for analyzer rules, and
-`code-generation-and-backends` for generated artifacts/backend lowering.
+Use compiler-frontend, shader-dev, abi-and-calling-conventions, static-analysis
+and code-generation-and-backends only for the matching bounded area. Do not
+reintroduce compatibility artifact/manifest models when the frozen artifact
+is the requested boundary.
