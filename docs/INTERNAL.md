@@ -111,9 +111,11 @@ has final SPIR-V plus `ShaderAbi`.
 ## Composite compiler model
 
 The composition design is documented in
-[shader-composition.md](shader-composition.md). The compiler now recognizes
-the standard semantic value wrappers by full symbol identity and lowers their
-`Value` member to the underlying Delta type. Direct scalar/vector fields
+[shader-composition.md](shader-composition.md). The compiler recognizes the
+`Delta.Shader.Position` and `Delta.Shader.FragmentColor` builtins by fixed
+identity and recognizes common/provider semantic wrappers by their single
+instance `Value` field. It lowers that `Value` member to the underlying Delta
+type. Direct scalar/vector fields
 in interstage payloads are rejected as the obsolete graphics ABI. Layer payloads remain
 compiler-side typed patches and must resolve into one final vertex/fragment
 interface before publication. Full Roslyn symbol identity is used for source

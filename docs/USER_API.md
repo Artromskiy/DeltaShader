@@ -204,9 +204,11 @@ Graphics stages use two independent input ports. The first parameter is the
 stage context with descriptors and push constants. The second parameter is the
 semantic payload consumed by the stage. A vertex stage returns the payload for
 the next stage; a fragment stage returns its final color. The canonical payload
-uses semantic value types. `Position` is the required vertex position semantic;
-`Uv0`, `Color`, `VertexColor`, and `FragmentColor` carry their meaning in their
-full type identity rather than in the CLR field name. Direct scalar/vector
+uses semantic value types. `Position` and `FragmentColor` are the default
+graphics builtins from `Delta.Shader`; `Uv0`, `Uv1`, and `VertexColor` come from
+`Delta.Graphics.Semantics`. Provider-specific values come from the selected
+render provider. Semantic fields carry their meaning in their full type identity
+rather than in the CLR field name. Direct scalar/vector
 fields are rejected; migrate the field to a semantic value type.
 
 ```csharp

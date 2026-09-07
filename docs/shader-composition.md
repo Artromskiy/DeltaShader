@@ -25,16 +25,18 @@ editor layer selection
 ## Semantic value types
 
 Interstage matching uses the full symbol identity of a semantic value type, not
-the CLR field name and not the underlying scalar/vector shape. Standard types
-are supplied for common meanings by `Delta.Shader`:
+the CLR field name and not the underlying scalar/vector shape. The default
+shader builtins are supplied by `Delta.Shader`:
 
 ```text
 Position
-Uv0
-Color
-WorldPosition
-WorldNormal
+FragmentColor
 ```
+
+Cross-domain stage values are supplied by `Delta.Graphics.Semantics`:
+`Uv0`, `Uv1`, and `VertexColor`. UI, text, and mesh values belong to their
+respective render provider projects. The compiler recognizes their value
+shape for lowering, but does not assign domain meaning to a plain `floatN`.
 
 Two user types containing the same `float2` are not implicitly compatible. A
 user-defined semantic type or an explicit compiler adapter is required for an
@@ -69,12 +71,12 @@ public struct InterstageFragment
 ```
 
 The semantic types provide field meaning, so field names are not used to match
-ports. A payload that omits `Color` forwards the previous value; it does not
+ports. A payload that omits `FragmentColor` forwards the previous value; it does not
 clear or overwrite it.
 
 `Position` is special: exactly one vertex output must provide it and it lowers
-to `gl_Position`. It is not an ordinary varying. `Color` is the required final
-fragment semantic: at least one fragment-side payload must provide or carry it
+to `gl_Position`. It is not an ordinary varying. `FragmentColor` is the required
+final fragment semantic: at least one fragment-side payload must provide or carry it
 to the final fragment result. A separate `FragmentOutput` wrapper is not
 required.
 
@@ -138,12 +140,12 @@ UV animation layer:
   forwards Position and VertexColor
 
 Texture layer:
-  reads Uv0 and Color
-  writes Color
+  reads Uv0 and FragmentColor
+  writes FragmentColor
 
 Final fragment layer:
-  reads Color
-  provides the final fragment Color
+  reads FragmentColor
+  provides the final fragment FragmentColor
 ```
 
 The default merge policy is `chain`. A later layer does not need to write a
