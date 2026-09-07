@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using Delta;
 using Delta.Shader;
+using Delta.Graphics.Semantics;
 using Delta.Shader.Analyzers;
 using Delta.Shader.Contract;
 using Microsoft.CodeAnalysis;
@@ -18,6 +19,7 @@ public sealed class GeneratedBufferPackingTests
         const string source = """
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             public struct Payload
             {

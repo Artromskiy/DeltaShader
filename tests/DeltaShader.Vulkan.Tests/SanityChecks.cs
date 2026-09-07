@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 using Delta.Shader;
+using Delta.Graphics.Semantics;
 using Delta.Shader.Backend.Glsl;
 using Delta.Shader.Compiler;
 using Delta.Shader.Compiler.IR;

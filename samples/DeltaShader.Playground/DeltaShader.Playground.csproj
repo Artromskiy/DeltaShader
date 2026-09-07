@@ -17,7 +17,7 @@
     <Compile Remove="Shaders/AddBias.cs" />
     <Compile Remove="tools/**/*.cs" />
     <PackageReference Include="DeltaMaths" />
-    <ProjectReference Include="..\..\src\DeltaShader.SemanticTypes\DeltaShader.SemanticTypes.csproj" />
+    <ProjectReference Include="..\..\..\DeltaRender\src\Delta.Graphics.Semantics\Delta.Graphics.Semantics.csproj" />
     <PackageReference Include="DeltaShader.Compiler" PrivateAssets="all" />
     <PackageReference Include="DeltaShader.Analyzers" PrivateAssets="all" OutputItemType="Analyzer" />
     <PackageReference Include="DeltaShader.Contract" PrivateAssets="all" />

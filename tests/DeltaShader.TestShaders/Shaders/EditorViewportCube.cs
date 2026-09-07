@@ -1,5 +1,8 @@
 using Delta;
 using Delta.Shader;
+using Delta.Graphics.Semantics;
+using Delta.Render.Mesh;
+using Delta.Graphics.Semantics;
 
 namespace Delta.Shader.TestShaders;
 

@@ -1,4 +1,5 @@
 using Delta.Shader;
+using Delta.Graphics.Semantics;
 using Delta.Shader.Compiler;
 using Delta.Shader.Compiler.IR;
 using Delta.Shader.Backend.Glsl;

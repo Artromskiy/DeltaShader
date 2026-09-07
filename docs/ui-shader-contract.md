@@ -1,6 +1,6 @@
-# DeltaShader.UI rectangle contract
+# DeltaRender.UIShaders rectangle contract
 
-`DeltaShader.UI` owns the canonical authoring sources for the solid and rounded
+`DeltaRender.UIShaders` owns the canonical authoring sources for the solid and rounded
 rectangle graphics programs. The compiler emits the final
 `Delta.Shader.Contract.ShaderArtifact` and resolved `ShaderAbi`; Render consumes
 that artifact and the generated packers. Render must not reproduce this layout
@@ -153,7 +153,7 @@ consumer intersects nested UI clips and records the resulting scissor region.
 
 ## Ownership boundary
 
-`DeltaShader.UI` owns these shader sources, resolved ABI metadata, generated
+`DeltaRender.UIShaders` owns these shader sources, resolved ABI metadata, generated
 SPIR-V and generated packers. `DeltaRender` owns buffers, descriptors, pipeline
 creation, device limits and draw submission. `DeltaXAML` or Engine provides
 ordinary CLR value records and does not know std430 offsets or Vulkan types.

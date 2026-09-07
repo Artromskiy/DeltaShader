@@ -46,7 +46,6 @@ internal static class ShaderSemanticTypeSupport
 
     private static bool IsSemanticValueType(INamedTypeSymbol type)
         => type.TypeKind == TypeKind.Struct &&
-            string.Equals(type.ContainingNamespace?.ToDisplayString(), "Delta.Shader", StringComparison.Ordinal) &&
             type.GetMembers("Value").OfType<IFieldSymbol>().Count(field => !field.IsStatic) == 1;
 
     private static bool TryMapUnderlyingType(

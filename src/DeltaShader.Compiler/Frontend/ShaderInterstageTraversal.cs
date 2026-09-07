@@ -56,7 +56,8 @@ internal static class ShaderInterstageTraversal
         foreach (var field in type.GetMembers().OfType<IFieldSymbol>().Where(field => !field.IsStatic))
         {
             path.Add(field);
-            if (ShaderSemanticTypeSupport.TryGetValueField(field.Type, context, out _))
+            if (ShaderSemanticTypeSupport.TryGetValueField(field.Type, context, out _) ||
+                GraphicsEntryPoints.TryMapType(field.Type, context, out _))
             {
                 leaves.Add(new ShaderInterstageLeaf(field, path.ToArray()));
             }
@@ -69,7 +70,7 @@ internal static class ShaderInterstageTraversal
             else
             {
                 report?.Invoke(field,
-                    $"Interstage field '{string.Join(".", path.Select(member => member.Name))}' must use a Delta.Shader semantic type or contain nested semantic fields.");
+                    $"Interstage field '{string.Join(".", path.Select(member => member.Name))}' must use a mapped shader value or contain nested semantic fields.");
             }
 
             path.RemoveAt(path.Count - 1);

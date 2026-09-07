@@ -28,7 +28,7 @@ duplicate them here.
 
 ## UI, text, and mesh producer projects
 
-`DeltaShader.UI`, `DeltaShader.Text`, and `DeltaShader.Mesh` remain source-only
+`DeltaRender.UIShaders`, `DeltaRender.Text`, and `DeltaRender.Mesh` remain source-only
 producer projects. They contain authoring sources and generate artifacts during
 the owning build; they are not runtime package replacements for
 `DeltaShader.Contract`. Render consumers must receive the generated artifact

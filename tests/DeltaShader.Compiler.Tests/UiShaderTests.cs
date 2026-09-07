@@ -1,7 +1,6 @@
 using Delta.Shader.Analyzers;
 using Delta.Shader.Backend.Glsl;
 using Delta.Shader.Compiler;
-using Delta.Shader.UI;
 using Delta;
 using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis;
@@ -166,7 +165,8 @@ public sealed class UiShaderTests
         }
 
         using MSBuildWorkspace workspace = MSBuildWorkspace.Create();
-        string projectPath = Path.Combine(FindRepositoryRoot(), "src", "DeltaShader.UI", "DeltaShader.UI.csproj");
+        string projectPath = Path.GetFullPath(Path.Combine(
+            FindRepositoryRoot(), "..", "DeltaRender", "tools", "DeltaRender.UIShaders", "DeltaRender.UIShaders.csproj"));
         Project project = await workspace.OpenProjectAsync(projectPath).ConfigureAwait(true);
         Compilation? compilation = await project.GetCompilationAsync().ConfigureAwait(true);
         return compilation ?? throw new InvalidOperationException("DeltaShader.UI compilation was not created.");

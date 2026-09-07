@@ -75,7 +75,7 @@ directly for the source project under test:
 out_dir="$(mktemp -d)"
 trap 'rm -rf "$out_dir"' EXIT
 dotnet run --project src/DeltaShader.Tool/DeltaShader.Tool.csproj \
-  -c Release -- build src/DeltaShader.UI/DeltaShader.UI.csproj \
+  -c Release -- build ../DeltaRender/tools/DeltaRender.UIShaders/DeltaRender.UIShaders.csproj \
   --profile vulkan1.2 --spirv 1.5 --glsl 460 \
   --optimize performance --out "$out_dir"
 ```

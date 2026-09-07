@@ -1512,36 +1512,30 @@ public sealed class ModuleCompilationContext
     private static IReadOnlyDictionary<INamedTypeSymbol, IFieldSymbol> BuildSemanticValueFields(Compilation compilation)
     {
         var fields = new Dictionary<INamedTypeSymbol, IFieldSymbol>(SymbolEqualityComparer.Default);
-        string[] semanticTypeNames =
-        [
-            "Delta.Shader.Position",
-            "Delta.Shader.Uv0",
-            "Delta.Shader.Uv1",
-            "Delta.Shader.Color",
-            "Delta.Shader.VertexColor",
-            "Delta.Shader.FragmentColor",
-            "Delta.Shader.WorldPosition",
-            "Delta.Shader.WorldNormal",
-            "Delta.Shader.Tangent",
-            "Delta.Shader.Pixel",
-            "Delta.Shader.SegmentRect",
-            "Delta.Shader.CornerData",
-            "Delta.Shader.CornerRadii",
-            "Delta.Shader.BorderWidth",
-            "Delta.Shader.ClipRect"
-        ];
-
-        foreach (var typeName in semanticTypeNames)
+        AddSemanticValueFields(compilation.Assembly.GlobalNamespace, fields);
+        foreach (var assembly in compilation.SourceModule.ReferencedAssemblySymbols)
         {
-            if (compilation.GetTypeByMetadataName(typeName) is not INamedTypeSymbol type ||
-                type.GetMembers("Value").OfType<IFieldSymbol>().SingleOrDefault() is not IFieldSymbol valueField)
-            {
-                continue;
-            }
+            AddSemanticValueFields(assembly.GlobalNamespace, fields);
+        }
+        return fields;
+    }
 
-            fields[type] = valueField;
+    private static void AddSemanticValueFields(
+        INamespaceSymbol namespaceSymbol,
+        Dictionary<INamedTypeSymbol, IFieldSymbol> fields)
+    {
+        foreach (var type in namespaceSymbol.GetTypeMembers())
+        {
+            if (type.TypeKind == TypeKind.Struct &&
+                type.GetMembers("Value").OfType<IFieldSymbol>().SingleOrDefault(field => !field.IsStatic) is IFieldSymbol valueField)
+            {
+                fields[type] = valueField;
+            }
         }
 
-        return fields;
+        foreach (var child in namespaceSymbol.GetNamespaceMembers())
+        {
+            AddSemanticValueFields(child, fields);
+        }
     }
 }

@@ -28,6 +28,7 @@ public sealed class BindingAndBuiltinTests
     {
         const string source = @"
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             public readonly struct ComputeContext
             {
@@ -72,6 +73,7 @@ public sealed class BindingAndBuiltinTests
     {
         const string source = @"
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             public readonly struct ComputeContext
             {
@@ -114,6 +116,7 @@ public sealed class BindingAndBuiltinTests
     {
         const string source = @"
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             public readonly struct ComputeContext
             {
@@ -165,6 +168,7 @@ public sealed class BindingAndBuiltinTests
         const string source = """
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             public readonly struct ComputeContext
             {
@@ -206,6 +210,7 @@ public sealed class BindingAndBuiltinTests
     {
         const string source = @"
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             public readonly struct ComputeContext
             {
@@ -239,6 +244,7 @@ public sealed class BindingAndBuiltinTests
     {
         const string source = @"
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             public readonly struct ComputeContext
             {
@@ -284,6 +290,7 @@ public sealed class BindingAndBuiltinTests
     {
         const string source = @"
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             public readonly struct ComputeContext
             {
@@ -317,6 +324,7 @@ public sealed class BindingAndBuiltinTests
     {
         const string source = @"
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             public readonly struct ComputeContext
             {
@@ -358,6 +366,7 @@ public sealed class BindingAndBuiltinTests
     {
         const string source = @"
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             public readonly struct ComputeContext
             {
@@ -388,6 +397,7 @@ public sealed class BindingAndBuiltinTests
     {
         const string source = @"
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             using Delta;
 
             public readonly struct ComputeContext
@@ -426,6 +436,7 @@ public sealed class BindingAndBuiltinTests
         const string source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             [Interstage]
             public struct VertexPayload
@@ -467,6 +478,7 @@ public sealed class BindingAndBuiltinTests
         const string source = """
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             [Interstage]
             public struct SurfacePayload
@@ -536,6 +548,7 @@ public sealed class BindingAndBuiltinTests
         const string source = """
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             public struct SharedSurface
             {
@@ -575,6 +588,7 @@ public sealed class BindingAndBuiltinTests
         const string source = """
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             public struct InvalidSurface
             {
@@ -612,6 +626,7 @@ public sealed class BindingAndBuiltinTests
     {
         const string source = @"
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             public readonly struct InvalidContext
             {
@@ -644,6 +659,7 @@ public sealed class BindingAndBuiltinTests
         const string source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             [Interstage]
             public struct FragmentPayload
@@ -676,6 +692,7 @@ public sealed class BindingAndBuiltinTests
         const string source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             [Interstage]
             public struct FragmentPayload
@@ -714,6 +731,7 @@ public sealed class BindingAndBuiltinTests
         const string source = """
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             [Interstage]
             public struct VertexPayload
@@ -824,6 +842,7 @@ public sealed class BindingAndBuiltinTests
         const string source = """
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             [Interstage]
             public struct VertexPayload

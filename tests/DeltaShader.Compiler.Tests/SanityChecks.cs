@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Delta;
 using Delta.Shader;
+using Delta.Graphics.Semantics;
 using Delta.Shader.Analyzers;
 using Delta.Shader.Compiler.Intrinsics;
 using Delta.Shader.Compiler.IR;
@@ -351,6 +352,7 @@ public class IntrinsicCatalogTests
         var source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             namespace Delta.Shader.Compiler.Tests.Fixtures
             {
@@ -398,6 +400,7 @@ public class IntrinsicCatalogTests
         var source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             namespace Delta.Shader.Compiler.Tests.Fixtures
             {
@@ -427,6 +430,7 @@ public class IntrinsicCatalogTests
         var source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             namespace Delta.Shader.Compiler.Tests.Fixtures
             {
@@ -453,6 +457,7 @@ public class IntrinsicCatalogTests
         var source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             namespace Delta.Shader.Compiler.Tests.Fixtures
             {
@@ -481,6 +486,7 @@ public class IntrinsicCatalogTests
         var source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             namespace Delta.Shader.Compiler.Tests.Fixtures
             {
@@ -510,6 +516,7 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             namespace Delta.Shader.Compiler.Tests.Fixtures
             {
@@ -568,6 +575,7 @@ public class IntrinsicCatalogTests
         {
             (Source: @"
                 using Delta.Shader;
+using Delta.Graphics.Semantics;
                 using System.Runtime.InteropServices;
                 namespace Delta.Shader.Compiler.Tests.Fixtures
                 {
@@ -585,6 +593,7 @@ public class IntrinsicCatalogTests
             ", ExpectedId: ShaderDiagnosticId.DSH002),
             (Source: @"
                 using Delta.Shader;
+using Delta.Graphics.Semantics;
                 namespace Delta.Shader.Compiler.Tests.Fixtures
                 {
                     public struct ManagedRecord { public string Name; }
@@ -597,6 +606,7 @@ public class IntrinsicCatalogTests
             ", ExpectedId: ShaderDiagnosticId.DSH010),
             (Source: @"
                 using Delta.Shader;
+using Delta.Graphics.Semantics;
                 namespace Delta.Shader.Compiler.Tests.Fixtures
                 {
                     public struct RecursiveRecord { public RecursiveRecord[] Children; }
@@ -609,6 +619,7 @@ public class IntrinsicCatalogTests
             ", ExpectedId: ShaderDiagnosticId.DSH010),
             (Source: @"
                 using Delta.Shader;
+using Delta.Graphics.Semantics;
                 namespace Delta.Shader.Compiler.Tests.Fixtures
                 {
                     public struct ArrayFieldRecord { public float[] Values; }
@@ -636,6 +647,7 @@ public class IntrinsicCatalogTests
         {
             @"
                 using Delta.Shader;
+using Delta.Graphics.Semantics;
                 public static class EntryParameter
                 {
                     public struct Context { [PushConstant] public string Value; }
@@ -644,6 +656,7 @@ public class IntrinsicCatalogTests
             ",
             @"
                 using Delta.Shader;
+using Delta.Graphics.Semantics;
                 public class CpuOnlyHelper { public string Name; }
                 public struct StorageRecord { public CpuOnlyHelper Helper; }
                 public static class StorageEntry
@@ -654,6 +667,7 @@ public class IntrinsicCatalogTests
             ",
             @"
                 using Delta.Shader;
+using Delta.Graphics.Semantics;
                 public struct RecursiveRecord { public RecursiveRecord[] Children; }
                 public static class RecursiveEntry
                 {
@@ -677,6 +691,7 @@ public class IntrinsicCatalogTests
         const string invalidSource = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             public class CpuOnlyHelper { public string Name; }
             public struct Constants { public CpuOnlyHelper Helper; }
             [Interstage]
@@ -697,6 +712,7 @@ public class IntrinsicCatalogTests
 
         const string validSource = @"
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             public class CpuOnlyHelper { public string Name; }
             public static class ValidCompute
             {
@@ -718,6 +734,7 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             public class CpuOnlyHelper { public string Name; }
             public struct Constants { public CpuOnlyHelper Helper; }
             [Interstage]
@@ -745,6 +762,7 @@ public class IntrinsicCatalogTests
         const string source = """
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             public struct FragmentPayload
             {
@@ -776,6 +794,7 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             namespace Delta.Shader.Compiler.Tests.Fixtures
             {
                 public struct Constants { public float2 Resolution; public float Time; }
@@ -816,6 +835,7 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             public struct TransformConstants
             {
                 public float4x4 Model;
@@ -887,6 +907,7 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             public struct SceneParameters
             {
@@ -970,6 +991,7 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             public sealed class ManagedData
             {
@@ -1018,6 +1040,7 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             [Interstage]
             public struct VertexPayload {  public Position Position; }
             public struct VertexContext {}
@@ -1039,6 +1062,7 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             [Interstage]
             public struct VertexPayload {  public Position Position; }
             public struct VertexContext {}
@@ -1063,6 +1087,7 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             [Interstage]
             public struct VertexPayload {  public Position Position; }
             public struct VertexContext {}
@@ -1102,6 +1127,7 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             public static class TextureStages
             {
                 public struct TextParameters
@@ -1188,6 +1214,7 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             [Interstage]
             public struct FragmentPayload {  public Position Position; }
             public struct FragmentContext
@@ -1213,6 +1240,7 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             [Interstage]
             public struct FragmentPayload {  public Position Position; }
             [Interstage]
@@ -1256,6 +1284,7 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             public static class TextScene
             {
                 public struct GlyphInstance
@@ -1360,6 +1389,7 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             public static class StructFieldSymbols
             {
                 public struct Payload
@@ -1404,6 +1434,7 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             [Interstage]
             public struct FragmentPayload {  public Position Position; }
             public struct FragmentContext {}
@@ -1428,6 +1459,7 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             [Interstage]
             public struct FragmentPayload {  public Position Position; }
             public struct FragmentContext {}
@@ -1465,6 +1497,7 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             [Interstage]
             public struct FragmentPayload {  public Position Position; }
             public struct FragmentContext {}
@@ -1496,6 +1529,7 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             [Interstage]
             public struct FragmentPayload {  public Position Position; }
             public struct FragmentContext {}
@@ -1532,6 +1566,7 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             [Interstage]
             public struct FragmentPayload {  public Position Position; }
             public struct FragmentContext {}
@@ -1565,6 +1600,7 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             public readonly struct UserDefinedComputeContext
             {
@@ -1610,6 +1646,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             public readonly struct ParametersContext
             {
@@ -1638,6 +1675,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             public readonly struct InvalidContext
             {
@@ -1671,6 +1709,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             public readonly struct ValidContext
             {
@@ -1712,6 +1751,7 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             public static class CompileTimeValid
             {
@@ -1742,6 +1782,7 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             public static class SimpleCompute
             {
@@ -1779,6 +1820,7 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             public static class ComputeTexture
             {
@@ -1812,6 +1854,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             public static class InvalidComputeTexture
             {
@@ -1831,6 +1874,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             public static class IndexedPayloadCompute
             {
@@ -1860,6 +1904,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             public struct ManagedPayload
             {
@@ -1894,6 +1939,7 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             public static class GeneratedKernel
             {
@@ -1942,6 +1988,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             public struct Parameters
             {
@@ -1986,6 +2033,7 @@ public class IntrinsicCatalogTests
         const string source = """
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             internal static class GeneratedKernel
             {
@@ -2028,6 +2076,7 @@ public class IntrinsicCatalogTests
         const string source = """
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             public static class MeshShaders
             {
@@ -2085,6 +2134,7 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             public static class GeneratedGraphics
             {
@@ -2131,6 +2181,7 @@ public class IntrinsicCatalogTests
         const string source = """
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             public struct FragmentPayload
             {
@@ -2162,6 +2213,7 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             public static class FirstGraphics
             {
@@ -2227,6 +2279,7 @@ public class IntrinsicCatalogTests
         const string source = @"
             using System.Reflection;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
 
             public sealed class VirtualWorker
             {
@@ -2270,6 +2323,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             public enum Operation : byte { Add = 3 }
             public struct ComputeContext
             {
@@ -2301,6 +2355,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             public enum WideOperation : long { Add = 3 }
             public struct ComputeContext
             {
@@ -2330,6 +2385,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             public struct Calculator
             {
                 public uint Bias;
@@ -2366,6 +2422,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             public sealed class Calculator
             {
                 public uint Add(uint value) => value + 1u;
@@ -2398,6 +2455,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             public interface IAdder
             {
                 uint Add(uint value);
@@ -2443,6 +2501,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             public interface IAdder
             {
                 uint Add(uint value);
@@ -2486,6 +2545,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             public readonly struct StatelessAdder
             {
                 public uint Add(uint value) => value + 1u;
@@ -2521,6 +2581,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             public struct Calculator
             {
                 public uint Bias { get; set; }
@@ -2555,6 +2616,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             public struct PatternValue
             {
                 public uint Value;
@@ -2588,6 +2650,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             public struct Calculator
             {
                 public uint Bias;
@@ -2624,6 +2687,7 @@ public class IntrinsicCatalogTests
     {
         const string source = @"
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             public struct Calculator
             {
                 public uint Bias { get; set; }
@@ -2661,6 +2725,7 @@ public class IntrinsicCatalogTests
     {
         const string source = """
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             public struct ComputeContext
             {
                 [Layout(0, 0)] public ReadOnlyStorageBuffer<uint> Input;
@@ -2703,6 +2768,7 @@ public class IntrinsicCatalogTests
     {
         const string source = """
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             public struct ComputeContext
             {
                 [Layout(0, 0)] public ReadOnlyStorageBuffer<uint> Input;
@@ -2744,6 +2810,7 @@ public class IntrinsicCatalogTests
     {
         const string source = """
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             public struct PatternValue
             {
                 public uint Value;
@@ -2806,6 +2873,7 @@ public class IntrinsicCatalogTests
     {
         const string source = """
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             public struct Inner
             {
                 public uint Value;
@@ -2855,6 +2923,7 @@ public class IntrinsicCatalogTests
         const string source = @"
             using Delta;
             using Delta.Shader;
+using Delta.Graphics.Semantics;
             public interface ITransform
             {
                 float4 Apply(float4 value);

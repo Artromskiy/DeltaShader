@@ -1,5 +1,5 @@
 using System.Reflection;
-using Delta.Shader.Text;
+using Delta.Render.Text;
 using Xunit;
 
 namespace Delta.Shader.Vulkan.Tests;
@@ -28,7 +28,7 @@ public sealed class TextArtifactTests
         string vertexPackerName,
         string fragmentPackerName)
     {
-        Type programType = typeof(TextShaders).Assembly.GetType("Delta.Shader.Text." + programName)
+        Type programType = typeof(TextShaders).Assembly.GetType("Delta.Render.Text.Shaders." + programName)
             ?? throw new InvalidOperationException("Generated text graphics program was not found: " + programName);
 
         Assert.NotNull(programType.GetProperty("VertexAbi", BindingFlags.Public | BindingFlags.Static));

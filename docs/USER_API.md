@@ -86,10 +86,10 @@ buffer allocations; it does not merge descriptor bindings or change the final
 
 Vertex data uses the same generated packing path as storage-buffer elements;
 it is not a second hand-written ABI. The canonical producer source is the
-`DeltaShader.Mesh` project at
-`src/DeltaShader.Mesh/DeltaShader.Mesh.csproj`. A consumer references that
+`DeltaRender.Mesh` project at
+`DeltaRender/src/DeltaRender.Mesh/DeltaRender.Mesh.csproj`. A consumer references that
 project and gets the generated public
-`Delta.Shader.Mesh.MeshShadersGraphicsShaderProgram` type. Its `Mesh` vertex
+`Delta.Render.Mesh.MeshShadersGraphicsShaderProgram` type. Its `Mesh` vertex
 entry point has a payload containing `[Layout(0)] Position Position`,
 `[Layout(1)] WorldNormal Normal` and `[Layout(2)] Uv0 Uv`, so the generated
 surface is:
@@ -319,7 +319,7 @@ the GPU.
 
 ### SDF/MSDF text parameters
 
-`Delta.Shader.Text` provides `SdfTextVertex`/`SdfTextFragment` and
+`Delta.Render.Text` provides `SdfTextVertex`/`SdfTextFragment` and
 `MsdfTextVertex`/`MsdfTextFragment`. Their `TextParameters` push-constant
 payload uses these units:
 

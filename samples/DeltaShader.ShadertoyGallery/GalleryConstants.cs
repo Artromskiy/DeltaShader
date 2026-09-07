@@ -1,3 +1,4 @@
+using Delta.Graphics.Semantics;
 using Delta;
 
 namespace Delta.Shader.ShadertoyGallery;

@@ -1,3 +1,4 @@
+using Delta.Graphics.Semantics;
 using System.Runtime.CompilerServices;
 using Delta;
 using Delta.Shader;

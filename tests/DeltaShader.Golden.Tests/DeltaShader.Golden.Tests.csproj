@@ -14,4 +14,7 @@
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../DeltaRender/src/Delta.Graphics.Semantics/Delta.Graphics.Semantics.csproj" />
+  </ItemGroup>
 </Project>

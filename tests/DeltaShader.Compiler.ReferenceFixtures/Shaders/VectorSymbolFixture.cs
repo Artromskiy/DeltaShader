@@ -1,5 +1,6 @@
 using Delta;
 using Delta.Shader;
+using Delta.Graphics.Semantics;
 
 namespace Delta.Shader.Compiler.ReferenceFixtures;
 
