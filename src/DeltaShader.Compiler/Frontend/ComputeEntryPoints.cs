@@ -162,7 +162,9 @@ public static class ComputeEntryPoints
                 {
                     var location = entry.Method.Locations.FirstOrDefault()?.GetLineSpan();
                     diagnostics.Add(new ShaderDiagnostic(
-                        ShaderDiagnosticId.DSH008,
+                        ShaderBodyTranslator.IsCapabilityDiagnostic(bodyDiagnosticReason)
+                            ? ShaderDiagnosticId.DSH007
+                            : ShaderDiagnosticId.DSH008,
                         bodyDiagnosticReason ?? "Compute entry point body is not supported in MVP.",
                         location?.Path,
                         location is null ? 0 : location.Value.StartLinePosition.Line + 1,

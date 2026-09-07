@@ -592,7 +592,12 @@ internal static class GraphicsEntryPoints
                     structProperties: structProperties,
                     helperReceivers: helperReceivers))
                 {
-                    diagnostics.Add(new ShaderDiagnostic(ShaderDiagnosticId.DSH008, reason ?? "Unable to translate graphics shader body.", Severity: ShaderDiagnosticSeverity.Error));
+                    diagnostics.Add(new ShaderDiagnostic(
+                        ShaderBodyTranslator.IsCapabilityDiagnostic(reason)
+                            ? ShaderDiagnosticId.DSH007
+                            : ShaderDiagnosticId.DSH008,
+                        reason ?? "Unable to translate graphics shader body.",
+                        Severity: ShaderDiagnosticSeverity.Error));
                 }
                 else if (entry.Stage == ShaderStage.Vertex)
                 {

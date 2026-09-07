@@ -15,6 +15,11 @@ namespace Delta.Shader.Compiler;
 
 internal static class ShaderBodyTranslator
 {
+    internal const string CapabilityDiagnosticPrefix = "Shader capability: ";
+
+    internal static bool IsCapabilityDiagnostic(string? reason)
+        => reason?.StartsWith(CapabilityDiagnosticPrefix, StringComparison.Ordinal) == true;
+
     public static bool TryTranslateCompute(
         MethodDeclarationSyntax methodSyntax,
         SemanticModel model,
@@ -2238,6 +2243,19 @@ internal static class ShaderBodyTranslator
                     return SyntaxFactory.ParseExpression("discard");
                 }
 
+                if (IsUnsupportedDoublePrecisionIntrinsic(binding))
+                {
+                    Reason ??= CapabilityDiagnosticPrefix
+                        + $"Vulkan GLSL does not provide double-precision '{binding.GlslName}'; use float or half precision.";
+                    return base.VisitInvocationExpression(node);
+                }
+
+                var componentWiseExpression = CreateComponentWiseIntrinsic(binding, glslArguments.ToArray());
+                if (componentWiseExpression is not null)
+                {
+                    return SyntaxFactory.ParseExpression(componentWiseExpression);
+                }
+
                 var intrinsicArguments = GetIntrinsicArguments(binding, glslArguments);
                 var glslName = string.Equals(binding.GlslName, "round", StringComparison.Ordinal)
                     ? "roundEven"
@@ -2366,11 +2384,11 @@ internal static class ShaderBodyTranslator
                 return values;
             }
 
-            if (IsVectorType(parameterTypes[0]) && parameterTypes[1] == "float")
+            if (IsVectorType(parameterTypes[0]) && IsFloatingScalarType(parameterTypes[1]))
             {
                 values[1] = parameterTypes[0] + "(" + values[1] + ")";
             }
-            else if (parameterTypes[0] == "float" && IsVectorType(parameterTypes[1]))
+            else if (IsFloatingScalarType(parameterTypes[0]) && IsVectorType(parameterTypes[1]))
             {
                 values[0] = parameterTypes[1] + "(" + values[0] + ")";
             }
@@ -2382,11 +2400,79 @@ internal static class ShaderBodyTranslator
         {
             return glslType is "vec2" or "vec3" or "vec4"
                 or "ivec2" or "ivec3" or "ivec4"
-                or "uvec2" or "uvec3" or "uvec4";
+                or "uvec2" or "uvec3" or "uvec4"
+                or "dvec2" or "dvec3" or "dvec4"
+                or "f16vec2" or "f16vec3" or "f16vec4";
         }
 
         private static bool IsScalarType(string? glslType)
-            => glslType is "float" or "int" or "uint";
+            => glslType is "float" or "int" or "uint" or "double" or "float16_t";
+
+        private static bool IsFloatingScalarType(string? glslType)
+            => glslType is "float" or "double" or "float16_t";
+
+        private static string? CreateComponentWiseIntrinsic(
+            IntrinsicBinding binding,
+            IReadOnlyList<string> arguments)
+        {
+            if (!string.Equals(binding.GlslName, "atan", StringComparison.Ordinal)
+                || binding.ReturnGlslType is not { } returnType
+                || !IsHalfVectorType(returnType)
+                || binding.ParameterGlslTypes is not { } parameterTypes
+                || parameterTypes.Count != arguments.Count
+                || parameterTypes.Any(type => type is not "float16_t"
+                    && !string.Equals(type, returnType, StringComparison.Ordinal)))
+            {
+                return null;
+            }
+
+            var components = GetVectorComponentCount(returnType);
+            var terms = new string[components];
+            for (var component = 0; component < components; component++)
+            {
+                var suffix = component switch
+                {
+                    0 => "x",
+                    1 => "y",
+                    2 => "z",
+                    _ => "w"
+                };
+                var callArguments = new string[arguments.Count];
+                for (var index = 0; index < arguments.Count; index++)
+                {
+                    callArguments[index] = parameterTypes[index] == returnType
+                        ? arguments[index] + "." + suffix
+                        : arguments[index];
+                }
+
+                terms[component] = "atan(" + string.Join(", ", callArguments) + ")";
+            }
+
+            return returnType + "(" + string.Join(", ", terms) + ")";
+        }
+
+        private static bool IsHalfVectorType(string glslType)
+            => glslType is "f16vec2" or "f16vec3" or "f16vec4";
+
+        private static int GetVectorComponentCount(string glslType)
+            => glslType[glslType.Length - 1] - '0';
+
+        private static bool IsUnsupportedDoublePrecisionIntrinsic(IntrinsicBinding binding)
+        {
+            if (!string.Equals(binding.RequiredCapability, "float64", StringComparison.Ordinal)
+                || binding.GlslName is not ("acos" or "acosh" or "asin" or "asinh" or "atan"
+                    or "cos" or "cosh" or "degrees" or "exp" or "exp2" or "log" or "log2"
+                    or "pow" or "radians" or "sin" or "sinh" or "tan" or "tanh"))
+            {
+                return false;
+            }
+
+            return binding.ReturnGlslType is { } returnType && IsDoublePrecisionType(returnType)
+                || binding.ParameterGlslTypes?.Any(IsDoublePrecisionType) == true;
+        }
+
+        private static bool IsDoublePrecisionType(string? glslType)
+            => glslType is "double" or "dvec2" or "dvec3" or "dvec4";
 
         private static bool IsIntegerRemainder(IntrinsicBinding binding)
         {

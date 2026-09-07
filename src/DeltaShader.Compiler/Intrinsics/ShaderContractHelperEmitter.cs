@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Delta.Shader;
-
 namespace Delta.Shader.Compiler.Intrinsics;
 
 internal static class ShaderContractHelperEmitter
@@ -279,7 +278,11 @@ internal static class ShaderContractHelperEmitter
         return parameterTypes.Count == 3
             && string.Equals(parameterTypes[0], returnType, StringComparison.Ordinal)
             && string.Equals(parameterTypes[1], returnType, StringComparison.Ordinal)
-            && returnType is "vec2" or "vec3" or "vec4" or "ivec2" or "ivec3" or "ivec4" or "uvec2" or "uvec3" or "uvec4";
+            && returnType is "vec2" or "vec3" or "vec4"
+                or "ivec2" or "ivec3" or "ivec4"
+                or "uvec2" or "uvec3" or "uvec4"
+                or "dvec2" or "dvec3" or "dvec4"
+                or "f16vec2" or "f16vec3" or "f16vec4";
     }
 
     private static string NormalizeMethodName(ShaderContractFunction function)

@@ -30,13 +30,17 @@ mkdir -p "$output_directory"
 
 build_args=(
     -c Release
+    --no-restore
     --disable-build-servers
     -m:1
     /p:UseSharedCompilation=false
     -v:minimal
 )
-dotnet build "$project_root/src/DeltaShader.Tool/DeltaShader.Tool.csproj" "${build_args[@]}"
-dotnet build "$project_root/src/DeltaShader.Text/DeltaShader.Text.csproj" "${build_args[@]}"
+tool_dll="$project_root/src/DeltaShader.Tool/bin/Release/net10.0/DeltaShader.Tool.dll"
+if [[ ! -s "$tool_dll" ]]; then
+    echo "Missing built DeltaShader.Tool at '$tool_dll'. Build DeltaShader.slnx in Release before packaging text artifacts." >&2
+    exit 1
+fi
 
 artifact_stems=(
     SdfTextVertex.vert
@@ -48,10 +52,8 @@ for stem in "${artifact_stems[@]}"; do
     rm -f "$output_directory/$stem.glsl" "$output_directory/$stem.spv" "$output_directory/$stem.shader.json"
 done
 
-dotnet run \
-    --project "$project_root/src/DeltaShader.Tool/DeltaShader.Tool.csproj" \
-    -c Release --no-build -- \
-    build "$project_root/src/DeltaShader.Text/DeltaShader.Text.csproj" \
+dotnet "$tool_dll" \
+    build "$project_root/../DeltaRender/src/DeltaRender.Text/DeltaRender.Text.csproj" \
     --backend spirv \
     --profile vulkan1.2 \
     --spirv 1.5 \
