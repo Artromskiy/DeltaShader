@@ -24,7 +24,8 @@ One concrete artifact identity cannot be reused by different variant keys. This
 prevents an all-effects program from being silently aliased to variants whose
 layer sets should have been lowered independently.
 
-The first effect handoff targets are two independent prepared variants:
+The current producer handoff contains 12 visual and 12 text entries. The
+effect variants include independent prepared pairs such as:
 
 - `Visual/Rounded/OuterShadow`: rounded visual layer set with analytic outer
   shadow;
@@ -47,11 +48,12 @@ The first effect handoff targets are two independent prepared variants:
 - `Text/Msdf/Outline+OuterShadow+Glow`: MSDF text layer set with analytic outline,
   outer shadow and glow.
 
-Each target must have its own generated program identity, resolved vertex and
-fragment ABI, packers and artifact pair. DeltaShader validates that handoff but
-does not manufacture Render-owned source or artifacts; until those producer
-entries are supplied, the targets remain explicit missing dispositions rather
-than aliases of an all-effects pair.
+Each entry in this finite matrix has its own generated program identity, resolved
+vertex and fragment ABI, ABI-derived packers and artifact pair. DeltaShader
+validates that handoff but does not manufacture Render-owned source or
+artifacts. A missing entry is an explicit missing disposition; it must not be
+replaced by an all-effects alias, transform fallback or another variant's
+program pair.
 
 This is a build/editor-time handoff check. It performs no runtime probing,
 reflection, transform insertion or runtime shader composition. Render receives
