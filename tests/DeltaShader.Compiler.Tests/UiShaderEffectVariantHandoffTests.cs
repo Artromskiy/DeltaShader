@@ -184,12 +184,83 @@ public sealed class UiShaderEffectVariantHandoffTests
         }
     }
 
+    [Fact]
+    public void ResourceVisualVariantsRequireDistinctPreparedPairs()
+    {
+        var root = Directory.CreateTempSubdirectory("delta-shader-ui-resources-");
+        try
+        {
+            var keys = new[]
+            {
+                CreateVisualSolidLinearGradientKey(),
+                CreateVisualSolidImageKey()
+            };
+            var entries = keys
+                .Select((key, index) => CreateEntry(root, key, $"resource-variant-{index}"))
+                .ToArray();
+
+            var validation = UiShaderVariantProducerValidator.Validate(
+                keys,
+                entries,
+                root.FullName,
+                root.FullName);
+
+            Assert.True(validation.IsValid, string.Join(Environment.NewLine, validation.Diagnostics));
+            Assert.Equal(2, validation.ValidatedVariants);
+            Assert.Empty(validation.MissingVariants);
+            Assert.Empty(validation.UnsupportedVariants);
+            Assert.Equal(2, entries.Select(entry => entry.LayerSetIdentity).Distinct().Count());
+            Assert.Equal(2, entries.Select(entry => entry.GeneratedProgram).Distinct().Count());
+            Assert.Equal(2, entries.Select(entry => entry.VertexSpirv).Distinct().Count());
+            Assert.Equal(2, entries.Select(entry => entry.FragmentSpirv).Distinct().Count());
+            Assert.All(entries, entry =>
+            {
+                Assert.Equal("VertexAbi", entry.VertexAbiAccessor);
+                Assert.Equal("FragmentAbi", entry.FragmentAbiAccessor);
+                Assert.Equal("PackVertex", entry.VertexPacker);
+                Assert.Equal("PackFragment", entry.FragmentPacker);
+            });
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
+
     private static UiShaderVariantKey CreateVisualRoundedOuterShadowKey()
     {
         Assert.True(
             UiShaderVariantCatalog.TryCreateVisual(
                 UiShaderPrimitive.Rounded,
                 UiShaderEffectCapabilities.OuterShadow,
+                UiShaderQuality.Analytic,
+                out var key,
+                out var diagnostic),
+            diagnostic?.Message);
+        return key;
+    }
+
+    private static UiShaderVariantKey CreateVisualSolidLinearGradientKey()
+    {
+        Assert.True(
+            UiShaderVariantCatalog.TryCreateVisual(
+                UiShaderPrimitive.Solid,
+                UiShaderMaterial.LinearGradient,
+                UiShaderEffectCapabilities.None,
+                UiShaderQuality.Analytic,
+                out var key,
+                out var diagnostic),
+            diagnostic?.Message);
+        return key;
+    }
+
+    private static UiShaderVariantKey CreateVisualSolidImageKey()
+    {
+        Assert.True(
+            UiShaderVariantCatalog.TryCreateVisual(
+                UiShaderPrimitive.Solid,
+                UiShaderMaterial.Image,
+                UiShaderEffectCapabilities.None,
                 UiShaderQuality.Analytic,
                 out var key,
                 out var diagnostic),

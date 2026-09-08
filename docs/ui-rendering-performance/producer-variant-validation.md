@@ -4,6 +4,16 @@
 Render projects, source files, generated C# or artifacts. Concrete UI producer
 publication remains owned by `DeltaRender.UIShaders`.
 
+The catalog also includes two resource-backed visual material keys without
+effects:
+
+- `Visual/Solid/LinearGradient`, analytic quality;
+- `Visual/Solid/Image`, analytic quality.
+
+These resource keys are deliberately narrow. Stroke, outline, glow, shadows and
+`CachedMask` are not implicitly combined with them; such combinations produce a
+stable `DSH019` disposition until a separate prepared variant is added.
+
 Before publishing a variant, the producer passes the catalog allowlist and its
 prepared entries to `UiShaderVariantProducerValidator.Validate`. Each
 allowlisted key must have exactly one entry containing:
