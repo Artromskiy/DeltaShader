@@ -1,0 +1,67 @@
+using Delta.Shader;
+using Delta.Shader.Compiler;
+using Delta.Shader.Compiler.Frontend;
+using Xunit;
+
+namespace DeltaShader.Compiler.Tests;
+
+public sealed class UiShaderVariantProducerContractTests
+{
+    [Fact]
+    public void ValidatorRequiresEveryAllowlistedVariantAndConcreteGeneratedSurface()
+    {
+        var key = default(UiShaderVariantKey);
+        var validation = UiShaderVariantProducerValidator.Validate(
+            [key],
+            [],
+            Path.GetTempPath(),
+            Path.GetTempPath());
+
+        Assert.False(validation.IsValid);
+        Assert.Contains(validation.Diagnostics, diagnostic =>
+            diagnostic.Contains("No concrete producer source/artifact entry", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ValidatorAcceptsACompleteProducerEntry()
+    {
+        var root = Directory.CreateTempSubdirectory("delta-shader-ui-producer-");
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(root.FullName, "artifacts"));
+            File.WriteAllText(Path.Combine(root.FullName, "UiShaders.cs"), "public static class UiShaders { }");
+            File.WriteAllText(
+                Path.Combine(root.FullName, "GeneratedUiProgram.cs"),
+                "public static class GeneratedUiProgram { public static object VertexAbi; public static object FragmentAbi; }");
+            File.WriteAllBytes(Path.Combine(root.FullName, "artifacts", "vertex.spv"), [3, 2, 35, 7]);
+            File.WriteAllBytes(Path.Combine(root.FullName, "artifacts", "fragment.spv"), [3, 2, 35, 7]);
+
+            var key = default(UiShaderVariantKey);
+            var entry = new UiShaderVariantProducerEntry(
+                key,
+                "UiShaders.cs",
+                "GeneratedUiProgram.cs",
+                "artifacts/vertex.spv",
+                "artifacts/fragment.spv",
+                "GeneratedUiProgram",
+                "VertexAbi",
+                "FragmentAbi",
+                "main",
+                "main");
+
+            var validation = UiShaderVariantProducerValidator.Validate(
+                [key],
+                [entry],
+                root.FullName,
+                root.FullName);
+
+            Assert.True(validation.IsValid, string.Join(Environment.NewLine, validation.Diagnostics));
+            Assert.Equal(1, validation.AllowlistedVariants);
+            Assert.Equal(1, validation.ValidatedVariants);
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
+}
