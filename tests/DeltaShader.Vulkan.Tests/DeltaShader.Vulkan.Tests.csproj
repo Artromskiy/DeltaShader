@@ -16,7 +16,7 @@
     <ProjectReference Include="..\\..\\..\\DeltaRender\\src\\DeltaRender\\DeltaRender.csproj" />
     <ProjectReference Include="..\\..\\..\\DeltaRender\\src\\DeltaRender.Vulkan\\DeltaRender.Vulkan.csproj" />
     <ProjectReference Include="../../../DeltaRender/src/DeltaRender.Text/DeltaRender.Text.csproj" />
-    <ProjectReference Include="../../../DeltaRender/src/Delta.Graphics.Semantics/Delta.Graphics.Semantics.csproj" />
+    <ProjectReference Include="../../../DeltaRender/src/DeltaRender.Graphics.Semantics/DeltaRender.Graphics.Semantics.csproj" />
     <PackageReference Include="Silk.NET.Vulkan" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />

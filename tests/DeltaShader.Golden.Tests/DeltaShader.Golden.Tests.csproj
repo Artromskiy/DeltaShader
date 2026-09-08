@@ -15,6 +15,6 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../../../DeltaRender/src/Delta.Graphics.Semantics/Delta.Graphics.Semantics.csproj" />
+    <ProjectReference Include="../../../DeltaRender/src/DeltaRender.Graphics.Semantics/DeltaRender.Graphics.Semantics.csproj" />
   </ItemGroup>
 </Project>
