@@ -23,6 +23,17 @@ One concrete artifact identity cannot be reused by different variant keys. This
 prevents an all-effects program from being silently aliased to variants whose
 layer sets should have been lowered independently.
 
+The first effect handoff targets are two independent prepared variants:
+
+- `Visual/Rounded/Glow`: rounded visual layer set with analytic glow;
+- `Text/Sdf/Outline`: SDF text layer set with outline.
+
+Each target must have its own generated program identity, resolved vertex and
+fragment ABI, packers and artifact pair. DeltaShader validates that handoff but
+does not manufacture Render-owned source or artifacts; until those producer
+entries are supplied, the targets remain explicit missing dispositions rather
+than aliases of an all-effects pair.
+
 This is a build/editor-time handoff check. It performs no runtime probing,
 reflection, transform insertion or runtime shader composition. Render receives
 the already prepared artifact and resolved ABI; it does not infer this manifest
