@@ -96,6 +96,51 @@ public sealed class UiShaderEffectVariantHandoffTests
         }
     }
 
+    [Fact]
+    public void ExtendedEffectVariantsRequireDistinctPreparedPairs()
+    {
+        var root = Directory.CreateTempSubdirectory("delta-shader-ui-effects-4-");
+        try
+        {
+            var keys = new[]
+            {
+                CreateVisualSolidOuterShadowKey(),
+                CreateVisualRoundedStrokeOuterShadowKey(),
+                CreateTextMsdfOuterShadowKey(),
+                CreateTextSdfOutlineOuterShadowGlowKey()
+            };
+            var entries = keys
+                .Select((key, index) => CreateEntry(root, key, $"extended-effect-variant-{index}"))
+                .ToArray();
+
+            var validation = UiShaderVariantProducerValidator.Validate(
+                keys,
+                entries,
+                root.FullName,
+                root.FullName);
+
+            Assert.True(validation.IsValid, string.Join(Environment.NewLine, validation.Diagnostics));
+            Assert.Equal(4, validation.ValidatedVariants);
+            Assert.Empty(validation.MissingVariants);
+            Assert.Empty(validation.UnsupportedVariants);
+            Assert.Equal(4, entries.Select(entry => entry.LayerSetIdentity).Distinct().Count());
+            Assert.Equal(4, entries.Select(entry => entry.GeneratedProgram).Distinct().Count());
+            Assert.Equal(4, entries.Select(entry => entry.VertexSpirv).Distinct().Count());
+            Assert.Equal(4, entries.Select(entry => entry.FragmentSpirv).Distinct().Count());
+            Assert.All(entries, entry =>
+            {
+                Assert.Equal("VertexAbi", entry.VertexAbiAccessor);
+                Assert.Equal("FragmentAbi", entry.FragmentAbiAccessor);
+                Assert.Equal("PackVertex", entry.VertexPacker);
+                Assert.Equal("PackFragment", entry.FragmentPacker);
+            });
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
+
     private static UiShaderVariantKey CreateVisualRoundedOuterShadowKey()
     {
         Assert.True(
@@ -174,6 +219,32 @@ public sealed class UiShaderEffectVariantHandoffTests
         return key;
     }
 
+    private static UiShaderVariantKey CreateVisualSolidOuterShadowKey()
+    {
+        Assert.True(
+            UiShaderVariantCatalog.TryCreateVisual(
+                UiShaderPrimitive.Solid,
+                UiShaderEffectCapabilities.OuterShadow,
+                UiShaderQuality.Analytic,
+                out var key,
+                out var diagnostic),
+            diagnostic?.Message);
+        return key;
+    }
+
+    private static UiShaderVariantKey CreateVisualRoundedStrokeOuterShadowKey()
+    {
+        Assert.True(
+            UiShaderVariantCatalog.TryCreateVisual(
+                UiShaderPrimitive.Rounded,
+                UiShaderEffectCapabilities.Stroke | UiShaderEffectCapabilities.OuterShadow,
+                UiShaderQuality.Analytic,
+                out var key,
+                out var diagnostic),
+            diagnostic?.Message);
+        return key;
+    }
+
     private static UiShaderVariantKey CreateTextMsdfOutlineKey()
     {
         Assert.True(
@@ -193,6 +264,34 @@ public sealed class UiShaderEffectVariantHandoffTests
             UiShaderVariantCatalog.TryCreateText(
                 UiShaderTextRepresentation.Sdf,
                 UiShaderEffectCapabilities.OuterShadow,
+                UiShaderQuality.Analytic,
+                out var key,
+                out var diagnostic),
+            diagnostic?.Message);
+        return key;
+    }
+
+    private static UiShaderVariantKey CreateTextMsdfOuterShadowKey()
+    {
+        Assert.True(
+            UiShaderVariantCatalog.TryCreateText(
+                UiShaderTextRepresentation.Msdf,
+                UiShaderEffectCapabilities.OuterShadow,
+                UiShaderQuality.Analytic,
+                out var key,
+                out var diagnostic),
+            diagnostic?.Message);
+        return key;
+    }
+
+    private static UiShaderVariantKey CreateTextSdfOutlineOuterShadowGlowKey()
+    {
+        Assert.True(
+            UiShaderVariantCatalog.TryCreateText(
+                UiShaderTextRepresentation.Sdf,
+                UiShaderEffectCapabilities.Outline |
+                    UiShaderEffectCapabilities.OuterShadow |
+                    UiShaderEffectCapabilities.Glow,
                 UiShaderQuality.Analytic,
                 out var key,
                 out var diagnostic),
