@@ -37,7 +37,7 @@ One concrete artifact identity cannot be reused by different variant keys. This
 prevents an all-effects program from being silently aliased to variants whose
 layer sets should have been lowered independently.
 
-The current producer handoff contains 12 visual and 12 text entries. The
+The current producer handoff contains 14 visual and 12 text entries. The
 effect variants include independent prepared pairs such as:
 
 - `Visual/Rounded/OuterShadow`: rounded visual layer set with analytic outer
