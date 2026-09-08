@@ -22,7 +22,7 @@ public sealed class UiShaderTests
         Assert.Empty(errors);
 
         IReadOnlyList<ShaderCompilationResult> results = ShaderCompiler.CompileAll(compilation);
-        Assert.Equal(8, results.Count);
+        Assert.Equal(10, results.Count);
         Assert.All(results, result => Assert.True(
             result.Success,
             string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message))));
@@ -168,6 +168,43 @@ public sealed class UiShaderTests
     }
 
     [Fact]
+    public async Task CachedMaskRoundedRectangle_CompilesWithStorageAndSampledMaskAbi()
+    {
+        Compilation compilation = await LoadUiCompilationAsync().ConfigureAwait(true);
+        var results = ShaderCompiler.CompileAll(compilation);
+        var vertex = Assert.Single(
+            results,
+            result => result.EntryPointName == "cached-mask-rounded-rectangle" &&
+                result.Module?.Stage == ShaderStage.Vertex);
+        var fragment = Assert.Single(
+            results,
+            result => result.EntryPointName == "cached-mask-rounded-rectangle" &&
+                result.Module?.Stage == ShaderStage.Fragment);
+
+        Assert.True(vertex.Success, string.Join(Environment.NewLine, vertex.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        Assert.True(fragment.Success, string.Join(Environment.NewLine, fragment.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        var vertexManifest = vertex.BuildManifest ?? throw new InvalidOperationException("Cached-mask vertex manifest is missing.");
+        var fragmentManifest = fragment.BuildManifest ?? throw new InvalidOperationException("Cached-mask fragment manifest is missing.");
+        var instance = Assert.Single(vertexManifest.Resources);
+        var mask = Assert.Single(fragmentManifest.Resources);
+
+        Assert.Equal("storage-buffer", instance.Category);
+        Assert.Equal(0u, instance.Set);
+        Assert.Equal(0u, instance.Binding);
+        Assert.Equal(48u, instance.Size);
+        Assert.Equal(48u, instance.ArrayStride);
+        Assert.Equal("sampled-texture", mask.Category);
+        Assert.Equal(0u, mask.Set);
+        Assert.Equal(1u, mask.Binding);
+        Assert.Equal(8u, Assert.Single(vertexManifest.PushConstants).Size);
+        Assert.Empty(fragmentManifest.PushConstants);
+
+        var fragmentGlsl = GlslEmitter.EmitFromModule(fragment.Module!).Source;
+        Assert.Contains("MaskUv", fragmentGlsl, StringComparison.Ordinal);
+        Assert.Contains("texture", fragmentGlsl, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task GeneratedUiFactoriesExposeDirectPushRootPackers()
     {
         Compilation compilation = await LoadUiCompilationAsync().ConfigureAwait(true);
@@ -200,6 +237,8 @@ public sealed class UiShaderTests
         Assert.Contains("PackRoundedRectangleVertexInstancesElements", generatedSource, StringComparison.Ordinal);
         Assert.Contains("PackAnalyticRoundedRectangleVertexInstancesElement", generatedSource, StringComparison.Ordinal);
         Assert.Contains("PackAnalyticRoundedRectangleVertexInstancesElements", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("PackCachedMaskRoundedRectangleVertexInstancesElement", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("PackCachedMaskRoundedRectangleVertexInstancesElements", generatedSource, StringComparison.Ordinal);
         Assert.Contains("PackSolidRectangleVertexFrame", generatedSource, StringComparison.Ordinal);
         Assert.Contains("PackRoundedRectangleVertexFrame", generatedSource, StringComparison.Ordinal);
         Assert.DoesNotContain("PackSolidRectangleFragmentFrame", generatedSource, StringComparison.Ordinal);
