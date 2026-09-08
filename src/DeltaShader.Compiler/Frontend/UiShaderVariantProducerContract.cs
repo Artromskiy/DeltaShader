@@ -15,6 +15,8 @@ public readonly record struct UiShaderVariantProducerEntry(
     string FragmentEntryPoint)
 {
     public string LayerSetIdentity { get; init; } = string.Empty;
+    public string VertexPacker { get; init; } = string.Empty;
+    public string FragmentPacker { get; init; } = string.Empty;
 }
 
 public readonly record struct UiShaderVariantProducerValidation(
@@ -188,6 +190,8 @@ public static class UiShaderVariantProducerValidator
         RequireGeneratedSymbol(entry, generated, entry.GeneratedProgramType, "program type", diagnostics);
         RequireGeneratedSymbol(entry, generated, entry.VertexAbiAccessor, "vertex ABI accessor", diagnostics);
         RequireGeneratedSymbol(entry, generated, entry.FragmentAbiAccessor, "fragment ABI accessor", diagnostics);
+        RequireGeneratedSymbol(entry, generated, entry.VertexPacker, "vertex packer", diagnostics);
+        RequireGeneratedSymbol(entry, generated, entry.FragmentPacker, "fragment packer", diagnostics);
     }
 
     private static void RequireGeneratedSymbol(

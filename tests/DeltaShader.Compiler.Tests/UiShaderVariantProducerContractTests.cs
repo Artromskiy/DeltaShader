@@ -33,7 +33,7 @@ public sealed class UiShaderVariantProducerContractTests
             File.WriteAllText(Path.Combine(root.FullName, "UiShaders.cs"), "public static class UiShaders { }");
             File.WriteAllText(
                 Path.Combine(root.FullName, "GeneratedUiProgram.cs"),
-                "public static class GeneratedUiProgram { public static object VertexAbi; public static object FragmentAbi; }");
+                "public static class GeneratedUiProgram { public static object VertexAbi; public static object FragmentAbi; public static object PackVertex; public static object PackFragment; }");
             File.WriteAllBytes(Path.Combine(root.FullName, "artifacts", "vertex.spv"), [3, 2, 35, 7]);
             File.WriteAllBytes(Path.Combine(root.FullName, "artifacts", "fragment.spv"), [3, 2, 35, 7]);
 
@@ -50,7 +50,9 @@ public sealed class UiShaderVariantProducerContractTests
                 "main",
                 "main")
             {
-                LayerSetIdentity = "default-layer-set"
+                LayerSetIdentity = "default-layer-set",
+                VertexPacker = "PackVertex",
+                FragmentPacker = "PackFragment"
             };
 
             var validation = UiShaderVariantProducerValidator.Validate(
@@ -81,7 +83,7 @@ public sealed class UiShaderVariantProducerContractTests
             File.WriteAllText(Path.Combine(root.FullName, "UiShaders.cs"), "public static class UiShaders { }");
             File.WriteAllText(
                 Path.Combine(root.FullName, "GeneratedUiProgram.cs"),
-                "public static class GeneratedUiProgram { public static object VertexAbi; public static object FragmentAbi; }");
+                "public static class GeneratedUiProgram { public static object VertexAbi; public static object FragmentAbi; public static object PackVertex; public static object PackFragment; }");
             File.WriteAllBytes(Path.Combine(root.FullName, "artifacts", "vertex.spv"), [3, 2, 35, 7]);
             File.WriteAllBytes(Path.Combine(root.FullName, "artifacts", "fragment.spv"), [3, 2, 35, 7]);
 
@@ -104,7 +106,9 @@ public sealed class UiShaderVariantProducerContractTests
                 "main",
                 "main")
             {
-                LayerSetIdentity = "unsupported-layer-set"
+                LayerSetIdentity = "unsupported-layer-set",
+                VertexPacker = "PackVertex",
+                FragmentPacker = "PackFragment"
             };
 
             var validation = UiShaderVariantProducerValidator.Validate(

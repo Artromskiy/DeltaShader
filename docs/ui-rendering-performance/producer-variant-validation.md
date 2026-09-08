@@ -9,7 +9,8 @@ prepared entries to `UiShaderVariantProducerValidator.Validate`. Each
 allowlisted key must have exactly one entry containing:
 
 - the producer C# source path;
-- the generated program path and `VertexAbi`/`FragmentAbi` accessors;
+- the generated program path, `VertexAbi`/`FragmentAbi` accessors and their
+  generated vertex/fragment packers;
 - non-empty vertex and fragment `.spv` paths;
 - explicit vertex and fragment entry points;
 - a deterministic `LayerSetIdentity` describing the ordered producer layers.
@@ -25,8 +26,9 @@ layer sets should have been lowered independently.
 
 The first effect handoff targets are two independent prepared variants:
 
-- `Visual/Rounded/Glow`: rounded visual layer set with analytic glow;
-- `Text/Sdf/Outline`: SDF text layer set with outline.
+- `Visual/Rounded/OuterShadow`: rounded visual layer set with analytic outer
+  shadow;
+- `Text/Sdf/Glow`: SDF text layer set with analytic glow.
 
 Each target must have its own generated program identity, resolved vertex and
 fragment ABI, packers and artifact pair. DeltaShader validates that handoff but
