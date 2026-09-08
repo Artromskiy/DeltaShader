@@ -830,6 +830,47 @@ public class IntrinsicCatalogTests
     }
 
     [Fact]
+    public async Task GraphicsEntryPoints_LowerInterstagePayloadReturnedByHelper()
+    {
+        const string source = @"
+            using Delta;
+            using Delta.Shader;
+            using Delta.Graphics.Semantics;
+            namespace Delta.Shader.Compiler.Tests.Fixtures
+            {
+                [Interstage]
+                public struct GraphicsPayload
+                {
+                    public Position Position;
+                    public Uv0 Uv;
+                }
+                public struct VertexContext {}
+                public static class Graphics
+                {
+                    private static GraphicsPayload CreatePayload(float offset) => new GraphicsPayload
+                    {
+                        Position = new float4(offset, 0f, 0f, 1f),
+                        Uv = new float2(offset, 1f)
+                    };
+
+                    [VertexShader(""HelperVertex"")]
+                    public static GraphicsPayload Vertex(in VertexContext context, in GraphicsPayload input)
+                        => CreatePayload(1f);
+                }
+            }";
+
+        Compilation compilation = await LoadCompilerTestProjectCompilationAsync(source).ConfigureAwait(true);
+        ShaderCompilationResult result = Assert.Single(ShaderCompiler.CompileAll(compilation));
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        var glsl = Delta.Shader.Backend.Glsl.GlslEmitter.EmitFromModule(result.Module!).Source;
+        Assert.Contains("delta_stage_return = delta_helper_CreatePayload(1.0)", glsl, StringComparison.Ordinal);
+        Assert.Contains("gl_Position = delta_stage_return.member_Position", glsl, StringComparison.Ordinal);
+        Assert.Contains("Uv = delta_stage_return.member_Uv", glsl, StringComparison.Ordinal);
+        Assert.DoesNotContain("gl_Position = gl_Position", glsl, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task GraphicsEntryPoints_TransformConformancePreservesColumnMajorCpuGpuContract()
     {
         const string source = @"
@@ -1142,8 +1183,8 @@ public class IntrinsicCatalogTests
                 public struct TextParameters
                 {
                     public float4 TextColor;
-                    public float4 OutlineColor;
-                    public float OutlineWidth;
+                    public float4 StrokeColor;
+                    public float StrokeWidth;
                     public float DistanceRange;
                 }
                 [Interstage]
@@ -1175,10 +1216,10 @@ public class IntrinsicCatalogTests
                     var signedDistance = (median - 0.5f) * context.Parameters.DistanceRange;
                     var edge = intrinsics.fwidth(signedDistance);
                     var fillCoverage = maths.smoothstep(-edge, edge, signedDistance);
-                    var outlineWidth = maths.max(context.Parameters.OutlineWidth, 0f);
-                    var outerCoverage = maths.smoothstep(-outlineWidth - edge, -outlineWidth + edge, signedDistance);
-                    var outlineContribution = maths.max(outerCoverage - fillCoverage, 0f);
-                    return context.Parameters.TextColor * fillCoverage + context.Parameters.OutlineColor * outlineContribution;
+                    var strokeWidth = maths.max(context.Parameters.StrokeWidth, 0f);
+                    var outerCoverage = maths.smoothstep(-strokeWidth - edge, -strokeWidth + edge, signedDistance);
+                    var strokeContribution = maths.max(outerCoverage - fillCoverage, 0f);
+                    return context.Parameters.TextColor * fillCoverage + context.Parameters.StrokeColor * strokeContribution;
                 }
             }";
 
@@ -1308,8 +1349,8 @@ public class IntrinsicCatalogTests
                 {
                     public float2 Resolution;
                     public float4 TextColor;
-                    public float4 OutlineColor;
-                    public float OutlineWidth;
+                    public float4 StrokeColor;
+                    public float StrokeWidth;
                     public float DistanceRange;
                 }
 
@@ -1346,10 +1387,10 @@ public class IntrinsicCatalogTests
                     var signedDistance = (texel.x - 0.5f) * context.Parameters.DistanceRange;
                     var edge = maths.max(intrinsics.fwidth(signedDistance) * 0.5f, 0.0001f);
                     var fillCoverage = maths.smoothstep(-edge, edge, signedDistance);
-                    var outlineWidth = maths.max(context.Parameters.OutlineWidth, 0f);
-                    var outerCoverage = maths.smoothstep(-outlineWidth - edge, -outlineWidth + edge, signedDistance);
-                    var outlineContribution = maths.max(outerCoverage - fillCoverage, 0f);
-                    return context.Parameters.TextColor * input.GlyphColor * fillCoverage + context.Parameters.OutlineColor * input.GlyphColor * outlineContribution;
+                    var strokeWidth = maths.max(context.Parameters.StrokeWidth, 0f);
+                    var outerCoverage = maths.smoothstep(-strokeWidth - edge, -strokeWidth + edge, signedDistance);
+                    var strokeContribution = maths.max(outerCoverage - fillCoverage, 0f);
+                    return context.Parameters.TextColor * input.GlyphColor * fillCoverage + context.Parameters.StrokeColor * input.GlyphColor * strokeContribution;
                 }
             }";
 

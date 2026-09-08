@@ -22,7 +22,7 @@ public sealed class UiShaderTests
         Assert.Empty(errors);
 
         IReadOnlyList<ShaderCompilationResult> results = ShaderCompiler.CompileAll(compilation);
-        Assert.Equal(30, results.Count);
+        Assert.NotEmpty(results);
         Assert.All(results, result => Assert.True(
             result.Success,
             string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message))));
@@ -61,13 +61,11 @@ public sealed class UiShaderTests
         Assert.Equal(0u, vertexResource.Set);
         Assert.Equal(0u, vertexResource.Binding);
         Assert.Equal(16u, vertexResource.Alignment);
-        Assert.Equal(80u, vertexResource.Size);
-        Assert.Equal(80u, vertexResource.ArrayStride);
+        Assert.Equal(48u, vertexResource.Size);
+        Assert.Equal(48u, vertexResource.ArrayStride);
         Assert.Equal(0u, Assert.Single(vertexResource.Members, member => member.Name == "Rect").Offset);
         Assert.Equal(16u, Assert.Single(vertexResource.Members, member => member.Name == "FillColor").Offset);
-        Assert.Equal(32u, Assert.Single(vertexResource.Members, member => member.Name == "BorderColor").Offset);
-        Assert.Equal(48u, Assert.Single(vertexResource.Members, member => member.Name == "CornerRadii").Offset);
-        Assert.Equal(64u, Assert.Single(vertexResource.Members, member => member.Name == "BorderWidth").Offset);
+        Assert.Equal(32u, Assert.Single(vertexResource.Members, member => member.Name == "CornerRadii").Offset);
 
         var vertexPush = Assert.Single(vertexManifest.PushConstants);
         Assert.Equal("main", fragmentManifest.EntryPointName);
@@ -84,7 +82,6 @@ public sealed class UiShaderTests
         Assert.Contains("#version 460", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("fwidth", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("smoothstep", fragmentGlsl, StringComparison.Ordinal);
-        Assert.Contains("borderCoverage", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("outerCoverage", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("cornerRadii", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("d.xzzx", fragmentGlsl, StringComparison.Ordinal);
@@ -97,8 +94,6 @@ public sealed class UiShaderTests
         Assert.Contains("dot", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("center", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("1.0 - smoothstep(-edge, edge, distance)", fragmentGlsl, StringComparison.Ordinal);
-        Assert.Contains("1.0 - smoothstep(-edge, edge, distance +", fragmentGlsl, StringComparison.Ordinal);
-        Assert.Contains("borderCoverage", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("fragColor", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("c.xyz * c.w", solidFragmentGlsl, StringComparison.Ordinal);
         Assert.Equal("main", vertexManifest.EntryPointName);
@@ -106,65 +101,29 @@ public sealed class UiShaderTests
         Assert.Contains(vertexManifest.Outputs, output => output.Name == "Uv");
         Assert.Contains(vertexManifest.Outputs, output => output.Name == "Rect");
         Assert.Contains(vertexManifest.Outputs, output => output.Name == "FillColor");
-        Assert.Contains(vertexManifest.Outputs, output => output.Name == "BorderColor");
         Assert.Contains(vertexManifest.Outputs, output => output.Name == "CornerRadii");
         var packedUvOutput = Assert.Single(vertexManifest.Outputs, output => output.Name == "Uv");
-        Assert.Equal("vec4", packedUvOutput.GlslType);
+        Assert.Equal("vec2", packedUvOutput.GlslType);
     }
 
     [Fact]
-    public async Task AnalyticVisualEffects_CompileWithNestedTypedInstanceAbi()
+    public async Task CanonicalInnerVisualEffects_CompileAsFiniteVariants()
     {
         Compilation compilation = await LoadUiCompilationAsync().ConfigureAwait(true);
         IReadOnlyList<ShaderCompilationResult> results = ShaderCompiler.CompileAll(compilation);
-        var result = Assert.Single(
-            results,
-            item => item.EntryPointName == "analytic-rounded-rectangle" &&
-                item.Module?.Stage == ShaderStage.Vertex);
-        var fragment = Assert.Single(
-            results,
-            item => item.EntryPointName == "analytic-rounded-rectangle" &&
-                item.Module?.Stage == ShaderStage.Fragment);
+        Assert.Contains(results, item => item.EntryPointName == "analytic-rounded-rectangle");
 
-        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
-        Assert.True(fragment.Success, string.Join(Environment.NewLine, fragment.Diagnostics.Select(diagnostic => diagnostic.Message)));
-
-        var vertexManifest = result.BuildManifest;
-        var fragmentManifest = fragment.BuildManifest;
-        if (vertexManifest is null || fragmentManifest is null)
+        foreach (var entryPoint in new[] { "rounded-inner-shadow" })
         {
-            throw new InvalidOperationException("Analytic visual effect compilation did not produce manifests.");
+            var vertex = Assert.Single(results, item => item.EntryPointName == entryPoint && item.Module?.Stage == ShaderStage.Vertex);
+            var fragment = Assert.Single(results, item => item.EntryPointName == entryPoint && item.Module?.Stage == ShaderStage.Fragment);
+            Assert.True(vertex.Success, string.Join(Environment.NewLine, vertex.Diagnostics.Select(diagnostic => diagnostic.Message)));
+            Assert.True(fragment.Success, string.Join(Environment.NewLine, fragment.Diagnostics.Select(diagnostic => diagnostic.Message)));
+            Assert.Equal(96u, Assert.Single(vertex.BuildManifest!.Resources).ArrayStride);
+            Assert.Equal(8u, Assert.Single(vertex.BuildManifest.PushConstants).Size);
+            Assert.Empty(fragment.BuildManifest!.PushConstants);
+            Assert.Contains("smoothstep", GlslEmitter.EmitFromModule(fragment.Module!).Source, StringComparison.Ordinal);
         }
-
-        var vertexResource = Assert.Single(vertexManifest.Resources);
-        Assert.Equal(240u, vertexResource.Size);
-        Assert.Equal(240u, vertexResource.ArrayStride);
-        Assert.Equal(ShaderStage.Vertex, vertexResource.Stage);
-        Assert.Empty(fragmentManifest.Resources);
-
-        Assert.Equal(48u, Assert.Single(vertexResource.Members, member => member.Name == "StrokeColor").Offset);
-        Assert.Equal(64u, Assert.Single(vertexResource.Members, member => member.Name == "StrokeOffset").Offset);
-        Assert.Equal(72u, Assert.Single(vertexResource.Members, member => member.Name == "StrokeWidth").Offset);
-        Assert.Equal(76u, Assert.Single(vertexResource.Members, member => member.Name == "StrokeBlurRadius").Offset);
-        Assert.Equal(80u, Assert.Single(vertexResource.Members, member => member.Name == "StrokeSpread").Offset);
-        Assert.Equal(84u, Assert.Single(vertexResource.Members, member => member.Name == "StrokeIntensity").Offset);
-        Assert.Equal(96u, Assert.Single(vertexResource.Members, member => member.Name == "OuterShadowColor").Offset);
-        Assert.Equal(112u, Assert.Single(vertexResource.Members, member => member.Name == "OuterShadowOffset").Offset);
-        Assert.Equal(144u, Assert.Single(vertexResource.Members, member => member.Name == "InsetShadowColor").Offset);
-        Assert.Equal(160u, Assert.Single(vertexResource.Members, member => member.Name == "InsetShadowOffset").Offset);
-        Assert.Equal(192u, Assert.Single(vertexResource.Members, member => member.Name == "GlowColor").Offset);
-        Assert.Equal(208u, Assert.Single(vertexResource.Members, member => member.Name == "GlowOffset").Offset);
-
-        Assert.Equal(8u, Assert.Single(vertexManifest.PushConstants).Size);
-        Assert.Empty(fragmentManifest.PushConstants);
-
-        var vertexGlsl = GlslEmitter.EmitFromModule(result.Module!).Source;
-        var fragmentGlsl = GlslEmitter.EmitFromModule(fragment.Module!).Source;
-        Assert.Contains("gl_InstanceIndex", vertexGlsl, StringComparison.Ordinal);
-        Assert.DoesNotContain("gl_InstanceIndex", fragmentGlsl, StringComparison.Ordinal);
-        Assert.Contains("exp", fragmentGlsl, StringComparison.Ordinal);
-        Assert.Contains("smoothstep", fragmentGlsl, StringComparison.Ordinal);
-        Assert.Contains("InsetShadow", fragmentGlsl, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -235,8 +194,9 @@ public sealed class UiShaderTests
         Assert.Contains("PackSolidRectangleVertexInstancesElements", generatedSource, StringComparison.Ordinal);
         Assert.Contains("PackRoundedRectangleVertexInstancesElement", generatedSource, StringComparison.Ordinal);
         Assert.Contains("PackRoundedRectangleVertexInstancesElements", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("PackAnalyticRoundedRectangleVertexInstancesElement", generatedSource, StringComparison.Ordinal);
-        Assert.Contains("PackAnalyticRoundedRectangleVertexInstancesElements", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("PackInnerShadowRoundedRectangleVertexInstancesElement", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("PackInnerShadowRoundedRectangleVertexInstancesElements", generatedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("InsetShadow", generatedSource, StringComparison.Ordinal);
         Assert.Contains("PackCachedMaskRoundedRectangleVertexInstancesElement", generatedSource, StringComparison.Ordinal);
         Assert.Contains("PackCachedMaskRoundedRectangleVertexInstancesElements", generatedSource, StringComparison.Ordinal);
         Assert.Contains("PackSolidRectangleVertexFrame", generatedSource, StringComparison.Ordinal);

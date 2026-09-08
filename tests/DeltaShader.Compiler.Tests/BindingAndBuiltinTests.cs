@@ -622,6 +622,174 @@ public sealed class BindingAndBuiltinTests
     }
 
     [Fact]
+    public async Task DomainOwnedInterstageValueWrappers_AreStructuralSemantics()
+    {
+        const string source = """
+            using Delta;
+            using Delta.Shader;
+            using Delta.Graphics.Semantics;
+
+            namespace Consumer.Domain;
+
+            public readonly struct DomainUv
+            {
+                public readonly float2 Value;
+                public DomainUv(float2 value) => Value = value;
+            }
+
+            public readonly struct DomainTint
+            {
+                public float4 Value { get; init; }
+                public DomainTint(float4 value) => Value = value;
+            }
+
+            [Interstage]
+            public struct Surface
+            {
+                public Position Position;
+                public DomainUv Uv;
+                public DomainTint Tint;
+            }
+
+            public struct VertexContext {}
+            public struct FragmentContext {}
+
+            public static class DomainOwnedGraphics
+            {
+                [VertexShader("domain-owned")]
+                public static Surface Vertex(in VertexContext context, in Surface input) =>
+                    new Surface
+                    {
+                        Position = new Position(new float4(input.Uv.Value, 0f, 1f)),
+                        Uv = input.Uv,
+                        Tint = input.Tint
+                    };
+
+                [FragmentShader("domain-owned")]
+                public static float4 Fragment(in FragmentContext context, in Surface input) =>
+                    new float4(input.Uv.Value, 0f, 1f) * input.Tint.Value;
+            }
+            """;
+
+        Compilation compilation = await LoadCompilationAsync(source).ConfigureAwait(true);
+        IReadOnlyList<ShaderCompilationResult> results = ShaderCompiler.CompileAll(compilation);
+
+        Assert.Equal(2, results.Count);
+        Assert.All(results, result =>
+            Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message))));
+    }
+
+    [Fact]
+    public async Task UiCompositeBuildPlan_PreparesOrderedLayersAndGeneratedProgram()
+    {
+        const string source = """
+            using Delta;
+            using Delta.Shader;
+            using Delta.Graphics.Semantics;
+
+            namespace Consumer.Composite;
+
+            [Interstage]
+            public struct Surface
+            {
+                public Position Position;
+                public Uv0 Uv;
+                public VertexColor Tint;
+            }
+
+            public struct Frame
+            {
+                public float Time;
+            }
+
+            public struct VertexContext {}
+            public struct FragmentContext
+            {
+                [PushConstant]
+                public Frame Frame;
+            }
+
+            public static class Layers
+            {
+                [VertexShader("geometry")]
+                public static Surface Geometry(in VertexContext context, in Surface input) => input;
+
+                [FragmentShader("shade")]
+                public static float4 Shade(in FragmentContext context, in Surface input) =>
+                    input.Tint.Value * context.Frame.Time;
+
+                [FragmentShader("pulse")]
+                public static float4 Pulse(in FragmentContext context, in Surface input) =>
+                    input.Tint.Value * (0.5f + context.Frame.Time);
+            }
+            """;
+
+        Compilation compilation = await LoadCompilationAsync(source).ConfigureAwait(true);
+        IReadOnlyList<ShaderCompilationResult> results = ShaderCompiler.CompileAll(compilation);
+        var vertex = Assert.Single(results, result => result.Module?.Stage == ShaderStage.Vertex);
+        var fragments = results.Where(result => result.Module?.Stage == ShaderStage.Fragment).ToArray();
+        Assert.Equal(2, fragments.Length);
+        var json = $$"""
+            {
+              "schema": 1,
+              "composites": [
+                {
+                  "name": "PreparedUi",
+                  "key": {
+                    "target": "Visual",
+                    "primitive": "Rounded",
+                    "material": "FlatColor",
+                    "textRepresentation": "None",
+                    "effects": "Stroke",
+                    "quality": "Analytic"
+                  },
+                  "vertexLayers": [{{System.Text.Json.JsonSerializer.Serialize(vertex.SourceMethodIdentity)}}],
+                  "fragmentLayers": [
+                    {{System.Text.Json.JsonSerializer.Serialize(fragments[0].SourceMethodIdentity)}},
+                    {{System.Text.Json.JsonSerializer.Serialize(fragments[1].SourceMethodIdentity)}}
+                  ]
+                }
+              ]
+            }
+            """;
+
+        Assert.True(UiShaderCompositeBuildPlan.TryParse(json, out var plan, out var parseDiagnostics),
+            string.Join(Environment.NewLine, parseDiagnostics.Select(diagnostic => diagnostic.Message)));
+        var numericEffects = json.Replace("\"effects\": \"Stroke\"", "\"effects\": \"2\"", StringComparison.Ordinal);
+        Assert.False(UiShaderCompositeBuildPlan.TryParse(
+            numericEffects,
+            out _,
+            out var numericDiagnostics));
+        Assert.Contains(numericDiagnostics, diagnostic => diagnostic.Id == ShaderDiagnosticId.DSH019);
+        var entry = Assert.Single(plan!.Composites);
+        UiShaderCompositeBuildPreparation preparation = UiShaderCompositeBuildPlanner.Prepare(entry, results);
+        Assert.True(preparation.Success,
+            string.Join(Environment.NewLine, preparation.Diagnostics.Select(diagnostic => diagnostic.Message)));
+
+        INamedTypeSymbol layersType = compilation.GetTypeByMetadataName("Consumer.Composite.Layers")!;
+        var vertexMethod = Assert.Single(layersType.GetMembers("Geometry").OfType<IMethodSymbol>());
+        var fragmentMethods = entry.FragmentLayers
+            .Select(identity => Assert.Single(layersType.GetMembers().OfType<IMethodSymbol>(), method =>
+                results.Any(result => result.SourceMethodIdentity == identity && result.SourceMethodName == method.Name)))
+            .ToArray();
+        Assert.True(Delta.Shader.Analyzers.ShaderCompositeSourceGenerator.TryGenerateBuildUiVariant(
+            entry,
+            [vertexMethod],
+            [vertex.BuildManifest!],
+            fragmentMethods,
+            preparation.FragmentLayers.Select(result => result.BuildManifest!).ToArray(),
+            preparation.Variant!.Composition!,
+            preparation.Variant.VariantIdentity,
+            out var generated,
+            out var generationReason), generationReason);
+        Assert.Contains("class PreparedUiGraphicsShaderProgram", generated, StringComparison.Ordinal);
+        Assert.Contains("PreparedUi.vert.spv", generated, StringComparison.Ordinal);
+        Assert.Contains("PreparedUi.frag.spv", generated, StringComparison.Ordinal);
+        Assert.Contains("PackPreparedUiFragmentLayer0", generated, StringComparison.Ordinal);
+        Assert.Contains("PackPreparedUiFragmentLayer1", generated, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task BindingLocation_IsRejectedInComputeContext()
     {
         const string source = @"

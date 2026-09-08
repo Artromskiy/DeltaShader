@@ -7,6 +7,14 @@
     <DeltaShaderSource Include="@(Compile)" />
   </ItemGroup>
 
+  <ItemGroup Condition="'$(DeltaShaderEnabled)' == 'true' and '@(DeltaShaderComposite)' == '' and Exists('$(MSBuildProjectDirectory)/DeltaShaderComposites.json')">
+    <DeltaShaderComposite Include="$(MSBuildProjectDirectory)/DeltaShaderComposites.json" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(DeltaShaderEnabled)' == 'true' and '@(DeltaShaderComposite)' != ''">
+    <AdditionalFiles Include="@(DeltaShaderComposite)" />
+  </ItemGroup>
+
   <Target Name="DeltaShaderCompile"
           AfterTargets="Build"
           Condition="'$(DeltaShaderEnabled)' == 'true' and '$(DesignTimeBuild)' != 'true' and '$(DeltaShaderSkipValidation)' != 'true'">

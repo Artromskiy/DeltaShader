@@ -7,15 +7,15 @@ namespace DeltaShader.Compiler.Tests;
 public sealed class UiShaderEffectVariantHandoffTests
 {
     [Fact]
-    public void VisualRoundedOuterShadowAndTextSdfGlowRequireDistinctPreparedPairs()
+    public void VisualRoundedOuterShadowAndTextSdfOuterGlowRequireDistinctPreparedPairs()
     {
         var root = Directory.CreateTempSubdirectory("delta-shader-ui-effects-");
         try
         {
             var visualKey = CreateVisualRoundedOuterShadowKey();
-            var textKey = CreateTextSdfGlowKey();
+            var textKey = CreateTextSdfOuterGlowKey();
             var visualEntry = CreateEntry(root, visualKey, "visual-rounded-outer-shadow");
-            var textEntry = CreateEntry(root, textKey, "text-sdf-glow");
+            var textEntry = CreateEntry(root, textKey, "text-sdf-outer-glow");
 
             var validation = UiShaderVariantProducerValidator.Validate(
                 [visualKey, textKey],
@@ -35,15 +35,15 @@ public sealed class UiShaderEffectVariantHandoffTests
     }
 
     [Fact]
-    public void VisualRoundedInsetShadowAndTextMsdfGlowRequireDistinctPreparedPairs()
+    public void VisualRoundedInnerShadowAndTextMsdfInnerGlowRequireDistinctPreparedPairs()
     {
         var root = Directory.CreateTempSubdirectory("delta-shader-ui-effects-2-");
         try
         {
-            var visualKey = CreateVisualRoundedInsetShadowKey();
-            var textKey = CreateTextMsdfGlowKey();
-            var visualEntry = CreateEntry(root, visualKey, "visual-rounded-inset-shadow");
-            var textEntry = CreateEntry(root, textKey, "text-msdf-glow");
+            var visualKey = CreateVisualRoundedInnerShadowKey();
+            var textKey = CreateTextMsdfInnerGlowKey();
+            var visualEntry = CreateEntry(root, visualKey, "visual-rounded-inner-shadow");
+            var textEntry = CreateEntry(root, textKey, "text-msdf-inner-glow");
 
             var validation = UiShaderVariantProducerValidator.Validate(
                 [visualKey, textKey],
@@ -71,9 +71,11 @@ public sealed class UiShaderEffectVariantHandoffTests
             var keys = new[]
             {
                 CreateVisualSolidStrokeKey(),
-                CreateVisualSolidGlowKey(),
-                CreateTextMsdfOutlineKey(),
-                CreateTextSdfOuterShadowKey()
+                CreateVisualSolidOuterGlowKey(),
+                CreateVisualRoundedInnerGlowKey(),
+                CreateTextMsdfStrokeKey(),
+                CreateTextSdfOuterShadowKey(),
+                CreateTextSdfInnerShadowKey()
             };
             var entries = keys
                 .Select((key, index) => CreateEntry(root, key, $"effect-variant-{index}"))
@@ -86,7 +88,7 @@ public sealed class UiShaderEffectVariantHandoffTests
                 root.FullName);
 
             Assert.True(validation.IsValid, string.Join(Environment.NewLine, validation.Diagnostics));
-            Assert.Equal(4, validation.ValidatedVariants);
+            Assert.Equal(6, validation.ValidatedVariants);
             Assert.Empty(validation.MissingVariants);
             Assert.Empty(validation.UnsupportedVariants);
         }
@@ -107,7 +109,7 @@ public sealed class UiShaderEffectVariantHandoffTests
                 CreateVisualSolidOuterShadowKey(),
                 CreateVisualRoundedStrokeOuterShadowKey(),
                 CreateTextMsdfOuterShadowKey(),
-                CreateTextSdfOutlineOuterShadowGlowKey()
+                CreateTextSdfStrokeOuterShadowOuterGlowKey()
             };
             var entries = keys
                 .Select((key, index) => CreateEntry(root, key, $"extended-effect-variant-{index}"))
@@ -149,8 +151,8 @@ public sealed class UiShaderEffectVariantHandoffTests
         {
             var keys = new[]
             {
-                CreateVisualRoundedStrokeGlowKey(),
-                CreateTextMsdfOutlineOuterShadowGlowKey()
+                CreateVisualRoundedStrokeOuterGlowKey(),
+                CreateTextMsdfStrokeOuterShadowOuterGlowKey()
             };
             var entries = keys
                 .Select((key, index) => CreateEntry(root, key, $"composite-effect-variant-{index}"))
@@ -268,12 +270,12 @@ public sealed class UiShaderEffectVariantHandoffTests
         return key;
     }
 
-    private static UiShaderVariantKey CreateTextSdfGlowKey()
+    private static UiShaderVariantKey CreateTextSdfOuterGlowKey()
     {
         Assert.True(
             UiShaderVariantCatalog.TryCreateText(
                 UiShaderTextRepresentation.Sdf,
-                UiShaderEffectCapabilities.Glow,
+                UiShaderEffectCapabilities.OuterGlow,
                 UiShaderQuality.Analytic,
                 out var key,
                 out var diagnostic),
@@ -281,12 +283,12 @@ public sealed class UiShaderEffectVariantHandoffTests
         return key;
     }
 
-    private static UiShaderVariantKey CreateVisualRoundedInsetShadowKey()
+    private static UiShaderVariantKey CreateVisualRoundedInnerShadowKey()
     {
         Assert.True(
             UiShaderVariantCatalog.TryCreateVisual(
                 UiShaderPrimitive.Rounded,
-                UiShaderEffectCapabilities.InsetShadow,
+                UiShaderEffectCapabilities.InnerShadow,
                 UiShaderQuality.Analytic,
                 out var key,
                 out var diagnostic),
@@ -294,12 +296,12 @@ public sealed class UiShaderEffectVariantHandoffTests
         return key;
     }
 
-    private static UiShaderVariantKey CreateTextMsdfGlowKey()
+    private static UiShaderVariantKey CreateTextMsdfInnerGlowKey()
     {
         Assert.True(
             UiShaderVariantCatalog.TryCreateText(
                 UiShaderTextRepresentation.Msdf,
-                UiShaderEffectCapabilities.Glow,
+                UiShaderEffectCapabilities.InnerGlow,
                 UiShaderQuality.Analytic,
                 out var key,
                 out var diagnostic),
@@ -320,12 +322,12 @@ public sealed class UiShaderEffectVariantHandoffTests
         return key;
     }
 
-    private static UiShaderVariantKey CreateVisualSolidGlowKey()
+    private static UiShaderVariantKey CreateVisualSolidOuterGlowKey()
     {
         Assert.True(
             UiShaderVariantCatalog.TryCreateVisual(
                 UiShaderPrimitive.Solid,
-                UiShaderEffectCapabilities.Glow,
+                UiShaderEffectCapabilities.OuterGlow,
                 UiShaderQuality.Analytic,
                 out var key,
                 out var diagnostic),
@@ -346,12 +348,12 @@ public sealed class UiShaderEffectVariantHandoffTests
         return key;
     }
 
-    private static UiShaderVariantKey CreateVisualRoundedStrokeGlowKey()
+    private static UiShaderVariantKey CreateVisualRoundedStrokeOuterGlowKey()
     {
         Assert.True(
             UiShaderVariantCatalog.TryCreateVisual(
                 UiShaderPrimitive.Rounded,
-                UiShaderEffectCapabilities.Stroke | UiShaderEffectCapabilities.Glow,
+                UiShaderEffectCapabilities.Stroke | UiShaderEffectCapabilities.OuterGlow,
                 UiShaderQuality.Analytic,
                 out var key,
                 out var diagnostic),
@@ -372,12 +374,12 @@ public sealed class UiShaderEffectVariantHandoffTests
         return key;
     }
 
-    private static UiShaderVariantKey CreateTextMsdfOutlineKey()
+    private static UiShaderVariantKey CreateTextMsdfStrokeKey()
     {
         Assert.True(
             UiShaderVariantCatalog.TryCreateText(
                 UiShaderTextRepresentation.Msdf,
-                UiShaderEffectCapabilities.Outline,
+                UiShaderEffectCapabilities.Stroke,
                 UiShaderQuality.Analytic,
                 out var key,
                 out var diagnostic),
@@ -411,14 +413,14 @@ public sealed class UiShaderEffectVariantHandoffTests
         return key;
     }
 
-    private static UiShaderVariantKey CreateTextSdfOutlineOuterShadowGlowKey()
+    private static UiShaderVariantKey CreateTextSdfStrokeOuterShadowOuterGlowKey()
     {
         Assert.True(
             UiShaderVariantCatalog.TryCreateText(
                 UiShaderTextRepresentation.Sdf,
-                UiShaderEffectCapabilities.Outline |
+                UiShaderEffectCapabilities.Stroke |
                     UiShaderEffectCapabilities.OuterShadow |
-                    UiShaderEffectCapabilities.Glow,
+                    UiShaderEffectCapabilities.OuterGlow,
                 UiShaderQuality.Analytic,
                 out var key,
                 out var diagnostic),
@@ -426,14 +428,40 @@ public sealed class UiShaderEffectVariantHandoffTests
         return key;
     }
 
-    private static UiShaderVariantKey CreateTextMsdfOutlineOuterShadowGlowKey()
+    private static UiShaderVariantKey CreateTextMsdfStrokeOuterShadowOuterGlowKey()
     {
         Assert.True(
             UiShaderVariantCatalog.TryCreateText(
                 UiShaderTextRepresentation.Msdf,
-                UiShaderEffectCapabilities.Outline |
+                UiShaderEffectCapabilities.Stroke |
                     UiShaderEffectCapabilities.OuterShadow |
-                    UiShaderEffectCapabilities.Glow,
+                    UiShaderEffectCapabilities.OuterGlow,
+                UiShaderQuality.Analytic,
+                out var key,
+                out var diagnostic),
+            diagnostic?.Message);
+        return key;
+    }
+
+    private static UiShaderVariantKey CreateVisualRoundedInnerGlowKey()
+    {
+        Assert.True(
+            UiShaderVariantCatalog.TryCreateVisual(
+                UiShaderPrimitive.Rounded,
+                UiShaderEffectCapabilities.InnerGlow,
+                UiShaderQuality.Analytic,
+                out var key,
+                out var diagnostic),
+            diagnostic?.Message);
+        return key;
+    }
+
+    private static UiShaderVariantKey CreateTextSdfInnerShadowKey()
+    {
+        Assert.True(
+            UiShaderVariantCatalog.TryCreateText(
+                UiShaderTextRepresentation.Sdf,
+                UiShaderEffectCapabilities.InnerShadow,
                 UiShaderQuality.Analytic,
                 out var key,
                 out var diagnostic),

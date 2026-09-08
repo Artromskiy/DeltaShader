@@ -6,38 +6,79 @@ namespace Delta.Shader.Compiler.Tests;
 public sealed class UiShaderVariantCatalogTests
 {
     [Fact]
+    public void EffectCapabilityMask_IsDenseAndVersioned()
+    {
+        Assert.Equal(0x01, (byte)UiShaderEffectCapabilities.Stroke);
+        Assert.Equal(0x02, (byte)UiShaderEffectCapabilities.OuterShadow);
+        Assert.Equal(0x04, (byte)UiShaderEffectCapabilities.InnerShadow);
+        Assert.Equal(0x08, (byte)UiShaderEffectCapabilities.OuterGlow);
+        Assert.Equal(0x10, (byte)UiShaderEffectCapabilities.InnerGlow);
+    }
+
+    [Fact]
     public void VisualVariantHasDeterministicIdentity()
     {
         Assert.True(UiShaderVariantCatalog.TryCreateVisual(
             UiShaderPrimitive.Rounded,
-            UiShaderEffectCapabilities.Stroke | UiShaderEffectCapabilities.Glow,
+            UiShaderEffectCapabilities.Stroke | UiShaderEffectCapabilities.OuterGlow,
             UiShaderQuality.Analytic,
             out var first,
             out var firstDiagnostic), firstDiagnostic?.Message);
         Assert.True(UiShaderVariantCatalog.TryCreateVisual(
             UiShaderPrimitive.Rounded,
-            UiShaderEffectCapabilities.Stroke | UiShaderEffectCapabilities.Glow,
+            UiShaderEffectCapabilities.Stroke | UiShaderEffectCapabilities.OuterGlow,
             UiShaderQuality.Analytic,
             out var second,
             out var secondDiagnostic), secondDiagnostic?.Message);
 
         Assert.Equal(first, second);
-        Assert.Equal("visual/rounded/flatcolor/none/11/analytic", first.StableName);
+        Assert.Equal("visual/rounded/flatcolor/none/stroke+outerglow/analytic", first.StableName);
     }
 
     [Fact]
-    public void TextVariantSupportsOutlineAndGlow()
+    public void TextVariantSupportsStrokeAndOuterGlow()
     {
         Assert.True(UiShaderVariantCatalog.TryCreateText(
             UiShaderTextRepresentation.Msdf,
-            UiShaderEffectCapabilities.Outline | UiShaderEffectCapabilities.Glow,
+            UiShaderEffectCapabilities.Stroke | UiShaderEffectCapabilities.OuterGlow,
             UiShaderQuality.Analytic,
             out var key,
             out var diagnostic), diagnostic?.Message);
 
         Assert.Equal(UiShaderTarget.Text, key.Target);
         Assert.Equal(UiShaderMaterial.DistanceField, key.Material);
-        Assert.Equal("text/solid/distancefield/msdf/12/analytic", key.StableName);
+        Assert.Equal("text/solid/distancefield/msdf/stroke+outerglow/analytic", key.StableName);
+    }
+
+    [Theory]
+    [InlineData(UiShaderPrimitive.Solid, "visual/solid/flatcolor/none/outershadow/shadowonly")]
+    [InlineData(UiShaderPrimitive.Rounded, "visual/rounded/flatcolor/none/outershadow/shadowonly")]
+    public void ShadowOnlyVisualHasDeterministicIdentity(
+        UiShaderPrimitive primitive,
+        string stableName)
+    {
+        Assert.True(UiShaderVariantCatalog.TryCreateVisual(
+            primitive,
+            UiShaderEffectCapabilities.OuterShadow,
+            UiShaderQuality.ShadowOnly,
+            out var key,
+            out var diagnostic), diagnostic?.Message);
+
+        Assert.Equal(stableName, key.StableName);
+    }
+
+    [Fact]
+    public void ShadowOnlyQualityIsNotAvailableForText()
+    {
+        Assert.False(UiShaderVariantCatalog.TryCreateText(
+            UiShaderTextRepresentation.Sdf,
+            UiShaderEffectCapabilities.OuterShadow,
+            UiShaderQuality.ShadowOnly,
+            out _,
+            out var diagnostic));
+
+        Assert.NotNull(diagnostic);
+        Assert.Equal(ShaderDiagnosticId.DSH019, diagnostic!.Id);
     }
 
     [Theory]
@@ -55,14 +96,14 @@ public sealed class UiShaderVariantCatalogTests
             out var key,
             out var diagnostic), diagnostic?.Message);
 
-        Assert.Equal($"visual/solid/{materialName}/none/00/analytic", key.StableName);
+        Assert.Equal($"visual/solid/{materialName}/none/none/analytic", key.StableName);
     }
 
     [Theory]
     [InlineData(UiShaderMaterial.LinearGradient, UiShaderEffectCapabilities.Stroke)]
-    [InlineData(UiShaderMaterial.LinearGradient, UiShaderEffectCapabilities.Glow)]
+    [InlineData(UiShaderMaterial.LinearGradient, UiShaderEffectCapabilities.OuterGlow)]
     [InlineData(UiShaderMaterial.Image, UiShaderEffectCapabilities.OuterShadow)]
-    [InlineData(UiShaderMaterial.Image, UiShaderEffectCapabilities.InsetShadow)]
+    [InlineData(UiShaderMaterial.Image, UiShaderEffectCapabilities.InnerShadow)]
     public void ResourceVisualMaterialsRejectEffectsWithStableDiagnostic(
         UiShaderMaterial material,
         UiShaderEffectCapabilities effects)
@@ -103,7 +144,7 @@ public sealed class UiShaderVariantCatalogTests
     {
         Assert.False(UiShaderVariantCatalog.TryCreateVisual(
             UiShaderPrimitive.Solid,
-            UiShaderEffectCapabilities.InsetShadow,
+            UiShaderEffectCapabilities.InnerShadow,
             UiShaderQuality.Analytic,
             out _,
             out var diagnostic));
@@ -114,9 +155,9 @@ public sealed class UiShaderVariantCatalogTests
     }
 
     [Theory]
-    [InlineData(UiShaderEffectCapabilities.Outline)]
-    [InlineData(UiShaderEffectCapabilities.Glow)]
-    [InlineData(UiShaderEffectCapabilities.Outline | UiShaderEffectCapabilities.Glow)]
+    [InlineData(UiShaderEffectCapabilities.Stroke)]
+    [InlineData(UiShaderEffectCapabilities.OuterGlow)]
+    [InlineData(UiShaderEffectCapabilities.Stroke | UiShaderEffectCapabilities.OuterGlow)]
     public void TextCachedMaskRemainsRenderOwned(
         UiShaderEffectCapabilities effects)
     {
@@ -193,7 +234,40 @@ public sealed class UiShaderVariantCatalogTests
         AssertInvalid(valid with { Primitive = (UiShaderPrimitive)255 });
         AssertInvalid(valid with { Material = (UiShaderMaterial)255 });
         AssertInvalid(valid with { TextRepresentation = (UiShaderTextRepresentation)255 });
+        AssertInvalid(valid with { Effects = (UiShaderEffectCapabilities)(1 << 5) });
         AssertInvalid(valid with { Quality = (UiShaderQuality)255 });
+    }
+
+    [Theory]
+    [InlineData(UiShaderEffectCapabilities.Stroke)]
+    [InlineData(UiShaderEffectCapabilities.OuterShadow)]
+    [InlineData(UiShaderEffectCapabilities.InnerShadow)]
+    [InlineData(UiShaderEffectCapabilities.OuterGlow)]
+    [InlineData(UiShaderEffectCapabilities.InnerGlow)]
+    public void RoundedVisualSupportsEveryCanonicalEffect(UiShaderEffectCapabilities effect)
+    {
+        Assert.True(UiShaderVariantCatalog.TryCreateVisual(
+            UiShaderPrimitive.Rounded,
+            effect,
+            UiShaderQuality.Analytic,
+            out _,
+            out var diagnostic), diagnostic?.Message);
+    }
+
+    [Theory]
+    [InlineData(UiShaderEffectCapabilities.Stroke)]
+    [InlineData(UiShaderEffectCapabilities.OuterShadow)]
+    [InlineData(UiShaderEffectCapabilities.InnerShadow)]
+    [InlineData(UiShaderEffectCapabilities.OuterGlow)]
+    [InlineData(UiShaderEffectCapabilities.InnerGlow)]
+    public void TextSupportsEveryCanonicalEffect(UiShaderEffectCapabilities effect)
+    {
+        Assert.True(UiShaderVariantCatalog.TryCreateText(
+            UiShaderTextRepresentation.Sdf,
+            effect,
+            UiShaderQuality.Analytic,
+            out _,
+            out var diagnostic), diagnostic?.Message);
     }
 
     [Fact]
@@ -204,7 +278,7 @@ public sealed class UiShaderVariantCatalogTests
             UiShaderPrimitive.Rounded,
             UiShaderMaterial.FlatColor,
             UiShaderTextRepresentation.None,
-            UiShaderEffectCapabilities.Glow,
+            UiShaderEffectCapabilities.OuterGlow,
             UiShaderQuality.Analytic);
 
         var result = ShaderCompiler.PrepareUiVariant(key, [Layer(ShaderStage.Vertex, "vertex")], [Layer(ShaderStage.Fragment, "fragment")]);

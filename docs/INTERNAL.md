@@ -73,7 +73,7 @@ resource allocation, upload/readback, descriptors and device-limit checks;
 DeltaShader does not reference Vulkan or DeltaRender. `UiTextDraw` and its
 paint semantics remain producer data in DeltaXAML, while atlas pages, UVs and
 glyph instances remain Render-owned. The text shader contract owns the
-distance-range and outline-width units; Render supplies converted values.
+distance-range and stroke-width units; Render supplies converted values.
 
 ### Numeric semantic lowering
 

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.IO;
 using System.Text;
 using Delta.Shader.Backend.Glsl;
 using Delta.Shader.Compiler;
@@ -20,12 +21,22 @@ public sealed class DeltaGraphicsGenerator : IIncrementalGenerator
                 static (syntaxContext, _) => GetShaderMethod(syntaxContext))
             .Where(static method => method is not null)
             .Collect();
+        var compositePlans = context.AdditionalTextsProvider
+            .Where(static file => string.Equals(
+                Path.GetFileName(file.Path),
+                UiShaderCompositeBuildPlan.DefaultFileName,
+                StringComparison.OrdinalIgnoreCase))
+            .Collect();
 
         context.RegisterSourceOutput(
-            context.CompilationProvider.Combine(methods),
-            static (sourceContext, input) => Execute(input.Left, input.Right, sourceContext));
+            context.CompilationProvider.Combine(methods).Combine(compositePlans),
+            static (sourceContext, input) => Execute(input.Left.Left, input.Left.Right, input.Right, sourceContext));
     }
-    private static void Execute(Compilation compilation, ImmutableArray<IMethodSymbol?> methods, SourceProductionContext context)
+    private static void Execute(
+        Compilation compilation,
+        ImmutableArray<IMethodSymbol?> methods,
+        ImmutableArray<AdditionalText> compositePlanFiles,
+        SourceProductionContext context)
     {
         if (methods.IsDefaultOrEmpty)
         {
@@ -49,6 +60,80 @@ public sealed class DeltaGraphicsGenerator : IIncrementalGenerator
         }
 
         var results = allResults.Where(r => r.Module?.Stage is ShaderStage.Vertex or ShaderStage.Fragment).ToArray();
+        if (compositePlanFiles.Length > 1)
+        {
+            context.ReportDiagnostic(Diagnostic.Create(
+                Descriptor,
+                Location.None,
+                $"DSH019: only one {UiShaderCompositeBuildPlan.DefaultFileName} build plan may be supplied."));
+            return;
+        }
+
+        UiShaderCompositeBuildPlan? compositePlan = null;
+        if (compositePlanFiles.Length == 1)
+        {
+            var planText = compositePlanFiles[0].GetText(context.CancellationToken)?.ToString() ?? string.Empty;
+            if (!UiShaderCompositeBuildPlan.TryParse(planText, out compositePlan, out var planDiagnostics))
+            {
+                foreach (var diagnostic in planDiagnostics)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(Descriptor, Location.None, $"{diagnostic.Id}: {diagnostic.Message}"));
+                }
+                return;
+            }
+
+            foreach (var entry in compositePlan!.Composites)
+            {
+                var preparation = UiShaderCompositeBuildPlanner.Prepare(entry, results);
+                if (!preparation.Success || preparation.Variant?.Composition is not { } composition)
+                {
+                    foreach (var diagnostic in preparation.Diagnostics)
+                    {
+                        context.ReportDiagnostic(Diagnostic.Create(Descriptor, Location.None, $"{diagnostic.Id}: {diagnostic.Message}"));
+                    }
+                    continue;
+                }
+
+                var vertexMethods = ResolveMethods(entry.VertexLayers, methodsInAssembly);
+                var fragmentMethods = ResolveMethods(entry.FragmentLayers, methodsInAssembly);
+                if (vertexMethods.Length != entry.VertexLayers.Count || fragmentMethods.Length != entry.FragmentLayers.Count)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        Descriptor,
+                        Location.None,
+                        $"DSH019: UI composite '{entry.Name}' could not resolve all configured layer symbols."));
+                    continue;
+                }
+
+                var vertexManifests = preparation.VertexLayers.Select(result => result.BuildManifest!).ToArray();
+                var fragmentManifests = preparation.FragmentLayers.Select(result => result.BuildManifest!).ToArray();
+                if (!ShaderCompositeSourceGenerator.TryGenerateBuildUiVariant(
+                        entry,
+                        vertexMethods,
+                        vertexManifests,
+                        fragmentMethods,
+                        fragmentManifests,
+                        composition,
+                        preparation.Variant.VariantIdentity,
+                        out var generatedSource,
+                        out var reason))
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        Descriptor,
+                        Location.None,
+                        $"DSH019: UI composite '{entry.Name}' source generation failed: {reason}"));
+                    continue;
+                }
+
+                context.AddSource(entry.GeneratedProgramType + ".g.cs", SourceText.From(generatedSource, Encoding.UTF8));
+            }
+
+            if (!compositePlan.EmitLayerPrograms)
+            {
+                return;
+            }
+        }
+
         foreach (var typeGroup in methodsInAssembly.GroupBy(method => method.ContainingType, SymbolEqualityComparer.Default))
         {
             var vertices = typeGroup.Where(IsVertexShader).ToArray();
@@ -166,13 +251,26 @@ public sealed class DeltaGraphicsGenerator : IIncrementalGenerator
         ShaderCompilationResult[] results,
         IMethodSymbol method)
     {
+        var identity = GetMethodIdentity(method);
+        return results.SingleOrDefault(result => string.Equals(result.SourceMethodIdentity, identity, StringComparison.Ordinal));
+    }
+
+    private static IMethodSymbol[] ResolveMethods(
+        IReadOnlyList<string> identities,
+        IReadOnlyList<IMethodSymbol> methods)
+        => identities.Select(identity => methods.SingleOrDefault(method =>
+                string.Equals(GetMethodIdentity(method), identity, StringComparison.Ordinal)))
+            .OfType<IMethodSymbol>()
+            .ToArray();
+
+    private static string GetMethodIdentity(IMethodSymbol method)
+    {
         var parameters = string.Join(
             ",",
             method.Parameters.Select(parameter =>
                 parameter.RefKind + ":" + parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
-        var identity = method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) +
+        return method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) +
             "." + method.Name + "`" + method.Arity + "(" + parameters + ")";
-        return results.SingleOrDefault(result => string.Equals(result.SourceMethodIdentity, identity, StringComparison.Ordinal));
     }
     private static string Sanitize(string name) => string.Concat(name.Select(c => char.IsLetterOrDigit(c) || c == '_' ? c : '_')) is { Length: > 0 } value ? value : "Graphics";
     private static string Pascalize(string name)

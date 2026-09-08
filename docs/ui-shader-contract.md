@@ -41,16 +41,21 @@ The stable entry-point names and generated program types are:
 | --- | --- |
 | `solid-rectangle` vertex + fragment | `SolidRectangleGraphicsShaderProgram` |
 | `rounded-rectangle` vertex + fragment | `RoundedRectangleGraphicsShaderProgram` |
-| `analytic-rounded-rectangle` vertex + fragment | `AnalyticRoundedRectangleGraphicsShaderProgram` |
+| `rounded-inner-shadow` vertex + fragment | `RoundedInnerShadowGraphicsShaderProgram` |
+| `rounded-inner-glow` vertex + fragment | `RoundedInnerGlowGraphicsShaderProgram` |
 
-Each program is a six-vertex rectangle draw. The vertex stage reads one record
+Other finite effect combinations follow the same canonical
+`<Primitive><EffectSet>GraphicsShaderProgram` and kebab-case entry-point naming.
+There is no generic all-effects program or compatibility alias.
+
+Each visual program is a six-vertex rectangle draw. The vertex stage reads one record
 per instance using `ShaderBuiltins.InstanceIndex`. The fragment stage receives
 the selected record values through the interstage payload. There is no per-
 rectangle push-constant update and no one-draw-per-rectangle requirement.
 
 ## Resource ABI
 
-Both programs use one resource in the vertex stage:
+Instance-backed visual programs use one resource in the vertex stage:
 
 | Set | Binding | Kind | Access | Stages | Layout |
 | ---: | ---: | --- | --- | --- | --- |
@@ -93,45 +98,30 @@ Only frame-wide data is pushed. Both vertex stages expose one push-constant
 range rooted at `Frame` with `UiFrameConstants.Resolution` at offset `0`, size
 `8` bytes, and alignment `8`. The fragment stages have no push-constant range.
 
-The `analytic-rounded-rectangle` vertex stage reads the instance record from
-set `0`, binding `0`; the fragment stage has no resource and receives the
-selected geometry, fill and effect leaves through typed interstage fields. It
-evaluates Stroke/OuterShadow/Glow analytically; backdrop blur, `InsetShadow`
-and `CachedMask` are outside this artifact.
+Each finite analytic visual variant reads its instance record from set `0`,
+binding `0`; the fragment stage has no resource and receives only its selected
+geometry, fill and effect leaves through typed interstage fields. The canonical
+effect taxonomy is `Stroke`, `OuterShadow`, `InnerShadow`, `OuterGlow` and
+`InnerGlow`. Backdrop blur and `CachedMask` are outside analytic artifacts.
 
-### AnalyticRoundedRectangleParameters
+Outer shadow and outer glow expand the raster rectangle by their offset,
+spread and blur radius while remapping UVs back to the original shape. Inner
+shadow and inner glow remain clipped to the original shape coverage. All five
+reuse the same signed-distance evaluation and derivative antialiasing.
 
-The record has base alignment `16`, size `192`, and array stride `192` bytes:
+### Prepared effect parameters
 
-| Field | Type | Offset | Size |
-| --- | --- | ---: | ---: |
-| `Rect` | `float4` | 0 | 16 |
-| `FillColor` | `float4` | 16 | 16 |
-| `CornerRadii` | `float4` | 32 | 16 |
-| `StrokeColor` | `float4` | 48 | 16 |
-| `StrokeOffset` | `float2` | 64 | 8 |
-| `StrokeWidth` / `StrokeBlurRadius` | `float` / `float` | 72 / 76 | 4 / 4 |
-| `StrokeSpread` / `StrokeIntensity` | `float` / `float` | 80 / 84 | 4 / 4 |
-| `OuterShadowColor` | `float4` | 96 | 16 |
-| `OuterShadowOffset` | `float2` | 112 | 8 |
-| `OuterShadowWidth` / `OuterShadowBlurRadius` | `float` / `float` | 120 / 124 | 4 / 4 |
-| `OuterShadowSpread` / `OuterShadowIntensity` | `float` / `float` | 128 / 132 | 4 / 4 |
-| `GlowColor` | `float4` | 144 | 16 |
-| `GlowOffset` | `float2` | 160 | 8 |
-| `GlowWidth` / `GlowBlurRadius` | `float` / `float` | 168 / 172 | 4 / 4 |
-| `GlowSpread` / `GlowIntensity` | `float` / `float` | 176 / 180 | 4 / 4 |
-
-The producer record is a flattened ABI adapter for the neutral typed layers.
-Each `UiEffectLayerParameters` maps field-for-field into its corresponding
-prefixed fields; alignment inserts the gaps before `OuterShadowColor` and
-`GlowColor`, and the final 8 bytes are std430 record padding.
+There is no shared all-effects instance record. Each prepared variant includes
+only its declared effect layers and receives a separately resolved std430
+layout, `ShaderAbi`, generated program identity and typed packer. Exact combined
+variants may share one SDF evaluation, but they do not expose undeclared effect
+fields or runtime feature switches.
 
 The producer-side records mirror the selected fields of
 `Delta.XAML.Contract.UiEffectParameters` without taking a DeltaXAML dependency.
-The mapping is direct by named layer and field; unselected layers are zero.
-The generated `AnalyticRoundedRectangleVertexInstancesElements` packer is the
-only host-side byte writer for this record. The extra effect leaves are
-interstage values, not a second host ABI.
+The mapping is direct by canonical layer and field. The generated
+`Pack<Variant>VertexInstancesElements` method is the only host-side byte writer
+for each record. Effect leaves are interstage values, not a second host ABI.
 
 The generated program exposes these direct root overloads:
 

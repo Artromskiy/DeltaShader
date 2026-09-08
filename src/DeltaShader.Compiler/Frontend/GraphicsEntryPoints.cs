@@ -723,6 +723,34 @@ internal static class GraphicsEntryPoints
             return true;
         }
 
+        bool EnsureLocalStructTypes(SyntaxNode body, SemanticModel model)
+        {
+            foreach (var declaration in body.DescendantNodesAndSelf().OfType<VariableDeclarationSyntax>())
+            {
+                var type = declaration.Type.IsVar
+                    ? declaration.Variables.Count == 1 && declaration.Variables[0].Initializer is { } initializer
+                        ? model.GetTypeInfo(initializer.Value).ConvertedType ?? model.GetTypeInfo(initializer.Value).Type
+                        : null
+                    : model.GetTypeInfo(declaration.Type).Type;
+                if (type is not null && !EnsureStructType(type))
+                {
+                    return false;
+                }
+            }
+
+            foreach (var creation in body.DescendantNodesAndSelf().OfType<BaseObjectCreationExpressionSyntax>())
+            {
+                var type = model.GetTypeInfo(creation).ConvertedType ?? model.GetTypeInfo(creation).Type;
+                if (type is not null && !EnsureStructType(type))
+                {
+                    return false;
+                }
+            }
+
+            RefreshStructMaps();
+            return true;
+        }
+
         RefreshStructMaps();
 
         bool Visit(IMethodSymbol method)
@@ -784,6 +812,10 @@ internal static class GraphicsEntryPoints
             if (!TryGetSemanticModel(context.Compilation, syntax.SyntaxTree, out var model))
             {
                 failureReason = $"Shader helper '{definition.Name}' is not declared in the active shader compilation.";
+                return false;
+            }
+            if (!EnsureLocalStructTypes(helperBody, model))
+            {
                 return false;
             }
             if (!ShaderBodyTranslator.ValidateOutParameters(syntax, model, method, out failureReason))
@@ -873,6 +905,14 @@ internal static class GraphicsEntryPoints
         var entryBody = entrySyntax.Body ?? (SyntaxNode?)entrySyntax.ExpressionBody?.Expression;
         if (entryBody is not null)
         {
+            if (!EnsureLocalStructTypes(entryBody, entryModel))
+            {
+                reason = failureReason;
+                functions = [];
+                names = helperNames;
+                return false;
+            }
+
             var entryMethod = entryModel.GetDeclaredSymbol(entrySyntax) as IMethodSymbol;
             foreach (var invocation in entryBody.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
             {

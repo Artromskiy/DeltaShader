@@ -25,6 +25,12 @@ Add the tool, compiler and analyzer packages to the shader project:
 the integration discovers `Shaders/**/*.cs` and then uses the project's normal
 C# compile items.
 
+Editor-selected composites use a `DeltaShaderComposites.json` file beside the
+project. Its ordered `vertexLayers` and `fragmentLayers` contain exact compiler
+method identities and its `key` is a supported `UiShaderVariantKey`. The build
+adds the plan as an analyzer input, generates one final typed program surface,
+and publishes only the composed modules unless `emitLayerPrograms` is `true`.
+
 ## Result
 
 The project receives validated `.spv`, `.glsl`, `.shader.json` and `.abi.json`

@@ -2016,6 +2016,28 @@ internal static class ShaderBodyTranslator
             }
 
             var assignments = new List<StatementSyntax>();
+            var expressionType = GetTypeInfo(expression).Type;
+            var returnsPayload = expressionType is INamedTypeSymbol namedExpressionType &&
+                SymbolEqualityComparer.Default.Equals(namedExpressionType, _returnType);
+            var returnsInputParameter = returnsPayload && GetSymbolInfo(expression).Symbol is IParameterSymbol;
+            var returnsDefault = expression.IsKind(SyntaxKind.DefaultLiteralExpression) ||
+                expression.IsKind(SyntaxKind.DefaultExpression);
+            string? returnedValueName = null;
+            if (returnsPayload && !returnsInputParameter && !returnsDefault &&
+                expression is not ObjectCreationExpressionSyntax { Initializer: not null })
+            {
+                if (Visit(expression) is not ExpressionSyntax returnedExpression ||
+                    !_structNames.TryGetValue(_returnType, out var returnTypeName))
+                {
+                    Reason ??= "Vertex shader payload return expression could not be translated.";
+                    return SyntaxFactory.EmptyStatement();
+                }
+
+                returnedValueName = "delta_stage_return";
+                assignments.Add(SyntaxFactory.ParseStatement(
+                    $"{returnTypeName} {returnedValueName} = {returnedExpression.ToFullString().Trim()};"));
+            }
+
             foreach (var leaf in ShaderInterstageTraversal.Flatten(_returnType, _context))
             {
                 if (!_outputFields.TryGetValue(leaf.Field, out var outputName))
@@ -2027,14 +2049,15 @@ internal static class ShaderBodyTranslator
                 var value = FindReturnedFieldValue(expression, leaf.Path);
                 var translatedExpression = value is not null
                     ? Visit(value)?.ToFullString().Trim()
-                    : GetTypeInfo(expression).Type is INamedTypeSymbol expressionType &&
-                        SymbolEqualityComparer.Default.Equals(expressionType, _returnType)
-                        ? _outputFields.TryGetValue(leaf.Field, out var outputFieldName)
-                            ? outputFieldName
-                            : _directFields.TryGetValue(leaf.Field, out var directFieldName)
-                                ? directFieldName
-                                : null
-                        : null;
+                    : returnsInputParameter
+                        ? _directFields.TryGetValue(leaf.Field, out var directFieldName)
+                            ? directFieldName
+                            : null
+                        : returnsDefault && TryCreateZeroValue(leaf.Field.Type, out var zero)
+                            ? zero.ToFullString()
+                        : returnedValueName is not null
+                            ? BuildReturnedFieldAccess(returnedValueName, leaf.Path)
+                            : null;
                 if (string.IsNullOrWhiteSpace(translatedExpression))
                 {
                     Reason ??= $"Vertex return value does not initialize field '{leaf.PathName}'.";
@@ -2046,6 +2069,25 @@ internal static class ShaderBodyTranslator
 
             assignments.Add(SyntaxFactory.ParseStatement("return;"));
             return SyntaxFactory.Block(assignments);
+        }
+
+        private string? BuildReturnedFieldAccess(string returnedValueName, IReadOnlyList<IFieldSymbol> path)
+        {
+            var access = returnedValueName;
+            foreach (var field in path)
+            {
+                if (!_structFields.TryGetValue(field, out var fieldName))
+                {
+                    return null;
+                }
+
+                if (fieldName.Length != 0)
+                {
+                    access += "." + fieldName;
+                }
+            }
+
+            return access;
         }
 
         private ExpressionSyntax? FindReturnedFieldValue(ExpressionSyntax expression, IReadOnlyList<IFieldSymbol> path)
@@ -2620,10 +2662,10 @@ internal static class ShaderBodyTranslator
             }
 
             return TryTranslateObjectCreation(typeInfo.ConvertedType ?? typeInfo.Type, node.ArgumentList, node.Initializer) ??
-                SetUnsupportedImplicitCreationReason(node);
+                SetUnsupportedImplicitCreationReason(node, typeInfo.ConvertedType ?? typeInfo.Type);
         }
 
-        private SyntaxNode SetUnsupportedImplicitCreationReason(ImplicitObjectCreationExpressionSyntax node)
+        private SyntaxNode SetUnsupportedImplicitCreationReason(ImplicitObjectCreationExpressionSyntax node, ITypeSymbol? type)
         {
             Reason ??= "Target-typed shader constructor has an unsupported type.";
             return base.VisitImplicitObjectCreationExpression(node) ?? node;
@@ -2638,6 +2680,16 @@ internal static class ShaderBodyTranslator
                 TryTranslateStructCreation(structType, arguments, initializer, out var structExpression))
             {
                 return structExpression;
+            }
+
+            if (initializer is null && type is not null &&
+                ShaderSemanticTypeSupport.TryMapType(type, _context, out var semanticGlslType))
+            {
+                var semanticArguments = arguments?.Arguments
+                    .Select(argument => Visit(argument.Expression) ?? throw new InvalidOperationException("Shader expression visitor returned no argument node."))
+                    .ToArray() ?? Array.Empty<ExpressionSyntax>();
+                return SyntaxFactory.ParseExpression(
+                    semanticGlslType + "(" + string.Join(", ", semanticArguments.Select(argument => argument.ToFullString())) + ")");
             }
 
             if (type is null || !TryMap(type, out var glslType))

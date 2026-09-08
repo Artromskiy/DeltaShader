@@ -24,8 +24,8 @@ public sealed class TextArtifactTests
     [Theory]
     [InlineData("SdfTextGraphicsShaderProgram", "PackSdfTextVertexParameters", "PackSdfTextFragmentParameters")]
     [InlineData("MsdfTextGraphicsShaderProgram", "PackMsdfTextVertexParameters", "PackMsdfTextFragmentParameters")]
-    [InlineData("SdfTextOutlineGlowGraphicsShaderProgram", "PackSdfTextOutlineGlowVertexParameters", "PackSdfTextOutlineGlowFragmentParameters")]
-    [InlineData("MsdfTextOutlineGlowGraphicsShaderProgram", "PackMsdfTextOutlineGlowVertexParameters", "PackMsdfTextOutlineGlowFragmentParameters")]
+    [InlineData("SdfTextStrokeOuterGlowGraphicsShaderProgram", "PackSdfTextStrokeOuterGlowVertexParameters", "PackSdfTextStrokeOuterGlowFragmentParameters")]
+    [InlineData("MsdfTextStrokeOuterGlowGraphicsShaderProgram", "PackMsdfTextStrokeOuterGlowVertexParameters", "PackMsdfTextStrokeOuterGlowFragmentParameters")]
     public void TextGraphicsProgramExposesResolvedAbiAndDirectParameterPackers(
         string programName,
         string vertexPackerName,
@@ -41,8 +41,8 @@ public sealed class TextArtifactTests
     }
 
     [Theory]
-    [InlineData("SdfTextOutlineGlowGraphicsShaderProgram")]
-    [InlineData("MsdfTextOutlineGlowGraphicsShaderProgram")]
+    [InlineData("SdfTextStrokeOuterGlowGraphicsShaderProgram")]
+    [InlineData("MsdfTextStrokeOuterGlowGraphicsShaderProgram")]
     public void TextEffectProgramsExposeOneSharedEffectPushConstantRange(string programName)
     {
         Type programType = typeof(TextShaders).Assembly.GetType("Delta.Render.Text." + programName)
@@ -53,11 +53,11 @@ public sealed class TextArtifactTests
         var vertexPush = Assert.Single(vertexAbi.PushConstants);
         var fragmentPush = Assert.Single(fragmentAbi.PushConstants);
 
-        Assert.Equal(144u, vertexPush.Size);
+        Assert.Equal(96u, vertexPush.Size);
         Assert.Equal(vertexPush.Size, fragmentPush.Size);
         Assert.Equal(vertexPush.Layout.Size, fragmentPush.Layout.Size);
         Assert.Equal(16u, vertexPush.Layout.Alignment);
-        Assert.Equal(144u, vertexPush.Layout.Size);
-        Assert.Equal(14, vertexPush.Layout.Members.Count);
+        Assert.Equal(96u, vertexPush.Layout.Size);
+        Assert.Equal(8, vertexPush.Layout.Members.Count);
     }
 }

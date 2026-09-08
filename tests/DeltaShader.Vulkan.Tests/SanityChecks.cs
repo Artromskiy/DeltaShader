@@ -228,8 +228,8 @@ public class SanityChecks
                     [
                         new ShaderIrStructMember { Name = "Resolution", GlslName = "member_Resolution", GlslType = "vec2", Offset = 0, Alignment = 8, Size = 8, ArrayStride = 8 },
                         new ShaderIrStructMember { Name = "TextColor", GlslName = "member_TextColor", GlslType = "vec4", Offset = 16, Alignment = 16, Size = 16, ArrayStride = 16 },
-                        new ShaderIrStructMember { Name = "OutlineColor", GlslName = "member_OutlineColor", GlslType = "vec4", Offset = 32, Alignment = 16, Size = 16, ArrayStride = 16 },
-                        new ShaderIrStructMember { Name = "OutlineWidth", GlslName = "member_OutlineWidth", GlslType = "float", Offset = 48, Alignment = 4, Size = 4, ArrayStride = 4 }
+                        new ShaderIrStructMember { Name = "StrokeColor", GlslName = "member_StrokeColor", GlslType = "vec4", Offset = 32, Alignment = 16, Size = 16, ArrayStride = 16 },
+                        new ShaderIrStructMember { Name = "StrokeWidth", GlslName = "member_StrokeWidth", GlslType = "float", Offset = 48, Alignment = 4, Size = 4, ArrayStride = 4 }
                     ]
                 }
             ],

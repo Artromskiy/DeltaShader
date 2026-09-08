@@ -10,7 +10,7 @@ effects:
 - `Visual/Solid/LinearGradient`, analytic quality;
 - `Visual/Solid/Image`, analytic quality.
 
-These resource keys are deliberately narrow. Stroke, outline, glow, shadows and
+These resource keys are deliberately narrow. Stroke, outer/inner glow, shadows and
 `CachedMask` are not implicitly combined with them; such combinations produce a
 stable `DSH019` disposition until a separate prepared variant is added.
 Rounded resource variants are also outside the current prepared matrix:
@@ -37,29 +37,31 @@ One concrete artifact identity cannot be reused by different variant keys. This
 prevents an all-effects program from being silently aliased to variants whose
 layer sets should have been lowered independently.
 
-The current producer handoff contains 14 visual and 12 text entries. The
+The canonical producer handoff contains 15 visual and 16 text entries. The
 effect variants include independent prepared pairs such as:
 
 - `Visual/Rounded/OuterShadow`: rounded visual layer set with analytic outer
   shadow;
-- `Text/Sdf/Glow`: SDF text layer set with analytic glow.
-- `Visual/Rounded/InsetShadow`: rounded visual layer set with analytic inset
+- `Text/Sdf/OuterGlow`: SDF text layer set with analytic outer glow.
+- `Visual/Rounded/InnerShadow`: rounded visual layer set with analytic inner
   shadow;
-- `Text/Msdf/Glow`: MSDF text layer set with analytic glow.
+- `Text/Msdf/InnerGlow`: MSDF text layer set with analytic inner glow.
 - `Visual/Solid/Stroke`: solid visual layer set with analytic stroke;
-- `Visual/Solid/Glow`: solid visual layer set with analytic glow;
-- `Text/Msdf/Outline`: MSDF text layer set with analytic outline;
+- `Visual/Solid/OuterGlow`: solid visual layer set with analytic outer glow;
+- `Text/Msdf/Stroke`: MSDF text layer set with analytic stroke;
 - `Text/Sdf/OuterShadow`: SDF text layer set with analytic outer shadow.
 - `Visual/Solid/OuterShadow`: solid visual layer set with analytic outer shadow;
 - `Visual/Rounded/Stroke+OuterShadow`: rounded visual layer set with analytic
   stroke and outer shadow;
 - `Text/Msdf/OuterShadow`: MSDF text layer set with analytic outer shadow;
-- `Text/Sdf/Outline+OuterShadow+Glow`: SDF text layer set with analytic outline,
-  outer shadow and glow.
-- `Visual/Rounded/Stroke+Glow`: rounded visual layer set with analytic stroke and
-  glow;
-- `Text/Msdf/Outline+OuterShadow+Glow`: MSDF text layer set with analytic outline,
-  outer shadow and glow.
+- `Text/Sdf/Stroke+OuterShadow+OuterGlow`: SDF text layer set with analytic stroke,
+  outer shadow and outer glow.
+- `Visual/Rounded/Stroke+OuterGlow`: rounded visual layer set with analytic stroke
+  and outer glow;
+- `Text/Msdf/Stroke+OuterShadow+OuterGlow`: MSDF text layer set with analytic stroke,
+  outer shadow and outer glow.
+- `Visual/Rounded/InnerGlow`: rounded visual layer set with analytic inner glow;
+- `Text/Sdf/InnerShadow`: SDF text layer set with analytic inner shadow.
 
 Each entry in this finite matrix has its own generated program identity, resolved
 vertex and fragment ABI, ABI-derived packers and artifact pair. DeltaShader
@@ -74,3 +76,9 @@ the already prepared artifact and resolved ABI; it does not infer this manifest
 or duplicate packing/layout logic.
 
 Text `CachedMask` remains Render-owned and is not a DeltaShader variant.
+
+Capability identities use the fixed order `Stroke`, `OuterShadow`,
+`InnerShadow`, `OuterGlow`, `InnerGlow`. Stable names spell those capabilities
+explicitly instead of encoding an opaque bit mask. The dense versioned values
+are `0x01`, `0x02`, `0x04`, `0x08`, `0x10`. This is a breaking taxonomy
+revision: old numeric masks are not parsed or migrated as current variant keys.

@@ -28,7 +28,8 @@ return options.Command switch
 
 static async Task<int> ExecuteCheckAsync(ProgramOptions options)
 {
-    var results = await CompileProjectAsync(options).ConfigureAwait(false);
+    var projectCompilation = await CompileProjectAsync(options).ConfigureAwait(false);
+    var results = projectCompilation.Results;
     var success = results.All(result => result.Success);
     Console.WriteLine($"Shader entry points: {(success ? "valid" : "invalid")}");
     foreach (var result in results)
@@ -52,7 +53,8 @@ static async Task<int> ExecuteEmitAsync(ProgramOptions options)
         return 1;
     }
 
-    var results = await CompileProjectAsync(options).ConfigureAwait(false);
+    var projectCompilation = await CompileProjectAsync(options).ConfigureAwait(false);
+    var results = projectCompilation.Results;
     if (results.Any(result => !result.Success))
     {
         Console.WriteLine("Emit failed: compile diagnostics:");
@@ -71,34 +73,68 @@ static async Task<int> ExecuteEmitAsync(ProgramOptions options)
     var outputDirectory = options.OutputDirectory ??
         Path.Combine(Path.GetDirectoryName(options.ProjectPath) ?? Environment.CurrentDirectory, "obj", "DeltaShader");
     Directory.CreateDirectory(outputDirectory);
-    foreach (var result in results)
+    if (projectCompilation.Compilation is null)
     {
-        var manifest = result.BuildManifest;
-        if (result.Module is null || manifest is null)
+        return 1;
+    }
+
+    var units = new List<ShaderEmitUnit>();
+    var compositePlanPath = Path.Combine(
+        Path.GetDirectoryName(options.ProjectPath) ?? Environment.CurrentDirectory,
+        UiShaderCompositeBuildPlan.DefaultFileName);
+    if (File.Exists(compositePlanPath))
+    {
+        if (!UiShaderCompositeBuildPlan.TryParse(
+                await File.ReadAllTextAsync(compositePlanPath).ConfigureAwait(false),
+                out var plan,
+                out var planDiagnostics))
         {
+            PrintDiagnostics(planDiagnostics);
             return 1;
         }
 
-        var entryName = string.IsNullOrWhiteSpace(result.SourceMethodName)
-            ? result.Module.Stage.ToString()
-            : result.SourceMethodName;
-        var stageSuffix = result.Module.Stage switch
+        if (plan!.EmitLayerPrograms)
+        {
+            AddLayerUnits(results, units);
+        }
+
+        foreach (var entry in plan.Composites)
+        {
+            var preparation = UiShaderCompositeBuildPlanner.Prepare(entry, results);
+            if (!preparation.Success || preparation.Variant?.Composition is not { Vertex: { } vertex, Fragment: { } fragment } composition)
+            {
+                PrintDiagnostics(preparation.Diagnostics);
+                return 1;
+            }
+
+            units.Add(new ShaderEmitUnit(entry.Name, vertex, composition.GetBuildManifest(ShaderStage.Vertex)));
+            units.Add(new ShaderEmitUnit(entry.Name, fragment, composition.GetBuildManifest(ShaderStage.Fragment)));
+        }
+    }
+    else
+    {
+        AddLayerUnits(results, units);
+    }
+
+    foreach (var unit in units)
+    {
+        var stageSuffix = unit.Module.Stage switch
         {
             ShaderStage.Vertex => "vert",
             ShaderStage.Fragment => "frag",
             _ => "comp"
         };
-        var fileStem = $"{entryName}.{stageSuffix}";
+        var fileStem = $"{unit.Name}.{stageSuffix}";
         var glslFile = Path.Combine(outputDirectory, $"{fileStem}.glsl");
         var manifestFile = Path.Combine(outputDirectory, $"{fileStem}.shader.json");
-        var emitResult = GlslEmitter.EmitFromModule(result.Module);
+        var emitResult = GlslEmitter.EmitFromModule(unit.Module);
         if (!emitResult.Success)
         {
             return 1;
         }
 
         await File.WriteAllTextAsync(glslFile, emitResult.Source, new UTF8Encoding(false)).ConfigureAwait(false);
-        await File.WriteAllTextAsync(manifestFile, JsonSerializer.Serialize(result.BuildManifest, new JsonSerializerOptions { WriteIndented = true }), new UTF8Encoding(false)).ConfigureAwait(false);
+        await File.WriteAllTextAsync(manifestFile, JsonSerializer.Serialize(unit.Manifest, new JsonSerializerOptions { WriteIndented = true }), new UTF8Encoding(false)).ConfigureAwait(false);
         if (string.Equals(options.Backend, "spirv", StringComparison.OrdinalIgnoreCase))
         {
             var glslang = ToolPath("glslangValidator");
@@ -143,7 +179,7 @@ static async Task<int> ExecuteEmitAsync(ProgramOptions options)
             }
             var artifact = ShaderArtifactPublisher.Create(
                 await File.ReadAllBytesAsync(spirvFile).ConfigureAwait(false),
-                manifest);
+                unit.Manifest);
             await File.WriteAllBytesAsync(spirvFile, artifact.CopySpirv()).ConfigureAwait(false);
             Console.WriteLine($"Wrote {spirvFile}");
         }
@@ -160,7 +196,33 @@ static Task<int> ExecuteMathsConformanceAsync(ProgramOptions options)
     return MathsConformancePublisher.PublishAsync(options.ProjectPath, outputDirectory, options.CompilationOptions);
 }
 
-static async Task<IReadOnlyList<ShaderCompilationResult>> CompileProjectAsync(ProgramOptions options)
+static void AddLayerUnits(
+    IReadOnlyList<ShaderCompilationResult> results,
+    ICollection<ShaderEmitUnit> units)
+{
+    foreach (var result in results)
+    {
+        if (result.Module is null || result.BuildManifest is null)
+        {
+            continue;
+        }
+
+        var name = string.IsNullOrWhiteSpace(result.SourceMethodName)
+            ? result.Module.Stage.ToString()
+            : result.SourceMethodName;
+        units.Add(new ShaderEmitUnit(name, result.Module, result.BuildManifest));
+    }
+}
+
+static void PrintDiagnostics(IEnumerable<ShaderDiagnostic> diagnostics)
+{
+    foreach (var diagnostic in diagnostics)
+    {
+        Console.WriteLine($"error {diagnostic.Id} {diagnostic.Location}: {diagnostic.Message}");
+    }
+}
+
+static async Task<ProjectShaderCompilation> CompileProjectAsync(ProgramOptions options)
 {
     if (!MSBuildLocator.IsRegistered)
     {
@@ -173,10 +235,14 @@ static async Task<IReadOnlyList<ShaderCompilationResult>> CompileProjectAsync(Pr
 
     if (compilation is null)
     {
-        return [new ShaderCompilationResult(string.Empty, false, [new ShaderDiagnostic(ShaderDiagnosticId.DSH004, $"Unable to load compilation for project '{options.ProjectPath}'.")])];
+        return new ProjectShaderCompilation(
+            null,
+            [new ShaderCompilationResult(string.Empty, false, [new ShaderDiagnostic(ShaderDiagnosticId.DSH004, $"Unable to load compilation for project '{options.ProjectPath}'.")])]);
     }
 
-    return ShaderCompiler.CompileAll(compilation, options.CompilationOptions);
+    return new ProjectShaderCompilation(
+        compilation,
+        ShaderCompiler.CompileAll(compilation, options.CompilationOptions));
 }
 
 static ProgramOptions ParseOptions(string[] args)
@@ -347,3 +413,12 @@ internal readonly record struct ProgramOptions(
     ShaderCompilationOptions CompilationOptions,
     string? OutputDirectory,
     string Backend);
+
+internal readonly record struct ProjectShaderCompilation(
+    Compilation? Compilation,
+    IReadOnlyList<ShaderCompilationResult> Results);
+
+internal readonly record struct ShaderEmitUnit(
+    string Name,
+    Delta.Shader.Compiler.IR.ShaderIrModule Module,
+    ShaderCompilationManifest Manifest);

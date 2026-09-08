@@ -292,6 +292,15 @@ Composition is compile-time/tooling work, not runtime C# execution or several
 Vulkan entry points per draw. The current compiler still emits one static
 vertex and one static fragment entry point per generated pair.
 
+For a build-owned composite, place `DeltaShaderComposites.json` beside the
+shader project. Each entry names the generated program and records the finite
+UI variant key plus ordered `vertexLayers` and `fragmentLayers`. Layer values
+are exact `ShaderCompilationResult.SourceMethodIdentity` strings, never short
+method names. The NuGet build integration adds this file to the generator,
+emits one generated `*GraphicsShaderProgram`, and publishes only its final
+`.vert/.frag` modules by default. Set `emitLayerPrograms` to `true` only when
+the project intentionally publishes the source layers as independent shaders.
+
 Compile-time `const` values remain inlined and do not become context fields or
 bindings. Values supplied by host code must be explicitly annotated as push
 constants or declared resources.
@@ -327,15 +336,15 @@ payload uses these units:
 
 - `DistanceRange` is the positive signed-distance range represented by the
   texture's encoded `[0, 1]` span, measured in atlas distance-field units.
-- `OutlineWidth` is the outer outline width in the same distance-field units.
+- `StrokeWidth` is the outer stroke width in the same distance-field units.
   The host converts any UI or logical-pixel width before packing the value.
 - Positive signed distance is inside the glyph. Fill coverage increases with
-  signed distance; outline coverage is the finite band outside the contour and
-  is zero when `OutlineWidth` is zero.
+  signed distance; stroke coverage is the finite band outside the contour and
+  is zero when `StrokeWidth` is zero.
 
 `DistanceRange` must be positive. The SDF path uses the texture alpha channel;
 the MSDF path uses the median of RGB. Both paths use `fwidth` for analytic
-anti-aliasing and expose `TextColor`/`OutlineColor` explicitly in the same
+anti-aliasing and expose `TextColor`/`StrokeColor` explicitly in the same
 push-constant block.
 
 ## Build-side generation

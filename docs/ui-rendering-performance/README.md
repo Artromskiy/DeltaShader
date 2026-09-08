@@ -194,7 +194,7 @@ border, and regions known to be fully inside the shape.
 ### Border
 
 For a thin border, derive inner and outer coverage from the same shape distance
-and blend fill and outline once. Avoid a second full-quad pass for a simple
+and blend fill and stroke once. Avoid a second full-quad pass for a simple
 border. Use a dedicated variant or cached mask for wide strokes, complex joins,
 or effects that would otherwise add branches to every rectangle.
 
@@ -210,7 +210,7 @@ and do not make every pixel pay for a complex clip that is not present.
 
 Shape text once per content, font, size, script, and shaping-style change.
 Cache shaped runs and retain glyph instance records. Upload positions, UVs,
-atlas page, color, outline width, distance range, and effect parameters through
+atlas page, color, stroke width, distance range, and effect parameters through
 the generated artifact packer.
 
 Skia is a useful production reference for this policy. Its GPU text path uses
@@ -229,7 +229,7 @@ Select representation by scale and quality rather than forcing one format:
 | Single-channel SDF | moderate scale changes | softer high-scale corners |
 | MSDF | scalable text and sharp corners | more texture/setup work |
 | MTSDF | effects needing a true signed distance | reserve for that requirement |
-| Outline path | very large glyphs or unsupported transforms | more geometry and draw work |
+| Stroke path | very large glyphs or unsupported transforms | more geometry and draw work |
 
 The shader samples distance data as linear data and keeps distance-range units
 explicit in the ABI. For MSDF, use the median of the distance channels and a
@@ -237,7 +237,7 @@ screen-space range. The [msdfgen documentation](https://github.com/Chlumsky/msdf
 describes the median and `screenPxRange` requirements.
 
 Valve's [distance-field text and special-effects paper](https://steamcdn-a.akamaihd.net/apps/valve/2007/SIGGRAPH2007_AlphaTestedMagnification.pdf)
-is the production reference for deriving antialiasing, outline, drop-shadow,
+is the production reference for deriving antialiasing, stroke, drop-shadow,
 and related effects from a compact field.
 
 ### Text batches
@@ -254,8 +254,8 @@ Use a fixed effect family instead of an unbounded feature matrix:
 | Effect | Small/local case | Large/expensive case |
 | --- | --- | --- |
 | Shadow | reuse shape/glyph distance with one offset | cached mask plus bounded blur |
-| Glow | reuse distance with one soft band | cached mask or explicit effect pass |
-| Outline | same-pass inner/outer coverage | dedicated stroke artifact or mask |
+| Outer/inner glow | reuse distance with one outside/inside soft band | cached mask or explicit effect pass |
+| Stroke | same-pass inner/outer coverage | dedicated stroke artifact or mask |
 | Blur | one documented small kernel | separable cached mask pass |
 | Distortion | one bounded transform/sample | cached or precomputed effect surface |
 
@@ -309,7 +309,7 @@ Every artifact family needs compiler/golden tests for:
 - zero, uniform, and non-uniform rounded radii;
 - thin and thick borders;
 - clipped and unclipped shapes;
-- text fill, outline, small shadow, and small glow;
+- text fill, stroke, small shadow, and small outer/inner glow;
 - bitmap/SDF/MSDF selection and fallback;
 - atlas-page and sampler batch breaks;
 - dirty-range updates with unchanged records outside the range;
@@ -318,7 +318,7 @@ Every artifact family needs compiler/golden tests for:
 
 Every optimization needs a reference comparison on target Vulkan devices. The
 minimum visual set includes zero-effect, zero-radius, uniform radii, non-uniform
-radii, border, clip, text outline, shadow, glow, and high-overdraw scenes.
+radii, border, clip, text stroke, shadow, outer/inner glow, and high-overdraw scenes.
 Report image tolerance and timing separately. A compiler or artifact smoke is
 not a GPU performance result.
 
