@@ -1,5 +1,6 @@
 using System.Reflection;
 using Delta.Render.Text;
+using Delta.Shader.Contract;
 using Xunit;
 
 namespace Delta.Shader.Vulkan.Tests;
@@ -23,6 +24,8 @@ public sealed class TextArtifactTests
     [Theory]
     [InlineData("SdfTextGraphicsShaderProgram", "PackSdfTextVertexParameters", "PackSdfTextFragmentParameters")]
     [InlineData("MsdfTextGraphicsShaderProgram", "PackMsdfTextVertexParameters", "PackMsdfTextFragmentParameters")]
+    [InlineData("SdfTextOutlineGlowGraphicsShaderProgram", "PackSdfTextOutlineGlowVertexParameters", "PackSdfTextOutlineGlowFragmentParameters")]
+    [InlineData("MsdfTextOutlineGlowGraphicsShaderProgram", "PackMsdfTextOutlineGlowVertexParameters", "PackMsdfTextOutlineGlowFragmentParameters")]
     public void TextGraphicsProgramExposesResolvedAbiAndDirectParameterPackers(
         string programName,
         string vertexPackerName,
@@ -35,5 +38,26 @@ public sealed class TextArtifactTests
         Assert.NotNull(programType.GetProperty("FragmentAbi", BindingFlags.Public | BindingFlags.Static));
         Assert.Contains(programType.GetMethods(BindingFlags.Public | BindingFlags.Static), method => method.Name == vertexPackerName);
         Assert.Contains(programType.GetMethods(BindingFlags.Public | BindingFlags.Static), method => method.Name == fragmentPackerName);
+    }
+
+    [Theory]
+    [InlineData("SdfTextOutlineGlowGraphicsShaderProgram")]
+    [InlineData("MsdfTextOutlineGlowGraphicsShaderProgram")]
+    public void TextEffectProgramsExposeOneSharedEffectPushConstantRange(string programName)
+    {
+        Type programType = typeof(TextShaders).Assembly.GetType("Delta.Render.Text." + programName)
+            ?? throw new InvalidOperationException("Generated text graphics program was not found: " + programName);
+
+        var vertexAbi = (ShaderAbi)programType.GetProperty("VertexAbi", BindingFlags.Public | BindingFlags.Static)!.GetValue(null)!;
+        var fragmentAbi = (ShaderAbi)programType.GetProperty("FragmentAbi", BindingFlags.Public | BindingFlags.Static)!.GetValue(null)!;
+        var vertexPush = Assert.Single(vertexAbi.PushConstants);
+        var fragmentPush = Assert.Single(fragmentAbi.PushConstants);
+
+        Assert.Equal(96u, vertexPush.Size);
+        Assert.Equal(vertexPush.Size, fragmentPush.Size);
+        Assert.Equal(vertexPush.Layout.Size, fragmentPush.Layout.Size);
+        Assert.Equal(16u, vertexPush.Layout.Alignment);
+        Assert.Equal(96u, vertexPush.Layout.Size);
+        Assert.Equal(8, vertexPush.Layout.Members.Count);
     }
 }
