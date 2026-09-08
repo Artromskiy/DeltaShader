@@ -141,6 +141,49 @@ public sealed class UiShaderEffectVariantHandoffTests
         }
     }
 
+    [Fact]
+    public void CompositeEffectVariantsRequireDistinctPreparedPairs()
+    {
+        var root = Directory.CreateTempSubdirectory("delta-shader-ui-effects-5-");
+        try
+        {
+            var keys = new[]
+            {
+                CreateVisualRoundedStrokeGlowKey(),
+                CreateTextMsdfOutlineOuterShadowGlowKey()
+            };
+            var entries = keys
+                .Select((key, index) => CreateEntry(root, key, $"composite-effect-variant-{index}"))
+                .ToArray();
+
+            var validation = UiShaderVariantProducerValidator.Validate(
+                keys,
+                entries,
+                root.FullName,
+                root.FullName);
+
+            Assert.True(validation.IsValid, string.Join(Environment.NewLine, validation.Diagnostics));
+            Assert.Equal(2, validation.ValidatedVariants);
+            Assert.Empty(validation.MissingVariants);
+            Assert.Empty(validation.UnsupportedVariants);
+            Assert.Equal(2, entries.Select(entry => entry.LayerSetIdentity).Distinct().Count());
+            Assert.Equal(2, entries.Select(entry => entry.GeneratedProgram).Distinct().Count());
+            Assert.Equal(2, entries.Select(entry => entry.VertexSpirv).Distinct().Count());
+            Assert.Equal(2, entries.Select(entry => entry.FragmentSpirv).Distinct().Count());
+            Assert.All(entries, entry =>
+            {
+                Assert.Equal("VertexAbi", entry.VertexAbiAccessor);
+                Assert.Equal("FragmentAbi", entry.FragmentAbiAccessor);
+                Assert.Equal("PackVertex", entry.VertexPacker);
+                Assert.Equal("PackFragment", entry.FragmentPacker);
+            });
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
+
     private static UiShaderVariantKey CreateVisualRoundedOuterShadowKey()
     {
         Assert.True(
@@ -232,6 +275,19 @@ public sealed class UiShaderEffectVariantHandoffTests
         return key;
     }
 
+    private static UiShaderVariantKey CreateVisualRoundedStrokeGlowKey()
+    {
+        Assert.True(
+            UiShaderVariantCatalog.TryCreateVisual(
+                UiShaderPrimitive.Rounded,
+                UiShaderEffectCapabilities.Stroke | UiShaderEffectCapabilities.Glow,
+                UiShaderQuality.Analytic,
+                out var key,
+                out var diagnostic),
+            diagnostic?.Message);
+        return key;
+    }
+
     private static UiShaderVariantKey CreateVisualRoundedStrokeOuterShadowKey()
     {
         Assert.True(
@@ -289,6 +345,21 @@ public sealed class UiShaderEffectVariantHandoffTests
         Assert.True(
             UiShaderVariantCatalog.TryCreateText(
                 UiShaderTextRepresentation.Sdf,
+                UiShaderEffectCapabilities.Outline |
+                    UiShaderEffectCapabilities.OuterShadow |
+                    UiShaderEffectCapabilities.Glow,
+                UiShaderQuality.Analytic,
+                out var key,
+                out var diagnostic),
+            diagnostic?.Message);
+        return key;
+    }
+
+    private static UiShaderVariantKey CreateTextMsdfOutlineOuterShadowGlowKey()
+    {
+        Assert.True(
+            UiShaderVariantCatalog.TryCreateText(
+                UiShaderTextRepresentation.Msdf,
                 UiShaderEffectCapabilities.Outline |
                     UiShaderEffectCapabilities.OuterShadow |
                     UiShaderEffectCapabilities.Glow,
