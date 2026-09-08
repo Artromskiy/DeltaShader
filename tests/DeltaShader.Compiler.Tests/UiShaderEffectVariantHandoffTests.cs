@@ -34,6 +34,34 @@ public sealed class UiShaderEffectVariantHandoffTests
         }
     }
 
+    [Fact]
+    public void VisualRoundedInsetShadowAndTextMsdfGlowRequireDistinctPreparedPairs()
+    {
+        var root = Directory.CreateTempSubdirectory("delta-shader-ui-effects-2-");
+        try
+        {
+            var visualKey = CreateVisualRoundedInsetShadowKey();
+            var textKey = CreateTextMsdfGlowKey();
+            var visualEntry = CreateEntry(root, visualKey, "visual-rounded-inset-shadow");
+            var textEntry = CreateEntry(root, textKey, "text-msdf-glow");
+
+            var validation = UiShaderVariantProducerValidator.Validate(
+                [visualKey, textKey],
+                [visualEntry, textEntry],
+                root.FullName,
+                root.FullName);
+
+            Assert.True(validation.IsValid, string.Join(Environment.NewLine, validation.Diagnostics));
+            Assert.Equal(2, validation.ValidatedVariants);
+            Assert.Empty(validation.MissingVariants);
+            Assert.Empty(validation.UnsupportedVariants);
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
+
     private static UiShaderVariantKey CreateVisualRoundedOuterShadowKey()
     {
         Assert.True(
@@ -52,6 +80,32 @@ public sealed class UiShaderEffectVariantHandoffTests
         Assert.True(
             UiShaderVariantCatalog.TryCreateText(
                 UiShaderTextRepresentation.Sdf,
+                UiShaderEffectCapabilities.Glow,
+                UiShaderQuality.Analytic,
+                out var key,
+                out var diagnostic),
+            diagnostic?.Message);
+        return key;
+    }
+
+    private static UiShaderVariantKey CreateVisualRoundedInsetShadowKey()
+    {
+        Assert.True(
+            UiShaderVariantCatalog.TryCreateVisual(
+                UiShaderPrimitive.Rounded,
+                UiShaderEffectCapabilities.InsetShadow,
+                UiShaderQuality.Analytic,
+                out var key,
+                out var diagnostic),
+            diagnostic?.Message);
+        return key;
+    }
+
+    private static UiShaderVariantKey CreateTextMsdfGlowKey()
+    {
+        Assert.True(
+            UiShaderVariantCatalog.TryCreateText(
+                UiShaderTextRepresentation.Msdf,
                 UiShaderEffectCapabilities.Glow,
                 UiShaderQuality.Analytic,
                 out var key,

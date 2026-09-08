@@ -29,6 +29,9 @@ The first effect handoff targets are two independent prepared variants:
 - `Visual/Rounded/OuterShadow`: rounded visual layer set with analytic outer
   shadow;
 - `Text/Sdf/Glow`: SDF text layer set with analytic glow.
+- `Visual/Rounded/InsetShadow`: rounded visual layer set with analytic inset
+  shadow;
+- `Text/Msdf/Glow`: MSDF text layer set with analytic glow.
 
 Each target must have its own generated program identity, resolved vertex and
 fragment ABI, packers and artifact pair. DeltaShader validates that handoff but
