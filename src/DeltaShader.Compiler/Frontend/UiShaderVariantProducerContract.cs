@@ -12,7 +12,10 @@ public readonly record struct UiShaderVariantProducerEntry(
     string VertexAbiAccessor,
     string FragmentAbiAccessor,
     string VertexEntryPoint,
-    string FragmentEntryPoint);
+    string FragmentEntryPoint)
+{
+    public string LayerSetIdentity { get; init; } = string.Empty;
+}
 
 public readonly record struct UiShaderVariantProducerValidation(
     int AllowlistedVariants,
@@ -58,6 +61,7 @@ public static class UiShaderVariantProducerValidator
         var allowlist = allowlistedVariants.ToImmutableArray();
         var entries = producerEntries.ToImmutableArray();
         var keys = new HashSet<UiShaderVariantKey>();
+        var artifactOwners = new Dictionary<string, UiShaderVariantKey>(StringComparer.Ordinal);
 
         foreach (var key in allowlist)
         {
@@ -93,6 +97,27 @@ public static class UiShaderVariantProducerValidator
             }
 
             ValidateEntry(entry, producerRoot, artifactRoot, diagnostics);
+
+            if (string.IsNullOrWhiteSpace(entry.LayerSetIdentity))
+            {
+                diagnostics.Add($"DSH019: UI shader variant '{entry.Key}' has no deterministic layer-set identity.");
+            }
+
+            var artifactIdentity = string.Join(
+                "|",
+                entry.GeneratedProgram,
+                entry.VertexSpirv,
+                entry.FragmentSpirv,
+                entry.VertexEntryPoint,
+                entry.FragmentEntryPoint);
+            if (artifactOwners.TryGetValue(artifactIdentity, out var owner) && !owner.Equals(entry.Key))
+            {
+                diagnostics.Add($"DSH019: UI artifact identity '{artifactIdentity}' is aliased by variants '{owner}' and '{entry.Key}'.");
+            }
+            else
+            {
+                artifactOwners[artifactIdentity] = entry.Key;
+            }
         }
 
         var validatedVariants = 0;
