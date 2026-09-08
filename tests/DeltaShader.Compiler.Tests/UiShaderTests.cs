@@ -137,8 +137,8 @@ public sealed class UiShaderTests
         }
 
         var vertexResource = Assert.Single(vertexManifest.Resources);
-        Assert.Equal(192u, vertexResource.Size);
-        Assert.Equal(192u, vertexResource.ArrayStride);
+        Assert.Equal(240u, vertexResource.Size);
+        Assert.Equal(240u, vertexResource.ArrayStride);
         Assert.Equal(ShaderStage.Vertex, vertexResource.Stage);
         Assert.Empty(fragmentManifest.Resources);
 
@@ -150,8 +150,10 @@ public sealed class UiShaderTests
         Assert.Equal(84u, Assert.Single(vertexResource.Members, member => member.Name == "StrokeIntensity").Offset);
         Assert.Equal(96u, Assert.Single(vertexResource.Members, member => member.Name == "OuterShadowColor").Offset);
         Assert.Equal(112u, Assert.Single(vertexResource.Members, member => member.Name == "OuterShadowOffset").Offset);
-        Assert.Equal(144u, Assert.Single(vertexResource.Members, member => member.Name == "GlowColor").Offset);
-        Assert.Equal(160u, Assert.Single(vertexResource.Members, member => member.Name == "GlowOffset").Offset);
+        Assert.Equal(144u, Assert.Single(vertexResource.Members, member => member.Name == "InsetShadowColor").Offset);
+        Assert.Equal(160u, Assert.Single(vertexResource.Members, member => member.Name == "InsetShadowOffset").Offset);
+        Assert.Equal(192u, Assert.Single(vertexResource.Members, member => member.Name == "GlowColor").Offset);
+        Assert.Equal(208u, Assert.Single(vertexResource.Members, member => member.Name == "GlowOffset").Offset);
 
         Assert.Equal(8u, Assert.Single(vertexManifest.PushConstants).Size);
         Assert.Empty(fragmentManifest.PushConstants);
@@ -162,6 +164,7 @@ public sealed class UiShaderTests
         Assert.DoesNotContain("gl_InstanceIndex", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("exp", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("smoothstep", fragmentGlsl, StringComparison.Ordinal);
+        Assert.Contains("InsetShadow", fragmentGlsl, StringComparison.Ordinal);
     }
 
     [Fact]

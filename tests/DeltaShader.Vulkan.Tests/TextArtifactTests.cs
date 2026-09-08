@@ -53,11 +53,11 @@ public sealed class TextArtifactTests
         var vertexPush = Assert.Single(vertexAbi.PushConstants);
         var fragmentPush = Assert.Single(fragmentAbi.PushConstants);
 
-        Assert.Equal(96u, vertexPush.Size);
+        Assert.Equal(144u, vertexPush.Size);
         Assert.Equal(vertexPush.Size, fragmentPush.Size);
         Assert.Equal(vertexPush.Layout.Size, fragmentPush.Layout.Size);
         Assert.Equal(16u, vertexPush.Layout.Alignment);
-        Assert.Equal(96u, vertexPush.Layout.Size);
-        Assert.Equal(8, vertexPush.Layout.Members.Count);
+        Assert.Equal(144u, vertexPush.Layout.Size);
+        Assert.Equal(14, vertexPush.Layout.Members.Count);
     }
 }
