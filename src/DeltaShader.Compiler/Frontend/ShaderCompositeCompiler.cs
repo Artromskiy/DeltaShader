@@ -33,7 +33,8 @@ public static class ShaderCompositeCompiler
 
         var logicalFields = context.Fields
             .Where(field => field.Kind == ShaderCompositeContextFieldKind.Interstage &&
-                field.GlslType.Length > 0)
+                field.GlslType.Length > 0 &&
+                IsLiveInterstageField(field, layers))
             .ToArray();
         var names = CreateLogicalNames(logicalFields);
         var resources = MergeResources(layers, diagnostics);
@@ -427,6 +428,31 @@ public static class ShaderCompositeCompiler
 
     private static bool IsPosition(ShaderCompositeContextField field)
         => field.TypeIdentity.EndsWith("Delta.Shader.Position", StringComparison.Ordinal);
+
+    private static bool IsLiveInterstageField(
+        ShaderCompositeContextField field,
+        IReadOnlyList<ShaderCompilationResult> layers)
+    {
+        if (IsPosition(field))
+        {
+            return true;
+        }
+
+        return layers.Any(layer => layer.Module?.ContextFields.Any(moduleField =>
+            moduleField.Kind == ShaderIrContextFieldKind.Interstage &&
+            string.Equals(moduleField.TypeIdentity, field.TypeIdentity, StringComparison.Ordinal) &&
+            ContainsFieldUse(layer.Module.Body, moduleField)) == true);
+    }
+
+    private static bool ContainsFieldUse(string? body, ShaderIrContextField field)
+        => ContainsToken(body, field.ReadGlslName) || ContainsToken(body, field.WriteGlslName);
+
+    private static bool ContainsToken(string? body, string token)
+        => !string.IsNullOrEmpty(token) &&
+            Regex.IsMatch(
+                body ?? string.Empty,
+                "(?<![A-Za-z0-9_])" + Regex.Escape(token) + "(?![A-Za-z0-9_])",
+                RegexOptions.CultureInvariant);
 
     private static bool MembersMatch(
         IReadOnlyList<ShaderIrStructMember> left,
