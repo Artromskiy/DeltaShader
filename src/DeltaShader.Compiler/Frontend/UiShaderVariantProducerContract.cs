@@ -62,6 +62,14 @@ public static class UiShaderVariantProducerValidator
                 diagnostics.Add($"UI shader variant '{key}' is duplicated in the allowlist.");
             }
 
+            if (!UiShaderVariantCatalog.TryValidate(key, out var catalogDiagnostic))
+            {
+                var message = catalogDiagnostic is null
+                    ? "The UI shader variant is not supported by the finite catalog."
+                    : catalogDiagnostic.Message;
+                diagnostics.Add($"DSH019: {message}");
+            }
+
         }
 
         foreach (var entry in entries)
@@ -90,7 +98,7 @@ public static class UiShaderVariantProducerValidator
             {
                 diagnostics.Add($"No concrete producer source/artifact entry is registered for UI shader variant '{key}'.");
             }
-            else if (matchingEntries.Length == 1)
+            else if (matchingEntries.Length == 1 && UiShaderVariantCatalog.TryValidate(key, out _))
             {
                 validatedVariants++;
             }
