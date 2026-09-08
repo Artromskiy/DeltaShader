@@ -17,6 +17,7 @@ public static class ShaderCompositeContextResolver
 
         var diagnostics = new List<ShaderDiagnostic>();
         var merged = new Dictionary<string, MergedField>(StringComparer.Ordinal);
+        var ordered = new List<MergedField>();
         foreach (var layer in layers)
         {
             if (!layer.Success || layer.Module is null)
@@ -41,6 +42,7 @@ public static class ShaderCompositeContextResolver
                 {
                     target = new MergedField(field);
                     merged.Add(key, target);
+                    ordered.Add(target);
                 }
                 else
                 {
@@ -59,7 +61,7 @@ public static class ShaderCompositeContextResolver
             }
         }
 
-        var fields = merged.Values.Select(field => field.ToPublic()).ToArray();
+        var fields = ordered.Select(field => field.ToPublic()).ToArray();
         ValidateInterstageProducers(fields, diagnostics);
         return new ShaderCompositeContextResolution(diagnostics.Count == 0, fields, diagnostics);
     }

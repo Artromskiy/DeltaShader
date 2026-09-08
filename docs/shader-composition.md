@@ -2,8 +2,8 @@
 
 This document describes the compile-time shader-composition model. The current
 compiler accepts the standard semantic value types in individual graphics
-entry points; editor-selected multi-layer chain lowering remains a separate
-implementation milestone. The supported entry-point surface is documented in
+entry points and exposes a finite UI variant catalog for preparation-time
+selection. The supported entry-point surface is documented in
 [USER_API.md](USER_API.md).
 
 ## Goal
@@ -21,6 +21,55 @@ editor layer selection
     -> one vertex/fragment interface
     -> one ShaderArtifact + ShaderAbi
 ```
+
+## Finite UI variant catalog
+
+UI effects are prepared as a finite set of composite variants. The preparation
+side selects a `UiShaderVariantKey` through `UiShaderVariantCatalog`, composes
+the selected source layers, and publishes one final vertex/fragment artifact
+pair with one resolved `ShaderAbi` per stage. `UiEffectSet` carries the
+renderer-neutral resource identity and capability set; effect values do not
+create new variants.
+
+`UiShaderVariantCatalog` is an allowlist, not an uber-shader generator. An
+unsupported capability combination produces a preparation diagnostic and is
+not silently reduced to a simpler visual. `Analytic` is the compiler-side
+quality for the finite Visual/Text variants in this milestone. Text
+`CachedMask` remains a Render-owned prepared-resource path and is rejected
+with `DSH019`; it is not represented by a text composite artifact here. No UI
+variant contains a transform field in this milestone.
+
+Preparation is explicit and single-shot:
+
+```csharp
+var prepared = ShaderCompiler.PrepareUiVariant(
+    key,
+    vertexLayers,
+    fragmentLayers);
+```
+
+`UiShaderVariantPreparer` validates the catalog key, composes the ordered
+layers once, rejects transform fields, and returns the compiler result plus a
+deterministic `VariantIdentity`. It is a build/editor API; a frame loop must
+not call it. The generated composite artifact exposes the same identity and
+accepts explicit SPIR-V spans through `CreateProgram(vertexSpirv,
+fragmentSpirv)`. Tooling can retain the identity beside the frozen final ABI:
+
+```csharp
+var artifact = ShaderCompositeArtifactPublisher.CreateUiVariant(
+    prepared,
+    vertexSpirv,
+    fragmentSpirv);
+```
+
+`UiShaderVariantArtifact.Program` is the only value passed to the renderer;
+`Key` and `VariantIdentity` remain preparation metadata. The parameterless
+sidecar loader remains a compatibility entry point until all existing
+consumers use the explicit artifact path.
+
+Runtime receives the prepared program through its registry and only performs
+lookup, typed packing and submission. It does not compose source layers,
+probe artifact files or use reflection.
 
 ## Semantic value types
 
@@ -232,11 +281,12 @@ names can therefore contribute the same `Position`, `Uv0` or `VertexColor`
 semantic without requiring identical C# member names. Incompatible GLSL type,
 resource access or push-constant layout produces a compiler diagnostic.
 
-The result is still compiler IR, not a final composite artifact. Producer/
-consumer liveness for omitted fields, final artifact publication and the
-generated composite packer remain the next bounded compiler slices. The editor
-can already use the resolver to reject missing producers and incompatible
-layouts before requesting those outputs.
+The result is still compiler IR until the preparation tool receives the
+external SPIR-V pair. `ShaderCompositeArtifactPublisher` then materializes the
+existing final artifact contract; it does not create a second ABI. The UI
+catalog, deterministic variant identity and fragment-input liveness are
+available before publication. Generated composite packers remain a separate
+preparation/tooling slice and are not emulated by Render.
 
 The reference layer set is
 `samples/DeltaShader.GrassComposite/GrassComposite.cs`: it covers transform and

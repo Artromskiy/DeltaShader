@@ -535,7 +535,7 @@ internal static class GraphicsEntryPoints
             }
             var structFields = new Dictionary<IFieldSymbol, string>(SymbolEqualityComparer.Default);
             var structProperties = new Dictionary<IPropertySymbol, string>(SymbolEqualityComparer.Default);
-            AddSemanticValueFields(structFields, context);
+            AddSemanticValueMembers(structFields, structProperties, context);
             foreach (var definition in structures)
             {
                 foreach (var field in definition.Key.GetMembers().OfType<IFieldSymbol>().Where(field => !field.IsStatic))
@@ -676,7 +676,7 @@ internal static class GraphicsEntryPoints
             structNames.Clear();
             structFields.Clear();
             structProperties.Clear();
-            AddSemanticValueFields(structFields, context);
+            AddSemanticValueMembers(structFields, structProperties, context);
             foreach (var definition in structures)
             {
                 structNames[definition.Key] = definition.Value.GlslName;
@@ -1157,14 +1157,23 @@ internal static class GraphicsEntryPoints
     private static bool IsPositionMember(IFieldSymbol field, ModuleCompilationContext context)
         => ShaderSemanticTypeSupport.IsPosition(field.Type, context);
 
-    private static void AddSemanticValueFields(
+    private static void AddSemanticValueMembers(
         Dictionary<IFieldSymbol, string> structFields,
+        Dictionary<IPropertySymbol, string> structProperties,
         ModuleCompilationContext context)
     {
-        foreach (var valueField in context.SemanticValueFields.Values)
+        foreach (var valueMember in context.SemanticValueMembers.Values)
         {
-            structFields[valueField] = string.Empty;
-            structFields[valueField.OriginalDefinition] = string.Empty;
+            if (valueMember is IFieldSymbol valueField)
+            {
+                structFields[valueField] = string.Empty;
+                structFields[valueField.OriginalDefinition] = string.Empty;
+            }
+            else if (valueMember is IPropertySymbol valueProperty)
+            {
+                structProperties[valueProperty] = string.Empty;
+                structProperties[valueProperty.OriginalDefinition] = string.Empty;
+            }
         }
     }
 

@@ -1498,7 +1498,7 @@ public sealed class ModuleCompilationContext
         LayoutAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.LayoutAttribute");
         InterstageAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.InterstageAttribute");
         PushConstantAttributeType = compilation.GetTypeByMetadataName("Delta.Shader.PushConstantAttribute");
-        SemanticValueFields = BuildSemanticValueFields(compilation);
+        SemanticValueMembers = BuildSemanticValueMembers(compilation);
     }
 
     public Compilation Compilation { get; }
@@ -1509,35 +1509,40 @@ public sealed class ModuleCompilationContext
     public ITypeSymbol? LayoutAttributeType { get; }
     public ITypeSymbol? InterstageAttributeType { get; }
     public ITypeSymbol? PushConstantAttributeType { get; }
-    public IReadOnlyDictionary<INamedTypeSymbol, IFieldSymbol> SemanticValueFields { get; }
+    public IReadOnlyDictionary<INamedTypeSymbol, ISymbol> SemanticValueMembers { get; }
 
-    private static IReadOnlyDictionary<INamedTypeSymbol, IFieldSymbol> BuildSemanticValueFields(Compilation compilation)
+    private static IReadOnlyDictionary<INamedTypeSymbol, ISymbol> BuildSemanticValueMembers(Compilation compilation)
     {
-        var fields = new Dictionary<INamedTypeSymbol, IFieldSymbol>(SymbolEqualityComparer.Default);
-        AddSemanticValueFields(compilation.Assembly.GlobalNamespace, fields);
+        var members = new Dictionary<INamedTypeSymbol, ISymbol>(SymbolEqualityComparer.Default);
+        AddSemanticValueMembers(compilation.Assembly.GlobalNamespace, members);
         foreach (var assembly in compilation.SourceModule.ReferencedAssemblySymbols)
         {
-            AddSemanticValueFields(assembly.GlobalNamespace, fields);
+            AddSemanticValueMembers(assembly.GlobalNamespace, members);
         }
-        return fields;
+        return members;
     }
 
-    private static void AddSemanticValueFields(
+    private static void AddSemanticValueMembers(
         INamespaceSymbol namespaceSymbol,
-        Dictionary<INamedTypeSymbol, IFieldSymbol> fields)
+        Dictionary<INamedTypeSymbol, ISymbol> members)
     {
         foreach (var type in namespaceSymbol.GetTypeMembers())
         {
             if (type.TypeKind == TypeKind.Struct &&
-                type.GetMembers("Value").OfType<IFieldSymbol>().SingleOrDefault(field => !field.IsStatic) is IFieldSymbol valueField)
+                type.GetMembers("Value").SingleOrDefault(member => member switch
+                {
+                    IFieldSymbol field => !field.IsStatic,
+                    IPropertySymbol property => !property.IsStatic && !property.IsIndexer && property.GetMethod is not null,
+                    _ => false
+                }) is ISymbol valueMember)
             {
-                fields[type] = valueField;
+                members[type] = valueMember;
             }
         }
 
         foreach (var child in namespaceSymbol.GetNamespaceMembers())
         {
-            AddSemanticValueFields(child, fields);
+            AddSemanticValueMembers(child, members);
         }
     }
 }

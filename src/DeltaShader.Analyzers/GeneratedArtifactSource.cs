@@ -112,23 +112,13 @@ internal static class GeneratedArtifactSource
         string vertexSpirvFileName,
         string fragmentSpirvFileName,
         string abiProjection,
-        string facadeProjection)
+        string facadeProjection,
+        string variantIdentity = "",
+        bool includeSidecar = true)
     {
-        return $$"""
-            using System;
-            using System.IO;
-            using Delta.Shader.Contract;
-
-            {{Namespace(method)}}
-
-            public static class {{className}}
-            {
-            {{vertexAbiFactory}}
-            {{fragmentAbiFactory}}
-            {{vertexAbiAccessor}}
-            {{fragmentAbiAccessor}}
-            {{vertexPacking}}
-            {{fragmentPacking}}
+        var ioUsing = includeSidecar ? "using System.IO;" : string.Empty;
+        var sidecar = includeSidecar
+            ? $$"""
                 private static class Sidecar
                 {
                     public static readonly byte[] VertexSpirv = Load({{Literal(vertexSpirvFileName)}});
@@ -187,9 +177,36 @@ internal static class GeneratedArtifactSource
                         return matches.Length == 1 ? matches[0] : string.Empty;
                     }
                 }
-
+            """
+            : string.Empty;
+        var sidecarAccessors = includeSidecar
+            ? $$"""
                 internal static ReadOnlySpan<byte> GetVertexSpirv() => Sidecar.VertexSpirv;
                 internal static ReadOnlySpan<byte> GetFragmentSpirv() => Sidecar.FragmentSpirv;
+            """
+            : string.Empty;
+        var sidecarFactory = includeSidecar
+            ? "                public static IGraphicsShaderProgram CreateProgram() => CreateProgram(Sidecar.VertexSpirv, Sidecar.FragmentSpirv);"
+            : string.Empty;
+
+        return $$"""
+            using System;
+            {{ioUsing}}
+            using Delta.Shader.Contract;
+
+            {{Namespace(method)}}
+
+            public static class {{className}}
+            {
+                public static string VariantIdentity => {{Literal(variantIdentity)}};
+            {{vertexAbiFactory}}
+            {{fragmentAbiFactory}}
+            {{vertexAbiAccessor}}
+            {{fragmentAbiAccessor}}
+            {{vertexPacking}}
+            {{fragmentPacking}}
+            {{sidecar}}
+            {{sidecarAccessors}}
 
                 public static IGraphicsShaderProgram CreateProgram(
                     ReadOnlySpan<byte> vertexSpirv,
@@ -198,8 +215,7 @@ internal static class GeneratedArtifactSource
                         new ShaderArtifact(vertexSpirv, "main", VertexAbi),
                         new ShaderArtifact(fragmentSpirv, "main", FragmentAbi));
 
-                public static IGraphicsShaderProgram CreateProgram()
-                    => CreateProgram(Sidecar.VertexSpirv, Sidecar.FragmentSpirv);
+            {{sidecarFactory}}
             }
             {{abiProjection}}
             {{facadeProjection}}
@@ -236,7 +252,8 @@ internal static class GeneratedArtifactSource
     public static string GraphicsFacadeProjection(
         IMethodSymbol method,
         string generatedClassName,
-        string propertyPrefix)
+        string propertyPrefix,
+        bool includeSpv = true)
     {
         var container = Identifier(method.ContainingType.Name);
         var generatedType = QualifiedType(method, generatedClassName);
@@ -249,10 +266,8 @@ internal static class GeneratedArtifactSource
                         public static ReadOnlySpan<byte> Vertex() => {{generatedType}}.GetVertexSpirv();
                         public static ReadOnlySpan<byte> Fragment() => {{generatedType}}.GetFragmentSpirv();
             """;
-
-        if (pairType.Length == 0)
-        {
-            return $$"""
+        var abiProjection = pairType.Length == 0
+            ? $$"""
                 public static partial class Shaders
                 {
                     public static partial class Abi
@@ -262,7 +277,32 @@ internal static class GeneratedArtifactSource
                 {{abiMembers}}
                         }
                     }
+                }
+                """
+            : $$"""
+                public static partial class Shaders
+                {
+                    public static partial class Abi
+                    {
+                        public static partial class {{container}}
+                        {
+                            public static partial class {{pairType}}
+                            {
+                {{abiMembers}}
+                            }
+                        }
+                    }
+                }
+                """;
+        if (!includeSpv)
+        {
+            return abiProjection;
+        }
 
+        var spvProjection = pairType.Length == 0
+            ? $$"""
+                public static partial class Shaders
+                {
                     public static partial class Spv
                     {
                         public static partial class {{container}}
@@ -271,35 +311,23 @@ internal static class GeneratedArtifactSource
                         }
                     }
                 }
-                """;
-        }
-
-        return $$"""
-            public static partial class Shaders
-            {
-                public static partial class Abi
+                """
+            : $$"""
+                public static partial class Shaders
                 {
-                    public static partial class {{container}}
+                    public static partial class Spv
                     {
-                        public static partial class {{pairType}}
+                        public static partial class {{container}}
                         {
-                {{abiMembers}}
-                        }
-                    }
-                }
-
-                public static partial class Spv
-                {
-                    public static partial class {{container}}
-                    {
-                        public static partial class {{pairType}}
-                        {
+                            public static partial class {{pairType}}
+                            {
                 {{spvMembers}}
+                            }
                         }
                     }
                 }
-            }
-            """;
+                """;
+        return abiProjection + spvProjection;
     }
 
     public static string ComputeAbiProjection(IMethodSymbol method, string generatedClassName)

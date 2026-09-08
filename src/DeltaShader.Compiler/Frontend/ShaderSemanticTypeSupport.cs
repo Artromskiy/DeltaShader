@@ -12,9 +12,18 @@ internal static class ShaderSemanticTypeSupport
         ModuleCompilationContext context,
         out string glslType)
     {
-        if (TryGetValueField(type, context, out var valueField))
+        if (TryGetValueMember(type, context, out var valueMember))
         {
-            return TryMapUnderlyingType(valueField!.Type, context, out glslType);
+            var underlyingType = valueMember switch
+            {
+                IFieldSymbol field => field.Type,
+                IPropertySymbol property => property.Type,
+                _ => null
+            };
+            if (underlyingType is not null && TryMapUnderlyingType(underlyingType, context, out glslType))
+            {
+                return true;
+            }
         }
 
         glslType = string.Empty;
@@ -26,15 +35,30 @@ internal static class ShaderSemanticTypeSupport
         ModuleCompilationContext context,
         out IFieldSymbol? valueField)
     {
-        if (type is INamedTypeSymbol namedType &&
-            IsSemanticValueType(namedType) &&
-            namedType.GetMembers("Value").OfType<IFieldSymbol>().SingleOrDefault(field => !field.IsStatic) is IFieldSymbol field)
+        if (TryGetValueMember(type, context, out var valueMember) && valueMember is IFieldSymbol field)
         {
             valueField = field;
             return true;
         }
 
         valueField = null;
+        return false;
+    }
+
+    public static bool TryGetValueMember(
+        ITypeSymbol type,
+        ModuleCompilationContext context,
+        out ISymbol? valueMember)
+    {
+        if (type is INamedTypeSymbol namedType &&
+            IsSemanticValueType(namedType) &&
+            namedType.GetMembers("Value").SingleOrDefault(IsInstanceValueMember) is ISymbol member)
+        {
+            valueMember = member;
+            return true;
+        }
+
+        valueMember = null;
         return false;
     }
 
@@ -46,7 +70,15 @@ internal static class ShaderSemanticTypeSupport
 
     private static bool IsSemanticValueType(INamedTypeSymbol type)
         => type.TypeKind == TypeKind.Struct &&
-            type.GetMembers("Value").OfType<IFieldSymbol>().Count(field => !field.IsStatic) == 1;
+            type.GetMembers("Value").Count(IsInstanceValueMember) == 1;
+
+    private static bool IsInstanceValueMember(ISymbol member)
+        => member switch
+        {
+            IFieldSymbol field => !field.IsStatic,
+            IPropertySymbol property => !property.IsStatic && !property.IsIndexer && property.GetMethod is not null,
+            _ => false
+        };
 
     private static bool TryMapUnderlyingType(
         ITypeSymbol type,

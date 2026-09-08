@@ -57,7 +57,13 @@ public static class ShaderCompositeCompiler
             diagnostics);
 
         var success = diagnostics.Count == 0;
-        return new ShaderCompositeCompilationResult(success, context, vertex, fragment, diagnostics);
+        return new ShaderCompositeCompilationResult(
+            success,
+            context,
+            vertex,
+            fragment,
+            diagnostics,
+            CreateIdentity(vertexLayers, fragmentLayers, logicalFields));
     }
 
     private static IReadOnlyList<ShaderIrModule> GetValidModules(
@@ -322,7 +328,8 @@ public static class ShaderCompositeCompiler
     private static IReadOnlyList<ShaderIrInterfaceVariable> CreateFragmentInputs(
         IReadOnlyList<ShaderCompositeContextField> fields,
         IReadOnlyDictionary<string, string> names)
-        => fields.Where(field => field.Kind == ShaderCompositeContextFieldKind.Interstage && !IsPosition(field))
+        => fields.Where(field => field.Kind == ShaderCompositeContextFieldKind.Interstage &&
+                field.Stages.Contains(ShaderStage.Fragment) && !IsPosition(field))
             .Select((field, index) => new ShaderIrInterfaceVariable
             {
                 Name = field.SourcePath,
@@ -461,6 +468,33 @@ public static class ShaderCompositeCompiler
             a.Name == b.Name && a.GlslType == b.GlslType && a.Offset == b.Offset && a.Size == b.Size)
             .All(match => match);
 
+    private static string CreateIdentity(
+        IReadOnlyList<ShaderCompilationResult> vertexLayers,
+        IReadOnlyList<ShaderCompilationResult> fragmentLayers,
+        IReadOnlyList<ShaderCompositeContextField> fields)
+    {
+        var identity = new System.Text.StringBuilder("ui-composite:");
+        AppendLayerIdentities(identity, vertexLayers, "v");
+        AppendLayerIdentities(identity, fragmentLayers, "f");
+        foreach (var field in fields)
+        {
+            identity.Append("|field:").Append(field.Identity);
+        }
+
+        return identity.ToString();
+    }
+
+    private static void AppendLayerIdentities(
+        System.Text.StringBuilder identity,
+        IReadOnlyList<ShaderCompilationResult> layers,
+        string stage)
+    {
+        foreach (var layer in layers)
+        {
+            identity.Append('|').Append(stage).Append(':').Append(layer.SourceMethodIdentity);
+        }
+    }
+
     private static string TrimBody(string? body)
     {
         var result = (body ?? string.Empty).Trim();
@@ -494,13 +528,15 @@ public sealed class ShaderCompositeCompilationResult
         ShaderCompositeContextResolution context,
         ShaderIrModule? vertex,
         ShaderIrModule? fragment,
-        IReadOnlyList<ShaderDiagnostic> diagnostics)
+        IReadOnlyList<ShaderDiagnostic> diagnostics,
+        string variantIdentity = "")
     {
         Success = success;
         Context = context;
         Vertex = vertex;
         Fragment = fragment;
         Diagnostics = diagnostics;
+        VariantIdentity = variantIdentity;
     }
 
     public bool Success { get; }
@@ -508,6 +544,9 @@ public sealed class ShaderCompositeCompilationResult
     public ShaderIrModule? Vertex { get; }
     public ShaderIrModule? Fragment { get; }
     public IReadOnlyList<ShaderDiagnostic> Diagnostics { get; }
+
+    /// <summary>Gets the deterministic identity of the ordered layer composition and interface.</summary>
+    public string VariantIdentity { get; }
 
     public ShaderCompilationManifest GetBuildManifest(
         ShaderStage stage,

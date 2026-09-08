@@ -352,7 +352,7 @@ public class IntrinsicCatalogTests
         var source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             namespace Delta.Shader.Compiler.Tests.Fixtures
             {
@@ -400,7 +400,7 @@ using Delta.Graphics.Semantics;
         var source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             namespace Delta.Shader.Compiler.Tests.Fixtures
             {
@@ -430,7 +430,7 @@ using Delta.Graphics.Semantics;
         var source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             namespace Delta.Shader.Compiler.Tests.Fixtures
             {
@@ -457,7 +457,7 @@ using Delta.Graphics.Semantics;
         var source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             namespace Delta.Shader.Compiler.Tests.Fixtures
             {
@@ -486,7 +486,7 @@ using Delta.Graphics.Semantics;
         var source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             namespace Delta.Shader.Compiler.Tests.Fixtures
             {
@@ -516,7 +516,7 @@ using Delta.Graphics.Semantics;
         const string source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             namespace Delta.Shader.Compiler.Tests.Fixtures
             {
@@ -575,7 +575,7 @@ using Delta.Graphics.Semantics;
         {
             (Source: @"
                 using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
                 using System.Runtime.InteropServices;
                 namespace Delta.Shader.Compiler.Tests.Fixtures
                 {
@@ -593,7 +593,7 @@ using Delta.Graphics.Semantics;
             ", ExpectedId: ShaderDiagnosticId.DSH002),
             (Source: @"
                 using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
                 namespace Delta.Shader.Compiler.Tests.Fixtures
                 {
                     public struct ManagedRecord { public string Name; }
@@ -606,7 +606,7 @@ using Delta.Graphics.Semantics;
             ", ExpectedId: ShaderDiagnosticId.DSH010),
             (Source: @"
                 using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
                 namespace Delta.Shader.Compiler.Tests.Fixtures
                 {
                     public struct RecursiveRecord { public RecursiveRecord[] Children; }
@@ -619,7 +619,7 @@ using Delta.Graphics.Semantics;
             ", ExpectedId: ShaderDiagnosticId.DSH010),
             (Source: @"
                 using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
                 namespace Delta.Shader.Compiler.Tests.Fixtures
                 {
                     public struct ArrayFieldRecord { public float[] Values; }
@@ -647,7 +647,7 @@ using Delta.Graphics.Semantics;
         {
             @"
                 using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
                 public static class EntryParameter
                 {
                     public struct Context { [PushConstant] public string Value; }
@@ -656,7 +656,7 @@ using Delta.Graphics.Semantics;
             ",
             @"
                 using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
                 public class CpuOnlyHelper { public string Name; }
                 public struct StorageRecord { public CpuOnlyHelper Helper; }
                 public static class StorageEntry
@@ -667,7 +667,7 @@ using Delta.Graphics.Semantics;
             ",
             @"
                 using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
                 public struct RecursiveRecord { public RecursiveRecord[] Children; }
                 public static class RecursiveEntry
                 {
@@ -691,7 +691,7 @@ using Delta.Graphics.Semantics;
         const string invalidSource = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             public class CpuOnlyHelper { public string Name; }
             public struct Constants { public CpuOnlyHelper Helper; }
             [Interstage]
@@ -712,7 +712,7 @@ using Delta.Graphics.Semantics;
 
         const string validSource = @"
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             public class CpuOnlyHelper { public string Name; }
             public static class ValidCompute
             {
@@ -734,7 +734,7 @@ using Delta.Graphics.Semantics;
         const string source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             public class CpuOnlyHelper { public string Name; }
             public struct Constants { public CpuOnlyHelper Helper; }
             [Interstage]
@@ -762,7 +762,7 @@ using Delta.Graphics.Semantics;
         const string source = """
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             public struct FragmentPayload
             {
@@ -794,7 +794,7 @@ using Delta.Graphics.Semantics;
         const string source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             namespace Delta.Shader.Compiler.Tests.Fixtures
             {
                 public struct Constants { public float2 Resolution; public float Time; }
@@ -835,7 +835,7 @@ using Delta.Graphics.Semantics;
         const string source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             public struct TransformConstants
             {
                 public float4x4 Model;
@@ -907,7 +907,16 @@ using Delta.Graphics.Semantics;
         const string source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
+
+            public readonly struct WorldNormal
+            {
+                public readonly float3 Value;
+
+                public WorldNormal(float3 value) => Value = value;
+                public static implicit operator WorldNormal(float3 value) => new(value);
+                public static implicit operator float3(WorldNormal value) => value.Value;
+            }
 
             public struct SceneParameters
             {
@@ -991,7 +1000,7 @@ using Delta.Graphics.Semantics;
         const string source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             public sealed class ManagedData
             {
@@ -1040,7 +1049,7 @@ using Delta.Graphics.Semantics;
         const string source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             [Interstage]
             public struct VertexPayload {  public Position Position; }
             public struct VertexContext {}
@@ -1062,7 +1071,7 @@ using Delta.Graphics.Semantics;
         const string source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             [Interstage]
             public struct VertexPayload {  public Position Position; }
             public struct VertexContext {}
@@ -1087,7 +1096,7 @@ using Delta.Graphics.Semantics;
         const string source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             [Interstage]
             public struct VertexPayload {  public Position Position; }
             public struct VertexContext {}
@@ -1127,7 +1136,7 @@ using Delta.Graphics.Semantics;
         const string source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             public static class TextureStages
             {
                 public struct TextParameters
@@ -1214,7 +1223,7 @@ using Delta.Graphics.Semantics;
         const string source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             [Interstage]
             public struct FragmentPayload {  public Position Position; }
             public struct FragmentContext
@@ -1240,7 +1249,7 @@ using Delta.Graphics.Semantics;
         const string source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             [Interstage]
             public struct FragmentPayload {  public Position Position; }
             [Interstage]
@@ -1284,7 +1293,7 @@ using Delta.Graphics.Semantics;
         const string source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             public static class TextScene
             {
                 public struct GlyphInstance
@@ -1292,7 +1301,7 @@ using Delta.Graphics.Semantics;
                     public float2 PixelMin;
                     public float2 PixelMax;
                     public float4 UvRect;
-                    public Color Color;
+                    public VertexColor Color;
                 }
 
                 public struct TextParameters
@@ -1389,12 +1398,12 @@ using Delta.Graphics.Semantics;
         const string source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             public static class StructFieldSymbols
             {
                 public struct Payload
                 {
-                    public Color Color;
+                    public VertexColor Color;
                 }
 
                 [Interstage]
@@ -1434,7 +1443,7 @@ using Delta.Graphics.Semantics;
         const string source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             [Interstage]
             public struct FragmentPayload {  public Position Position; }
             public struct FragmentContext {}
@@ -1459,7 +1468,7 @@ using Delta.Graphics.Semantics;
         const string source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             [Interstage]
             public struct FragmentPayload {  public Position Position; }
             public struct FragmentContext {}
@@ -1497,7 +1506,7 @@ using Delta.Graphics.Semantics;
         const string source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             [Interstage]
             public struct FragmentPayload {  public Position Position; }
             public struct FragmentContext {}
@@ -1529,7 +1538,7 @@ using Delta.Graphics.Semantics;
         const string source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             [Interstage]
             public struct FragmentPayload {  public Position Position; }
             public struct FragmentContext {}
@@ -1566,7 +1575,7 @@ using Delta.Graphics.Semantics;
         const string source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             [Interstage]
             public struct FragmentPayload {  public Position Position; }
             public struct FragmentContext {}
@@ -1600,7 +1609,7 @@ using Delta.Graphics.Semantics;
         const string source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             public readonly struct UserDefinedComputeContext
             {
@@ -1646,7 +1655,7 @@ using Delta.Graphics.Semantics;
     {
         const string source = @"
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             public readonly struct ParametersContext
             {
@@ -1675,7 +1684,7 @@ using Delta.Graphics.Semantics;
     {
         const string source = @"
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             public readonly struct InvalidContext
             {
@@ -1709,7 +1718,7 @@ using Delta.Graphics.Semantics;
     {
         const string source = @"
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             public readonly struct ValidContext
             {
@@ -1751,7 +1760,7 @@ using Delta.Graphics.Semantics;
         const string source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             public static class CompileTimeValid
             {
@@ -1782,7 +1791,7 @@ using Delta.Graphics.Semantics;
         const string source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             public static class SimpleCompute
             {
@@ -1820,7 +1829,7 @@ using Delta.Graphics.Semantics;
         const string source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             public static class ComputeTexture
             {
@@ -1854,7 +1863,7 @@ using Delta.Graphics.Semantics;
     {
         const string source = @"
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             public static class InvalidComputeTexture
             {
@@ -1874,7 +1883,7 @@ using Delta.Graphics.Semantics;
     {
         const string source = @"
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             public static class IndexedPayloadCompute
             {
@@ -1904,7 +1913,7 @@ using Delta.Graphics.Semantics;
     {
         const string source = @"
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             public struct ManagedPayload
             {
@@ -1939,7 +1948,7 @@ using Delta.Graphics.Semantics;
         const string source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             public static class GeneratedKernel
             {
@@ -1988,7 +1997,7 @@ using Delta.Graphics.Semantics;
     {
         const string source = @"
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             public struct Parameters
             {
@@ -2033,7 +2042,7 @@ using Delta.Graphics.Semantics;
         const string source = """
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             internal static class GeneratedKernel
             {
@@ -2076,7 +2085,16 @@ using Delta.Graphics.Semantics;
         const string source = """
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
+
+            public readonly struct WorldNormal
+            {
+                public readonly float3 Value;
+
+                public WorldNormal(float3 value) => Value = value;
+                public static implicit operator WorldNormal(float3 value) => new(value);
+                public static implicit operator float3(WorldNormal value) => value.Value;
+            }
 
             public static class MeshShaders
             {
@@ -2134,7 +2152,7 @@ using Delta.Graphics.Semantics;
         const string source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             public static class GeneratedGraphics
             {
@@ -2181,7 +2199,7 @@ using Delta.Graphics.Semantics;
         const string source = """
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             public struct FragmentPayload
             {
@@ -2213,7 +2231,7 @@ using Delta.Graphics.Semantics;
         const string source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             public static class FirstGraphics
             {
@@ -2279,7 +2297,7 @@ using Delta.Graphics.Semantics;
         const string source = @"
             using System.Reflection;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             public sealed class VirtualWorker
             {
@@ -2323,7 +2341,7 @@ using Delta.Graphics.Semantics;
     {
         const string source = @"
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             public enum Operation : byte { Add = 3 }
             public struct ComputeContext
             {
@@ -2355,7 +2373,7 @@ using Delta.Graphics.Semantics;
     {
         const string source = @"
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             public enum WideOperation : long { Add = 3 }
             public struct ComputeContext
             {
@@ -2385,7 +2403,7 @@ using Delta.Graphics.Semantics;
     {
         const string source = @"
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             public struct Calculator
             {
                 public uint Bias;
@@ -2422,7 +2440,7 @@ using Delta.Graphics.Semantics;
     {
         const string source = @"
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             public sealed class Calculator
             {
                 public uint Add(uint value) => value + 1u;
@@ -2455,7 +2473,7 @@ using Delta.Graphics.Semantics;
     {
         const string source = @"
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             public interface IAdder
             {
                 uint Add(uint value);
@@ -2501,7 +2519,7 @@ using Delta.Graphics.Semantics;
     {
         const string source = @"
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             public interface IAdder
             {
                 uint Add(uint value);
@@ -2545,7 +2563,7 @@ using Delta.Graphics.Semantics;
     {
         const string source = @"
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             public readonly struct StatelessAdder
             {
                 public uint Add(uint value) => value + 1u;
@@ -2581,7 +2599,7 @@ using Delta.Graphics.Semantics;
     {
         const string source = @"
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             public struct Calculator
             {
                 public uint Bias { get; set; }
@@ -2616,7 +2634,7 @@ using Delta.Graphics.Semantics;
     {
         const string source = @"
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             public struct PatternValue
             {
                 public uint Value;
@@ -2650,7 +2668,7 @@ using Delta.Graphics.Semantics;
     {
         const string source = @"
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             public struct Calculator
             {
                 public uint Bias;
@@ -2687,7 +2705,7 @@ using Delta.Graphics.Semantics;
     {
         const string source = @"
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             public struct Calculator
             {
                 public uint Bias { get; set; }
@@ -2725,7 +2743,7 @@ using Delta.Graphics.Semantics;
     {
         const string source = """
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             public struct ComputeContext
             {
                 [Layout(0, 0)] public ReadOnlyStorageBuffer<uint> Input;
@@ -2768,7 +2786,7 @@ using Delta.Graphics.Semantics;
     {
         const string source = """
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             public struct ComputeContext
             {
                 [Layout(0, 0)] public ReadOnlyStorageBuffer<uint> Input;
@@ -2810,7 +2828,7 @@ using Delta.Graphics.Semantics;
     {
         const string source = """
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             public struct PatternValue
             {
                 public uint Value;
@@ -2873,7 +2891,7 @@ using Delta.Graphics.Semantics;
     {
         const string source = """
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             public struct Inner
             {
                 public uint Value;
@@ -2923,7 +2941,7 @@ using Delta.Graphics.Semantics;
         const string source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             public interface ITransform
             {
                 float4 Apply(float4 value);
@@ -2937,7 +2955,7 @@ using Delta.Graphics.Semantics;
             public struct VertexPayload
             {
                  public Position Position;
-                public Color Color;
+                public VertexColor Color;
             }
             public struct VertexContext
             {}

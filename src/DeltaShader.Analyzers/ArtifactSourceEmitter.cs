@@ -741,9 +741,10 @@ internal static partial class ArtifactSourceEmitter
     {
         if (type is INamedTypeSymbol namedType &&
             IsSemanticType(namedType) &&
-            namedType.GetMembers("Value").OfType<IFieldSymbol>().SingleOrDefault() is IFieldSymbol valueField)
+            FindValueMember(namedType, "Value") is ISymbol valueMember &&
+            GetMemberType(valueMember) is ITypeSymbol underlyingType)
         {
-            valueType = valueField.Type;
+            valueType = underlyingType;
             return true;
         }
 
@@ -754,8 +755,12 @@ internal static partial class ArtifactSourceEmitter
     private static bool IsSemanticType(ITypeSymbol type)
         => type is INamedTypeSymbol namedType &&
             namedType.TypeKind == TypeKind.Struct &&
-            string.Equals(namedType.ContainingNamespace?.ToDisplayString(), "Delta.Shader", StringComparison.Ordinal) &&
-            namedType.GetMembers("Value").OfType<IFieldSymbol>().Count(field => !field.IsStatic) == 1;
+            namedType.GetMembers("Value").Count(member => member switch
+            {
+                IFieldSymbol field => !field.IsStatic,
+                IPropertySymbol property => !property.IsStatic && !property.IsIndexer && property.GetMethod is not null,
+                _ => false
+            }) == 1;
 
     private static bool IsInterstagePayloadField(IFieldSymbol field)
         => field.GetAttributes().Any(attribute => attribute.AttributeClass?.ToDisplayString() == typeof(InterstageAttribute).FullName) ||

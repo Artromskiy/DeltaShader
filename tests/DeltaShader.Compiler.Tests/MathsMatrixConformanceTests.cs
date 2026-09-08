@@ -62,7 +62,7 @@ public sealed class MathsMatrixConformanceTests
         const string source = """
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             public readonly struct VectorContext
             {

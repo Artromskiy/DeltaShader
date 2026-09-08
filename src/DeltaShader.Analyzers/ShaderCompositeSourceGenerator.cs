@@ -15,7 +15,9 @@ public static class ShaderCompositeSourceGenerator
         IMethodSymbol fragmentMethod,
         ShaderCompositeCompilationResult composition,
         out string source,
-        out string? reason)
+        out string? reason,
+        string? variantIdentity = null,
+        bool includeSidecar = true)
     {
         source = string.Empty;
         reason = null;
@@ -77,7 +79,31 @@ public static class ShaderCompositeSourceGenerator
             "composite.vert.spv",
             "composite.frag.spv",
             GeneratedArtifactSource.GraphicsAbiProjection(vertexMethod, className, string.Empty),
-            GeneratedArtifactSource.GraphicsFacadeProjection(vertexMethod, className, string.Empty));
+            GeneratedArtifactSource.GraphicsFacadeProjection(vertexMethod, className, string.Empty, includeSidecar),
+            variantIdentity ?? composition.VariantIdentity,
+            includeSidecar);
         return true;
     }
+
+    /// <summary>
+    /// Generates a prepared UI composite whose consumer must provide both SPIR-V
+    /// modules explicitly. This path has no runtime sidecar probing or file lookup.
+    /// </summary>
+    public static bool TryGenerateUiVariant(
+        string className,
+        IMethodSymbol vertexMethod,
+        IMethodSymbol fragmentMethod,
+        ShaderCompositeCompilationResult composition,
+        string variantIdentity,
+        out string source,
+        out string? reason)
+        => TryGenerate(
+            className,
+            vertexMethod,
+            fragmentMethod,
+            composition,
+            out source,
+            out reason,
+            variantIdentity,
+            includeSidecar: false);
 }

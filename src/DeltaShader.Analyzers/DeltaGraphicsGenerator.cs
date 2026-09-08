@@ -1,8 +1,5 @@
-using System;
 using System.Collections.Immutable;
-using System.Linq;
 using System.Text;
-using Delta.Shader;
 using Delta.Shader.Backend.Glsl;
 using Delta.Shader.Compiler;
 using Microsoft.CodeAnalysis;
@@ -40,20 +37,6 @@ public sealed class DeltaGraphicsGenerator : IIncrementalGenerator
             return;
         }
 
-        var vertices = methodsInAssembly.Where(IsVertexShader).ToArray();
-        var fragments = methodsInAssembly.Where(IsFragmentShader).ToArray();
-        if (vertices.Length == 0 || fragments.Length == 0)
-        {
-            return;
-        }
-
-        var singlePair = vertices.Length == 1 && fragments.Length == 1;
-        var sharedVertex = vertices.Length == 1 && fragments.Length > 1;
-        var pairNames = singlePair
-            ? ["__single_graphics_pair"]
-            : sharedVertex
-                ? fragments.Select(GetShaderName).Distinct(StringComparer.Ordinal).ToArray()
-                : vertices.Select(GetShaderName).Concat(fragments.Select(GetShaderName)).Distinct(StringComparer.Ordinal).ToArray();
         var allResults = ShaderCompiler.CompileAll(compilation).ToArray();
         if (allResults.Any(r => !r.Success || r.BuildManifest is null || r.Module is null))
         {
@@ -66,65 +49,91 @@ public sealed class DeltaGraphicsGenerator : IIncrementalGenerator
         }
 
         var results = allResults.Where(r => r.Module?.Stage is ShaderStage.Vertex or ShaderStage.Fragment).ToArray();
-        foreach (var pairName in pairNames)
+        foreach (var typeGroup in methodsInAssembly.GroupBy(method => method.ContainingType, SymbolEqualityComparer.Default))
         {
-            var pairVertices = singlePair || sharedVertex ? vertices : vertices.Where(method => GetShaderName(method) == pairName).ToArray();
-            var pairFragments = singlePair ? fragments : fragments.Where(method => GetShaderName(method) == pairName).ToArray();
-            if (pairVertices.Length != 1 || pairFragments.Length != 1)
+            var vertices = typeGroup.Where(IsVertexShader).ToArray();
+            var fragments = typeGroup.Where(IsFragmentShader).ToArray();
+            if (vertices.Length == 0 || fragments.Length == 0)
             {
-                context.ReportDiagnostic(Diagnostic.Create(Descriptor, methodsInAssembly[0].Locations.FirstOrDefault(), $"DSH017: graphics pair '{pairName}' requires exactly one vertex and one fragment shader."));
                 continue;
             }
 
-            var vertexResult = FindResult(results, ShaderStage.Vertex, pairName, sharedVertex, singlePair);
-            var fragmentResult = FindResult(results, ShaderStage.Fragment, pairName, false, singlePair);
-            if (vertexResult?.Module is null || vertexResult.BuildManifest is null || fragmentResult?.Module is null || fragmentResult.BuildManifest is null)
-            {
-                context.ReportDiagnostic(Diagnostic.Create(Descriptor, pairVertices[0].Locations.FirstOrDefault(), $"DSH017: graphics pair '{pairName}' did not produce both shader modules."));
-                continue;
-            }
+            var singlePair = vertices.Length == 1 && fragments.Length == 1;
+            var sharedVertex = vertices.Length == 1 && fragments.Length > 1;
+            var pairNames = singlePair
+                ? ["__single_graphics_pair"]
+                : sharedVertex
+                    ? fragments.Select(GetShaderName).Distinct(StringComparer.Ordinal).ToArray()
+                    : vertices.Select(GetShaderName).Concat(fragments.Select(GetShaderName)).Distinct(StringComparer.Ordinal).ToArray();
 
-            var vertexEmit = GlslEmitter.EmitFromModule(vertexResult.Module);
-            var fragmentEmit = GlslEmitter.EmitFromModule(fragmentResult.Module);
-            if (!vertexEmit.Success || !fragmentEmit.Success)
+            foreach (var pairName in pairNames)
             {
-                context.ReportDiagnostic(Diagnostic.Create(Descriptor, pairVertices[0].Locations.FirstOrDefault(), $"GLSL generation failed for graphics pair '{pairName}'."));
-                continue;
-            }
+                var pairVertices = singlePair || sharedVertex ? vertices : vertices.Where(method => GetShaderName(method) == pairName).ToArray();
+                var pairFragments = singlePair ? fragments : fragments.Where(method => GetShaderName(method) == pairName).ToArray();
+                var pairLocation = (pairVertices.FirstOrDefault() ?? pairFragments.FirstOrDefault())?.Locations.FirstOrDefault();
+                if (pairVertices.Length != 1 || pairFragments.Length != 1)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(Descriptor, pairLocation, $"DSH017: graphics pair '{pairName}' requires exactly one vertex and one fragment shader."));
+                    continue;
+                }
 
-            var vertexPackingSucceeded = ArtifactSourceEmitter.TryEmitPackingMethods(
-                pairVertices[0], vertexResult.BuildManifest, ShaderStage.Vertex, out var vertexPacking, out var vertexPackingReason);
-            var fragmentPackingSucceeded = ArtifactSourceEmitter.TryEmitPackingMethods(
-                pairFragments[0], fragmentResult.BuildManifest, ShaderStage.Fragment, out var fragmentPacking, out var fragmentPackingReason);
-            if (!vertexPackingSucceeded || !fragmentPackingSucceeded)
-            {
-                var reason = vertexPackingReason ?? fragmentPackingReason ?? "unknown packing error";
-                context.ReportDiagnostic(Diagnostic.Create(Descriptor, pairVertices[0].Locations.FirstOrDefault(), $"Std430 packer generation failed for graphics pair '{pairName}': {reason}"));
-                continue;
-            }
+                var vertexResult = FindResult(results, pairVertices[0]);
+                var fragmentResult = FindResult(results, pairFragments[0]);
+                if (vertexResult?.Module is null || vertexResult.BuildManifest is null || fragmentResult?.Module is null || fragmentResult.BuildManifest is null)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(Descriptor, pairVertices[0].Locations.FirstOrDefault(), $"DSH017: graphics pair '{pairName}' did not produce both shader modules."));
+                    continue;
+                }
 
-            var type = pairVertices[0].ContainingType;
-            var name = pairNames.Length == 1 ? Sanitize(type.Name) + "GraphicsShaderProgram" : Pascalize(pairName) + "GraphicsShaderProgram";
-            var source = GeneratedArtifactSource.Graphics(
-                pairVertices[0],
-                name,
-                ArtifactSourceEmitter.EmitAbiFactory(vertexResult.BuildManifest),
-                ArtifactSourceEmitter.EmitAbiFactory(fragmentResult.BuildManifest, "CreateFragmentAbi"),
-                ArtifactSourceEmitter.EmitAbiAccessor("VertexAbi", "CreateAbi"),
-                ArtifactSourceEmitter.EmitAbiAccessor("FragmentAbi", "CreateFragmentAbi"),
-                vertexPacking,
-                fragmentPacking,
-                pairVertices[0].Name + ".vert.spv",
-                pairFragments[0].Name + ".frag.spv",
-                GeneratedArtifactSource.GraphicsAbiProjection(
+                var vertexEmit = GlslEmitter.EmitFromModule(vertexResult.Module);
+                var fragmentEmit = GlslEmitter.EmitFromModule(fragmentResult.Module);
+                if (!vertexEmit.Success || !fragmentEmit.Success)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(Descriptor, pairVertices[0].Locations.FirstOrDefault(), $"GLSL generation failed for graphics pair '{pairName}'."));
+                    continue;
+                }
+
+                var vertexPackingSucceeded = ArtifactSourceEmitter.TryEmitPackingMethods(
+                    pairVertices[0], vertexResult.BuildManifest, ShaderStage.Vertex, out var vertexPacking, out var vertexPackingReason);
+                var fragmentPackingSucceeded = ArtifactSourceEmitter.TryEmitPackingMethods(
+                    pairFragments[0], fragmentResult.BuildManifest, ShaderStage.Fragment, out var fragmentPacking, out var fragmentPackingReason);
+                if (!vertexPackingSucceeded || !fragmentPackingSucceeded)
+                {
+                    var reason = vertexPackingReason ?? fragmentPackingReason ?? "unknown packing error";
+                    context.ReportDiagnostic(Diagnostic.Create(Descriptor, pairVertices[0].Locations.FirstOrDefault(), $"Std430 packer generation failed for graphics pair '{pairName}': {reason}"));
+                    continue;
+                }
+
+                var type = pairVertices[0].ContainingType;
+                var vertexShaderName = GetShaderName(pairVertices[0]);
+                var fragmentShaderName = GetShaderName(pairFragments[0]);
+                var usesDefaultNames = string.Equals(vertexShaderName, pairVertices[0].Name, StringComparison.Ordinal) &&
+                    string.Equals(fragmentShaderName, pairFragments[0].Name, StringComparison.Ordinal);
+                var outputName = pairNames.Length == 1 && usesDefaultNames
+                    ? Sanitize(type.Name)
+                    : Pascalize(pairName == "__single_graphics_pair" ? vertexShaderName : pairName);
+                var name = outputName + "GraphicsShaderProgram";
+                var source = GeneratedArtifactSource.Graphics(
                     pairVertices[0],
                     name,
-                    pairNames.Length == 1 ? string.Empty : pairName),
-                GeneratedArtifactSource.GraphicsFacadeProjection(
-                    pairVertices[0],
-                    name,
-                    pairNames.Length == 1 ? string.Empty : pairName));
-            context.AddSource(name + ".g.cs", SourceText.From(source, Encoding.UTF8));
+                    ArtifactSourceEmitter.EmitAbiFactory(vertexResult.BuildManifest),
+                    ArtifactSourceEmitter.EmitAbiFactory(fragmentResult.BuildManifest, "CreateFragmentAbi"),
+                    ArtifactSourceEmitter.EmitAbiAccessor("VertexAbi", "CreateAbi"),
+                    ArtifactSourceEmitter.EmitAbiAccessor("FragmentAbi", "CreateFragmentAbi"),
+                    vertexPacking,
+                    fragmentPacking,
+                    pairVertices[0].Name + ".vert.spv",
+                    pairFragments[0].Name + ".frag.spv",
+                    GeneratedArtifactSource.GraphicsAbiProjection(
+                        pairVertices[0],
+                        name,
+                        pairNames.Length == 1 ? string.Empty : pairName),
+                    GeneratedArtifactSource.GraphicsFacadeProjection(
+                        pairVertices[0],
+                        name,
+                        pairNames.Length == 1 ? string.Empty : pairName));
+                context.AddSource(name + ".g.cs", SourceText.From(source, Encoding.UTF8));
+            }
         }
     }
     private static IMethodSymbol? GetShaderMethod(GeneratorSyntaxContext syntaxContext)
@@ -155,16 +164,15 @@ public sealed class DeltaGraphicsGenerator : IIncrementalGenerator
     }
     private static ShaderCompilationResult? FindResult(
         ShaderCompilationResult[] results,
-        ShaderStage stage,
-        string pairName,
-        bool sharedVertex,
-        bool singlePair)
+        IMethodSymbol method)
     {
-        var matches = results.Where(result => result.Module?.Stage == stage &&
-            (singlePair ||
-             (sharedVertex && stage == ShaderStage.Vertex) ||
-             result.Module.SourceEntryPointName == pairName)).ToArray();
-        return matches.Length == 1 ? matches[0] : null;
+        var parameters = string.Join(
+            ",",
+            method.Parameters.Select(parameter =>
+                parameter.RefKind + ":" + parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
+        var identity = method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) +
+            "." + method.Name + "`" + method.Arity + "(" + parameters + ")";
+        return results.SingleOrDefault(result => string.Equals(result.SourceMethodIdentity, identity, StringComparison.Ordinal));
     }
     private static string Sanitize(string name) => string.Concat(name.Select(c => char.IsLetterOrDigit(c) || c == '_' ? c : '_')) is { Length: > 0 } value ? value : "Graphics";
     private static string Pascalize(string name)

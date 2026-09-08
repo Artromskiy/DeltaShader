@@ -28,7 +28,7 @@ public sealed class BindingAndBuiltinTests
     {
         const string source = @"
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             public readonly struct ComputeContext
             {
@@ -73,7 +73,7 @@ using Delta.Graphics.Semantics;
     {
         const string source = @"
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             public readonly struct ComputeContext
             {
@@ -116,7 +116,7 @@ using Delta.Graphics.Semantics;
     {
         const string source = @"
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             public readonly struct ComputeContext
             {
@@ -168,7 +168,7 @@ using Delta.Graphics.Semantics;
         const string source = """
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             public readonly struct ComputeContext
             {
@@ -210,7 +210,7 @@ using Delta.Graphics.Semantics;
     {
         const string source = @"
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             public readonly struct ComputeContext
             {
@@ -244,7 +244,7 @@ using Delta.Graphics.Semantics;
     {
         const string source = @"
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             public readonly struct ComputeContext
             {
@@ -290,7 +290,7 @@ using Delta.Graphics.Semantics;
     {
         const string source = @"
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             public readonly struct ComputeContext
             {
@@ -324,7 +324,7 @@ using Delta.Graphics.Semantics;
     {
         const string source = @"
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             public readonly struct ComputeContext
             {
@@ -366,7 +366,7 @@ using Delta.Graphics.Semantics;
     {
         const string source = @"
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             public readonly struct ComputeContext
             {
@@ -397,7 +397,7 @@ using Delta.Graphics.Semantics;
     {
         const string source = @"
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
             using Delta;
 
             public readonly struct ComputeContext
@@ -436,7 +436,7 @@ using Delta.Graphics.Semantics;
         const string source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             [Interstage]
             public struct VertexPayload
@@ -478,7 +478,7 @@ using Delta.Graphics.Semantics;
         const string source = """
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             [Interstage]
             public struct SurfacePayload
@@ -548,7 +548,7 @@ using Delta.Graphics.Semantics;
         const string source = """
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             public struct SharedSurface
             {
@@ -588,7 +588,7 @@ using Delta.Graphics.Semantics;
         const string source = """
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             public struct InvalidSurface
             {
@@ -626,7 +626,7 @@ using Delta.Graphics.Semantics;
     {
         const string source = @"
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             public readonly struct InvalidContext
             {
@@ -659,7 +659,7 @@ using Delta.Graphics.Semantics;
         const string source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             [Interstage]
             public struct FragmentPayload
@@ -692,7 +692,7 @@ using Delta.Graphics.Semantics;
         const string source = @"
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             [Interstage]
             public struct FragmentPayload
@@ -731,7 +731,7 @@ using Delta.Graphics.Semantics;
         const string source = """
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             [Interstage]
             public struct VertexPayload
@@ -817,6 +817,7 @@ using Delta.Graphics.Semantics;
             results.Where(result => result.Module?.Stage == ShaderStage.Fragment).ToArray());
 
         Assert.True(composite.Success, string.Join(Environment.NewLine, composite.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        Assert.StartsWith("ui-composite:", composite.VariantIdentity, StringComparison.Ordinal);
         Assert.NotNull(composite.Vertex);
         Assert.NotNull(composite.Fragment);
         Assert.Contains("composite_field_1", composite.Vertex!.Body, StringComparison.Ordinal);
@@ -842,7 +843,7 @@ using Delta.Graphics.Semantics;
         const string source = """
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             [Interstage]
             public struct VertexPayload
@@ -902,7 +903,6 @@ using Delta.Graphics.Semantics;
         Project project = await workspace.OpenProjectAsync(projectPath).ConfigureAwait(true);
         Compilation? compilation = await project.GetCompilationAsync().ConfigureAwait(true);
         Assert.NotNull(compilation);
-
         IReadOnlyList<ShaderCompilationResult> results = ShaderCompiler.CompileAll(compilation!);
         ShaderCompilationResult vertex = Assert.Single(results,
             result => result.Module?.Stage == ShaderStage.Vertex);
@@ -941,12 +941,30 @@ using Delta.Graphics.Semantics;
             fragmentMethod,
             selectedComposite,
             out string generatedSource,
-            out string? generationReason), generationReason);
+            out string? generationReason,
+            "visual/rounded/flatcolor/none/10/analytic|" + selectedComposite.VariantIdentity), generationReason);
         Assert.Contains("class GrassSelectedComposite", generatedSource, StringComparison.Ordinal);
         Assert.Contains("PackGrassSelectedCompositeVertex", generatedSource, StringComparison.Ordinal);
         Assert.Contains("PackGrassSelectedCompositeFragment", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("VariantIdentity", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("visual/rounded/flatcolor/none/10/analytic|", generatedSource, StringComparison.Ordinal);
         Assert.Contains("public static Delta.Shader.Contract.ShaderAbi VertexAbi", generatedSource, StringComparison.Ordinal);
         Assert.Contains("public static Delta.Shader.Contract.ShaderAbi FragmentAbi", generatedSource, StringComparison.Ordinal);
+
+        Assert.True(Delta.Shader.Analyzers.ShaderCompositeSourceGenerator.TryGenerateUiVariant(
+            "GrassPreparedUiComposite",
+            vertexMethod,
+            fragmentMethod,
+            selectedComposite,
+            "visual/rounded/flatcolor/none/10/analytic|" + selectedComposite.VariantIdentity,
+            out string uiGeneratedSource,
+            out string? uiGenerationReason), uiGenerationReason);
+        Assert.DoesNotContain("Directory.GetFiles", uiGeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetVertexSpirv", uiGeneratedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("CreateProgram()", uiGeneratedSource, StringComparison.Ordinal);
+        Assert.Contains("CreateProgram(", uiGeneratedSource, StringComparison.Ordinal);
+        Assert.Contains("ReadOnlySpan<byte> vertexSpirv", uiGeneratedSource, StringComparison.Ordinal);
+
         CSharpParseOptions parseOptions = compilation.SyntaxTrees.First().Options as CSharpParseOptions
             ?? CSharpParseOptions.Default;
         Compilation generatedCompilation = compilation.AddSyntaxTrees(

@@ -40,11 +40,13 @@ public sealed class IntrinsicRegistry
     private readonly Dictionary<ISymbol, IntrinsicBinding> _methodsAndProperties;
     private readonly Dictionary<string, IntrinsicBinding> _methodIdentities;
     private readonly Dictionary<ITypeSymbol, string> _types;
+    private readonly Dictionary<string, string> _typeIdentities;
     private readonly ShaderContractManifest _contract;
 
     private IntrinsicRegistry(
         Dictionary<ISymbol, IntrinsicBinding> methodsAndProperties,
         Dictionary<ITypeSymbol, string> types,
+        Dictionary<string, string> typeIdentities,
         ShaderContractManifest contract)
     {
         _methodsAndProperties = methodsAndProperties;
@@ -55,6 +57,7 @@ public sealed class IntrinsicRegistry
         }
 
         _types = types;
+        _typeIdentities = typeIdentities;
         _contract = contract;
     }
 
@@ -69,6 +72,7 @@ public sealed class IntrinsicRegistry
 
         var methods = new Dictionary<ISymbol, IntrinsicBinding>(SymbolEqualityComparer.Default);
         var types = new Dictionary<ITypeSymbol, string>(SymbolEqualityComparer.Default);
+        var typeIdentities = new Dictionary<string, string>(StringComparer.Ordinal);
         var contractTypes = contract.Types
             .Where(type => IsSupportedMapping(type.Mapping) && !string.IsNullOrWhiteSpace(type.GlslName))
             .ToDictionary(type => type.ClrName, StringComparer.Ordinal);
@@ -87,6 +91,7 @@ public sealed class IntrinsicRegistry
             }
 
             types[type] = glslTypeName;
+            typeIdentities[GetMetadataName(type)] = glslTypeName;
             RegisterTypeMembers(methods, type);
         }
 
@@ -127,7 +132,7 @@ public sealed class IntrinsicRegistry
         RegisterOwnedShaderIntrinsics(methods, compilation);
         RegisterShaderBuiltins(methods, compilation);
         RegisterDeltaMathsFacadeBuiltins(methods, compilation, contract);
-        return new IntrinsicRegistry(methods, types, contract);
+        return new IntrinsicRegistry(methods, types, typeIdentities, contract);
     }
 
     private static bool IsSupportedMapping(ShaderContractMapping mapping)
@@ -396,8 +401,30 @@ public sealed class IntrinsicRegistry
             _methodIdentities.TryGetValue(GetMethodIdentity(method), out binding));
 
     public bool TryMapType(ITypeSymbol type, out string glslType)
-        => _types.TryGetValue(type, out glslType);
+        => _types.TryGetValue(type, out glslType) ||
+           _typeIdentities.TryGetValue(GetMetadataName(type), out glslType);
 
     public bool IsDeltaMathsVectorType(ITypeSymbol type, out string glslType)
-        => _types.TryGetValue(type, out glslType);
+        => TryMapType(type, out glslType);
+
+    private static string GetMetadataName(ITypeSymbol type)
+    {
+        if (type is not INamedTypeSymbol namedType)
+        {
+            return string.Empty;
+        }
+
+        var parts = new Stack<string>();
+        for (INamedTypeSymbol? current = namedType; current is not null; current = current.ContainingType)
+        {
+            parts.Push(current.MetadataName);
+        }
+
+        for (var current = namedType.ContainingNamespace; current is not null && !current.IsGlobalNamespace; current = current.ContainingNamespace)
+        {
+            parts.Push(current.MetadataName);
+        }
+
+        return string.Join(".", parts);
+    }
 }

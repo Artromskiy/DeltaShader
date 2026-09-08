@@ -19,7 +19,7 @@ public sealed class GeneratedBufferPackingTests
         const string source = """
             using Delta;
             using Delta.Shader;
-using Delta.Graphics.Semantics;
+            using Delta.Graphics.Semantics;
 
             public struct Payload
             {
@@ -27,7 +27,7 @@ using Delta.Graphics.Semantics;
                 public Position Position;
 
                 [Layout(1)]
-                public Color Color;
+                public VertexColor Color;
             }
 
             public readonly struct VertexContext
@@ -58,6 +58,7 @@ using Delta.Graphics.Semantics;
                 typeof(ComputeShaderAttribute).Assembly.Location,
                 typeof(ShaderArtifact).Assembly.Location,
                 typeof(float4).Assembly.Location,
+                typeof(Uv0).Assembly.Location,
                 typeof(DeltaGraphicsGenerator).Assembly.Location
             ])
             .Where(path => path.Length > 0)

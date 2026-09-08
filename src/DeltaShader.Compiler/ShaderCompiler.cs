@@ -57,4 +57,10 @@ public static class ShaderCompiler
         IReadOnlyList<ShaderCompilationResult> vertexLayers,
         IReadOnlyList<ShaderCompilationResult> fragmentLayers)
         => ShaderCompositeCompiler.Compose(vertexLayers, fragmentLayers);
+
+    public static UiShaderVariantPreparationResult PrepareUiVariant(
+        UiShaderVariantKey key,
+        IReadOnlyList<ShaderCompilationResult> vertexLayers,
+        IReadOnlyList<ShaderCompilationResult> fragmentLayers)
+        => UiShaderVariantPreparer.Prepare(key, vertexLayers, fragmentLayers);
 }

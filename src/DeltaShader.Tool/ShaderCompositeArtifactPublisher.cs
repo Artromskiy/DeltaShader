@@ -26,4 +26,25 @@ public static class ShaderCompositeArtifactPublisher
         var fragment = ShaderArtifactPublisher.Create(fragmentSpirv, fragmentManifest);
         return new Final.GraphicsShaderProgram(vertex, fragment);
     }
+
+    /// <summary>
+    /// Publishes one successfully prepared UI variant and keeps its preparation
+    /// identity next to the final artifact without extending the frozen ABI.
+    /// </summary>
+    public static UiShaderVariantArtifact CreateUiVariant(
+        Compiler.UiShaderVariantPreparationResult preparation,
+        ReadOnlySpan<byte> vertexSpirv,
+        ReadOnlySpan<byte> fragmentSpirv)
+    {
+        ArgumentNullException.ThrowIfNull(preparation);
+        if (!preparation.Success || preparation.Composition is null)
+        {
+            throw new ArgumentException("The UI variant must be prepared successfully before artifact publication.", nameof(preparation));
+        }
+
+        return new UiShaderVariantArtifact(
+            preparation.Key,
+            preparation.VariantIdentity,
+            Create(preparation.Composition, vertexSpirv, fragmentSpirv));
+    }
 }

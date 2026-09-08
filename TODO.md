@@ -35,6 +35,24 @@
 - [ ] Add focused fixtures for newly admitted shader syntax or intrinsic
   mappings instead of broadening the language subset implicitly.
 
+## UI composite variants
+
+- [x] Keep a finite `UiShaderVariantCatalog` keyed by target, primitive,
+  material, text representation, effect capabilities and quality. Unsupported
+  combinations produce `DSH019`; transform is outside this catalog.
+- [x] Expose `ShaderCompiler.PrepareUiVariant` for one preparation-time
+  validation/composition call and return a deterministic identity containing
+  both the capability key and ordered source/interface identity.
+- [x] Expose `ShaderCompositeArtifactPublisher.CreateUiVariant` so tooling can
+  retain that identity beside the frozen `GraphicsShaderProgram` without adding
+  a second runtime ABI.
+- [ ] Replace generated parameterless sidecar probing in shipping consumers
+  with explicit artifact bytes; keep the explicit `CreateProgram(vertexSpirv,
+  fragmentSpirv)` path as the canonical runtime entry.
+- [ ] Finish producer migration to the current semantic payload shape and
+  restore the compiler/Render shader test suites; current failures are tracked
+  as producer fixture/API migration, not runtime fallback work.
+
 ## Closed baseline
 
 - [x] Compiler emission, generated factories, CLI and reusable text/UI

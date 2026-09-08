@@ -31,7 +31,7 @@ public sealed class TextArtifactTests
         string vertexPackerName,
         string fragmentPackerName)
     {
-        Type programType = typeof(TextShaders).Assembly.GetType("Delta.Render.Text.Shaders." + programName)
+        Type programType = typeof(TextShaders).Assembly.GetType("Delta.Render.Text." + programName)
             ?? throw new InvalidOperationException("Generated text graphics program was not found: " + programName);
 
         Assert.NotNull(programType.GetProperty("VertexAbi", BindingFlags.Public | BindingFlags.Static));

@@ -51,6 +51,20 @@ These are the defaults for the Vulkan path:
 8. Accept an optimization only after comparing GPU fragment time, overdraw, and
    upload cost with the reference path.
 
+### Finite UI variants
+
+The UI path uses `UiShaderVariantCatalog` and a finite capability allowlist.
+The selected key contains the target, primitive/material, text representation,
+effect capabilities and quality tier. It does not contain colors, radii,
+widths, offsets or animation values, so those remain instance/resource data.
+
+Preparation composes the selected layers and publishes one final artifact pair.
+The frame loop receives that pair through a typed registry and performs lookup,
+packing and submission only. It never joins C# layers, probes shader files or
+creates a pipeline for each effect value. Unsupported combinations are
+preparation diagnostics; they are not runtime fallbacks. Transform semantics
+are intentionally outside this UI variant catalog.
+
 ## Frame pipeline
 
 ### 1. Normalize the display list
@@ -80,8 +94,9 @@ clip/scissor or stencil identity
 effect variant and quality tier
 ```
 
-Fill color, border color, opacity, radii, transform, UV rectangle, glyph
-metrics, distance range, and effect parameters remain in instance records.
+Fill color, border color, opacity, radii, UV rectangle, glyph metrics, distance
+range, and effect parameters remain in instance records. Transform is
+intentionally outside this UI variant/payload slice.
 
 Preserve painter order. Merge only contiguous records with a compatible key.
 Reordering is allowed only inside an explicitly reorderable layer where it
