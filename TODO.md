@@ -67,3 +67,17 @@
 
 Shared SDF/MSDF and graphics acceptance is tracked in the owning project
 TODOs and [../CONTRACTS.md](../CONTRACTS.md).
+
+## UI composite audit
+
+- [x] Finite UI variant validation uses the public catalog `TryValidate` gate;
+  unsupported keys produce stable `DSH019` and cannot be legalized by files.
+- [x] Producer validation requires one deterministic source, generated program
+  with `VertexAbi`/`FragmentAbi`, and non-empty vertex/fragment SPIR-V pair for
+  every supplied allowlisted variant.
+- [x] Composite liveness removes unused interstage fields from the physical
+  interface; no transform or runtime composition path is introduced.
+- [ ] Concrete `DeltaRender.UIShaders` source/artifact registration still has
+  to be supplied to the validator by the producer handoff; DeltaShader does
+  not discover Render files.
+- [ ] Text `CachedMask` remains Render-owned and is not a DeltaShader variant.
