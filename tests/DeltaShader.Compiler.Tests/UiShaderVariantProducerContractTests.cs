@@ -20,6 +20,7 @@ public sealed class UiShaderVariantProducerContractTests
         Assert.False(validation.IsValid);
         Assert.Contains(validation.Diagnostics, diagnostic =>
             diagnostic.Contains("No concrete producer source/artifact entry", StringComparison.Ordinal));
+        Assert.Contains(key, validation.MissingVariants);
     }
 
     [Fact]
@@ -58,6 +59,8 @@ public sealed class UiShaderVariantProducerContractTests
             Assert.True(validation.IsValid, string.Join(Environment.NewLine, validation.Diagnostics));
             Assert.Equal(1, validation.AllowlistedVariants);
             Assert.Equal(1, validation.ValidatedVariants);
+            Assert.Empty(validation.MissingVariants);
+            Assert.Empty(validation.UnsupportedVariants);
         }
         finally
         {
@@ -108,6 +111,7 @@ public sealed class UiShaderVariantProducerContractTests
             Assert.Contains(validation.Diagnostics, diagnostic =>
                 diagnostic.StartsWith("DSH019:", StringComparison.Ordinal));
             Assert.Equal(0, validation.ValidatedVariants);
+            Assert.Contains(unsupportedKey, validation.UnsupportedVariants);
         }
         finally
         {

@@ -20,6 +20,8 @@ public readonly record struct UiShaderVariantProducerValidation(
     ImmutableArray<string> Diagnostics)
 {
     public bool IsValid => Diagnostics.IsDefaultOrEmpty;
+    public ImmutableArray<UiShaderVariantKey> MissingVariants { get; init; }
+    public ImmutableArray<UiShaderVariantKey> UnsupportedVariants { get; init; }
 }
 
 public static class UiShaderVariantProducerValidator
@@ -51,6 +53,8 @@ public static class UiShaderVariantProducerValidator
         }
 
         var diagnostics = ImmutableArray.CreateBuilder<string>();
+        var missingVariants = ImmutableArray.CreateBuilder<UiShaderVariantKey>();
+        var unsupportedVariants = ImmutableArray.CreateBuilder<UiShaderVariantKey>();
         var allowlist = allowlistedVariants.ToImmutableArray();
         var entries = producerEntries.ToImmutableArray();
         var keys = new HashSet<UiShaderVariantKey>();
@@ -64,6 +68,7 @@ public static class UiShaderVariantProducerValidator
 
             if (!UiShaderVariantCatalog.TryValidate(key, out var catalogDiagnostic))
             {
+                unsupportedVariants.Add(key);
                 var message = catalogDiagnostic is null
                     ? "The UI shader variant is not supported by the finite catalog."
                     : catalogDiagnostic.Message;
@@ -96,6 +101,7 @@ public static class UiShaderVariantProducerValidator
             var matchingEntries = entries.Where(entry => entry.Key.Equals(key)).ToArray();
             if (matchingEntries.Length == 0)
             {
+                missingVariants.Add(key);
                 diagnostics.Add($"No concrete producer source/artifact entry is registered for UI shader variant '{key}'.");
             }
             else if (matchingEntries.Length == 1 && UiShaderVariantCatalog.TryValidate(key, out _))
@@ -107,7 +113,11 @@ public static class UiShaderVariantProducerValidator
         return new UiShaderVariantProducerValidation(
             allowlist.Length,
             validatedVariants,
-            diagnostics.ToImmutable());
+            diagnostics.ToImmutable())
+        {
+            MissingVariants = missingVariants.ToImmutable(),
+            UnsupportedVariants = unsupportedVariants.ToImmutable()
+        };
     }
 
     private static void ValidateEntry(
