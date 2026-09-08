@@ -62,6 +62,40 @@ public sealed class UiShaderEffectVariantHandoffTests
         }
     }
 
+    [Fact]
+    public void SolidAndTextEffectVariantsRequireDistinctPreparedPairs()
+    {
+        var root = Directory.CreateTempSubdirectory("delta-shader-ui-effects-3-");
+        try
+        {
+            var keys = new[]
+            {
+                CreateVisualSolidStrokeKey(),
+                CreateVisualSolidGlowKey(),
+                CreateTextMsdfOutlineKey(),
+                CreateTextSdfOuterShadowKey()
+            };
+            var entries = keys
+                .Select((key, index) => CreateEntry(root, key, $"effect-variant-{index}"))
+                .ToArray();
+
+            var validation = UiShaderVariantProducerValidator.Validate(
+                keys,
+                entries,
+                root.FullName,
+                root.FullName);
+
+            Assert.True(validation.IsValid, string.Join(Environment.NewLine, validation.Diagnostics));
+            Assert.Equal(4, validation.ValidatedVariants);
+            Assert.Empty(validation.MissingVariants);
+            Assert.Empty(validation.UnsupportedVariants);
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
+
     private static UiShaderVariantKey CreateVisualRoundedOuterShadowKey()
     {
         Assert.True(
@@ -107,6 +141,58 @@ public sealed class UiShaderEffectVariantHandoffTests
             UiShaderVariantCatalog.TryCreateText(
                 UiShaderTextRepresentation.Msdf,
                 UiShaderEffectCapabilities.Glow,
+                UiShaderQuality.Analytic,
+                out var key,
+                out var diagnostic),
+            diagnostic?.Message);
+        return key;
+    }
+
+    private static UiShaderVariantKey CreateVisualSolidStrokeKey()
+    {
+        Assert.True(
+            UiShaderVariantCatalog.TryCreateVisual(
+                UiShaderPrimitive.Solid,
+                UiShaderEffectCapabilities.Stroke,
+                UiShaderQuality.Analytic,
+                out var key,
+                out var diagnostic),
+            diagnostic?.Message);
+        return key;
+    }
+
+    private static UiShaderVariantKey CreateVisualSolidGlowKey()
+    {
+        Assert.True(
+            UiShaderVariantCatalog.TryCreateVisual(
+                UiShaderPrimitive.Solid,
+                UiShaderEffectCapabilities.Glow,
+                UiShaderQuality.Analytic,
+                out var key,
+                out var diagnostic),
+            diagnostic?.Message);
+        return key;
+    }
+
+    private static UiShaderVariantKey CreateTextMsdfOutlineKey()
+    {
+        Assert.True(
+            UiShaderVariantCatalog.TryCreateText(
+                UiShaderTextRepresentation.Msdf,
+                UiShaderEffectCapabilities.Outline,
+                UiShaderQuality.Analytic,
+                out var key,
+                out var diagnostic),
+            diagnostic?.Message);
+        return key;
+    }
+
+    private static UiShaderVariantKey CreateTextSdfOuterShadowKey()
+    {
+        Assert.True(
+            UiShaderVariantCatalog.TryCreateText(
+                UiShaderTextRepresentation.Sdf,
+                UiShaderEffectCapabilities.OuterShadow,
                 UiShaderQuality.Analytic,
                 out var key,
                 out var diagnostic),
