@@ -13,6 +13,9 @@ effects:
 These resource keys are deliberately narrow. Stroke, outline, glow, shadows and
 `CachedMask` are not implicitly combined with them; such combinations produce a
 stable `DSH019` disposition until a separate prepared variant is added.
+Rounded resource variants are also outside the current prepared matrix:
+`Rounded + LinearGradient` and `Rounded + Image` are rejected with the same
+stable `DSH019` rather than selecting a Solid artifact or inserting a fallback.
 
 Before publishing a variant, the producer passes the catalog allowlist and its
 prepared entries to `UiShaderVariantProducerValidator.Validate`. Each

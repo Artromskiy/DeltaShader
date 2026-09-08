@@ -80,6 +80,24 @@ public sealed class UiShaderVariantCatalogTests
         Assert.Contains(key.StableName, diagnostic.Message, System.StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(UiShaderMaterial.LinearGradient)]
+    [InlineData(UiShaderMaterial.Image)]
+    public void ResourceVisualMaterialsRemainSolidOnly(UiShaderMaterial material)
+    {
+        Assert.False(UiShaderVariantCatalog.TryCreateVisual(
+            UiShaderPrimitive.Rounded,
+            material,
+            UiShaderEffectCapabilities.None,
+            UiShaderQuality.Analytic,
+            out var key,
+            out var diagnostic));
+
+        Assert.NotNull(diagnostic);
+        Assert.Equal(ShaderDiagnosticId.DSH019, diagnostic!.Id);
+        Assert.Contains(key.StableName, diagnostic.Message, System.StringComparison.Ordinal);
+    }
+
     [Fact]
     public void UnsupportedCombinationProducesPreparationDiagnostic()
     {
