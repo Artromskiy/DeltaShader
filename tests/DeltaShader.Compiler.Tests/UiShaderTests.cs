@@ -22,7 +22,7 @@ public sealed class UiShaderTests
         Assert.Empty(errors);
 
         IReadOnlyList<ShaderCompilationResult> results = ShaderCompiler.CompileAll(compilation);
-        Assert.Equal(4, results.Count);
+        Assert.Equal(8, results.Count);
         Assert.All(results, result => Assert.True(
             result.Success,
             string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message))));
@@ -113,6 +113,58 @@ public sealed class UiShaderTests
     }
 
     [Fact]
+    public async Task AnalyticVisualEffects_CompileWithNestedTypedInstanceAbi()
+    {
+        Compilation compilation = await LoadUiCompilationAsync().ConfigureAwait(true);
+        IReadOnlyList<ShaderCompilationResult> results = ShaderCompiler.CompileAll(compilation);
+        var result = Assert.Single(
+            results,
+            item => item.EntryPointName == "analytic-rounded-rectangle" &&
+                item.Module?.Stage == ShaderStage.Vertex);
+        var fragment = Assert.Single(
+            results,
+            item => item.EntryPointName == "analytic-rounded-rectangle" &&
+                item.Module?.Stage == ShaderStage.Fragment);
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        Assert.True(fragment.Success, string.Join(Environment.NewLine, fragment.Diagnostics.Select(diagnostic => diagnostic.Message)));
+
+        var vertexManifest = result.BuildManifest;
+        var fragmentManifest = fragment.BuildManifest;
+        if (vertexManifest is null || fragmentManifest is null)
+        {
+            throw new InvalidOperationException("Analytic visual effect compilation did not produce manifests.");
+        }
+
+        var vertexResource = Assert.Single(vertexManifest.Resources);
+        Assert.Equal(192u, vertexResource.Size);
+        Assert.Equal(192u, vertexResource.ArrayStride);
+        Assert.Equal(ShaderStage.Vertex, vertexResource.Stage);
+        Assert.Empty(fragmentManifest.Resources);
+
+        Assert.Equal(48u, Assert.Single(vertexResource.Members, member => member.Name == "StrokeColor").Offset);
+        Assert.Equal(64u, Assert.Single(vertexResource.Members, member => member.Name == "StrokeOffset").Offset);
+        Assert.Equal(72u, Assert.Single(vertexResource.Members, member => member.Name == "StrokeWidth").Offset);
+        Assert.Equal(76u, Assert.Single(vertexResource.Members, member => member.Name == "StrokeBlurRadius").Offset);
+        Assert.Equal(80u, Assert.Single(vertexResource.Members, member => member.Name == "StrokeSpread").Offset);
+        Assert.Equal(84u, Assert.Single(vertexResource.Members, member => member.Name == "StrokeIntensity").Offset);
+        Assert.Equal(96u, Assert.Single(vertexResource.Members, member => member.Name == "OuterShadowColor").Offset);
+        Assert.Equal(112u, Assert.Single(vertexResource.Members, member => member.Name == "OuterShadowOffset").Offset);
+        Assert.Equal(144u, Assert.Single(vertexResource.Members, member => member.Name == "GlowColor").Offset);
+        Assert.Equal(160u, Assert.Single(vertexResource.Members, member => member.Name == "GlowOffset").Offset);
+
+        Assert.Equal(8u, Assert.Single(vertexManifest.PushConstants).Size);
+        Assert.Empty(fragmentManifest.PushConstants);
+
+        var vertexGlsl = GlslEmitter.EmitFromModule(result.Module!).Source;
+        var fragmentGlsl = GlslEmitter.EmitFromModule(fragment.Module!).Source;
+        Assert.Contains("gl_InstanceIndex", vertexGlsl, StringComparison.Ordinal);
+        Assert.DoesNotContain("gl_InstanceIndex", fragmentGlsl, StringComparison.Ordinal);
+        Assert.Contains("exp", fragmentGlsl, StringComparison.Ordinal);
+        Assert.Contains("smoothstep", fragmentGlsl, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task GeneratedUiFactoriesExposeDirectPushRootPackers()
     {
         Compilation compilation = await LoadUiCompilationAsync().ConfigureAwait(true);
@@ -143,6 +195,8 @@ public sealed class UiShaderTests
         Assert.Contains("PackSolidRectangleVertexInstancesElements", generatedSource, StringComparison.Ordinal);
         Assert.Contains("PackRoundedRectangleVertexInstancesElement", generatedSource, StringComparison.Ordinal);
         Assert.Contains("PackRoundedRectangleVertexInstancesElements", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("PackAnalyticRoundedRectangleVertexInstancesElement", generatedSource, StringComparison.Ordinal);
+        Assert.Contains("PackAnalyticRoundedRectangleVertexInstancesElements", generatedSource, StringComparison.Ordinal);
         Assert.Contains("PackSolidRectangleVertexFrame", generatedSource, StringComparison.Ordinal);
         Assert.Contains("PackRoundedRectangleVertexFrame", generatedSource, StringComparison.Ordinal);
         Assert.DoesNotContain("PackSolidRectangleFragmentFrame", generatedSource, StringComparison.Ordinal);
