@@ -15,7 +15,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\DeltaShader.Contract\DeltaShader.Contract.csproj" />
     <ProjectReference Include="..\\..\\src\\DeltaShader\\DeltaShader.csproj" />
-    <ProjectReference Include="../../../DeltaRender/src/DeltaRender.Text/DeltaRender.Text.csproj" />
     <PackageReference Include="DeltaMaths" />
     <ProjectReference Include="../../../DeltaRender/src/DeltaRender.Graphics.Semantics/DeltaRender.Graphics.Semantics.csproj" />
     <ProjectReference Include="../../../DeltaRender/src/DeltaRender.Mesh/DeltaRender.Mesh.csproj" />

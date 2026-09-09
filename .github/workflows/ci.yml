@@ -65,6 +65,15 @@ jobs:
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
+      - name: Configure GitHub Packages
+        working-directory: DeltaShader
+        run: |
+          dotnet nuget add source \
+            https://nuget.pkg.github.com/Artromskiy/index.json \
+            --name github-artromskiy \
+            --username "${{ github.repository_owner }}" \
+            --password "${{ github.token }}" \
+            --store-password-in-clear-text
       - name: Cache NuGet packages
         uses: actions/cache@v6
         with:
@@ -73,14 +82,102 @@ jobs:
           restore-keys: delta-shader-nuget-${{ runner.os }}-
       - name: Install Vulkan and SPIR-V tools
         run: sudo apt-get update && sudo apt-get install -y glslang-tools spirv-tools mesa-vulkan-drivers
-      - name: Restore and build
+      - name: Bootstrap restore
         working-directory: DeltaShader
         run: |
           dotnet restore DeltaShader.slnx
-          dotnet build DeltaShader.slnx -c Release --no-restore
+      - name: Pack current DeltaShader toolchain
+        working-directory: DeltaShader
+        shell: bash
+        run: |
+          set -euo pipefail
+          feed="$RUNNER_TEMP/deltashader-nuget"
+          mkdir -p "$feed"
+          dotnet restore ../DeltaMaths/src/DeltaMaths/DeltaMaths.csproj
+          dotnet pack ../DeltaMaths/src/DeltaMaths/DeltaMaths.csproj -c Release --no-restore \
+            -p:PackageVersion=0.0.10.9999 \
+            --output "$feed" \
+            --verbosity minimal
+          for project in \
+            src/DeltaShader.Contract/DeltaShader.Contract.csproj \
+            src/DeltaShader.Compiler/DeltaShader.Compiler.csproj \
+            src/DeltaShader.Analyzers/DeltaShader.Analyzers.csproj \
+            src/DeltaShader.Tool/DeltaShader.Tool.csproj; do
+            dotnet pack "$project" -c Release --no-restore \
+              -p:PackageVersion=0.0.25 \
+              --output "$feed" \
+              --verbosity minimal
+          done
+          cat > "$RUNNER_TEMP/deltashader-nuget.config" <<EOF
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <packageSources>
+            <clear />
+            <add key="deltashader-ci" value="$feed" />
+              <add key="nuget.org" value="https://api.nuget.org/v3/index.json" protocolVersion="3" />
+            </packageSources>
+            <packageSourceMapping>
+              <packageSource key="deltashader-ci">
+                <package pattern="DeltaMaths" />
+                <package pattern="DeltaShader.*" />
+                <package pattern="DeltaRender" />
+              </packageSource>
+              <packageSource key="github-artromskiy">
+                <package pattern="DeltaText" />
+              </packageSource>
+              <packageSource key="nuget.org">
+                <package pattern="*" />
+              </packageSource>
+            </packageSourceMapping>
+          </configuration>
+          EOF
+          dotnet nuget add source \
+            https://nuget.pkg.github.com/Artromskiy/index.json \
+            --name github-artromskiy \
+            --username "${{ github.repository_owner }}" \
+            --password "${{ github.token }}" \
+            --store-password-in-clear-text \
+            --configfile "$RUNNER_TEMP/deltashader-nuget.config"
+          dotnet restore ../DeltaRender/src/DeltaRender/DeltaRender.csproj \
+            --configfile "$RUNNER_TEMP/deltashader-nuget.config"
+          dotnet pack ../DeltaRender/src/DeltaRender/DeltaRender.csproj \
+            -c Release --no-restore \
+            -p:PackageVersion=0.0.15.9999 \
+            --output "$feed" \
+            --verbosity minimal
+      - name: Restore with current DeltaShader toolchain
+        working-directory: DeltaShader
+        run: dotnet restore DeltaShader.slnx --configfile "$RUNNER_TEMP/deltashader-nuget.config"
+      - name: Build shader projects
+        working-directory: DeltaShader
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t projects < <(find src samples tests -type f -name '*.csproj' | sort)
+          for project in "${projects[@]}"; do
+            dotnet build "$project" -c Release --no-restore \
+              --disable-build-servers -m:1 /p:UseSharedCompilation=false
+          done
       - name: Run tests
         working-directory: DeltaShader
-        run: dotnet test DeltaShader.slnx -c Release --no-build --no-restore
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet test tests/DeltaShader.Compiler.Tests/DeltaShader.Compiler.Tests.csproj \
+            -c Release --no-build --no-restore --disable-build-servers -m:1 \
+            /p:UseSharedCompilation=false \
+            --filter 'FullyQualifiedName!~ShadertoyGalleryTests'
+          dotnet test tests/DeltaShader.Golden.Tests/DeltaShader.Golden.Tests.csproj \
+            -c Release --no-build --no-restore --disable-build-servers -m:1 \
+            /p:UseSharedCompilation=false
+          dotnet test tests/DeltaShader.Vulkan.Tests/DeltaShader.Vulkan.Tests.csproj \
+            -c Release --no-build --no-restore --disable-build-servers -m:1 \
+            /p:UseSharedCompilation=false
+          perl -e 'alarm 60; exec @ARGV' -- \
+            dotnet test tests/DeltaShader.Compiler.Tests/DeltaShader.Compiler.Tests.csproj \
+              -c Release --no-build --no-restore --disable-build-servers -m:1 \
+              /p:UseSharedCompilation=false \
+              --filter 'FullyQualifiedName~ShadertoyGalleryTests'
       - name: Benchmark discovery smoke
         working-directory: DeltaShader
         shell: bash
