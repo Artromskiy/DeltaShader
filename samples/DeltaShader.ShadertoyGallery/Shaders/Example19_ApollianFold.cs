@@ -9,7 +9,7 @@ internal static class Example19_ApollianFold
     [FragmentShader]
     public static float4 ApollianFold(in GalleryFragmentContext context, in GalleryVarying input)
     {
-        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = GalleryCoordinates.Centered(context.Constants.Resolution);
         var q = p * 1.6f;
         var scale = 1f;
         for (var fold = 0f; fold < 5f; fold += 1f)

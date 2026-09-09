@@ -9,7 +9,7 @@ internal static class Example04_NebulaBands
     [FragmentShader]
     public static float4 NebulaBands(in GalleryFragmentContext context, in GalleryVarying input)
     {
-        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = GalleryCoordinates.Centered(context.Constants.Resolution);
         var radius = maths.length(p);
         var angle = maths.atan(p.y / (maths.abs(p.x) + 0.001f));
         var ribbon = 0.5f + 0.5f * maths.sin(angle * 5f + radius * 11f - context.Constants.Time * 1.7f);

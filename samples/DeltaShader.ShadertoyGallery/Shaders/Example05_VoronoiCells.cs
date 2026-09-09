@@ -9,7 +9,7 @@ internal static class Example05_VoronoiCells
     [FragmentShader]
     public static float4 VoronoiCells(in GalleryFragmentContext context, in GalleryVarying input)
     {
-        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = GalleryCoordinates.Centered(context.Constants.Resolution);
         var grid = p * 4f;
         var cell = new float2(grid.x - maths.floor(grid.x), grid.y - maths.floor(grid.y));
         var nearest = 1.5f;

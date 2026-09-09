@@ -9,7 +9,7 @@ internal static class Example03_MosaicCells
     [FragmentShader]
     public static float4 MosaicCells(in GalleryFragmentContext context, in GalleryVarying input)
     {
-        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = GalleryCoordinates.Centered(context.Constants.Resolution);
         var tile = p * 5f;
         var cell = new float2(tile.x - maths.floor(tile.x) - 0.5f, tile.y - maths.floor(tile.y) - 0.5f);
         var edge = maths.max(maths.abs(cell.x), maths.abs(cell.y));

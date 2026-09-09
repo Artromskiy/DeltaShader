@@ -9,7 +9,7 @@ internal static class Example10_SpaghettiCurves
     [FragmentShader]
     public static float4 SpaghettiCurves(in GalleryFragmentContext context, in GalleryVarying input)
     {
-        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = GalleryCoordinates.Centered(context.Constants.Resolution);
         var glow = new float3(0f, 0f, 0f);
         for (var strand = 0f; strand < 3f; strand += 1f)
         {

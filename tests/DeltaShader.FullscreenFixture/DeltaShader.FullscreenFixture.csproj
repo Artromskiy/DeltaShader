@@ -10,10 +10,12 @@
 
   <ItemGroup>
     <DeltaShaderSource Include="..\DeltaShader.TestShaders\Shaders\FullscreenUi.cs" />
+    <DeltaShaderSource Include="..\DeltaShader.TestShaders\Shaders\FullscreenTriangleGeometry.cs" />
   </ItemGroup>
 
   <ItemGroup>
     <Compile Include="..\DeltaShader.TestShaders\Shaders\FullscreenUi.cs" Link="FullscreenUi.cs" />
+    <Compile Include="..\DeltaShader.TestShaders\Shaders\FullscreenTriangleGeometry.cs" Link="FullscreenTriangleGeometry.cs" />
     <PackageReference Include="DeltaMaths" />
     <ProjectReference Include="../../../DeltaRender/src/DeltaRender.Graphics.Semantics/DeltaRender.Graphics.Semantics.csproj" />
     <PackageReference Include="DeltaShader.Compiler" PrivateAssets="all" />

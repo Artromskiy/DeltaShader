@@ -9,7 +9,7 @@ internal static class Example13_TorturedBlob
     [FragmentShader]
     public static float4 TorturedBlob(in GalleryFragmentContext context, in GalleryVarying input)
     {
-        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = GalleryCoordinates.Centered(context.Constants.Resolution);
         var radius = maths.length(p);
         var angle = maths.atan(p.y / (maths.abs(p.x) + 0.001f));
         var boundary = 0.48f + 0.1f * maths.sin(angle * 7f + context.Constants.Time * 1.4f);

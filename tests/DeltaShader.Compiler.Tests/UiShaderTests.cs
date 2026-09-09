@@ -84,18 +84,13 @@ public sealed class UiShaderTests
         Assert.Contains("smoothstep", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("outerCoverage", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("cornerRadii", fragmentGlsl, StringComparison.Ordinal);
-        Assert.Contains("d.xzzx", fragmentGlsl, StringComparison.Ordinal);
-        Assert.Contains("d.yyww", fragmentGlsl, StringComparison.Ordinal);
-        Assert.Contains("influence", fragmentGlsl, StringComparison.Ordinal);
-        Assert.Contains("hasMax", fragmentGlsl, StringComparison.Ordinal);
-        Assert.Contains("notMax", fragmentGlsl, StringComparison.Ordinal);
-        Assert.Contains("isRightTop", fragmentGlsl, StringComparison.Ordinal);
-        Assert.Contains("winner", fragmentGlsl, StringComparison.Ordinal);
-        Assert.Contains("dot", fragmentGlsl, StringComparison.Ordinal);
-        Assert.Contains("center", fragmentGlsl, StringComparison.Ordinal);
-        Assert.Contains("1.0 - smoothstep(-edge, edge, distance)", fragmentGlsl, StringComparison.Ordinal);
+        Assert.Contains("delta_helper_GetCornerRadius", fragmentGlsl, StringComparison.Ordinal);
+        Assert.Contains("rightBottom", fragmentGlsl, StringComparison.Ordinal);
+        Assert.DoesNotContain("d.xzzx", fragmentGlsl, StringComparison.Ordinal);
+        Assert.DoesNotContain("influence", fragmentGlsl, StringComparison.Ordinal);
+        Assert.Contains("return 1.0 - smoothstep(-arg_edge, arg_edge, arg_distance);", fragmentGlsl, StringComparison.Ordinal);
         Assert.Contains("fragColor", fragmentGlsl, StringComparison.Ordinal);
-        Assert.Contains("c.xyz * c.w", solidFragmentGlsl, StringComparison.Ordinal);
+        Assert.Contains("return vec4(arg_color.w * arg_color.xyz, arg_color.w);", solidFragmentGlsl, StringComparison.Ordinal);
         Assert.Equal("main", vertexManifest.EntryPointName);
         Assert.Single(vertexManifest.Outputs, output => output.Builtin == "Position");
         Assert.Contains(vertexManifest.Outputs, output => output.Name == "Uv");
@@ -111,7 +106,7 @@ public sealed class UiShaderTests
     {
         Compilation compilation = await LoadUiCompilationAsync().ConfigureAwait(true);
         IReadOnlyList<ShaderCompilationResult> results = ShaderCompiler.CompileAll(compilation);
-        Assert.Contains(results, item => item.EntryPointName == "analytic-rounded-rectangle");
+        Assert.Contains(results, item => item.EntryPointName == "rounded-rectangle");
 
         foreach (var entryPoint in new[] { "rounded-inner-shadow" })
         {

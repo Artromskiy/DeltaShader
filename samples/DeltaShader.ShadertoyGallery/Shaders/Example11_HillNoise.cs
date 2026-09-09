@@ -9,7 +9,7 @@ internal static class Example11_HillNoise
     [FragmentShader]
     public static float4 HillNoise(in GalleryFragmentContext context, in GalleryVarying input)
     {
-        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = GalleryCoordinates.Centered(context.Constants.Resolution);
         var value = 0f;
         var weight = 0.55f;
         for (var layer = 0f; layer < 4f; layer += 1f)

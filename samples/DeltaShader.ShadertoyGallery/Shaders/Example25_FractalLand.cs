@@ -9,7 +9,7 @@ internal static class Example25_FractalLand
     [FragmentShader]
     public static float4 FractalLand(in GalleryFragmentContext context, in GalleryVarying input)
     {
-        var uv = new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution;
+        var uv = GalleryCoordinates.FragmentUv(context.Constants.Resolution);
         var p = uv * 2f - new float2(1f, 1f);
         p.x = p.x * context.Constants.Resolution.x / context.Constants.Resolution.y;
         var terrain = 0f;

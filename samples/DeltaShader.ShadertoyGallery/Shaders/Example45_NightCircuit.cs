@@ -9,7 +9,7 @@ internal static class Example45_NightCircuit
     [FragmentShader]
     public static float4 NightCircuit(in GalleryFragmentContext context, in GalleryVarying input)
     {
-        var uv = new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution;
+        var uv = GalleryCoordinates.FragmentUv(context.Constants.Resolution);
         var p = uv * 2f - new float2(1f, 1f);
         p.x = p.x * context.Constants.Resolution.x / context.Constants.Resolution.y;
         var horizontal = maths.exp(-maths.abs(maths.sin(p.y * 9f + p.x * 2f)) * 28f);

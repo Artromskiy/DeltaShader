@@ -1,5 +1,6 @@
 using Delta.Graphics.Semantics;
 using Delta;
+using Delta.Shader;
 
 namespace Delta.Shader.ShadertoyGallery;
 
@@ -21,4 +22,12 @@ public readonly struct GalleryFragmentContext
 {
     [PushConstant]
     public readonly GalleryConstants Constants;
+}
+
+internal static class GalleryCoordinates
+{
+    public static float2 FragmentUv(float2 resolution) =>
+        new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / resolution;
+
+    public static float2 Centered(float2 resolution) => FragmentUv(resolution) * 2f - 1f;
 }

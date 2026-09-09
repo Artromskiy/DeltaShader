@@ -1,5 +1,3 @@
-using Delta.Shader;
-
 namespace Delta.Shader.Playground;
 
 public static class PlaygroundShaders

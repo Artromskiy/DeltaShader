@@ -9,7 +9,7 @@ internal static class Example02_BumpyOrbit
     [FragmentShader]
     public static float4 BumpyOrbit(in GalleryFragmentContext context, in GalleryVarying input)
     {
-        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = GalleryCoordinates.Centered(context.Constants.Resolution);
         var center = new float2(0.28f * maths.cos(context.Constants.Time), 0.18f * maths.sin(context.Constants.Time * 1.3f));
         var q = p - center;
         var radius = maths.length(q);

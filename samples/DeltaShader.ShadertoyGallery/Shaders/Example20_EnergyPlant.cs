@@ -9,7 +9,7 @@ internal static class Example20_EnergyPlant
     [FragmentShader]
     public static float4 EnergyPlant(in GalleryFragmentContext context, in GalleryVarying input)
     {
-        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = GalleryCoordinates.Centered(context.Constants.Resolution);
         var radius = maths.length(p);
         var core = maths.exp(-radius * radius * 28f);
         var branches = 0f;

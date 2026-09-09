@@ -9,7 +9,7 @@ internal static class Example39_ColorProcessing
     [FragmentShader]
     public static float4 ColorProcessing(in GalleryFragmentContext context, in GalleryVarying input)
     {
-        var uv = new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution;
+        var uv = GalleryCoordinates.FragmentUv(context.Constants.Resolution);
         var p = uv * 2f - new float2(1f, 1f);
         p.x = p.x * context.Constants.Resolution.x / context.Constants.Resolution.y;
         var red = 0.5f + 0.5f * maths.sin(p.x * 4f + context.Constants.Time);

@@ -9,7 +9,7 @@ internal static class Example14_RayMarchingSketch
     [FragmentShader]
     public static float4 RayMarchingSketch(in GalleryFragmentContext context, in GalleryVarying input)
     {
-        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = GalleryCoordinates.Centered(context.Constants.Resolution);
         var travel = 0f;
         var glow = 0f;
         for (var step = 0f; step < 8f; step += 1f)

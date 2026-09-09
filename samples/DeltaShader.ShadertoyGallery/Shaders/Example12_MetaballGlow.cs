@@ -9,7 +9,7 @@ internal static class Example12_MetaballGlow
     [FragmentShader]
     public static float4 MetaballGlow(in GalleryFragmentContext context, in GalleryVarying input)
     {
-        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = GalleryCoordinates.Centered(context.Constants.Resolution);
         var energy = 0f;
         for (var ball = 0f; ball < 3f; ball += 1f)
         {

@@ -9,7 +9,7 @@ internal static class Example09_RainbowSectors
     [FragmentShader]
     public static float4 RainbowSectors(in GalleryFragmentContext context, in GalleryVarying input)
     {
-        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = GalleryCoordinates.Centered(context.Constants.Resolution);
         var angle = maths.atan(p.y / (maths.abs(p.x) + 0.001f)) + context.Constants.Time * 0.4f;
         var radius = maths.length(p);
         var sector = 0.5f + 0.5f * maths.cos(angle * 8f);

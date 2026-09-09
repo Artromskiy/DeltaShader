@@ -9,7 +9,7 @@ internal static class Example18_FbmWarp
     [FragmentShader]
     public static float4 FbmWarp(in GalleryFragmentContext context, in GalleryVarying input)
     {
-        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = GalleryCoordinates.Centered(context.Constants.Resolution);
         var q = p + new float2(0.25f * maths.sin(p.y * 3f + context.Constants.Time), 0.2f * maths.cos(p.x * 4f - context.Constants.Time));
         var value = 0f;
         var weight = 0.5f;

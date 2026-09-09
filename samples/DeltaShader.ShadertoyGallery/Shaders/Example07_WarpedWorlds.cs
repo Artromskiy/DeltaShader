@@ -9,7 +9,7 @@ internal static class Example07_WarpedWorlds
     [FragmentShader]
     public static float4 WarpedWorlds(in GalleryFragmentContext context, in GalleryVarying input)
     {
-        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = GalleryCoordinates.Centered(context.Constants.Resolution);
         var warp = new float2(maths.sin(p.y * 4f + context.Constants.Time), maths.cos(p.x * 3f - context.Constants.Time * 0.7f));
         var q = p + 0.22f * warp;
         var radius = maths.length(q);

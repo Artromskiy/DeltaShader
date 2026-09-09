@@ -9,7 +9,7 @@ internal static class Example41_ExitTheMatrix
     [FragmentShader]
     public static float4 ExitTheMatrix(in GalleryFragmentContext context, in GalleryVarying input)
     {
-        var uv = new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution;
+        var uv = GalleryCoordinates.FragmentUv(context.Constants.Resolution);
         var grid = uv * new float2(18f, 10f);
         var cell = new float2(grid.x - maths.floor(grid.x) - 0.5f, grid.y - maths.floor(grid.y) - 0.5f);
         var column = maths.floor(grid.x);

@@ -12,7 +12,7 @@ internal static class Example01_SolarInterference
     [FragmentShader]
     public static float4 SolarInterference(in GalleryFragmentContext context, in GalleryVarying input)
     {
-        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = GalleryCoordinates.Centered(context.Constants.Resolution);
         var radius = maths.length(p);
         var bands = 0.5f + 0.5f * maths.cos(18f * radius - context.Constants.Time * 2f);
         var glow = 1f / (1f + 4f * radius * radius);

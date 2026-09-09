@@ -9,7 +9,7 @@ internal static class Example36_LearningReactionDiffusion
     [FragmentShader]
     public static float4 LearningReactionDiffusion(in GalleryFragmentContext context, in GalleryVarying input)
     {
-        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = GalleryCoordinates.Centered(context.Constants.Resolution);
         p.x = p.x * context.Constants.Resolution.x / context.Constants.Resolution.y;
         var activator = 0.5f + 0.5f * maths.sin(p.x * 3f + context.Constants.Time * 0.25f);
         var inhibitor = 0.5f + 0.5f * maths.cos(p.y * 4f - context.Constants.Time * 0.18f);

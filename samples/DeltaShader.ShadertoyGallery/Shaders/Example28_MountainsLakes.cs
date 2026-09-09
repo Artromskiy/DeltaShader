@@ -9,7 +9,7 @@ internal static class Example28_MountainsLakes
     [FragmentShader]
     public static float4 MountainsLakes(in GalleryFragmentContext context, in GalleryVarying input)
     {
-        var uv = new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution;
+        var uv = GalleryCoordinates.FragmentUv(context.Constants.Resolution);
         var p = uv * 2f - new float2(1f, 1f);
         p.x = p.x * context.Constants.Resolution.x / context.Constants.Resolution.y;
         var ridgeA = 0.28f + 0.12f * maths.sin(p.x * 2.4f + 0.4f) + 0.06f * maths.sin(p.x * 7f);

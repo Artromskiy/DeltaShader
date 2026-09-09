@@ -1,7 +1,5 @@
 using Delta.Graphics.Semantics;
 using System.Runtime.CompilerServices;
-using Delta;
-using Delta.Shader;
 
 namespace Delta.Shader.Playground;
 
@@ -86,8 +84,9 @@ public struct SpaceTwist : ISdfModifier
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public float3 ModifySpace(float3 p, float time)
     {
-        float c = maths.cos(Amount * p.y + time);
-        float s = maths.sin(Amount * p.y + time);
+        float angle = Amount * p.y + time;
+        float c = maths.cos(angle);
+        float s = maths.sin(angle);
 
         // Rotate around the Y axis without requiring a 2x2 matrix ABI type.
         float2 rotated = new float2(c * p.x - s * p.z, s * p.x + c * p.z);
@@ -103,7 +102,8 @@ public struct SpaceInfRepeat : ISdfModifier
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public float3 ModifySpace(float3 p, float time)
     {
-        return maths.fract((p + Period * 0.5f) / Period) * Period - Period * 0.5f;
+        float3 halfPeriod = Period * 0.5f;
+        return maths.fract((p + halfPeriod) / Period) * Period - halfPeriod;
     }
 }
 
@@ -174,9 +174,19 @@ public struct Raymarcher<TScene> where TScene : unmanaged, ISdfShape
 
 public static class GenericShaderPipeline
 {
+    private static VertexPayload FullscreenTriangleVertex(uint vertexIndex)
+    {
+        var local = FullscreenTriangleGeometry.GetLocal(vertexIndex);
+        return new VertexPayload
+        {
+            Position = FullscreenTriangleGeometry.GetPosition(local),
+            Uv = FullscreenTriangleGeometry.GetUv(local)
+        };
+    }
+
     [VertexShader("template")]
     public static VertexPayload GenericSdfVertex(in VertexContext context, in VertexPayload input)
-        => input;
+        => FullscreenTriangleVertex(ShaderBuiltins.VertexIndex);
 
     [FragmentShader("template")]
     public static float4 GenericSdfFragment(in FragmentContext context, in VertexPayload input)

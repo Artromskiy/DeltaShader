@@ -9,7 +9,7 @@ internal static class Example30_DancyTreeDoodle
     [FragmentShader]
     public static float4 DancyTreeDoodle(in GalleryFragmentContext context, in GalleryVarying input)
     {
-        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = GalleryCoordinates.Centered(context.Constants.Resolution);
         p.x = p.x * context.Constants.Resolution.x / context.Constants.Resolution.y;
         var trunk = maths.exp(-maths.abs(p.x + 0.08f * maths.sin(p.y * 8f + context.Constants.Time)) * 55f) * (1f - maths.smoothstep(0.55f, 0.9f, maths.abs(p.y)));
         var branches = 0f;

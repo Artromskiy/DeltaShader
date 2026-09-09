@@ -1,11 +1,19 @@
 using Delta.Graphics.Semantics;
-using Delta;
-using Delta.Shader;
 
 namespace Delta.Shader.Playground;
 
 internal static class JfaShaders
 {
+    private static JfaVarying FullscreenTriangleVertex(uint vertexIndex)
+    {
+        var local = FullscreenTriangleGeometry.GetLocal(vertexIndex);
+        return new JfaVarying
+        {
+            Position = FullscreenTriangleGeometry.GetPosition(local),
+            Uv = FullscreenTriangleGeometry.GetUv(local)
+        };
+    }
+
     [Interstage]
     public struct JfaVarying
     {
@@ -110,70 +118,20 @@ internal static class JfaShaders
 
     [VertexShader("jfa-init")]
     public static JfaVarying JfaInitVertex(in JfaInitVertexContext context, in JfaVarying input)
-    {
-        uint vertex = ShaderBuiltins.VertexIndex;
-        if (vertex == 0u)
-        {
-            return new JfaVarying
-            {
-                Position = new float4(-1f, -1f, 0f, 1f),
-                Uv = new float2(0f, 0f)
-            };
-        }
-
-        if (vertex == 1u)
-        {
-            return new JfaVarying
-            {
-                Position = new float4(3f, -1f, 0f, 1f),
-                Uv = new float2(2f, 0f)
-            };
-        }
-
-        return new JfaVarying
-        {
-            Position = new float4(-1f, 3f, 0f, 1f),
-            Uv = new float2(0f, 2f)
-        };
-    }
+        => FullscreenTriangleVertex(ShaderBuiltins.VertexIndex);
 
     [FragmentShader("jfa-init")]
     public static float4 JfaInitFragment(in JfaInitFragmentContext context, in JfaVarying input)
     {
         float2 uv = input.Uv.Value;
         float4 silhouette = context.Silhouette.Sample<float2, float4>(uv);
-        float valid = silhouette.a > 0.001f ? 1f : 0f;
+        float valid = 1f - maths.step(silhouette.a, 0.001f);
         return new float4(uv.x, uv.y, valid, 1f);
     }
 
     [VertexShader("jfa-flood")]
     public static JfaVarying JfaFloodVertex(in JfaFloodVertexContext context, in JfaVarying input)
-    {
-        uint vertex = ShaderBuiltins.VertexIndex;
-        if (vertex == 0u)
-        {
-            return new JfaVarying
-            {
-                Position = new float4(-1f, -1f, 0f, 1f),
-                Uv = new float2(0f, 0f)
-            };
-        }
-
-        if (vertex == 1u)
-        {
-            return new JfaVarying
-            {
-                Position = new float4(3f, -1f, 0f, 1f),
-                Uv = new float2(2f, 0f)
-            };
-        }
-
-        return new JfaVarying
-        {
-            Position = new float4(-1f, 3f, 0f, 1f),
-            Uv = new float2(0f, 2f)
-        };
-    }
+        => FullscreenTriangleVertex(ShaderBuiltins.VertexIndex);
 
     [FragmentShader("jfa-flood")]
     public static float4 JfaFloodFragment(in JfaFloodFragmentContext context, in JfaVarying input)
@@ -181,7 +139,8 @@ internal static class JfaShaders
         float2 uv = input.Uv.Value;
         float2 offset = context.Parameters.TexelSize * context.Parameters.Jump;
         float4 center = context.Seeds.Sample<float2, float4>(ClampUv(uv));
-        float2 best = center.z > 0.5f ? center.xy : new float2(-1f, -1f);
+        float centerValid = 1f - maths.step(center.z, 0.5f);
+        float2 best = new float2(-1f) + centerValid * (center.xy + new float2(1f));
 
         best = ChooseNearest(uv, best, context.Seeds.Sample<float2, float4>(ClampUv(uv + new float2(-offset.x, -offset.y))));
         best = ChooseNearest(uv, best, context.Seeds.Sample<float2, float4>(ClampUv(uv + new float2(0f, -offset.y))));
@@ -192,55 +151,20 @@ internal static class JfaShaders
         best = ChooseNearest(uv, best, context.Seeds.Sample<float2, float4>(ClampUv(uv + new float2(0f, offset.y))));
         best = ChooseNearest(uv, best, context.Seeds.Sample<float2, float4>(ClampUv(uv + new float2(offset.x, offset.y))));
 
-        float valid = best.x >= 0f ? 1f : 0f;
+        float valid = maths.step(0f, best.x);
         return new float4(best.x, best.y, valid, 1f);
     }
 
     [VertexShader("jfa-composite")]
     public static JfaVarying JfaCompositeVertex(in JfaCompositeVertexContext context, in JfaVarying input)
-    {
-        uint vertex = ShaderBuiltins.VertexIndex;
-        if (vertex == 0u)
-        {
-            return new JfaVarying
-            {
-                Position = new float4(-1f, -1f, 0f, 1f),
-                Uv = new float2(0f, 0f)
-            };
-        }
-
-        if (vertex == 1u)
-        {
-            return new JfaVarying
-            {
-                Position = new float4(3f, -1f, 0f, 1f),
-                Uv = new float2(2f, 0f)
-            };
-        }
-
-        return new JfaVarying
-        {
-            Position = new float4(-1f, 3f, 0f, 1f),
-            Uv = new float2(0f, 2f)
-        };
-    }
+        => FullscreenTriangleVertex(ShaderBuiltins.VertexIndex);
 
     [FragmentShader("jfa-composite")]
     public static float4 JfaCompositeFragment(in JfaCompositeFragmentContext context, in JfaVarying input)
     {
         float2 uv = input.Uv.Value;
         float4 silhouette = context.Silhouette.Sample<float2, float4>(ClampUv(uv));
-        if (silhouette.a > 0.001f || context.Parameters.OutlineWidth <= 0f)
-        {
-            return new float4(0f, 0f, 0f, 0f);
-        }
-
         float4 seed = context.Seeds.Sample<float2, float4>(ClampUv(uv));
-        if (seed.z <= 0.5f)
-        {
-            return new float4(0f, 0f, 0f, 0f);
-        }
-
         float texel = maths.max(context.Parameters.TexelSize.x, context.Parameters.TexelSize.y);
         float distanceInPixels = maths.distance(uv, seed.xy) / texel;
         float aa = intrinsics.fwidth(distanceInPixels);
@@ -249,22 +173,23 @@ internal static class JfaShaders
             context.Parameters.OutlineWidth + aa,
             distanceInPixels);
 
-        return context.Parameters.Color * coverage;
+        float outsideSilhouette = maths.step(silhouette.a, 0.001f);
+        float outlineEnabled = 1f - maths.step(context.Parameters.OutlineWidth, 0f);
+        float validSeed = 1f - maths.step(seed.z, 0.5f);
+        return context.Parameters.Color * (coverage * outsideSilhouette * outlineEnabled * validSeed);
     }
 
     private static float2 ChooseNearest(float2 pixel, float2 best, float4 candidate)
     {
-        if (candidate.z <= 0.5f)
-        {
-            return best;
-        }
-
-        if (best.x < 0f || maths.distance(pixel, candidate.xy) < maths.distance(pixel, best))
-        {
-            return candidate.xy;
-        }
-
-        return best;
+        float2 candidateDelta = pixel - candidate.xy;
+        float2 bestDelta = pixel - best;
+        float candidateValid = 1f - maths.step(candidate.z, 0.5f);
+        float bestValid = maths.step(0f, best.x);
+        float candidateDistance = maths.dot(candidateDelta, candidateDelta);
+        float bestDistance = maths.dot(bestDelta, bestDelta);
+        float chooseCandidate = candidateValid * (1f - bestValid +
+            bestValid * (1f - maths.step(bestDistance, candidateDistance)));
+        return best + chooseCandidate * (candidate.xy - best);
     }
 
     private static float2 ClampUv(float2 uv)

@@ -712,7 +712,12 @@ public sealed class BindingAndBuiltinTests
             public static class Layers
             {
                 [VertexShader("geometry")]
-                public static Surface Geometry(in VertexContext context, in Surface input) => input;
+                public static Surface Geometry(in VertexContext context, in Surface input) => new Surface
+                {
+                    Position = default,
+                    Uv = default,
+                    Tint = default
+                };
 
                 [FragmentShader("shade")]
                 public static float4 Shade(in FragmentContext context, in Surface input) =>

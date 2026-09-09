@@ -46,30 +46,11 @@ internal static class FullscreenUi
     [VertexShader]
     public static UiVarying Vertex(in VertexContext context, in UiVarying input)
     {
-        uint vertexIndex = ShaderBuiltins.VertexIndex;
-
-        if (vertexIndex == 0u)
-        {
-            return new UiVarying
-            {
-                Position = new float4(-1f, -1f, 0f, 1f),
-                Uv = new float2(0f, 0f)
-            };
-        }
-
-        if (vertexIndex == 1u)
-        {
-            return new UiVarying
-            {
-                Position = new float4(3f, -1f, 0f, 1f),
-                Uv = new float2(2f, 0f)
-            };
-        }
-
+        var local = FullscreenTriangleGeometry.GetLocal(ShaderBuiltins.VertexIndex);
         return new UiVarying
         {
-            Position = new float4(-1f, 3f, 0f, 1f),
-            Uv = new float2(0f, 2f)
+            Position = FullscreenTriangleGeometry.GetPosition(local),
+            Uv = FullscreenTriangleGeometry.GetUv(local)
         };
     }
 

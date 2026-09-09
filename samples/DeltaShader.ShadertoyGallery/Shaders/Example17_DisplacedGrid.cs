@@ -9,7 +9,7 @@ internal static class Example17_DisplacedGrid
     [FragmentShader]
     public static float4 DisplacedGrid(in GalleryFragmentContext context, in GalleryVarying input)
     {
-        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = GalleryCoordinates.Centered(context.Constants.Resolution);
         var displacedX = p.x + 0.16f * maths.sin(p.y * 9f + context.Constants.Time);
         var displacedY = p.y + 0.16f * maths.cos(p.x * 8f - context.Constants.Time * 0.8f);
         var lineX = maths.exp(-maths.abs(maths.sin(displacedX * 18f)) * 18f);

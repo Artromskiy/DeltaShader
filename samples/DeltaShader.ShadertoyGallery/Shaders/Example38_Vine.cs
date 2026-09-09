@@ -9,7 +9,7 @@ internal static class Example38_Vine
     [FragmentShader]
     public static float4 Vine(in GalleryFragmentContext context, in GalleryVarying input)
     {
-        var p = (new float2(ShaderBuiltins.FragmentCoord.X, ShaderBuiltins.FragmentCoord.Y) / context.Constants.Resolution) * 2f - new float2(1f, 1f);
+        var p = GalleryCoordinates.Centered(context.Constants.Resolution);
         p.x = p.x * context.Constants.Resolution.x / context.Constants.Resolution.y;
         var stem = maths.exp(-maths.abs(p.x - 0.18f * maths.sin(p.y * 4f + context.Constants.Time * 0.5f)) * 48f) * (1f - maths.smoothstep(0.7f, 1.1f, maths.abs(p.y)));
         var leaves = 0f;

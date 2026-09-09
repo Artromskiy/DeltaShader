@@ -1,6 +1,4 @@
 using Delta.Graphics.Semantics;
-using Delta;
-using Delta.Shader;
 
 namespace Delta.Shader.Playground;
 
@@ -38,9 +36,19 @@ public readonly struct VolumetricFragmentContext
 
 public static class VolumetricShader
 {
+    private static VolumetricVertexPayload FullscreenTriangleVertex(uint vertexIndex)
+    {
+        var local = FullscreenTriangleGeometry.GetLocal(vertexIndex);
+        return new VolumetricVertexPayload
+        {
+            Position = FullscreenTriangleGeometry.GetPosition(local),
+            Uv = FullscreenTriangleGeometry.GetUv(local)
+        };
+    }
+
     [VertexShader("volumetric")]
     public static VolumetricVertexPayload Vertex(in VolumetricVertexContext context, in VolumetricVertexPayload input)
-        => input;
+        => FullscreenTriangleVertex(ShaderBuiltins.VertexIndex);
 
     [FragmentShader("volumetric")]
     public static float4 Fragment(in VolumetricFragmentContext context, in VolumetricVertexPayload input)
@@ -120,8 +128,8 @@ public static class VolumetricShader
     private static float SceneSdf(float3 p, float time)
     {
         float3 spacing = new float3(3.0f, 3.0f, 3.0f);
-        float3 q = maths.fract((p + spacing * 0.5f) / spacing)
-            * spacing - spacing * 0.5f;
+        float3 halfSpacing = spacing * 0.5f;
+        float3 q = maths.fract((p + halfSpacing) / spacing) * spacing - halfSpacing;
         float wave = maths.sin(p.x * 0.5f + time)
             * maths.cos(p.y * 0.5f + time) * 0.2f;
         float sphereRadius = 0.5f + wave;
