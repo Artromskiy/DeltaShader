@@ -85,7 +85,15 @@ jobs:
       - name: Bootstrap restore
         working-directory: DeltaShader
         run: |
-          dotnet restore DeltaShader.slnx
+          set -euo pipefail
+          dotnet restore ../DeltaMaths/src/DeltaMaths/DeltaMaths.csproj
+          for project in \
+            src/DeltaShader.Contract/DeltaShader.Contract.csproj \
+            src/DeltaShader.Compiler/DeltaShader.Compiler.csproj \
+            src/DeltaShader.Analyzers/DeltaShader.Analyzers.csproj \
+            src/DeltaShader.Tool/DeltaShader.Tool.csproj; do
+            dotnet restore "$project" --verbosity minimal
+          done
       - name: Pack current DeltaShader toolchain
         working-directory: DeltaShader
         shell: bash
@@ -138,22 +146,27 @@ jobs:
             --password "${{ github.token }}" \
             --store-password-in-clear-text \
             --configfile "$RUNNER_TEMP/deltashader-nuget.config"
-          dotnet restore ../DeltaRender/src/DeltaRender/DeltaRender.csproj \
-            --configfile "$RUNNER_TEMP/deltashader-nuget.config"
-          dotnet pack ../DeltaRender/src/DeltaRender/DeltaRender.csproj \
-            -c Release --no-restore \
-            -p:PackageVersion=0.0.15.9999 \
-            --output "$feed" \
-            --verbosity minimal
       - name: Restore with current DeltaShader toolchain
         working-directory: DeltaShader
-        run: dotnet restore DeltaShader.slnx --configfile "$RUNNER_TEMP/deltashader-nuget.config"
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t projects < <(find src samples tests -type f -name '*.csproj' \
+            ! -path '*/DeltaShader.Vulkan.Tests/*' \
+            ! -path '*/DeltaShader.TestShaders/*' | sort)
+          for project in "${projects[@]}"; do
+            dotnet restore "$project" \
+              --configfile "$RUNNER_TEMP/deltashader-nuget.config" \
+              --verbosity minimal
+          done
       - name: Build shader projects
         working-directory: DeltaShader
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t projects < <(find src samples tests -type f -name '*.csproj' | sort)
+          mapfile -t projects < <(find src samples tests -type f -name '*.csproj' \
+            ! -path '*/DeltaShader.Vulkan.Tests/*' \
+            ! -path '*/DeltaShader.TestShaders/*' | sort)
           for project in "${projects[@]}"; do
             dotnet build "$project" -c Release --no-restore \
               --disable-build-servers -m:1 /p:UseSharedCompilation=false
@@ -168,9 +181,6 @@ jobs:
             /p:UseSharedCompilation=false \
             --filter 'FullyQualifiedName!~ShadertoyGalleryTests'
           dotnet test tests/DeltaShader.Golden.Tests/DeltaShader.Golden.Tests.csproj \
-            -c Release --no-build --no-restore --disable-build-servers -m:1 \
-            /p:UseSharedCompilation=false
-          dotnet test tests/DeltaShader.Vulkan.Tests/DeltaShader.Vulkan.Tests.csproj \
             -c Release --no-build --no-restore --disable-build-servers -m:1 \
             /p:UseSharedCompilation=false
           perl -e 'alarm 60; exec @ARGV' -- \
