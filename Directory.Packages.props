@@ -19,6 +19,6 @@
     <PackageVersion Include="DeltaShader.Analyzers" Version="*" />
     <PackageVersion Include="DeltaShader.Contract" Version="*" />
     <PackageVersion Include="DeltaShader.Tool" Version="*" />
-    <PackageVersion Include="DeltaMaths" Version="0.0.11" />
+    <PackageVersion Include="DeltaMaths" Version="*" />
   </ItemGroup>
 </Project>
