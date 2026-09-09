@@ -103,7 +103,6 @@ jobs:
           mkdir -p "$feed"
           dotnet restore ../DeltaMaths/src/DeltaMaths/DeltaMaths.csproj
           dotnet pack ../DeltaMaths/src/DeltaMaths/DeltaMaths.csproj -c Release --no-restore \
-            -p:PackageVersion=0.0.10.9999 \
             --output "$feed" \
             --verbosity minimal
           for project in \
