@@ -84,7 +84,146 @@ internal static class ShaderContractHelperEmitter
             }
         }
 
+        if (source.Contains("delta_d_", StringComparison.Ordinal))
+        {
+            emitted.Add(EmitDoubleMathHelpers());
+        }
+
         return emitted;
+    }
+
+    private static string EmitDoubleMathHelpers()
+    {
+        const string scalar = @"
+double delta_d_sin(double x)
+{
+    double q = floor(x * 0.636619772367581343075535053490057448) + 0.5;
+    int quadrant = int(q);
+    double r = x - q * 1.5707963267948966192313216916397527;
+    double z = r * r;
+    double s = r * (1.0 + z * (-0.1666666666666666666666666666666667 + z * (0.0083333333333333333333333333333333 + z * (-0.0001984126984126984126984126984127 + z * (0.0000027557319223985890652557319224 + z * (-0.0000000250521083854417187757201646 + z * 0.0000000001605904383682161459939237))))));
+    double c = 1.0 + z * (-0.5 + z * (0.0416666666666666666666666666666667 + z * (-0.001388888888888888888888888888888889 + z * (0.0000248015873015873015873015873016 + z * (-0.0000002755731922398589065255731922 + z * 0.0000000020876756987868098979210090)))));
+    int branch = quadrant & 3;
+    if (branch == 0) return s;
+    if (branch == 1) return c;
+    if (branch == 2) return -s;
+    return -c;
+}
+
+double delta_d_cos(double x)
+{
+    double q = floor(x * 0.636619772367581343075535053490057448 + 0.5);
+    int quadrant = int(q);
+    double r = x - q * 1.5707963267948966192313216916397527;
+    double z = r * r;
+    double s = r * (1.0 + z * (-0.1666666666666666666666666666666667 + z * (0.0083333333333333333333333333333333 + z * (-0.0001984126984126984126984126984127 + z * (0.0000027557319223985890652557319224 + z * (-0.0000000250521083854417187757201646 + z * 0.0000000001605904383682161459939237))))));
+    double c = 1.0 + z * (-0.5 + z * (0.0416666666666666666666666666666667 + z * (-0.001388888888888888888888888888888889 + z * (0.0000248015873015873015873015873016 + z * (-0.0000002755731922398589065255731922 + z * 0.0000000020876756987868098979210090)))));
+    int branch = quadrant & 3;
+    if (branch == 0) return c;
+    if (branch == 1) return -s;
+    if (branch == 2) return -c;
+    return s;
+}
+
+double delta_d_tan(double x) { return delta_d_sin(x) / delta_d_cos(x); }
+
+double delta_d_atan_unit(double x)
+{
+    double z = x * x;
+    double p = -0.0370370370370370370370370370370370;
+    p = 0.04 + z * p;
+    p = -0.0434782608695652173913043478260870 + z * p;
+    p = 0.0476190476190476190476190476190476 + z * p;
+    p = -0.0526315789473684210526315789473684 + z * p;
+    p = 0.0588235294117647058823529411764706 + z * p;
+    p = -0.0666666666666666666666666666666667 + z * p;
+    p = 0.0769230769230769230769230769230769 + z * p;
+    p = -0.0909090909090909090909090909090909 + z * p;
+    p = 0.1111111111111111111111111111111111 + z * p;
+    p = -0.1428571428571428571428571428571429 + z * p;
+    p = 0.2 + z * p;
+    p = -0.3333333333333333333333333333333333 + z * p;
+    return x * (1.0 + z * p);
+}
+
+double delta_d_atan(double x)
+{
+    double ax = abs(x);
+    double y = ax <= 1.0 ? ax : 1.0 / ax;
+    double t = y / (1.0 + sqrt(1.0 + y * y));
+    double result = 2.0 * delta_d_atan_unit(t);
+    if (ax > 1.0) result = 1.5707963267948966192313216916397527 - result;
+    return x < 0.0 ? -result : result;
+}
+
+double delta_d_atan2(double y, double x)
+{
+    double ay = abs(y);
+    double ax = abs(x);
+    double a = delta_d_atan(ay / max(ax, 0.0000000000000000000000000000000001));
+    if (x < 0.0) a = 3.1415926535897932384626433832795029 - a;
+    return y < 0.0 ? -a : a;
+}
+
+double delta_d_exp(double x)
+{
+    int n = int(floor(x * 1.4426950408889634073599246810018921 + 0.5));
+    double r = x - double(n) * 0.6931471805599453094172321214581766;
+    double p = 1.0 + r * (1.0 + r * (0.5 + r * (0.1666666666666666666666666666666667 + r * (0.0416666666666666666666666666666667 + r * (0.0083333333333333333333333333333333 + r * (0.001388888888888888888888888888888889 + r * (0.0001984126984126984126984126984127 + r * (0.0000248015873015873015873015873016 + r * (0.0000027557319223985890652557319224 + r * (0.0000002755731922398589065255731922 + r * (0.0000000250521083854417187757201646 + r * 0.0000000020876756987868098979210090)))))))))));
+    return ldexp(p, n);
+}
+
+double delta_d_exp2(double x) { return delta_d_exp(x * 0.6931471805599453094172321214581766); }
+
+double delta_d_log(double x)
+{
+    int exponent;
+    double m = frexp(x, exponent);
+    double y = (m - 1.0) / (m + 1.0);
+    double z = y * y;
+    double series = y * (2.0 + z * (0.6666666666666666666666666666666667 + z * (0.4 + z * (0.2857142857142857142857142857142857 + z * (0.2222222222222222222222222222222222 + z * (0.1818181818181818181818181818181818 + z * (0.1538461538461538461538461538461538 + z * (0.1333333333333333333333333333333333 + z * (0.1176470588235294117647058823529412 + z * (0.1052631578947368421052631578947368 + z * 0.0952380952380952380952380952380952))))))))));
+    return series + double(exponent) * 0.6931471805599453094172321214581766;
+}
+
+double delta_d_log2(double x) { return delta_d_log(x) * 1.4426950408889634073599246810018921; }
+double delta_d_pow(double x, double y) { return delta_d_exp(y * delta_d_log(x)); }
+double delta_d_radians(double x) { return x * 0.0174532925199432957692369076848861; }
+double delta_d_degrees(double x) { return x * 57.2957795130823208767981548141052; }
+double delta_d_asin(double x) { return delta_d_atan(x / sqrt(1.0 - x * x)); }
+double delta_d_acos(double x) { return 1.5707963267948966192313216916397527 - delta_d_asin(x); }
+double delta_d_sinh(double x) { double e = delta_d_exp(x); return 0.5 * (e - 1.0 / e); }
+double delta_d_cosh(double x) { double e = delta_d_exp(x); return 0.5 * (e + 1.0 / e); }
+double delta_d_tanh(double x) { double e = delta_d_exp(2.0 * x); return (e - 1.0) / (e + 1.0); }
+double delta_d_asinh(double x) { return delta_d_log(x + sqrt(x * x + 1.0)); }
+double delta_d_acosh(double x) { return delta_d_log(x + sqrt((x - 1.0) * (x + 1.0))); }
+double delta_d_atanh(double x) { return 0.5 * delta_d_log((1.0 + x) / (1.0 - x)); }
+";
+
+        var helpers = new List<string> { scalar };
+        var vectorTypes = new[] { (Type: "dvec2", Components: new[] { "x", "y" }), (Type: "dvec3", Components: new[] { "x", "y", "z" }), (Type: "dvec4", Components: new[] { "x", "y", "z", "w" }) };
+        var unary = new[] { "sin", "cos", "tan", "atan", "asin", "acos", "sinh", "cosh", "tanh", "asinh", "acosh", "atanh", "exp", "exp2", "log", "log2", "radians", "degrees" };
+        foreach (var name in unary)
+        {
+            foreach (var vector in vectorTypes)
+            {
+                var values = string.Join(", ", vector.Components.Select(component => "delta_d_" + name + "(value." + component + ")"));
+                helpers.Add(vector.Type + " delta_d_" + name + "(" + vector.Type + " value) { return " + vector.Type + "(" + values + "); }");
+            }
+        }
+
+        foreach (var vector in vectorTypes)
+        {
+            var values = string.Join(", ", vector.Components.Select(component => "delta_d_pow(x." + component + ", y." + component + ")"));
+            helpers.Add(vector.Type + " delta_d_pow(" + vector.Type + " x, " + vector.Type + " y) { return " + vector.Type + "(" + values + "); }");
+            values = string.Join(", ", vector.Components.Select(component => "delta_d_atan2(y." + component + ", x." + component + ")"));
+            helpers.Add(vector.Type + " delta_d_atan2(" + vector.Type + " y, " + vector.Type + " x) { return " + vector.Type + "(" + values + "); }");
+            values = string.Join(", ", vector.Components.Select(component => "delta_d_atan2(y." + component + ", x)"));
+            helpers.Add(vector.Type + " delta_d_atan2(" + vector.Type + " y, double x) { return " + vector.Type + "(" + values + "); }");
+            values = string.Join(", ", vector.Components.Select(component => "delta_d_atan2(y, x." + component + ")"));
+            helpers.Add(vector.Type + " delta_d_atan2(double y, " + vector.Type + " x) { return " + vector.Type + "(" + values + "); }");
+        }
+
+        return string.Join("\n", helpers);
     }
 
     private static string? EmitFunction(ShaderContractFunction function, HelperCatalog catalog)

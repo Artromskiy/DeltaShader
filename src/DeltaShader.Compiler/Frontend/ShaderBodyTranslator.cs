@@ -2287,6 +2287,12 @@ internal static class ShaderBodyTranslator
 
                 if (IsUnsupportedDoublePrecisionIntrinsic(binding))
                 {
+                    var doubleIntrinsic = CreateDoubleIntrinsicCall(binding, glslArguments.ToArray());
+                    if (doubleIntrinsic is not null)
+                    {
+                        return SyntaxFactory.ParseExpression(doubleIntrinsic);
+                    }
+
                     Reason ??= CapabilityDiagnosticPrefix
                         + $"Vulkan GLSL does not provide double-precision '{binding.GlslName}'; use float or half precision.";
                     return base.VisitInvocationExpression(node);
@@ -2511,6 +2517,21 @@ internal static class ShaderBodyTranslator
 
             return binding.ReturnGlslType is { } returnType && IsDoublePrecisionType(returnType)
                 || binding.ParameterGlslTypes?.Any(IsDoublePrecisionType) == true;
+        }
+
+        private static string? CreateDoubleIntrinsicCall(IntrinsicBinding binding, IReadOnlyList<string> arguments)
+        {
+            if (binding.GlslName is not { Length: > 0 } name || binding.ReturnGlslType is not { } returnType
+                || binding.ParameterGlslTypes is not { } parameterTypes || parameterTypes.Count != arguments.Count
+                || !IsDoublePrecisionType(returnType) && !parameterTypes.Any(IsDoublePrecisionType))
+            {
+                return null;
+            }
+
+            var helperName = string.Equals(name, "atan", StringComparison.Ordinal) && arguments.Count == 2
+                ? "atan2"
+                : name;
+            return "delta_d_" + helperName + "(" + string.Join(", ", arguments) + ")";
         }
 
         private static bool IsDoublePrecisionType(string? glslType)
