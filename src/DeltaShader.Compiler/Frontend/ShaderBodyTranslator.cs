@@ -2549,8 +2549,8 @@ internal static class ShaderBodyTranslator
                     "dvec3" => "vec3",
                     _ => "vec4"
                 };
-                if (parameterTypes[0] == "double") converted[0] = vectorType + "(" + converted[0] + ")";
-                if (parameterTypes[1] == "double") converted[1] = vectorType + "(" + converted[1] + ")";
+                if (parameterTypes[0] == "double") { converted[0] = vectorType + "(" + converted[0] + ")"; }
+                if (parameterTypes[1] == "double") { converted[1] = vectorType + "(" + converted[1] + ")"; }
             }
 
             var call = string.Equals(name, "atanh", StringComparison.Ordinal)
