@@ -120,9 +120,9 @@ internal static class ShaderContractHelperEmitter
     {
         var components = returnType switch
         {
-            "vec2" or "ivec2" or "uvec2" => new[] { "x", "y" },
-            "vec3" or "ivec3" or "uvec3" => new[] { "x", "y", "z" },
-            "vec4" or "ivec4" or "uvec4" => new[] { "x", "y", "z", "w" },
+            "vec2" or "ivec2" or "uvec2" or "dvec2" or "f16vec2" => new[] { "x", "y" },
+            "vec3" or "ivec3" or "uvec3" or "dvec3" or "f16vec3" => new[] { "x", "y", "z" },
+            "vec4" or "ivec4" or "uvec4" or "dvec4" or "f16vec4" => new[] { "x", "y", "z", "w" },
             _ => Array.Empty<string>()
         };
 

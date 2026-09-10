@@ -2287,6 +2287,12 @@ internal static class ShaderBodyTranslator
 
                 if (IsUnsupportedDoublePrecisionIntrinsic(binding))
                 {
+                    var fallback = CreateDoublePrecisionFallback(binding, glslArguments.ToArray());
+                    if (fallback is not null)
+                    {
+                        return SyntaxFactory.ParseExpression(fallback);
+                    }
+
                     Reason ??= CapabilityDiagnosticPrefix
                         + $"Vulkan GLSL does not provide double-precision '{binding.GlslName}'; use float or half precision.";
                     return base.VisitInvocationExpression(node);
@@ -2503,7 +2509,7 @@ internal static class ShaderBodyTranslator
         {
             if (!string.Equals(binding.RequiredCapability, "float64", StringComparison.Ordinal)
                 || binding.GlslName is not ("acos" or "acosh" or "asin" or "asinh" or "atan"
-                    or "cos" or "cosh" or "degrees" or "exp" or "exp2" or "log" or "log2"
+                    or "cos" or "cosh" or "degrees" or "exp" or "exp2" or "log" or "log2" or "atanh"
                     or "pow" or "radians" or "sin" or "sinh" or "tan" or "tanh"))
             {
                 return false;
@@ -2511,6 +2517,53 @@ internal static class ShaderBodyTranslator
 
             return binding.ReturnGlslType is { } returnType && IsDoublePrecisionType(returnType)
                 || binding.ParameterGlslTypes?.Any(IsDoublePrecisionType) == true;
+        }
+
+        private static string? CreateDoublePrecisionFallback(IntrinsicBinding binding, IReadOnlyList<string> arguments)
+        {
+            if (binding.GlslName is not { Length: > 0 } name || binding.ParameterGlslTypes is not { } parameterTypes
+                || parameterTypes.Count != arguments.Count || binding.ReturnGlslType is not { } returnType)
+            {
+                return null;
+            }
+
+            var converted = new string[arguments.Count];
+            for (var i = 0; i < arguments.Count; i++)
+            {
+                converted[i] = parameterTypes[i] switch
+                {
+                    "double" => "float(" + arguments[i] + ")",
+                    "dvec2" => "vec2(" + arguments[i] + ")",
+                    "dvec3" => "vec3(" + arguments[i] + ")",
+                    "dvec4" => "vec4(" + arguments[i] + ")",
+                    _ => arguments[i]
+                };
+            }
+
+            if (string.Equals(name, "atan", StringComparison.Ordinal) && converted.Length == 2
+                && parameterTypes.Any(type => type is "dvec2" or "dvec3" or "dvec4"))
+            {
+                var vectorType = parameterTypes.First(type => type is "dvec2" or "dvec3" or "dvec4") switch
+                {
+                    "dvec2" => "vec2",
+                    "dvec3" => "vec3",
+                    _ => "vec4"
+                };
+                if (parameterTypes[0] == "double") converted[0] = vectorType + "(" + converted[0] + ")";
+                if (parameterTypes[1] == "double") converted[1] = vectorType + "(" + converted[1] + ")";
+            }
+
+            var call = string.Equals(name, "atanh", StringComparison.Ordinal)
+                ? "(0.5 * log((1.0 + " + converted[0] + ") / (1.0 - " + converted[0] + ")))"
+                : name + "(" + string.Join(", ", converted) + ")";
+            return returnType switch
+            {
+                "double" => "double(" + call + ")",
+                "dvec2" => "dvec2(" + call + ")",
+                "dvec3" => "dvec3(" + call + ")",
+                "dvec4" => "dvec4(" + call + ")",
+                _ => call
+            };
         }
 
         private static bool IsDoublePrecisionType(string? glslType)
