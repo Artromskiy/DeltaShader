@@ -535,6 +535,10 @@ internal static class MathsConformancePublisher
         IReadOnlyList<string> requiredCapabilities)
     {
         var extensions = new List<string>();
+        if (source.Contains("f16", StringComparison.Ordinal))
+        {
+            extensions.Add("#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require");
+        }
         foreach (var requiredCapability in requiredCapabilities)
         {
             var extension = requiredCapability switch

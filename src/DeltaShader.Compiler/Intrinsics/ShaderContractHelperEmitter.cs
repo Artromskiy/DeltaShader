@@ -99,10 +99,6 @@ internal static class ShaderContractHelperEmitter
         if (string.Equals(function.ClrName, "Select", StringComparison.Ordinal)
             && IsSelectVector(returnType, parameterTypes))
         {
-            if (returnType.StartsWith("f16vec", StringComparison.Ordinal))
-            {
-                return null;
-            }
             return EmitSelect(glslName, returnType, parameterTypes[2]);
         }
 
