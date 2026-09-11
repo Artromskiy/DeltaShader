@@ -97,7 +97,7 @@ internal static class ShaderContractHelperEmitter
         const string scalar = @"
 double delta_d_sin(double x)
 {
-    double q = floor(x * 0.636619772367581343075535053490057448) + 0.5;
+    double q = floor(x * 0.636619772367581343075535053490057448 + 0.5);
     int quadrant = int(q);
     double r = x - q * 1.5707963267948966192313216916397527;
     double z = r * r;
