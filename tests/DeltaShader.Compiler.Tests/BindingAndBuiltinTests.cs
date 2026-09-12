@@ -4,6 +4,8 @@ using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 using Delta.Shader.Compiler;
+using Delta.Shader.Compiler.Frontend;
+using Delta.Shader.Compiler.Intrinsics;
 using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -66,6 +68,130 @@ public sealed class BindingAndBuiltinTests
 
         string glsl = Delta.Shader.Backend.Glsl.GlslEmitter.EmitFromModule(result.Module!).Source;
         Assert.Contains("gl_GlobalInvocationID.x", glsl, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ContractHelperBinding_LowersByAbiNameAndEmitsHelperImplementation()
+    {
+        const string source = """
+            using Delta;
+            using Delta.Shader;
+            using Delta.Graphics.Semantics;
+
+            public readonly struct ComputeContext
+            {
+                [Layout(0, 0)] public readonly ReadOnlyStorageBuffer<double> Input;
+                [Layout(0, 1)] public readonly ReadWriteStorageBuffer<double> Output;
+            }
+
+            public static class DoubleHelperEntry
+            {
+                [ComputeShader(64)]
+                public static void Execute(in ComputeContext context)
+                {
+                    uint id = ShaderBuiltins.GlobalInvocationId.X;
+                    context.Output[id] = maths.sin(context.Input[id]) + maths.atan2(context.Input[id], context.Input[id]);
+                }
+            }
+            """;
+
+        Compilation compilation = await LoadCompilationAsync(source).ConfigureAwait(true);
+        ShaderContractManifest contract = CreateMathsContract(
+            new ShaderContractFunction
+            {
+                TypeClrName = "maths",
+                ClrName = "sin",
+                ReturnClrName = "double",
+                ReturnGlslType = "double",
+                ParameterClrNames = ["double"],
+                ParameterGlslTypes = ["double"],
+                GlslName = "delta_d_sin",
+                Mapping = ShaderContractMapping.Helper,
+                RequiredCapability = "float64",
+                Stages = ["compute"]
+            },
+            new ShaderContractFunction
+            {
+                TypeClrName = "maths",
+                ClrName = "atan2",
+                ReturnClrName = "double",
+                ReturnGlslType = "double",
+                ParameterClrNames = ["double", "double"],
+                ParameterGlslTypes = ["double", "double"],
+                GlslName = "delta_d_atan2",
+                Mapping = ShaderContractMapping.Helper,
+                RequiredCapability = "float64",
+                Stages = ["compute"]
+            });
+        IntrinsicRegistry registry = IntrinsicRegistry.Build(compilation, contract);
+        IMethodSymbol sin = compilation.GetTypeByMetadataName("Delta.maths")!
+            .GetMembers("sin").OfType<IMethodSymbol>().Single(method =>
+                method.Parameters.Length == 1 && method.Parameters[0].Type.SpecialType == SpecialType.System_Double);
+
+        Assert.True(registry.TryGetIntrinsic(sin, out IntrinsicBinding? binding));
+        Assert.Equal(ShaderContractMapping.Helper, binding.Mapping);
+        Assert.Equal("delta_d_sin", binding.GlslName);
+
+        ShaderCompilationResult result = ComputeEntryPoints.ValidateAndBuild(
+            new ModuleCompilationContext(compilation, registry),
+            new RoslynFrontend(compilation),
+            ShaderCompilationOptions.Default);
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        Assert.Contains("delta_d_sin(Input.data[local_id])", result.Module!.Body, StringComparison.Ordinal);
+        Assert.Contains("delta_d_atan2(Input.data[local_id], Input.data[local_id])", result.Module.Body, StringComparison.Ordinal);
+        Assert.Contains(result.Module.HelperFunctions, helper => helper.Contains("double delta_d_sin(double x)", StringComparison.Ordinal));
+        Assert.Contains(result.Module.HelperFunctions, helper => helper.Contains("double delta_d_atan2(double y, double x)", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ContractBuiltinBinding_EmitsNativeCallWithoutHelperLowering()
+    {
+        const string source = """
+            using Delta;
+            using Delta.Shader;
+            using Delta.Graphics.Semantics;
+
+            public readonly struct ComputeContext
+            {
+                [Layout(0, 0)] public readonly ReadOnlyStorageBuffer<float> Input;
+                [Layout(0, 1)] public readonly ReadWriteStorageBuffer<float> Output;
+            }
+
+            public static class FloatBuiltinEntry
+            {
+                [ComputeShader(64)]
+                public static void Execute(in ComputeContext context)
+                {
+                    uint id = ShaderBuiltins.GlobalInvocationId.X;
+                    context.Output[id] = maths.sin(context.Input[id]);
+                }
+            }
+            """;
+
+        Compilation compilation = await LoadCompilationAsync(source).ConfigureAwait(true);
+        ShaderContractManifest contract = CreateMathsContract(
+            new ShaderContractFunction
+            {
+                TypeClrName = "maths",
+                ClrName = "sin",
+                ReturnClrName = "float",
+                ReturnGlslType = "float",
+                ParameterClrNames = ["float"],
+                ParameterGlslTypes = ["float"],
+                GlslName = "sin",
+                Mapping = ShaderContractMapping.Builtin,
+                RequiredCapability = "scalar",
+                Stages = ["compute"]
+            });
+        ShaderCompilationResult result = ComputeEntryPoints.ValidateAndBuild(
+            new ModuleCompilationContext(compilation, IntrinsicRegistry.Build(compilation, contract)),
+            new RoslynFrontend(compilation),
+            ShaderCompilationOptions.Default);
+
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        Assert.Contains("sin(Input.data[local_id])", result.Module!.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain(result.Module.HelperFunctions, helper => helper.Contains("delta_d_", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1144,6 +1270,13 @@ public sealed class BindingAndBuiltinTests
             CSharpSyntaxTree.ParseText(generatedSource, parseOptions));
         Assert.Empty(generatedCompilation.GetDiagnostics().Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
     }
+
+    private static ShaderContractManifest CreateMathsContract(params ShaderContractFunction[] functions)
+        => new()
+        {
+            Namespace = "Delta",
+            Functions = functions
+        };
 
     private static async Task<Compilation> LoadCompilationAsync(string source)
     {

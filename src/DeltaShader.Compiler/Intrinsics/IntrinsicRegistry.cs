@@ -23,7 +23,8 @@ public sealed record IntrinsicBinding(
     string? RequiredCapability = null,
     IReadOnlyList<string>? ShaderStages = null,
     IReadOnlyList<string?>? ParameterGlslTypes = null,
-    string? ReturnGlslType = null)
+    string? ReturnGlslType = null,
+    ShaderContractMapping Mapping = ShaderContractMapping.Builtin)
 {
     public bool SupportsStage(ShaderStage stage)
     {
@@ -125,7 +126,8 @@ public sealed class IntrinsicRegistry
                     RequiredCapability: functionContract.RequiredCapability,
                     ShaderStages: functionContract.Stages,
                     ParameterGlslTypes: functionContract.ParameterGlslTypes,
-                    ReturnGlslType: functionContract.ReturnGlslType);
+                    ReturnGlslType: functionContract.ReturnGlslType,
+                    Mapping: functionContract.Mapping);
             }
         }
 
@@ -369,7 +371,8 @@ public sealed class IntrinsicRegistry
                         RequiredCapability: matchingContract.RequiredCapability,
                         ShaderStages: matchingContract.Stages,
                         ParameterGlslTypes: matchingContract.ParameterGlslTypes,
-                        ReturnGlslType: matchingContract.ReturnGlslType);
+                        ReturnGlslType: matchingContract.ReturnGlslType,
+                        Mapping: matchingContract.Mapping);
                 }
 
                 continue;

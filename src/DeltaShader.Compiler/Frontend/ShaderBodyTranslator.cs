@@ -2260,6 +2260,7 @@ internal static class ShaderBodyTranslator
             var glslArguments = receiver is null
                 ? args.Select(argument => argument.ToFullString())
                 : new[] { receiver }.Concat(args.Select(argument => argument.ToFullString()));
+            string[] argumentTexts = glslArguments.ToArray();
             if (symbol is not null && _context.Intrinsics.TryGetIntrinsic(symbol, out var binding))
             {
                 if (!binding.SupportsStage(_stage))
@@ -2268,7 +2269,7 @@ internal static class ShaderBodyTranslator
                 }
                 if (binding.GlslName is "*" or "/" or "+" or "-" or "%")
                 {
-                    var operatorExpression = CreateOperatorExpression(binding, glslArguments);
+                    var operatorExpression = CreateOperatorExpression(binding, argumentTexts);
                     if (operatorExpression is null)
                     {
                         Reason ??= binding.GlslName == "%"
@@ -2285,26 +2286,17 @@ internal static class ShaderBodyTranslator
                     return SyntaxFactory.ParseExpression("discard");
                 }
 
-                if (IsUnsupportedDoublePrecisionIntrinsic(binding))
-                {
-                    var doubleIntrinsic = CreateDoubleIntrinsicCall(binding, glslArguments.ToArray());
-                    if (doubleIntrinsic is not null)
-                    {
-                        return SyntaxFactory.ParseExpression(doubleIntrinsic);
-                    }
-
-                    Reason ??= CapabilityDiagnosticPrefix
-                        + $"Vulkan GLSL does not provide double-precision '{binding.GlslName}'; use float or half precision.";
-                    return base.VisitInvocationExpression(node);
-                }
-
-                var componentWiseExpression = CreateComponentWiseIntrinsic(binding, glslArguments.ToArray());
+                var intrinsicArguments = binding.Mapping == ShaderContractMapping.Builtin
+                    ? GetIntrinsicArguments(binding, argumentTexts)
+                    : argumentTexts;
+                var componentWiseExpression = binding.Mapping == ShaderContractMapping.Builtin
+                    ? CreateComponentWiseIntrinsic(binding, intrinsicArguments)
+                    : null;
                 if (componentWiseExpression is not null)
                 {
                     return SyntaxFactory.ParseExpression(componentWiseExpression);
                 }
 
-                var intrinsicArguments = GetIntrinsicArguments(binding, glslArguments);
                 var glslName = string.Equals(binding.GlslName, "round", StringComparison.Ordinal)
                     ? "roundEven"
                     : binding.GlslName;
@@ -2504,38 +2496,6 @@ internal static class ShaderBodyTranslator
 
         private static int GetVectorComponentCount(string glslType)
             => glslType[glslType.Length - 1] - '0';
-
-        private static bool IsUnsupportedDoublePrecisionIntrinsic(IntrinsicBinding binding)
-        {
-            if (!string.Equals(binding.RequiredCapability, "float64", StringComparison.Ordinal)
-                || binding.GlslName is not ("acos" or "acosh" or "asin" or "asinh" or "atan"
-                    or "cos" or "cosh" or "degrees" or "exp" or "exp2" or "log" or "log2" or "atanh"
-                    or "pow" or "radians" or "sin" or "sinh" or "tan" or "tanh"))
-            {
-                return false;
-            }
-
-            return binding.ReturnGlslType is { } returnType && IsDoublePrecisionType(returnType)
-                || binding.ParameterGlslTypes?.Any(IsDoublePrecisionType) == true;
-        }
-
-        private static string? CreateDoubleIntrinsicCall(IntrinsicBinding binding, IReadOnlyList<string> arguments)
-        {
-            if (binding.GlslName is not { Length: > 0 } name || binding.ReturnGlslType is not { } returnType
-                || binding.ParameterGlslTypes is not { } parameterTypes || parameterTypes.Count != arguments.Count
-                || !IsDoublePrecisionType(returnType) && !parameterTypes.Any(IsDoublePrecisionType))
-            {
-                return null;
-            }
-
-            var helperName = string.Equals(name, "atan", StringComparison.Ordinal) && arguments.Count == 2
-                ? "atan2"
-                : name;
-            return "delta_d_" + helperName + "(" + string.Join(", ", arguments) + ")";
-        }
-
-        private static bool IsDoublePrecisionType(string? glslType)
-            => glslType is "double" or "dvec2" or "dvec3" or "dvec4";
 
         private static bool IsIntegerRemainder(IntrinsicBinding binding)
         {

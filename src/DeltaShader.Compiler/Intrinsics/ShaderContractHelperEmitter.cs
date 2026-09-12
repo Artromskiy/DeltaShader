@@ -84,7 +84,7 @@ internal static class ShaderContractHelperEmitter
             }
         }
 
-        if (source.Contains("delta_d_", StringComparison.Ordinal))
+        if (selectedSignatures.Any(signature => signature.StartsWith("delta_d_", StringComparison.Ordinal)))
         {
             emitted.Add(EmitDoubleMathHelpers());
         }
