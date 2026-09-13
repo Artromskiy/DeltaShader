@@ -50,6 +50,19 @@ public sealed class UiShaderVariantCatalogTests
         Assert.Equal("text/solid/distancefield/msdf/stroke+outerglow/analytic", key.StableName);
     }
 
+    [Fact]
+    public void TextVariantSupportsMtsdfInnerShadow()
+    {
+        Assert.True(UiShaderVariantCatalog.TryCreateText(
+            UiShaderTextRepresentation.Mtsdf,
+            UiShaderEffectCapabilities.InnerShadow,
+            UiShaderQuality.Analytic,
+            out var key,
+            out var diagnostic), diagnostic?.Message);
+
+        Assert.Equal("text/solid/distancefield/mtsdf/innershadow/analytic", key.StableName);
+    }
+
     [Theory]
     [InlineData(UiShaderPrimitive.Solid, "visual/solid/flatcolor/none/outershadow/shadowonly")]
     [InlineData(UiShaderPrimitive.Rounded, "visual/rounded/flatcolor/none/outershadow/shadowonly")]

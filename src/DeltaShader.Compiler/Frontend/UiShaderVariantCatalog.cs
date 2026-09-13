@@ -32,6 +32,7 @@ public enum UiShaderTextRepresentation : byte
     None,
     Sdf,
     Msdf,
+    Mtsdf,
 }
 
 /// <summary>Prepared effect capabilities used by the finite UI variant catalog.</summary>
@@ -201,7 +202,7 @@ public static class UiShaderVariantCatalog
             key.Primitive is not (UiShaderPrimitive.Solid or UiShaderPrimitive.Rounded) ||
             key.Material is not (UiShaderMaterial.FlatColor or UiShaderMaterial.DistanceField or
                 UiShaderMaterial.LinearGradient or UiShaderMaterial.Image) ||
-            key.TextRepresentation is not (UiShaderTextRepresentation.None or UiShaderTextRepresentation.Sdf or UiShaderTextRepresentation.Msdf) ||
+            key.TextRepresentation is not (UiShaderTextRepresentation.None or UiShaderTextRepresentation.Sdf or UiShaderTextRepresentation.Msdf or UiShaderTextRepresentation.Mtsdf) ||
             key.Quality is not (UiShaderQuality.Analytic or UiShaderQuality.CachedMask or UiShaderQuality.ShadowOnly))
         {
             return false;
@@ -276,7 +277,7 @@ public static class UiShaderVariantCatalog
 
         if (key.Material != UiShaderMaterial.DistanceField ||
             key.Primitive != UiShaderPrimitive.Solid ||
-            key.TextRepresentation is not (UiShaderTextRepresentation.Sdf or UiShaderTextRepresentation.Msdf))
+            key.TextRepresentation is not (UiShaderTextRepresentation.Sdf or UiShaderTextRepresentation.Msdf or UiShaderTextRepresentation.Mtsdf))
         {
             return false;
         }
